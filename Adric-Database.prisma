@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
 }
 
 // -----------------------------------------------------------------------------
@@ -20,6 +20,7 @@ model User {
   email     String @map("email") @db.VarChar(255)
   password  String @map("password") @db.VarChar(255)
   idNumber  Int    @map("id_number")
+  userType  UserType @map("user_type")
 
   // Relations
   userRoles           UserRole[]
@@ -30,7 +31,7 @@ model User {
   assetDisposals      AssetDisposal[]         @relation("DisposedBy")
   assetRepairs        AssetRepair[]           @relation("ReportedBy")
 
-  @@map("users") // Mapped to snake_case for MySQL best practices
+  @@map("users") 
 }
 
 model Role {
@@ -86,7 +87,7 @@ model Asset {
 
   assetRecords  AssetRecord[]
   assetTags     AssetTag[]
-  assetMonetary AssetMonetary? // 1-to-1 relation
+  assetMonetary AssetMonetary? 
   transfers     CustodianshipTransfer[]
   disposals     AssetDisposal[]
   repairs       AssetRepair[]
@@ -98,7 +99,7 @@ model AssetRecord {
   assetRecordId    Int         @id @default(autoincrement()) @map("asset_record_id")
   status           AssetStatus @map("status")
   location         String      @map("location") @db.VarChar(255)
-  date             DateTime    @map("Date") @db.DateTime(0)
+  date             DateTime    @map("Date") @db.Timestamp(0)
   
   // Foreign Keys
   currentCustodian Int  @map("current_custodian")
@@ -144,7 +145,7 @@ model CustodianshipTransfer {
   assetId             Int            @map("asset_id")
   previousCustodianId Int            @map("previous_custodian_id")
   newCustodianId      Int            @map("new_custodian")
-  transferDate        DateTime       @map("transfer_date") @db.DateTime(0)
+  transferDate        DateTime       @map("transfer_date") @db.Timestamp(0)
   approvalStatus      ApprovalStatus @map("approval_status")
 
   asset             Asset @relation(fields: [assetId], references: [assetId])
@@ -160,7 +161,7 @@ model AssetDisposal {
   disposalId     Int      @id @default(autoincrement()) @map("disposal_id")
   assetId        Int      @map("asset_id")
   disposedById   Int      @map("disposed_by_id")
-  disposalDate   DateTime @map("disposal_date") @db.DateTime(0)
+  disposalDate   DateTime @map("disposal_date") @db.Timestamp(0)
   disposalReason String   @map("disposal_reason") @db.Text
 
   asset      Asset @relation(fields: [assetId], references: [assetId])
@@ -176,8 +177,8 @@ model AssetRepair {
   assetId          Int          @map("asset_id")
   reportedById     Int          @map("reported_by_id")
   issueDescription String       @map("issue_description") @db.VarChar(255)
-  startDate        DateTime     @map("start_date") @db.DateTime(0)
-  completionDate   DateTime?    @map("completion_date") @db.DateTime(0)
+  startDate        DateTime     @map("start_date") @db.Timestamp(0)
+  completionDate   DateTime?    @map("completion_date") @db.Timestamp(0)
   repairStatus     RepairStatus @map("repair_status")
 
   asset      Asset @relation(fields: [assetId], references: [assetId])
@@ -189,16 +190,20 @@ model AssetRepair {
 }
 
 // -----------------------------------------------------------------------------
-// ENUMS (Replace these placeholders with your actual string values)
+// ENUMS 
 // -----------------------------------------------------------------------------
+
+enum UserType {
+  STUDENT
+  FACULTY
+}
 
 enum RoleName {
   ADMIN
-  FACULTY
-  STUDENT
-  RESEARCHER
+  ADRIC_DIRECTOR
+  ADRIC_SECRETARY
+  TSG_STAFF
   LAB_HEAD
-
 }
 
 enum CampusLocation {
@@ -227,7 +232,6 @@ enum AssetType {
   AUDIO
   VIDEO_CAMERA
   SPEAKER
-
 }
 
 enum AssetStatus {
