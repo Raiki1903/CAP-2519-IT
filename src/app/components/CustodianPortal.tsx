@@ -25,6 +25,13 @@ const myAssets = [
   { id:"EQ-2024-012", name:"Vuzix M400 Smart Glass", serial:"VX-M400-007", category:"Peripheral",          lab:"CAR",    borrowedOn:"Jun 05, 2026", dueDate:"Jul 05, 2026", daysLeft:24,  status:"Active"  },
 ];
 
+const statusBadgeClass: Record<string, string> = {
+  "Active":             "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "On Loan":            "bg-blue-50   text-blue-700   border-blue-200",
+  "Maintenance":        "bg-amber-50  text-amber-700  border-amber-200",
+  "Disposed":           "bg-red-50    text-red-700    border-red-200",
+};
+
 const statusPills = [
   { label:"Perfect",              severity:"healthy",  ring:"ring-emerald-400", bg:"bg-emerald-50",  text:"text-emerald-700"  },
   { label:"Operational",          severity:"healthy",  ring:"ring-blue-400",    bg:"bg-blue-50",     text:"text-blue-700"     },
@@ -166,12 +173,11 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     setScanLoading(true); setScanResult(null);
     setTimeout(() => {
       setScanLoading(false);
-      const scannedId = "EQ-2024-051";
-      const matched = assets.find(a => a.id === scannedId);
-      if (matched) {
-        setSelectedAsset(matched);
-      }
-      setScanResult(scannedId);
+      const active = assets.filter(a => a.status !== "Disposed");
+      const newestAsset = active.find(a => a.id.startsWith("EQ-2026-")) || active[0] || { id: "EQ-2024-051" };
+      const matched = assets.find(a => a.id === newestAsset.id) || newestAsset;
+      setSelectedAsset(matched as any);
+      setScanResult(newestAsset.id);
       setScanActive(false);
     }, 2000);
   };
@@ -257,7 +263,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
                       <span className="text-[10px] font-bold text-primary">{asset.id}</span>
-                      <Badge className={cn("text-[9px] px-1.5 py-0.5", asset.status==="Overdue"?"bg-red-50 text-red-700 border-red-200":"bg-emerald-50 text-emerald-700 border-emerald-200")}>{asset.status}</Badge>
+                      <Badge className={cn("text-[9px] px-1.5 py-0.5", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{asset.status}</Badge>
                     </div>
                     <p className="text-xs font-bold text-foreground mb-1 line-clamp-1">{asset.name}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{asset.serial} · {asset.lab}</p>
@@ -286,7 +292,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[11px] font-bold text-primary">{asset.id}</span>
-                        <Badge className={cn("text-[10px]", asset.status==="Overdue"?"bg-red-50 text-red-700 border-red-200":"bg-emerald-50 text-emerald-700 border-emerald-200")}>{asset.status}</Badge>
+                        <Badge className={cn("text-[10px]", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{asset.status}</Badge>
                       </div>
                       <p className="text-sm font-bold text-foreground mb-2">{asset.name}</p>
                       <div className="flex gap-4 text-xs text-muted-foreground">
@@ -316,6 +322,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   // ── Available Equipment ───────────────────────────────────────────────────
   if (activeTab === "available") {
     const availableAssets = assets.filter(a =>
+      a.status === "Active" &&
       (filterCategory === "All" || a.category === filterCategory) &&
       (filterLoc === "All" || a.location === filterLoc) &&
       (filterLab === "All" || a.lab === filterLab) &&
@@ -492,7 +499,13 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
             )}
             {scanActive && !scanLoading && !scanResult && (
               <>
-                <Button className="flex-1" onClick={simulateScan}><QrCode size={14} />Simulate Mock Scan (EQ-2024-051)</Button>
+                <Button className="flex-1" onClick={simulateScan}>
+                  <QrCode size={14} />
+                  Simulate Mock Scan ({
+                    assets.filter(a => a.status !== "Disposed").find(a => a.id.startsWith("EQ-2026-"))?.id || 
+                    assets.filter(a => a.status !== "Disposed")[0]?.id || "EQ-2024-051"
+                  })
+                </Button>
                 <Button variant="outline" className="w-full" onClick={() => setScanActive(false)}><X size={14} />Cancel</Button>
               </>
             )}

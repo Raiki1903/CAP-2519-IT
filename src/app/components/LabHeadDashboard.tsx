@@ -16,7 +16,8 @@ const MINT = "#10B981";
 const statusClass: Record<string, string> = {
   Active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
   "On Loan":"bg-blue-50   text-blue-700   border-blue-200",
-  Reserved: "bg-violet-50 text-violet-700 border-violet-200",
+  Maintenance: "bg-amber-50  text-amber-700  border-amber-200",
+  Disposed: "bg-red-50    text-red-700    border-red-200",
 };
 
 const txnBadgeClass: Record<string, string> = {
@@ -106,10 +107,11 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const approve = (id: string) => updateTransferRequest(id, "Approved");
   const decline = (id: string) => updateTransferRequest(id, "Declined");
 
-  const branchInventory = assets.filter(a => a.lab === "CITe4D");
+  const branchInventory = assets.filter(a => a.lab === "CITe4D" && a.status !== "Disposed");
+  const decommissionedAssets = assets.filter(a => a.lab === "CITe4D" && a.status === "Disposed");
   const branchTransfers = transfers.filter(t => t.lab === "CITe4D");
 
-  const branchAssetIds = new Set(branchInventory.map(a => a.id));
+  const branchAssetIds = new Set(assets.filter(a => a.lab === "CITe4D").map(a => a.id));
   const branchRepairs = repairRequests.filter(r => branchAssetIds.has(r.assetId));
 
   // ── Custody ───────────────────────────────────────────────────────────────
@@ -206,7 +208,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
       {viewMode === "gallery" && (
         <div className="grid gap-4" style={{ gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))" }}>
           {filtered.map(eq => (
-            <Card key={eq.id} className="overflow-hidden p-0 gap-0 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedAsset({ id:eq.id, name:eq.name, category:eq.category, status:eq.status, custodian:eq.custodian, location:eq.location, condition:eq.condition, funding:eq.funding })}>
+            <Card key={eq.id} className={cn("overflow-hidden p-0 gap-0 transition-all cursor-pointer", eq.status === "Disposed" ? "opacity-60 grayscale bg-muted/20 border-dashed border-muted-foreground/30 shadow-none hover:opacity-75" : "hover:shadow-md")} onClick={() => setSelectedAsset({ id:eq.id, name:eq.name, category:eq.category, status:eq.status, custodian:eq.custodian, location:eq.location, condition:eq.condition, funding:eq.funding })}>
               <div className="relative">
                 <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" />
                 <Badge className={cn("absolute top-2 right-2 text-[9px]", statusClass[eq.status]??statusClass["Active"])}>{eq.status}</Badge>
@@ -238,7 +240,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
             </TableHeader>
             <TableBody>
               {filtered.map(eq => (
-                <TableRow key={eq.id} className="cursor-pointer" onClick={() => setSelectedAsset({ id:eq.id, name:eq.name, category:eq.category, status:eq.status, custodian:eq.custodian, location:eq.location, condition:eq.condition, funding:eq.funding })}>
+                <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "Disposed" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset({ id:eq.id, name:eq.name, category:eq.category, status:eq.status, custodian:eq.custodian, location:eq.location, condition:eq.condition, funding:eq.funding })}>
                   <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" /></div></TableCell>
                   <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                   <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
@@ -384,6 +386,42 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                           <TableCell>{r.submittedAt}</TableCell>
                           <TableCell className="font-bold">{r.priority}</TableCell>
                           <TableCell className="font-medium">{r.acknowledged ? "Resolved & Acknowledged" : "Pending Evaluation"}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* Section 4: Decommissioned & Disposed Assets Archive */}
+            <div>
+              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">IV. Decommissioned &amp; Disposed Assets Archive</h3>
+              <div className="overflow-x-auto">
+                <Table className="min-w-full text-[11px]">
+                  <TableHeader>
+                    <TableRow className="bg-emerald-50/30">
+                      {["Asset ID", "Disposal ID", "Asset Name", "Decommission Date", "Last Custodian", "Primary Breakdown Reason", "Disposal Pathway", "Decommissioned By"].map(h => (
+                        <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {decommissionedAssets.length === 0 ? (
+                      <TableRow><TableCell colSpan={8} className="text-center text-gray-400 py-4 font-sans">No decommissioned or disposed assets recorded for CITe4D branch.</TableCell></TableRow>
+                    ) : (
+                      decommissionedAssets.map(a => (
+                        <TableRow key={a.id}>
+                          <TableCell className="font-bold text-red-800">{a.id}</TableCell>
+                          <TableCell className="font-bold text-emerald-800">{a.disposalId || a.id.replace("EQ", "DISP")}</TableCell>
+                          <TableCell className="font-semibold">{a.name}</TableCell>
+                          <TableCell>{a.disposalDetails?.decommissionDate || "—"}</TableCell>
+                          <TableCell>{a.disposalDetails?.lastCustodian || "—"}</TableCell>
+                          <TableCell className="italic max-w-[200px] truncate" title={a.disposalDetails?.breakdownReasons}>
+                            "{a.disposalDetails?.breakdownReasons || "—"}"
+                          </TableCell>
+                          <TableCell>{a.disposalDetails?.disposalPathway || "—"}</TableCell>
+                          <TableCell className="font-semibold text-emerald-950">{a.disposalDetails?.decommissionedBy || "—"}</TableCell>
                         </TableRow>
                       ))
                     )}

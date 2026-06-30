@@ -16,11 +16,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
 import { cn } from "./ui/utils";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Plus, Search, Download, CheckCircle, Clock, Package, DollarSign,
   ChevronRight, LayoutGrid, Table2, MapPin, Calendar, Tag, Wrench,
   BarChart3, Bell, AlertTriangle, Shield, QrCode, Printer, Zap, Eye,
-  Image as ImageIcon, XCircle, Trash2, Pencil
+  Image as ImageIcon, XCircle, Trash2, Pencil, Archive
 } from "lucide-react";
 
 const MINT = "#10B981";
@@ -30,11 +31,7 @@ const statusBadgeClass: Record<string, string> = {
   "Active":             "bg-emerald-50 text-emerald-700 border-emerald-200",
   "On Loan":            "bg-blue-50   text-blue-700   border-blue-200",
   "Maintenance":        "bg-amber-50  text-amber-700  border-amber-200",
-  "Reserved":           "bg-violet-50 text-violet-700 border-violet-200",
-  "Partially Deployed": "bg-orange-50 text-orange-700 border-orange-200",
-  "Available":          "bg-emerald-50 text-emerald-700 border-emerald-200",
-  "Pending Return":     "bg-amber-50  text-amber-700  border-amber-200",
-  "Overdue":            "bg-red-50    text-red-700    border-red-200",
+  "Disposed":           "bg-red-50    text-red-700    border-red-200",
 };
 
 // TSG Specific Constants
@@ -65,14 +62,23 @@ const maintenanceQueues: Record<string, { id:string; asset:string; serial:string
   ],
 };
 
-const qrAssets = [
-  { id:"EQ-2024-001", name:"Dell PowerEdge R740",  lab:"CITe4D", location:"Manila", serial:"SN-DPE-740-001" },
-  { id:"EQ-2024-002", name:"NVIDIA DGX A100",      lab:"CAR",    location:"Laguna", serial:"SN-DGX-A100-02" },
-  { id:"EQ-2024-003", name:"UR10e Cobot",           lab:"CeHCI",  location:"Manila", serial:"SN-UR10e-0034"  },
-  { id:"EQ-2024-005", name:"Leica BLK360",          lab:"CITe4D", location:"Manila", serial:"SN-LBK-360-09"  },
-  { id:"EQ-2024-006", name:"Surface Pro 9 Bundle",  lab:"GAME",   location:"Manila", serial:"SN-SP9-BNDL-03" },
-  { id:"EQ-2024-007", name:"RPi 4 Cluster ×32",     lab:"CeLT",   location:"Laguna", serial:"SN-RPI4-CLU-07" },
-];
+// Deterministic unique QR grid generator
+const generateUniqueQRGrid = (id: string) => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i);
+    hash |= 0;
+  }
+  const grid: boolean[][] = [];
+  for (let r = 0; r < 8; r++) {
+    grid[r] = [];
+    for (let c = 0; c < 8; c++) {
+      const val = Math.abs(Math.sin(hash + r * 8 + c)) * 1000;
+      grid[r][c] = (Math.floor(val) % 2) === 0;
+    }
+  }
+  return grid;
+};
 
 const healthData = [
   { id:"EQ-2024-001", asset:"Dell PowerEdge R740", battery:null, storage_health:94,   thermal:42,   sensor_drift:null, uptime:99.8, notes:"SSD sector accumulation within tolerance"            },
@@ -122,9 +128,10 @@ function MetricBar({ value, color }: { value: number; color: string }) {
   return <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-1 w-12"><div className={cn("h-full rounded-full", color)} style={{ width: `${Math.min(100,value)}%` }} /></div>;
 }
 
-function AssetGalleryCard({ eq, onSelect, onDelete, onEdit }: { eq: any; onSelect: () => void; onDelete?: () => void; onEdit?: () => void }) {
+function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommission }: { eq: any; onSelect: () => void; onDelete?: () => void; onEdit?: () => void; onDecommission?: () => void }) {
+  const isDisposed = eq.status === "Disposed";
   return (
-    <Card onClick={onSelect} className="overflow-hidden p-0 gap-0 hover:shadow-md transition-shadow cursor-pointer relative">
+    <Card onClick={onSelect} className={cn("overflow-hidden p-0 gap-0 transition-all relative cursor-pointer", isDisposed ? "opacity-60 grayscale bg-muted/20 border-dashed border-muted-foreground/30 shadow-none hover:opacity-75" : "hover:shadow-md")}>
       <div className="relative">
         <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" />
         <Badge className={cn("absolute top-2.5 right-2.5 text-[9px] border font-bold uppercase tracking-wider", statusBadgeClass[eq.status])}>{eq.status}</Badge>
@@ -138,6 +145,17 @@ function AssetGalleryCard({ eq, onSelect, onDelete, onEdit }: { eq: any; onSelec
               title="Edit Asset"
             >
               <Pencil size={11} />
+            </Button>
+          )}
+          {onDecommission && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-6 w-6 rounded-md bg-white hover:bg-amber-50 text-amber-600 border-amber-200 opacity-90 shadow-sm"
+              onClick={(e) => { e.stopPropagation(); onDecommission(); }}
+              title="Decommission Asset"
+            >
+              <Archive size={11} />
             </Button>
           )}
           {onDelete && (
@@ -226,9 +244,9 @@ function RepairAlertCard({ req, onAcknowledge }: { req: RepairRequest; onAcknowl
 
 export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const {
-    assets, addAsset, removeAsset, updateAsset,
+    assets, addAsset, removeAsset, updateAsset, disposeAsset,
     cycleMode, setCycleMode,
-    repairRequests, acknowledgeRepair,
+    repairRequests, acknowledgeRepair, updateRepairStatus,
     returns, role
   } = useApp();
   const navigate = useNavigate();
@@ -244,18 +262,41 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const [viewMode, setViewMode] = useState<"table"|"gallery">("gallery");
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
 
-  // Edit & Delete confirmation states
+  // Edit, Delete confirmation & Disposal states
   const [editingAsset, setEditingAsset] = useState<any | null>(null);
   const [assetToDelete, setAssetToDelete] = useState<string | null>(null);
+  const [disposalAsset, setDisposalAsset] = useState<any | null>(null);
+  const [updatingTicket, setUpdatingTicket] = useState<any | null>(null);
+  const [inventorySubTab, setInventorySubTab] = useState<"active" | "disposed">("active");
 
   // TSG specific states
   const [activeGroup, setActiveGroup] = useState("A");
   const [selectedQR, setSelectedQR] = useState<string[]>([]);
   const [healthEdits, setHealthEdits] = useState<Record<string, Record<string, string>>>({});
   const [selectedReturnAsset, setSelectedReturnAsset] = useState<any | null>(null);
+  const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
 
   const unacknowledged = repairRequests.filter(r => !r.acknowledged);
   const pendingReturns = returns.filter(r => r.status === "Pending");
+
+  const priorityWeight: Record<string, number> = {
+    "Critical": 3,
+    "High": 2,
+    "Medium": 1
+  };
+
+  const sortedRepairs = [...repairRequests].sort((a, b) => {
+    if (a.acknowledged !== b.acknowledged) {
+      return a.acknowledged ? 1 : -1;
+    }
+    const pA = priorityWeight[a.priority] || 0;
+    const pB = priorityWeight[b.priority] || 0;
+    if (pA !== pB) return pB - pA;
+    return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+  });
+
+  const activeRepairs = sortedRepairs.filter(r => r.statusLabel !== "Fixed & Completed");
+  const completedRepairs = sortedRepairs.filter(r => r.statusLabel === "Fixed & Completed");
 
   const openAsset = (eq: any): AssetDetail => ({
     id: eq.id, name: eq.name, serial: eq.serial, manufacturer: eq.manufacturer,
@@ -268,8 +309,16 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     const matchSearch = eq.name.toLowerCase().includes(search.toLowerCase()) || eq.serial.toLowerCase().includes(search.toLowerCase());
     const matchFunding = filterFunding === "All" || eq.funding === filterFunding;
     const matchLoc = filterLoc === "All" || eq.location === filterLoc;
-    return matchSearch && matchFunding && matchLoc;
+    
+    // Decommissioned subtab filtering
+    const matchSubTab = inventorySubTab === "disposed" 
+      ? eq.status === "Disposed" 
+      : eq.status !== "Disposed";
+      
+    return matchSearch && matchFunding && matchLoc && matchSubTab;
   });
+
+  const qrAssets = assets.filter(a => a.status !== "Disposed");
 
   const handleSubmit = () => {
     setSubmitted(true);
@@ -523,7 +572,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-foreground mb-1">Asset Inventory</h1>
-            <p className="text-muted-foreground text-sm">Complete hardware registry · {assets.length} assets across 2 campuses</p>
+            <p className="text-muted-foreground text-sm">Complete hardware registry · {assets.filter(a => a.status !== "Disposed").length} active assets across 2 campuses</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex rounded-lg overflow-hidden border border-border">
@@ -531,6 +580,22 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
               <Button variant={viewMode==="table"?"default":"ghost"} size="sm" onClick={()=>setViewMode("table")} className="rounded-none text-xs gap-1.5"><Table2 size={13} />Table</Button>
             </div>
           </div>
+        </div>
+
+        {/* Sub-tab selection bar */}
+        <div className="flex border-b border-border mb-5 gap-4">
+          <button
+            onClick={() => setInventorySubTab("active")}
+            className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "active" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
+          >
+            Active Registry ({assets.filter(a => a.status !== "Disposed").length})
+          </button>
+          <button
+            onClick={() => setInventorySubTab("disposed")}
+            className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "disposed" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
+          >
+            Decommissioned Archive ({assets.filter(a => a.status === "Disposed").length})
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
@@ -556,7 +621,14 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
         ) : viewMode === "gallery" ? (
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             {filtered.map(eq => (
-              <AssetGalleryCard key={eq.id} eq={eq} onSelect={() => setSelectedAsset(openAsset(eq))} onDelete={() => setAssetToDelete(eq.id)} onEdit={() => setEditingAsset(eq)} />
+              <AssetGalleryCard
+                key={eq.id}
+                eq={eq}
+                onSelect={() => setSelectedAsset(openAsset(eq))}
+                onDelete={inventorySubTab === "active" ? () => setAssetToDelete(eq.id) : undefined}
+                onEdit={inventorySubTab === "active" ? () => setEditingAsset(eq) : undefined}
+                onDecommission={inventorySubTab === "active" ? () => setDisposalAsset(eq) : undefined}
+              />
             ))}
           </div>
         ) : (
@@ -569,7 +641,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
               </TableHeader>
               <TableBody>
                 {filtered.map(eq => (
-                  <TableRow key={eq.id} className="cursor-pointer" onClick={() => setSelectedAsset(openAsset(eq))}>
+                  <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "Disposed" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset(openAsset(eq))}>
                     <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" /></div></TableCell>
                     <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                     <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
@@ -580,26 +652,39 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                     <TableCell><p className={cn("text-xs font-bold", eq.condition>=90?"text-emerald-700":"text-amber-700")}>{eq.condition}%</p><ConditionBar value={eq.condition} /></TableCell>
                     <TableCell><Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">{eq.funding}</Badge></TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                          onClick={() => setEditingAsset(eq)}
-                          title="Edit Asset"
-                        >
-                          <Pencil size={13} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => setAssetToDelete(eq.id)}
-                          title="Remove Asset"
-                        >
-                          <Trash2 size={13} />
-                        </Button>
-                      </div>
+                      {inventorySubTab === "active" ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => setEditingAsset(eq)}
+                            title="Edit Asset"
+                          >
+                            <Pencil size={13} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-amber-600 hover:text-amber-800 hover:bg-amber-50"
+                            onClick={() => setDisposalAsset(eq)}
+                            title="Decommission Asset"
+                          >
+                            <Archive size={13} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => setAssetToDelete(eq.id)}
+                            title="Remove Asset"
+                          >
+                            <Trash2 size={13} />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] uppercase font-bold text-red-500 tracking-wider">Decommissioned</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -617,6 +702,17 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
             asset={editingAsset}
             onClose={() => setEditingAsset(null)}
             onSave={updateAsset}
+          />
+        )}
+
+        {/* Disposal Form Dialog */}
+        {disposalAsset && (
+          <DisposalFormDialog
+            key={disposalAsset.id}
+            asset={disposalAsset}
+            onClose={() => setDisposalAsset(null)}
+            onDispose={disposeAsset}
+            role={role}
           />
         )}
 
@@ -640,6 +736,15 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Repair Progress Dialog */}
+        {updatingTicket && (
+          <RepairProgressDialog
+            ticket={updatingTicket}
+            onClose={() => setUpdatingTicket(null)}
+            onSave={updateRepairStatus}
+          />
+        )}
       </div>
     );
   }
@@ -653,17 +758,219 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
           <p className="text-muted-foreground text-sm">Scheduled inspection management across all laboratory groups.</p>
         </div>
 
-        {/* Repair requests */}
-        {repairRequests.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-center gap-3 mb-3">
-              <Zap size={16} className="text-red-500" />
-              <h3 className="text-foreground font-semibold">On-Demand Repair Requests</h3>
-              {unacknowledged.length > 0 && <Badge className="bg-red-500 text-white border-red-500 text-[10px]">{unacknowledged.length} UNACKNOWLEDGED</Badge>}
-            </div>
-            <div className="flex flex-col gap-3">
-              {repairRequests.map(req => <RepairAlertCard key={req.id} req={req} onAcknowledge={acknowledgeRepair} />)}
-            </div>
+        {/* Repair Requests Priority Table */}
+        {(activeRepairs.length > 0 || completedRepairs.length > 0) && (
+          <div className="mb-8">
+            {activeRepairs.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Wrench size={18} className="text-red-500 animate-pulse" />
+                    <h3 className="text-foreground font-bold text-sm tracking-wide uppercase">Maintenance Request &amp; Priority Matrix</h3>
+                    {unacknowledged.length > 0 && (
+                      <Badge className="bg-red-500 hover:bg-red-600 text-white font-extrabold text-[9px] px-2 py-0.5 tracking-wider">
+                        {unacknowledged.length} ATTENTION REQUIRED
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground font-semibold">
+                    Sorted by: <span className="text-emerald-700">Urgency Severity ➔ Date</span>
+                  </div>
+                </div>
+
+                <Card className="overflow-hidden p-0 border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/30">
+                        {["Priority", "Ticket ID", "Asset", "Custodian", "Submitted At", "Dispatched To", "Acknowledge State", "Actions"].map(h => (
+                          <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activeRepairs.map(req => {
+                        const isCritical = req.priority === "Critical";
+                        const isHigh = req.priority === "High";
+
+                        const priorityBadgeClass = isCritical
+                          ? "bg-red-100 text-red-700 border-red-200 hover:bg-red-100"
+                          : isHigh
+                          ? "bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100"
+                          : "bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100";
+
+                        return (
+                          <TableRow
+                            key={req.id}
+                            className={cn(
+                              "transition-colors hover:bg-muted/10",
+                              !req.acknowledged ? (isCritical ? "bg-red-50/20 hover:bg-red-50/30" : "bg-orange-50/15 hover:bg-orange-50/25") : ""
+                            )}
+                          >
+                            <TableCell>
+                              <Badge variant="outline" className={cn("text-[9px] font-extrabold tracking-wider uppercase px-2", priorityBadgeClass)}>
+                                {req.priority}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-bold text-xs font-mono">{req.id}</TableCell>
+                            <TableCell>
+                               <div>
+                                 <p className="text-xs font-bold text-foreground">{req.assetName}</p>
+                                 <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                   <span className="text-[10px] text-muted-foreground font-mono">{req.assetId}</span>
+                                   <span className="text-muted-foreground text-[10px]">·</span>
+                                   <Badge variant="outline" className={cn("text-[9px] font-bold px-1.5 py-0", 
+                                     req.statusLabel === "Fixed & Completed" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                     req.statusLabel === "Warranty Holder Possession" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                                     req.statusLabel === "Third-Party Repairer Possession" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                                     "bg-amber-50 text-amber-700 border-amber-200"
+                                   )}>
+                                     {req.statusLabel || "Under Maintenance"}
+                                   </Badge>
+                                 </div>
+                               </div>
+                             </TableCell>
+                            <TableCell className="text-xs text-muted-foreground font-medium">{req.custodian}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{req.submittedAt}</TableCell>
+                            <TableCell>
+                              {req.forwardedTo ? (
+                                <Badge variant="outline" className={cn("text-[9px] font-bold px-1.5 py-0", req.forwardedTo === "ITS" ? "bg-blue-50 text-blue-700 border-blue-200" : req.forwardedTo === "TSG" ? "bg-indigo-50 text-indigo-700 border-indigo-200" : "bg-purple-50 text-purple-700 border-purple-200")}>
+                                  {req.forwardedTo}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {req.acknowledged ? (
+                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] font-bold">
+                                  Active In Queue
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-red-500 text-white border-red-500 text-[9px] font-extrabold animate-pulse">
+                                  Pending Action
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center gap-1.5">
+                                {!req.acknowledged && (
+                                  <Button
+                                    size="sm"
+                                    className="h-7 text-[10px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white px-2"
+                                    onClick={() => acknowledgeRepair(req.id)}
+                                  >
+                                    <CheckCircle size={10} className="mr-1" /> Acknowledge
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-[10px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white px-2"
+                                  onClick={() => setUpdatingTicket(req)}
+                                >
+                                  <Wrench size={10} className="mr-1" /> {req.statusLabel === "Fixed & Completed" ? "View Details" : "Manage Request"}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </>
+            ) : (
+              <div className="p-6 text-center text-xs text-muted-foreground bg-muted/20 border border-dashed border-border rounded-xl mb-6">
+                All equipment repairs are completed. There are no active tickets in the priority matrix queue.
+              </div>
+            )}
+
+            {/* Completed Repairs History Section */}
+            {completedRepairs.length > 0 && (
+              <div className="mt-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <CheckCircle size={18} className="text-emerald-600" />
+                  <h3 className="text-foreground font-bold text-sm tracking-wide uppercase">Completed Repairs History</h3>
+                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 font-extrabold text-[9px] px-2 py-0.5 tracking-wider border-emerald-200">
+                    {completedRepairs.length} TICKETS ARCHIVED
+                  </Badge>
+                </div>
+
+                <Card className="overflow-hidden p-0 border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/30">
+                        {["Priority", "Ticket ID", "Asset", "Custodian", "Submitted At", "Dispatched To", "Acknowledge State", "Actions"].map(h => (
+                          <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {completedRepairs.map(req => {
+                        const isCritical = req.priority === "Critical";
+                        const isHigh = req.priority === "High";
+
+                        const priorityBadgeClass = isCritical
+                          ? "bg-red-100 text-red-700 border-red-200 hover:bg-red-100"
+                          : isHigh
+                          ? "bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100"
+                          : "bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100";
+
+                        return (
+                          <TableRow
+                            key={req.id}
+                            className="transition-colors hover:bg-muted/10 opacity-75"
+                          >
+                            <TableCell>
+                              <Badge variant="outline" className={cn("text-[9px] font-extrabold tracking-wider uppercase px-2", priorityBadgeClass)}>
+                                {req.priority}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-bold text-xs font-mono">{req.id}</TableCell>
+                            <TableCell>
+                               <div>
+                                 <p className="text-xs font-bold text-foreground">{req.assetName}</p>
+                                 <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                   <span className="text-[10px] text-muted-foreground font-mono">{req.assetId}</span>
+                                   <span className="text-muted-foreground text-[10px]">·</span>
+                                   <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] font-bold px-1.5 py-0">
+                                     Fixed &amp; Completed
+                                   </Badge>
+                                 </div>
+                               </div>
+                             </TableCell>
+                            <TableCell className="text-xs text-muted-foreground font-medium">{req.custodian}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{req.submittedAt}</TableCell>
+                            <TableCell>
+                              {req.forwardedTo ? (
+                                <Badge variant="outline" className={cn("text-[9px] font-bold px-1.5 py-0", req.forwardedTo === "ITS" ? "bg-blue-50 text-blue-700 border-blue-200" : req.forwardedTo === "TSG" ? "bg-indigo-50 text-indigo-700 border-indigo-200" : "bg-purple-50 text-purple-700 border-purple-200")}>
+                                  {req.forwardedTo}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] font-bold">
+                                Fixed &amp; Re-assigned
+                              </Badge>
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="sm"
+                                className="h-7 text-[10px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white px-2"
+                                onClick={() => setUpdatingTicket(req)}
+                              >
+                                <Wrench size={10} className="mr-1" /> View Details
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </div>
+            )}
             <Separator className="my-5" />
           </div>
         )}
@@ -732,6 +1039,14 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
           ))}
         </Tabs>
         <style>{`@keyframes pulseAlert { 0%,100% { box-shadow:0 0 0 0 rgba(239,68,68,0); } 50% { box-shadow:0 0 0 4px rgba(239,68,68,0.15); } }`}</style>
+        {/* Repair Progress Dialog */}
+        {updatingTicket && (
+          <RepairProgressDialog
+            ticket={updatingTicket}
+            onClose={() => setUpdatingTicket(null)}
+            onSave={updateRepairStatus}
+          />
+        )}
       </div>
     );
   }
@@ -860,14 +1175,21 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                         return (
                           <div key={id} className="border-2 border-foreground rounded-lg p-2.5">
                             <div className="flex gap-2">
-                              <div className="w-14 h-14 bg-foreground rounded flex items-center justify-center flex-shrink-0">
-                                <svg width="40" height="40" viewBox="0 0 40 40">
-                                  <rect x="2" y="2" width="14" height="14" rx="2" fill="white"/><rect x="24" y="2" width="14" height="14" rx="2" fill="white"/><rect x="2" y="24" width="14" height="14" rx="2" fill="white"/>
-                                  <rect x="5" y="5" width="8" height="8" rx="1" fill="#111"/><rect x="27" y="5" width="8" height="8" rx="1" fill="#111"/><rect x="5" y="27" width="8" height="8" rx="1" fill="#111"/>
-                                  <rect x="22" y="22" width="16" height="16" rx="2" fill="white"/><rect x="25" y="25" width="4" height="4" fill="#111"/><rect x="31" y="25" width="4" height="4" fill="#111"/><rect x="25" y="31" width="10" height="4" fill="#111"/>
-                                </svg>
+                              <div className="w-14 h-14 bg-white rounded flex items-center justify-center flex-shrink-0 p-1 border border-border">
+                                <QRCodeSVG
+                                  value={`https://adric.dlsu.edu.ph/assets/${a.id}`}
+                                  size={48}
+                                  bgColor={"#ffffff"}
+                                  fgColor={"#111111"}
+                                  level={"M"}
+                                />
                               </div>
-                              <div><p className="text-[9px] font-extrabold text-foreground leading-snug">{a.name}</p><p className="text-[8px] text-muted-foreground">{a.id}</p><p className="text-[8px] text-muted-foreground">{a.lab} · {a.location}</p></div>
+                              <div>
+                                <p className="text-[9px] font-extrabold text-foreground leading-snug">{a.name}</p>
+                                <p className="text-[8px] text-muted-foreground">{a.id}</p>
+                                <p className="text-[8px] text-muted-foreground">{a.lab} · {a.location}</p>
+                                <p className="text-[7px] text-primary/70 font-mono mt-0.5 select-all">adric.dlsu.edu.ph/assets/{a.id}</p>
+                              </div>
                             </div>
                             <p className="text-center text-[7px] text-muted-foreground tracking-wide mt-2 pt-1.5 border-t border-border">DLSU AdRIC EQUIPMENT MANAGEMENT SYSTEM</p>
                           </div>
@@ -954,7 +1276,7 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
     lab: asset?.lab || "CITe4D",
     condition: asset?.condition || 100,
     custodian: asset?.custodian || "",
-    status: asset?.status || "Available"
+    status: asset?.status || "Active"
   });
 
   const handleSave = () => {
@@ -1032,7 +1354,7 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
             <Label className="text-xs font-bold text-foreground">Asset Status</Label>
             <select value={form.status} onChange={e=>setForm({...form, status:e.target.value})}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {["Available", "On Loan", "Maintenance", "Reserved", "Partially Deployed", "Overdue"].map(s => (
+              {["Active", "On Loan", "Maintenance"].map(s => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
@@ -1049,6 +1371,159 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
         <DialogFooter className="gap-2 mt-4">
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={handleSave} className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold">Save Modifications</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DisposalFormDialog({ asset, onClose, onDispose, role }: { asset: any; onClose: () => void; onDispose: (assetId: string, details: any, role: string) => void; role: string }) {
+  const [form, setForm] = useState({
+    lastCustodian: asset?.custodian || "",
+    breakdownReasons: "",
+    disposalPathway: "Decommission — Scrap / Recycle",
+    decommissionDate: new Date().toISOString().split("T")[0]
+  });
+  const [successId, setSuccessId] = useState<string | null>(null);
+
+  const handleSave = () => {
+    const dispId = asset.id.replace("EQ", "DISP");
+    onDispose(asset.id, {
+      lastCustodian: form.lastCustodian || "Unassigned",
+      breakdownReasons: form.breakdownReasons.trim() || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
+      disposalPathway: form.disposalPathway,
+      decommissionDate: form.decommissionDate
+    }, role);
+    setSuccessId(dispId);
+  };
+
+  return (
+    <Dialog open={!!asset} onOpenChange={open => { if(!open && !successId) onClose(); }}>
+      <DialogContent className="max-w-md">
+        {successId ? (
+          <div className="flex flex-col items-center text-center py-6 space-y-4">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-600">
+              <Archive size={30} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Asset Successfully Decommissioned</h3>
+              <p className="text-xs text-muted-foreground mt-1">Registry updated. Asset is now listed in the Decommissioned Archive.</p>
+            </div>
+            <div className="w-full bg-muted/40 rounded-xl p-3 border text-left text-xs font-mono space-y-1">
+              <p><strong className="text-foreground">Asset ID:</strong> {asset.id}</p>
+              <p><strong className="text-foreground">Disposal ID:</strong> {successId}</p>
+              <p><strong className="text-foreground">Decommission Date:</strong> {form.decommissionDate}</p>
+              <p><strong className="text-foreground">Disposal Pathway:</strong> {form.disposalPathway}</p>
+            </div>
+            <Button onClick={onClose} className="w-full bg-red-700 hover:bg-red-800 text-white font-bold text-xs h-9">Close Dialog</Button>
+          </div>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-sm font-bold text-foreground">Decommission &amp; Dispose Asset</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">Log physical breakdown reasons and specify the disposal pathway. This record is permanent for audit validation.</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-3 py-3">
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-bold text-foreground">Asset ID / Name</Label>
+                <Input value={`${asset.id} - ${asset.name}`} disabled className="bg-muted text-xs font-semibold" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-bold text-foreground">Last Custodian Assignment</Label>
+                <Input value={form.lastCustodian} onChange={e=>setForm({...form, lastCustodian:e.target.value})} placeholder="e.g. Dr. Juan Dela Cruz" className="text-xs" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-bold text-foreground">Main Issues / Breakdown Justification</Label>
+                <textarea value={form.breakdownReasons} onChange={e=>setForm({...form, breakdownReasons:e.target.value})} rows={3} placeholder="Describe diagnostic metrics, breakdown causes, physical damages, or reasons repair is not financially viable..." className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-bold text-foreground">Disposal Pathway</Label>
+                <select value={form.disposalPathway} onChange={e=>setForm({...form, disposalPathway:e.target.value})}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {["Decommission — Scrap / Recycle", "Decommission — Donate to Partner Institution", "Decommission — Warranty Return to Vendor", "Decommission — Institutional Auction", "Decommission — Secure Landfill"].map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-bold text-foreground">Final Decommission Date</Label>
+                <Input type="date" value={form.decommissionDate} onChange={e=>setForm({...form, decommissionDate:e.target.value})} className="text-xs h-9" />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+              <Button onClick={handleSave} className="bg-red-700 hover:bg-red-800 text-white font-bold text-xs h-9">Commit Decommission</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RepairProgressDialog({ ticket, onClose, onSave }: { ticket: any; onClose: () => void; onSave: (id: string, status: string) => void }) {
+  const [status, setStatus] = useState(ticket?.statusLabel || "Inspection Phase");
+  const isCompleted = ticket?.statusLabel === "Fixed & Completed";
+  
+  const handleSave = () => {
+    onSave(ticket.id, status);
+    onClose();
+  };
+
+  return (
+    <Dialog open={!!ticket} onOpenChange={open => { if(!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-bold text-foreground">Manage Maintenance Ticket</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">Review diagnostics details and update repair progress status.</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 py-3">
+          {/* Ticket metadata */}
+          <div className="bg-muted/40 rounded-xl p-3 border text-xs space-y-1.5">
+            <p><strong className="text-foreground">Ticket Ref:</strong> {ticket.id}</p>
+            <p><strong className="text-foreground">Asset:</strong> {ticket.assetName} ({ticket.assetId})</p>
+            <p><strong className="text-foreground">Submitted By:</strong> {ticket.custodian} on {ticket.submittedAt}</p>
+            <p><strong className="text-foreground">Dispatched To:</strong> {ticket.forwardedTo || "ITS/TSG"}</p>
+            <p><strong className="text-foreground">Urgency Priority:</strong> <span className={cn("font-bold", ticket.priority === "Critical" ? "text-red-700" : "text-amber-700")}>{ticket.priority}</span></p>
+          </div>
+
+          {/* Diagnostic Description */}
+          <div className="space-y-1">
+            <Label className="text-xs font-bold text-foreground">Incident Diagnostic Description</Label>
+            <p className="text-xs text-foreground bg-muted/20 p-3 rounded-lg border border-dashed border-border leading-relaxed italic font-serif">
+              "{ticket.description || "No specific details logged by the custodian."}"
+            </p>
+          </div>
+
+          {/* Custodian Uploaded Media */}
+          {ticket.imageUrl && (
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-foreground">Custodian Uploaded Media</Label>
+              <div className="rounded-lg overflow-hidden border border-border max-h-48 flex justify-center bg-black/5">
+                <img src={ticket.imageUrl} alt="troubleshooting screenshot" className="max-h-48 object-contain w-full" />
+              </div>
+            </div>
+          )}
+
+          {/* Progress Selector */}
+          {!isCompleted && (
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-bold text-foreground">Select Current Repair Progress</Label>
+              <select value={status} onChange={e=>setStatus(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <option value="Inspection Phase">Inspection Phase (Ongoing Diagnostic checks)</option>
+                <option value="Warranty Holder Possession">Warranty Holder's Possession (Under Warranty Service)</option>
+                <option value="Third-Party Repairer Possession">Third-Party Repairer's Possession (Out-of-Warranty / Expired)</option>
+                <option value="Fixed & Completed">Fixed &amp; Completed (Re-assign to Custodian)</option>
+              </select>
+            </div>
+          )}
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+          {!isCompleted && (
+            <Button onClick={handleSave} className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-9">Update Progress</Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

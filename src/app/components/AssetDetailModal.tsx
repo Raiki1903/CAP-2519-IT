@@ -10,11 +10,10 @@ import { TransferForm } from "./TransferForm";
 import { ReturnForm }   from "./ReturnForm";
 import { RepairForm }   from "./RepairForm";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
 import { Badge }  from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { cn } from "./ui/utils";
+import { QRCodeSVG } from "qrcode.react";
 
 // ── Shared asset shape used by all asset lists ────────────────────────────
 export interface AssetDetail {
@@ -37,12 +36,9 @@ type FormView = "detail" | "transfer" | "return" | "repair";
 
 const STATUS_CLASS: Record<string, string> = {
   Active:               "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Available:            "bg-emerald-50 text-emerald-700 border-emerald-200",
   "On Loan":            "bg-blue-50   text-blue-700   border-blue-200",
   Maintenance:          "bg-amber-50  text-amber-700  border-amber-200",
-  Reserved:             "bg-violet-50 text-violet-700 border-violet-200",
-  "Partially Deployed": "bg-orange-50 text-orange-700 border-orange-200",
-  Overdue:              "bg-red-50    text-red-700    border-red-200",
+  Disposed:             "bg-red-50    text-red-700    border-red-200",
 };
 
 interface Props {
@@ -51,12 +47,30 @@ interface Props {
 }
 
 export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
-  const { role, assets } = useApp();
+  const { role, assets, addRepairRequest } = useApp();
   const asset = propAsset ? (assets.find(a => a.id === propAsset.id) || propAsset) : null;
   const [view, setView] = useState<FormView>("detail");
 
   const resetAndClose = () => { setView("detail"); onClose(); };
   const goBack        = () => setView("detail");
+
+  const handleDirectMaintenance = () => {
+    if (!asset) return;
+    const refId = `MNT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    addRepairRequest({
+      id: refId,
+      assetId: asset.id,
+      assetName: asset.name,
+      custodian: asset.custodian || "Unassigned",
+      statusLabel: "Under Maintenance",
+      description: `Flagged for immediate maintenance and component servicing by ${role}.`,
+      submittedAt: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+      priority: "High",
+      acknowledged: true,
+      forwardedTo: role === "ITS" ? "ITS" : "TSG"
+    });
+    resetAndClose();
+  };
 
   const degradation = asset?.condition !== undefined
     ? `${(100 - asset.condition).toFixed(0)}% delta`
@@ -73,14 +87,12 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     { icon: Calendar,  label: "Warranty Exp.",  value: asset.warranty    ?? "—" },
   ] : [];
 
-  const isStaff = role === "TSG" || role === "ITS";
-
   // Title for each view
   const viewTitles: Record<FormView, string | null> = {
     detail:   null,
     transfer: "Custodianship Transfer",
     return:   "Return Asset",
-    repair:   isStaff ? "Send to Maintenance" : "Request Repair",
+    repair:   "Request Repair",
   };
 
   return (
@@ -179,7 +191,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       transition={{ duration: 0.18 }}
                     >
                       {/* Image + metadata */}
-                      <div className="flex gap-4 mb-5">
+                      <div className={cn("flex gap-4 mb-5", asset.status === "Disposed" && "opacity-60 filter grayscale")}>
                         <div
                           className="rounded-xl overflow-hidden border border-border flex-shrink-0"
                           style={{ width: 148 }}
@@ -200,10 +212,49 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         </div>
                       </div>
 
+                      {/* Decommissioned Audit Details Card */}
+                      {asset.status === "Disposed" && (
+                        <div className="bg-red-50/50 border border-red-200/50 rounded-xl p-4 mt-4">
+                          <p className="text-xs font-bold text-red-800">Asset Decommissioned &amp; Disposed</p>
+                          <p className="text-[10px] text-red-600/80 mt-1">This hardware unit has been permanently retired and is no longer in service.</p>
+                          {asset.disposalDetails && (
+                            <div className="mt-3 text-left border-t border-red-200/30 pt-2.5 space-y-1 font-mono text-[10px] text-red-800">
+                              <p><strong>Disposal ID:</strong> {asset.disposalId}</p>
+                              <p><strong>Decommissioned By:</strong> {asset.disposalDetails.decommissionedBy}</p>
+                              <p><strong>Last Custodian:</strong> {asset.disposalDetails.lastCustodian}</p>
+                              <p><strong>Pathway:</strong> {asset.disposalDetails.disposalPathway}</p>
+                              <p><strong>Justification:</strong> {asset.disposalDetails.breakdownReasons}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* ── Action panel conditional rendering ── */}
-                      {(role === "TSG" || role === "Custodian" || role === "LabHead" || role === "ITS") && (
+                      {asset.status !== "Disposed" && (role === "TSG" || role === "Custodian" || role === "LabHead" || role === "ITS") && (
                         <>
                           <Separator className="mb-4" />
+
+                          {/* QR Tag for TSG / ITS */}
+                          {(role === "TSG" || role === "ITS") && (
+                            <div className="flex items-center gap-4 bg-muted/40 border border-dashed rounded-xl p-3 shadow-sm mb-4">
+                              <div className="bg-white p-1 rounded-lg border flex-shrink-0 shadow-sm">
+                                <QRCodeSVG
+                                  value={`https://adric.dlsu.edu.ph/assets/${asset.id}`}
+                                  size={80}
+                                  level="H"
+                                  includeMargin={true}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-foreground">Permanent QR Tag</p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+                                  Scannable routing node link:
+                                  <span className="font-mono text-primary select-all text-[9px] block mt-1 bg-background p-1.5 rounded border border-border truncate">https://adric.dlsu.edu.ph/assets/{asset.id}</span>
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
                           <p className="text-[10px] font-extrabold text-muted-foreground tracking-[2px] uppercase mb-3">
                             Asset Actions
                           </p>
@@ -227,8 +278,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                               </motion.div>
                             )}
 
-                            {/* 2 — Request Repair */}
-                            {(role === "Custodian" || role === "LabHead" || role === "TSG" || role === "ITS") && (
+                             {/* 2a — Request Repair (Form) */}
+                            {(role === "Custodian" || role === "LabHead") && (
                               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                 <Button
                                   variant="outline"
@@ -240,11 +291,26 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                     className="text-[10px] font-extrabold leading-tight text-center"
                                     style={{ fontFamily: "'Montserrat', sans-serif" }}
                                   >
-                                    {isStaff ? (
-                                      <>Send to<br />Maintenance</>
-                                    ) : (
-                                      <>Request<br />Repair</>
-                                    )}
+                                    Request<br />Repair
+                                  </span>
+                                </Button>
+                              </motion.div>
+                            )}
+
+                            {/* 2b — Direct Send to Maintenance */}
+                            {(role === "TSG" || role === "ITS") && (
+                              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+                                <Button
+                                  variant="outline"
+                                  className="w-full h-auto flex-col py-4 px-2 gap-2 text-amber-700 border-amber-300 hover:bg-amber-50 hover:border-amber-500"
+                                  onClick={handleDirectMaintenance}
+                                >
+                                  <Wrench size={20} />
+                                  <span
+                                    className="text-[10px] font-extrabold leading-tight text-center"
+                                    style={{ fontFamily: "'Montserrat', sans-serif" }}
+                                  >
+                                    Send to<br />Maintenance
                                   </span>
                                 </Button>
                               </motion.div>
@@ -306,11 +372,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       exit={{    opacity: 0, x: -20 }}
                       transition={{ duration: 0.2 }}
                     >
-                      {isStaff ? (
-                        <DirectMaintenanceForm asset={asset} onBack={goBack} onClose={resetAndClose} />
-                      ) : (
-                        <RepairForm asset={asset} onBack={goBack} onClose={resetAndClose} />
-                      )}
+                      <RepairForm asset={asset} onBack={goBack} onClose={resetAndClose} />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -320,106 +382,5 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
         </>
       )}
     </AnimatePresence>
-  );
-}
-
-function DirectMaintenanceForm({ asset, onBack, onClose }: { asset: any; onBack: () => void; onClose: () => void }) {
-  const { addRepairRequest } = useApp();
-  const [priority, setPriority] = useState<"Medium" | "High" | "Critical" >("Medium");
-  const [notes, setNotes] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleConfirm = () => {
-    addRepairRequest({
-      id: `MNT-DISP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-      assetId: asset.id,
-      assetName: asset.name,
-      custodian: asset.custodian || "Unassigned",
-      statusLabel: "In Maintenance",
-      description: notes.trim() || "Hardware flagged directly for maintenance dispatch.",
-      submittedAt: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-      priority: priority,
-      acknowledged: true, // Auto-acknowledged as it is logged by TSG/ITS directly
-      forwardedTo: "Both"
-    });
-    setSubmitted(true);
-  };
-
-  if (submitted) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-8 text-center">
-        <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center">
-          <Wrench size={30} className="text-amber-500" />
-        </div>
-        <div>
-          <h3 className="font-extrabold text-foreground mb-1" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-            Dispatched to Maintenance
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Asset {asset.name} has been placed directly in the maintenance priority queue.
-          </p>
-        </div>
-        <Button size="sm" onClick={onClose} className="bg-emerald-700 text-white font-bold">
-          Close
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2 mb-1">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-amber-50">
-          <Wrench size={15} className="text-amber-600" />
-        </div>
-        <div>
-          <p className="text-sm font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-            Direct Maintenance Dispatch
-          </p>
-          <p className="text-[11px] text-muted-foreground">Flag asset status to Maintenance directly</p>
-        </div>
-      </div>
-      <Separator />
-
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-[10px] font-extrabold tracking-[1.5px] text-muted-foreground uppercase">Asset ID</Label>
-        <Input value={asset.id} disabled className="font-mono bg-[#F3F4F6]" />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-[10px] font-extrabold tracking-[1.5px] text-muted-foreground uppercase">Priority Level</Label>
-        <select
-          value={priority}
-          onChange={e => setPriority(e.target.value as any)}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="Medium">Medium Priority</option>
-          <option value="High">High Priority</option>
-          <option value="Critical">Critical Priority</option>
-        </select>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-[10px] font-extrabold tracking-[1.5px] text-muted-foreground uppercase">Maintenance Dispatch Notes</Label>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          rows={3}
-          placeholder="Enter notes about diagnostics or reasons for immediate dispatch..."
-          className="w-full rounded-md border border-input bg-input-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none font-sans"
-        />
-      </div>
-
-      <Separator />
-
-      <div className="flex gap-2.5">
-        <Button variant="outline" onClick={onBack} className="text-muted-foreground">
-          Back
-        </Button>
-        <Button onClick={handleConfirm} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold">
-          Confirm Dispatch to Maintenance
-        </Button>
-      </div>
-    </div>
   );
 }
