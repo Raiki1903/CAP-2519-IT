@@ -1,39 +1,17 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { CheckCircle, XCircle, AlertTriangle, Search, ArrowRight, Package, MapPin, Calendar, LayoutGrid, Table2, Clock, Inbox } from "lucide-react";
-import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { useApp } from "../context";
+import { CheckCircle, XCircle, AlertTriangle, Search, ArrowRight, Package, MapPin, Calendar, LayoutGrid, Table2, Printer, Download } from "lucide-react";
+import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
+import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Separator } from "./ui/separator";
 import { cn } from "./ui/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 
 const MINT = "#10B981";
-
-const transitions = [
-  { id:"TXN-2026-0041", asset:"MacBook Pro M2 Max",    assetId:"EQ-2024-051", from:"Juan Santos",     fromRole:"PhD Researcher",    to:"Maria Cruz",       toRole:"MS Student",       lab:"CITe4D", initiated:"Jun 08, 2026", status:"Pending"  },
-  { id:"TXN-2026-0040", asset:"UR10e Cobot Arm",        assetId:"EQ-2024-003", from:"Dr. Alex Reyes",  fromRole:"Research Associate", to:"Carlo Bautista",   toRole:"Research Asst.",   lab:"CeHCI",  initiated:"Jun 06, 2026", status:"Approved" },
-  { id:"TXN-2026-0039", asset:"Phantom VEO4K Camera",   assetId:"EQ-2024-008", from:"Lei Tan",          fromRole:"PhD Student",        to:"Sofia Lim",        toRole:"Lab Technician",   lab:"Bio",    initiated:"Jun 04, 2026", status:"Pending"  },
-  { id:"TXN-2026-0038", asset:"Leica BLK360 Scanner",   assetId:"EQ-2024-005", from:"Marco Dela Cruz", fromRole:"Project Lead",        to:"Anna Garcia",      toRole:"PhD Researcher",   lab:"CITe4D", initiated:"Jun 01, 2026", status:"Declined" },
-  { id:"TXN-2026-0037", asset:"Boston Dynamics Spot",   assetId:"EQ-2024-004", from:"Felix Torres",    fromRole:"Research Fellow",    to:"Isabelle Flores",  toRole:"PhD Candidate",    lab:"HXIL",   initiated:"May 29, 2026", status:"Approved" },
-];
-
-const delinquencies = [
-  { id:"DLQ-2026-0021", student:"Kenji Yamamoto",    studentId:"11205678", asset:"Surface Pro 9",    assetId:"EQ-2024-006-07", lab:"GAME",  dueDate:"May 25, 2026", daysOverdue:17, severity:"High",     action:"2nd Notice Sent" },
-  { id:"DLQ-2026-0020", student:"Patricia Ong",      studentId:"11198432", asset:"Oculus Quest Pro", assetId:"EQ-2024-021",    lab:"CAR",   dueDate:"Jun 01, 2026", daysOverdue:10, severity:"Medium",   action:"1st Notice Sent" },
-  { id:"DLQ-2026-0019", student:"Ruel Mendoza",      studentId:"11312089", asset:"RPi 4 Kit ×3",     assetId:"EQ-2024-007-03", lab:"CeLT",  dueDate:"Jun 05, 2026", daysOverdue:6,  severity:"Low",      action:"Auto-Alert" },
-  { id:"DLQ-2026-0018", student:"Camille Navarro",   studentId:"11189244", asset:"Haptic Glove Set", assetId:"EQ-2024-033",    lab:"CeHCI", dueDate:"May 12, 2026", daysOverdue:30, severity:"Critical", action:"Escalated to Admin" },
-];
-
-const branchInventory = [
-  { id:"EQ-2024-001", name:"Dell PowerEdge R740",   category:"Computing Array",  status:"Active",  custodian:"Dr. Santos", location:"Manila", condition:96,  funding:"DOST"     },
-  { id:"EQ-2024-005", name:"Leica BLK360 Scanner",  category:"Sensor Array",     status:"Reserved",custodian:"A. Garcia",  location:"Manila", condition:100, funding:"DOST"     },
-  { id:"EQ-2024-051", name:"MacBook Pro M2 Max",    category:"Mobile Infrastructure",status:"On Loan",custodian:"M. Cruz", location:"Manila", condition:88,  funding:"Internal" },
-  { id:"EQ-2024-014", name:"Cisco Catalyst 9300",   category:"Networking",       status:"Active",  custodian:"Lab TSG",   location:"Manila", condition:93,  funding:"CHED"     },
-];
 
 const statusClass: Record<string, string> = {
   Active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -58,178 +36,85 @@ function ConditionBar({ value }: { value: number }) {
   return <div className="h-1.5 w-11 bg-muted rounded-full overflow-hidden mt-1"><div className={cn("h-full rounded-full", value>=90?"bg-emerald-400":"bg-amber-400")} style={{width:`${value}%`}} /></div>;
 }
 
+function VisualTimeline({ status }: { status: string }) {
+  const steps = [
+    { label: "Initiated", completed: true, active: false, failed: false },
+    {
+      label: status === "Declined" ? "Declined" : "Pending Approval",
+      completed: status === "Approved",
+      active: status === "Pending",
+      failed: status === "Declined"
+    },
+    {
+      label: "Custody Transferred",
+      completed: status === "Approved",
+      active: false,
+      failed: status === "Declined"
+    }
+  ];
+
+  return (
+    <div className="flex items-center gap-2 mt-4 px-2 py-3 bg-muted/30 rounded-lg max-w-xl">
+      {steps.map((step, idx) => {
+        const isLast = idx === steps.length - 1;
+        let nodeColor = "bg-muted text-muted-foreground border-muted-foreground/20";
+        if (step.completed) {
+          nodeColor = "bg-emerald-500 text-white border-emerald-500";
+        } else if (step.active) {
+          nodeColor = "bg-amber-500 text-white border-amber-500 animate-pulse";
+        } else if (step.failed) {
+          nodeColor = "bg-red-500 text-white border-red-500";
+        }
+
+        let lineColor = "bg-muted";
+        if (idx === 0 && (status === "Approved" || status === "Pending")) {
+          lineColor = "bg-emerald-500";
+        } else if (idx === 0 && status === "Declined") {
+          lineColor = "bg-red-500";
+        } else if (idx === 1 && status === "Approved") {
+          lineColor = "bg-emerald-500";
+        } else if (idx === 1 && status === "Declined") {
+          lineColor = "bg-red-300";
+        }
+
+        return (
+          <div key={idx} className="flex flex-1 items-center min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border flex-shrink-0", nodeColor)}>
+                {step.completed ? "✓" : step.failed ? "✗" : idx + 1}
+              </div>
+              <span className={cn("text-[11px] font-semibold whitespace-nowrap truncate", step.completed ? "text-emerald-700" : step.active ? "text-amber-700 font-bold" : step.failed ? "text-red-700" : "text-muted-foreground")}>
+                {step.label}
+              </span>
+            </div>
+            {!isLast && <div className={cn("h-0.5 flex-1 mx-3 min-w-[15px]", lineColor)} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
-  const [txnStates, setTxnStates] = useState<Record<string, string>>({});
+  const { assets, transfers, repairRequests, updateTransferRequest } = useApp();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table"|"gallery">("gallery");
+  const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
+  const [showAuditModal, setShowAuditModal] = useState(false);
 
-  const getStatus = (txn: typeof transitions[0]) => txnStates[txn.id] || txn.status;
-  const approve = (id: string) => setTxnStates(p => ({...p, [id]:"Approved"}));
-  const decline = (id: string) => setTxnStates(p => ({...p, [id]:"Declined"}));
-  const { borrowRequests, resolveBorrowRequest } = useApp();
+  const getStatus = (txn: any) => txn.status;
+  const approve = (id: string) => updateTransferRequest(id, "Approved");
+  const decline = (id: string) => updateTransferRequest(id, "Declined");
 
-  // ── Borrow Requests ───────────────────────────────────────────────────────
-  if (activeTab === "requests") {
-    const pending  = borrowRequests.filter(r => r.status === "Pending");
-    const resolved = borrowRequests.filter(r => r.status !== "Pending");
+  const branchInventory = assets.filter(a => a.lab === "CITe4D");
+  const branchTransfers = transfers.filter(t => t.lab === "CITe4D");
 
-    return (
-      <div>
-        <div className="mb-6">
-          <h1 style={{ fontFamily: "'Montserrat', sans-serif" }} className="text-foreground mb-1">Borrow Requests</h1>
-          <p className="text-muted-foreground text-sm">Review and approve or deny equipment borrow requests from custodians and students.</p>
-        </div>
-
-        {/* Summary */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <p className="text-2xl font-extrabold text-amber-600" style={{ fontFamily: "'Montserrat', sans-serif" }}>{pending.length}</p>
-              <p className="text-xs text-muted-foreground">Awaiting Decision</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <p className="text-2xl font-extrabold text-emerald-700" style={{ fontFamily: "'Montserrat', sans-serif" }}>{borrowRequests.filter(r => r.status === "Approved").length}</p>
-              <p className="text-xs text-muted-foreground">Approved</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4">
-              <p className="text-2xl font-extrabold text-red-700" style={{ fontFamily: "'Montserrat', sans-serif" }}>{borrowRequests.filter(r => r.status === "Denied").length}</p>
-              <p className="text-xs text-muted-foreground">Denied</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Pending */}
-        {pending.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock size={15} className="text-amber-500" />
-              <h3 className="font-semibold text-foreground text-sm">Pending Approval</h3>
-              <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">{pending.length}</Badge>
-            </div>
-            <div className="flex flex-col gap-3">
-              <AnimatePresence>
-                {pending.map(req => (
-                  <motion.div
-                    key={req.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: 60 }}
-                    transition={{ duration: 0.22 }}
-                  >
-                    <Card className="border-l-4 border-l-amber-400 p-0 gap-0" style={{ borderLeftWidth: 4 }}>
-                      <CardContent className="pt-4 pb-4 px-5">
-                        <div className="flex items-start gap-3">
-                          {/* Asset thumbnail */}
-                          <div className="w-14 h-11 rounded-lg overflow-hidden flex-shrink-0">
-                            <AssetImagePlaceholder category={req.assetCategory} aspectRatio="4/3" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-[10px] font-bold text-primary">{req.id}</span>
-                              <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[9px]">Pending</Badge>
-                            </div>
-                            <p className="text-sm font-bold text-foreground truncate">{req.assetName}</p>
-                            <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground mt-0.5">
-                              <span className="flex items-center gap-1"><Package size={9} />{req.assetId}</span>
-                              <span className="flex items-center gap-1"><MapPin size={9} />{req.assetLab} · {req.assetLocation}</span>
-                              <span className="flex items-center gap-1"><Calendar size={9} />Return by: {req.returnDate}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 rounded-lg bg-muted/40 border border-border p-3">
-                          <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-1">REQUEST PURPOSE</p>
-                          <p className="text-xs text-foreground leading-relaxed">{req.purpose}</p>
-                          <p className="text-[10px] text-muted-foreground mt-1.5">Requested by: <strong>{req.requestedBy}</strong> · {req.submittedAt}</p>
-                        </div>
-
-                        <div className="flex gap-2 mt-3">
-                          <Button
-                            size="sm"
-                            className="flex-1 text-xs"
-                            onClick={() => resolveBorrowRequest(req.id, "Approved")}
-                          >
-                            <CheckCircle size={11} /> Approve Request
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 text-xs border-red-200 text-red-600 hover:bg-red-50"
-                            onClick={() => resolveBorrowRequest(req.id, "Denied")}
-                          >
-                            <XCircle size={11} /> Deny Request
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          </div>
-        )}
-
-        {/* Resolved history */}
-        {resolved.length > 0 && (
-          <div>
-            <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-2">
-              <Inbox size={14} className="text-muted-foreground" /> Decision History
-            </h3>
-            <Card className="overflow-hidden p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30">
-                    {["Request ID", "Asset", "Requested By", "Return Date", "Submitted", "Decision"].map(h => (
-                      <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {resolved.map(req => (
-                    <TableRow key={req.id}>
-                      <TableCell className="font-bold text-primary text-xs">{req.id}</TableCell>
-                      <TableCell>
-                        <p className="text-xs font-semibold text-foreground">{req.assetName}</p>
-                        <p className="text-[10px] text-muted-foreground">{req.assetId}</p>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{req.requestedBy}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{req.returnDate}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{req.submittedAt}</TableCell>
-                      <TableCell>
-                        <Badge className={cn("text-[10px]",
-                          req.status === "Approved"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-red-50 text-red-700 border-red-200"
-                        )}>
-                          {req.status}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          </div>
-        )}
-
-        {borrowRequests.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <Inbox size={40} className="mb-3 opacity-30" />
-            <p className="text-sm font-medium">No borrow requests yet</p>
-            <p className="text-xs mt-1">Requests from custodians will appear here</p>
-          </div>
-        )}
-      </div>
-    );
-  }
+  const branchAssetIds = new Set(branchInventory.map(a => a.id));
+  const branchRepairs = repairRequests.filter(r => branchAssetIds.has(r.assetId));
 
   // ── Custody ───────────────────────────────────────────────────────────────
   if (activeTab === "custody") {
-    const pendingCount = transitions.filter(t => getStatus(t) === "Pending").length;
+    const pendingCount = transfers.filter(t => getStatus(t) === "Pending").length;
     return (
       <div>
         <div className="mb-6">
@@ -238,11 +123,11 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
         </div>
         <div className="grid grid-cols-3 gap-4 mb-5">
           <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-amber-600">{pendingCount}</p><p className="text-xs text-muted-foreground">Pending Authorization</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-emerald-700">{transitions.filter(t=>(txnStates[t.id]||t.status)==="Approved").length}</p><p className="text-xs text-muted-foreground">Approved This Period</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-red-700">{transitions.filter(t=>(txnStates[t.id]||t.status)==="Declined").length}</p><p className="text-xs text-muted-foreground">Declined Requests</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-emerald-700">{transfers.filter(t=>t.status==="Approved").length}</p><p className="text-xs text-muted-foreground">Approved This Period</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-red-700">{transfers.filter(t=>t.status==="Declined").length}</p><p className="text-xs text-muted-foreground">Declined Requests</p></CardContent></Card>
         </div>
         <div className="flex flex-col gap-3">
-          {transitions.map(txn => {
+          {transfers.map(txn => {
             const status = getStatus(txn);
             const isPending = status === "Pending";
             return (
@@ -255,7 +140,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                         <Badge className={cn("text-[10px]", txnBadgeClass[status])}>{status}</Badge>
                       </div>
                       <p className="text-sm font-bold text-foreground mb-2">{txn.asset}</p>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
                         <div>
                           <p className="text-[9px] font-bold text-muted-foreground tracking-widest mb-0.5">FROM</p>
                           <p className="font-semibold text-foreground">{txn.from}</p>
@@ -272,6 +157,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                           <p>{txn.initiated}</p>
                         </div>
                       </div>
+                      <VisualTimeline status={status} />
                     </div>
                     {isPending && (
                       <div className="flex gap-2 flex-shrink-0">
@@ -289,51 +175,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     );
   }
 
-  // ── Delinquency ───────────────────────────────────────────────────────────
-  if (activeTab === "delinquency") {
-    return (
-      <div>
-        <div className="mb-6">
-          <h1 className="text-foreground mb-1">Delinquency Alert Matrix</h1>
-          <p className="text-muted-foreground text-sm">Overdue asset returns and handling anomalies — CITe4D branch.</p>
-        </div>
-        <div className="rounded-xl p-4 mb-5 flex items-center gap-3 bg-red-950 border border-red-800">
-          <AlertTriangle size={16} className="text-red-300 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-bold text-red-300">1 Critical Delinquency Requiring Immediate Escalation</p>
-            <p className="text-xs text-red-400 opacity-80 mt-0.5">Camille Navarro — Haptic Glove Set — 30 days overdue. Escalated to Administration.</p>
-          </div>
-        </div>
-        <div className="flex flex-col gap-3">
-          {delinquencies.map(dlq => (
-            <Card key={dlq.id} className={cn("border-l-4", dlq.severity==="Critical"?"border-l-red-700":dlq.severity==="High"?"border-l-red-500":dlq.severity==="Medium"?"border-l-amber-500":"border-l-emerald-500")} style={{ borderLeftWidth: 4 }}>
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[11px] font-bold text-primary">{dlq.id}</span>
-                      <Badge className={cn("text-[10px]", severityClass[dlq.severity])}>{dlq.severity}</Badge>
-                      <Badge variant="destructive" className="text-[10px]">{dlq.daysOverdue}d overdue</Badge>
-                    </div>
-                    <p className="text-sm font-bold text-foreground mb-1">{dlq.student}</p>
-                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><Package size={10} />{dlq.asset}</span>
-                      <span className="flex items-center gap-1"><MapPin size={10} />{dlq.lab}</span>
-                      <span className="flex items-center gap-1"><Calendar size={10} />Due: {dlq.dueDate}</span>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0 ml-4">
-                    <p className="text-xs font-semibold text-foreground">{dlq.action}</p>
-                    <Button size="sm" className="mt-2 text-xs h-7">Send Notice</Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
+
 
   // ── Branch Inventory ──────────────────────────────────────────────────────
   const filtered = branchInventory.filter(eq => eq.name.toLowerCase().includes(search.toLowerCase()));
@@ -345,6 +187,9 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
           <p className="text-muted-foreground text-sm">Filtered view — other research centers are masked.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button className="gap-1.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-bold h-8" onClick={() => setShowAuditModal(true)}>
+            <Download size={13} />Generate Audit Report
+          </Button>
           <div className="flex rounded-lg overflow-hidden border border-border">
             <Button variant={viewMode==="gallery"?"default":"ghost"} size="sm" onClick={()=>setViewMode("gallery")} className="rounded-none text-xs gap-1.5"><LayoutGrid size={13} />Gallery</Button>
             <Button variant={viewMode==="table"?"default":"ghost"} size="sm" onClick={()=>setViewMode("table")} className="rounded-none text-xs gap-1.5"><Table2 size={13} />Table</Button>
@@ -361,7 +206,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
       {viewMode === "gallery" && (
         <div className="grid gap-4" style={{ gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))" }}>
           {filtered.map(eq => (
-            <Card key={eq.id} className="overflow-hidden p-0 gap-0">
+            <Card key={eq.id} className="overflow-hidden p-0 gap-0 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedAsset({ id:eq.id, name:eq.name, category:eq.category, status:eq.status, custodian:eq.custodian, location:eq.location, condition:eq.condition, funding:eq.funding })}>
               <div className="relative">
                 <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" />
                 <Badge className={cn("absolute top-2 right-2 text-[9px]", statusClass[eq.status]??statusClass["Active"])}>{eq.status}</Badge>
@@ -393,7 +238,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
             </TableHeader>
             <TableBody>
               {filtered.map(eq => (
-                <TableRow key={eq.id}>
+                <TableRow key={eq.id} className="cursor-pointer" onClick={() => setSelectedAsset({ id:eq.id, name:eq.name, category:eq.category, status:eq.status, custodian:eq.custodian, location:eq.location, condition:eq.condition, funding:eq.funding })}>
                   <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" /></div></TableCell>
                   <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                   <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
@@ -409,6 +254,167 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
           </Table>
         </Card>
       )}
+
+      <AssetDetailModal asset={selectedAsset} onClose={() => setSelectedAsset(null)} />
+
+      {/* Audit Document Dialog */}
+      <Dialog open={showAuditModal} onOpenChange={setShowAuditModal}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto print:max-h-none print:p-0">
+          <DialogHeader className="print:hidden">
+            <DialogTitle className="text-sm font-bold text-foreground">Generate Lab Audit Report</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">Preview the audit report for DLSU AdRIC CITe4D research center equipment.</DialogDescription>
+          </DialogHeader>
+
+          {/* Audit Document Content */}
+          <div id="audit-document" className="border rounded-xl p-6 bg-white text-black font-sans leading-relaxed space-y-6">
+            {/* Header */}
+            <div className="flex justify-between items-start border-b-2 border-emerald-800 pb-4">
+              <div>
+                <h2 className="text-xl font-bold uppercase tracking-wide text-emerald-800 font-sans">DLSU AdRIC Research Laboratory</h2>
+                <p className="text-xs text-gray-500 mt-0.5 font-sans">De La Salle University · Center for Integration of Technology for Development (CITe4D)</p>
+                <p className="text-[10px] text-gray-400 mt-1 font-sans">Audit Ledger ID: AUD-CITe4D-2026-06</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold text-emerald-800 uppercase tracking-widest font-sans">EQUIPMENT AUDIT REPORT</p>
+                <p className="text-[11px] text-gray-500 mt-0.5 font-sans">Date Generated: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+                <p className="text-[11px] text-gray-500 font-semibold font-sans">Generated By: CITe4D Lab Head / Project Leader</p>
+              </div>
+            </div>
+
+            {/* Summary Statistics */}
+            <div className="grid grid-cols-4 gap-3 bg-emerald-50/50 p-4 border border-emerald-100 rounded-xl print:grid-cols-4">
+              {[
+                { label: "Active Equipment Count", val: branchInventory.length },
+                { label: "Pending Custody Handshakes", val: transfers.filter(t => t.lab === "CITe4D" && t.status === "Pending").length },
+                { label: "Maintenance Operations Logged", val: branchRepairs.length },
+                { label: "Average Equipment Health Score", val: `${Math.round(branchInventory.reduce((acc, a) => acc + a.condition, 0) / (branchInventory.length || 1))}%` }
+              ].map(({ label, val }) => (
+                <div key={label} className="text-center">
+                  <p className="text-lg font-bold text-emerald-950 font-sans">{val}</p>
+                  <p className="text-[9px] text-emerald-800/80 font-bold uppercase tracking-wider mt-0.5 font-sans">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Section 1: Active Asset Inventory */}
+            <div>
+              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">I. Branch Asset Registry</h3>
+              <div className="overflow-x-auto">
+                <Table className="min-w-full text-[11px]">
+                  <TableHeader>
+                    <TableRow className="bg-emerald-50/30">
+                      {["Asset ID", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Condition", "Status", "Custodian"].map(h => (
+                        <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {branchInventory.map(a => (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-bold text-emerald-800">{a.id}</TableCell>
+                        <TableCell className="font-semibold">{a.name}</TableCell>
+                        <TableCell className="font-mono">{a.serial}</TableCell>
+                        <TableCell>{a.manufacturer}</TableCell>
+                        <TableCell>{a.category}</TableCell>
+                        <TableCell>{a.funding}</TableCell>
+                        <TableCell className="font-bold">{a.condition}%</TableCell>
+                        <TableCell>{a.status}</TableCell>
+                        <TableCell className="font-medium text-emerald-950">{a.custodian || "Unassigned"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* Section 2: Custody Handshake Logs */}
+            <div>
+              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">II. Custody Transitions &amp; Transfer Trail</h3>
+              <div className="overflow-x-auto">
+                <Table className="min-w-full text-[11px]">
+                  <TableHeader>
+                    <TableRow className="bg-emerald-50/30">
+                      {["Transaction ID", "Asset Name", "From Custodian", "To Custodian", "Initiated Date", "Transition Status"].map(h => (
+                        <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {branchTransfers.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center text-gray-400 py-4 font-sans">No transfer operations logged for CITe4D branch.</TableCell></TableRow>
+                    ) : (
+                      branchTransfers.map(t => (
+                        <TableRow key={t.id}>
+                          <TableCell className="font-bold text-emerald-800">{t.id}</TableCell>
+                          <TableCell className="font-semibold">{t.asset}</TableCell>
+                          <TableCell>{t.from} ({t.fromRole})</TableCell>
+                          <TableCell>{t.to} ({t.toRole})</TableCell>
+                          <TableCell>{t.initiated}</TableCell>
+                          <TableCell className="font-bold">{t.status}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* Section 3: Repair & Maintenance Operations History */}
+            <div>
+              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">III. Component Maintenance &amp; Troubleshooting Operations</h3>
+              <div className="overflow-x-auto">
+                <Table className="min-w-full text-[11px]">
+                  <TableHeader>
+                    <TableRow className="bg-emerald-50/30">
+                      {["Ticket ID", "Asset ID", "Asset Name", "Issue Description", "Submitted At", "Urgency Status", "Acknowledge State"].map(h => (
+                        <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {branchRepairs.length === 0 ? (
+                      <TableRow><TableCell colSpan={7} className="text-center text-gray-400 py-4 font-sans">No maintenance tickets logged for CITe4D branch.</TableCell></TableRow>
+                    ) : (
+                      branchRepairs.map(r => (
+                        <TableRow key={r.id}>
+                          <TableCell className="font-bold text-emerald-800">{r.id}</TableCell>
+                          <TableCell className="font-mono">{r.assetId}</TableCell>
+                          <TableCell className="font-semibold">{r.assetName}</TableCell>
+                          <TableCell className="italic max-w-[200px] truncate" title={r.description}>"{r.description}"</TableCell>
+                          <TableCell>{r.submittedAt}</TableCell>
+                          <TableCell className="font-bold">{r.priority}</TableCell>
+                          <TableCell className="font-medium">{r.acknowledged ? "Resolved & Acknowledged" : "Pending Evaluation"}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* Compliance & Approvals Footer */}
+            <div className="flex justify-between items-end border-t border-emerald-200 pt-6 mt-8">
+              <div>
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest font-sans">Auditor Signature</p>
+                <div className="h-10 w-40 border-b border-gray-400 mt-2 flex items-center justify-center italic text-xs text-gray-500 font-sans">Digital Signature Verified</div>
+                <p className="text-[10px] text-gray-500 mt-1 font-sans">CITe4D Lab Head / Project Leader</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-bold text-emerald-800 uppercase tracking-widest font-sans">Compliance Status</p>
+                <p className="text-xs font-bold text-emerald-700 mt-1 font-sans">✓ AdRIC Assets Compliant</p>
+                <p className="text-[10px] text-gray-400 mt-0.5 font-sans">DLSU Engineering Standards</p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="print:hidden">
+            <Button variant="outline" onClick={() => setShowAuditModal(false)}>Close</Button>
+            <Button className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold gap-1.5" onClick={() => window.print()}>
+              <Printer size={13} />Print Audit Ledger
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

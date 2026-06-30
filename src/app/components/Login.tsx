@@ -179,8 +179,8 @@ export function Login() {
                 <SelectContent>
                   <SelectItem value="ITS">Information Technology Services (ITS)</SelectItem>
                   <SelectItem value="TSG">Technical Support Group (TSG)</SelectItem>
-                  <SelectItem value="LabHead">Lab Head / Project Leader</SelectItem>
-                  <SelectItem value="Custodian">Active Custodian / Borrower</SelectItem>
+                  <SelectItem value="LabHead">Lab Head</SelectItem>
+                  <SelectItem value="Custodian">Active Custodian</SelectItem>
                 </SelectContent>
               </Select>
             </div>

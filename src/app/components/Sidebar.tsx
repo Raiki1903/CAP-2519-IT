@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Shield, LogOut, Monitor, Users, Wrench, QrCode,
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
-  ChevronsLeft, ChevronsRight, LayoutGrid, Inbox,
+  ChevronsLeft, ChevronsRight,
 } from "lucide-react";
 import { useApp, roleToSlug, type Role } from "../context";
 import { Button } from "./ui/button";
@@ -28,18 +28,26 @@ const roleConfig: Record<Role, {
     label: "Information Technology Services",
     subtitle: "ITS · System Administration",
     nav: [
-      { id: "overview",  label: "System Overview",    icon: Monitor      },
-      { id: "register",  label: "Register Equipment", icon: Package      },
-      { id: "inventory", label: "Asset Inventory",    icon: ClipboardList },
+      { id: "overview",    label: "System Overview",      icon: Monitor       },
+      { id: "register",    label: "Register Equipment",   icon: Package       },
+      { id: "inventory",   label: "Asset Inventory",      icon: ClipboardList },
+      { id: "maintenance", label: "Maintenance Manager",   icon: Wrench        },
+      { id: "returns",     label: "Pending Returns",       icon: ClipboardList },
+      { id: "qrtags",      label: "QR Tag Wizard",         icon: QrCode        },
+      { id: "health",      label: "Health Benchmarking",   icon: BarChart3     },
     ],
   },
   TSG: {
     label: "Technical Support Group",
     subtitle: "TSG · Asset Maintenance",
     nav: [
-      { id: "maintenance", label: "Maintenance Manager", icon: Wrench    },
-      { id: "qrtags",      label: "QR Tag Wizard",       icon: QrCode    },
-      { id: "health",      label: "Health Benchmarking", icon: BarChart3 },
+      { id: "overview",    label: "System Overview",      icon: Monitor       },
+      { id: "register",    label: "Register Equipment",   icon: Package       },
+      { id: "inventory",   label: "Asset Inventory",      icon: ClipboardList },
+      { id: "maintenance", label: "Maintenance Manager",   icon: Wrench        },
+      { id: "returns",     label: "Pending Returns",       icon: ClipboardList },
+      { id: "qrtags",      label: "QR Tag Wizard",         icon: QrCode        },
+      { id: "health",      label: "Health Benchmarking",   icon: BarChart3     },
     ],
   },
   LabHead: {
@@ -47,8 +55,6 @@ const roleConfig: Record<Role, {
     subtitle: "Command Suite",
     nav: [
       { id: "custody",     label: "Custody Transitions", icon: Users         },
-      { id: "requests",    label: "Borrow Requests",     icon: Inbox         },
-      { id: "delinquency", label: "Delinquency Alerts",  icon: AlertTriangle },
       { id: "inventory",   label: "Branch Inventory",    icon: ClipboardList },
     ],
   },
@@ -56,16 +62,16 @@ const roleConfig: Record<Role, {
     label: "Active Custodian",
     subtitle: "Borrower Micro-Portal",
     nav: [
-      { id: "myassets", label: "My Assets",      icon: Package    },
-      { id: "browse",   label: "Browse Assets",  icon: LayoutGrid },
-      { id: "scan",     label: "QR Scan",        icon: QrCode     },
-      { id: "report",   label: "Report Issue",   icon: Bell       },
+      { id: "myassets",  label: "My Assets",           icon: Package },
+      { id: "available", label: "Available Equipment", icon: Monitor },
+      { id: "scan",      label: "QR Scan",             icon: QrCode  },
+      { id: "report",    label: "Report Issue",        icon: Bell    },
     ],
   },
 };
 
 export function Sidebar({ onLogout }: { onLogout: () => void }) {
-  const { role, unacknowledgedCount, pendingBorrowCount, sidebarCollapsed, setSidebarCollapsed } = useApp();
+  const { role, unacknowledgedCount, sidebarCollapsed, setSidebarCollapsed } = useApp();
   const navigate   = useNavigate();
   const location   = useLocation();
 
@@ -190,10 +196,8 @@ export function Sidebar({ onLogout }: { onLogout: () => void }) {
 
           {cfg.nav.map(({ id, label, icon: Icon }) => {
             const active = activeTab === id;
-            const alertCount =
-              id === "maintenance" ? unacknowledgedCount :
-              id === "requests"    ? pendingBorrowCount  : 0;
-            const hasAlert = alertCount > 0;
+            const alertCount = id === "maintenance" ? unacknowledgedCount : 0;
+            const hasAlert   = alertCount > 0;
 
             const navBtn = (
               <motion.button
