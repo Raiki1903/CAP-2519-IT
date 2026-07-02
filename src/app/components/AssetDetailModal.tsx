@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useApp } from "../context";
+import { useApp, type DisposalDetails } from "../context";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, ArrowRightLeft, Wrench, CornerUpLeft,
@@ -7,11 +7,11 @@ import {
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { TransferForm } from "./TransferForm";
-import { ReturnForm }   from "./ReturnForm";
-import { RepairForm }   from "./RepairForm";
-import { LoanForm }     from "./LoanForm";
+import { ReturnForm } from "./ReturnForm";
+import { RepairForm } from "./RepairForm";
+import { LoanForm } from "./LoanForm";
 import { Button } from "./ui/button";
-import { Badge }  from "./ui/badge";
+import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { cn } from "./ui/utils";
 import { QRCodeSVG } from "qrcode.react";
@@ -31,15 +31,17 @@ export interface AssetDetail {
   status: string;
   condition?: number;
   custodian?: string;
+  disposalId?: string;
+  disposalDetails?: DisposalDetails;
 }
 
 type FormView = "detail" | "transfer" | "return" | "repair" | "loan";
 
 const STATUS_CLASS: Record<string, string> = {
-  Active:               "bg-emerald-50 text-emerald-700 border-emerald-200",
-  "On Loan":            "bg-blue-50   text-blue-700   border-blue-200",
-  Maintenance:          "bg-amber-50  text-amber-700  border-amber-200",
-  Disposed:             "bg-red-50    text-red-700    border-red-200",
+  Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "On Loan": "bg-blue-50   text-blue-700   border-blue-200",
+  Maintenance: "bg-amber-50  text-amber-700  border-amber-200",
+  Disposed: "bg-red-50    text-red-700    border-red-200",
 };
 
 interface Props {
@@ -53,7 +55,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const [view, setView] = useState<FormView>("detail");
 
   const resetAndClose = () => { setView("detail"); onClose(); };
-  const goBack        = () => setView("detail");
+  const goBack = () => setView("detail");
 
   const handleDirectMaintenance = () => {
     if (!asset) return;
@@ -78,22 +80,23 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     : null;
 
   const metaRows = asset ? [
-    { icon: Tag,       label: "Serial No.",     value: asset.serial      ?? "—" },
-    { icon: Tag,       label: "Property Tag",   value: asset.id                  },
-    { icon: Building2, label: "Funding Origin", value: asset.funding     ?? "—" },
-    { icon: Activity,  label: "Degradation",    value: degradation       ?? "—" },
-    { icon: MapPin,    label: "Campus",         value: asset.location    ?? "—" },
-    { icon: Building2, label: "Lab",            value: asset.lab         ?? "—" },
-    { icon: Calendar,  label: "Procured",       value: asset.procured    ?? "—" },
-    { icon: Calendar,  label: "Warranty Exp.",  value: asset.warranty    ?? "—" },
+    { icon: Tag, label: "Serial No.", value: asset.serial ?? "—" },
+    { icon: Tag, label: "Property Tag", value: asset.id },
+    { icon: Building2, label: "Funding Origin", value: asset.funding ?? "—" },
+    { icon: Activity, label: "Degradation", value: degradation ?? "—" },
+    { icon: MapPin, label: "Campus", value: asset.location ?? "—" },
+    { icon: Building2, label: "Lab", value: asset.lab ?? "—" },
+    { icon: Calendar, label: "Procured", value: asset.procured ?? "—" },
+    { icon: Calendar, label: "Warranty Exp.", value: asset.warranty ?? "—" },
   ] : [];
 
   // Title for each view
   const viewTitles: Record<FormView, string | null> = {
-    detail:   null,
+    detail: null,
     transfer: "Custodianship Transfer",
-    return:   "Return Asset",
-    repair:   "Request Repair",
+    return: "Return Asset",
+    repair: "Request Repair",
+    loan: "Request Equipment Loan",
   };
 
   return (
@@ -120,8 +123,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
           <motion.div
             key="modal"
             initial={{ opacity: 0, scale: 0.94, y: 18 }}
-            animate={{ opacity: 1, scale: 1,    y: 0  }}
-            exit={{    opacity: 0, scale: 0.94, y: 18 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 18 }}
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             style={{
               position: "fixed", inset: 0, zIndex: 51,
@@ -188,7 +191,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       key="detail"
                       initial={{ opacity: 0, x: -12 }}
                       animate={{ opacity: 1, x: 0 }}
-                      exit={{    opacity: 0, x: 12 }}
+                      exit={{ opacity: 0, x: 12 }}
                       transition={{ duration: 0.18 }}
                     >
                       {/* Image + metadata */}
@@ -321,7 +324,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                   </motion.div>
                                 )}
 
-                                 {/* 2a — Request Repair (Form) */}
+                                {/* 2a — Request Repair (Form) */}
                                 {(role === "Custodian" || role === "LabHead") && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
@@ -390,7 +393,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       key="transfer"
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      exit={{    opacity: 0, x: -20 }}
+                      exit={{ opacity: 0, x: -20 }}
                       transition={{ duration: 0.2 }}
                     >
                       <TransferForm asset={asset} onBack={goBack} onClose={resetAndClose} />
@@ -402,7 +405,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       key="return"
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      exit={{    opacity: 0, x: -20 }}
+                      exit={{ opacity: 0, x: -20 }}
                       transition={{ duration: 0.2 }}
                     >
                       <ReturnForm asset={asset} onBack={goBack} onClose={resetAndClose} />
@@ -414,7 +417,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       key="repair"
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      exit={{    opacity: 0, x: -20 }}
+                      exit={{ opacity: 0, x: -20 }}
                       transition={{ duration: 0.2 }}
                     >
                       <RepairForm asset={asset} onBack={goBack} onClose={resetAndClose} />
@@ -426,7 +429,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       key="loan"
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      exit={{    opacity: 0, x: -20 }}
+                      exit={{ opacity: 0, x: -20 }}
                       transition={{ duration: 0.2 }}
                     >
                       <LoanForm asset={asset} onBack={goBack} onClose={resetAndClose} />

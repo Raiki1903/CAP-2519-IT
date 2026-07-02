@@ -1,4 +1,31 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import { prisma } from "./prismaClient";
+
+// ── Cookie Helper Functions ────────────────────────────────────────────────
+export function setCookie(name: string, value: string, days?: number) {
+  let expires = "";
+  if (days) {
+    const date = new Date();
+    date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
+    expires = "; expires=" + date.toUTCString();
+  }
+  document.cookie = name + "=" + encodeURIComponent(value) + expires + "; path=/";
+}
+
+export function getCookie(name: string): string | null {
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(";");
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === " ") c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+  }
+  return null;
+}
+
+export function eraseCookie(name: string) {
+  document.cookie = name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+}
 
 export type Role = "ITS" | "TSG" | "LabHead" | "Custodian";
 
@@ -43,6 +70,7 @@ export interface Asset {
   daysLeft?: number;
   disposalId?: string;
   disposalDetails?: DisposalDetails;
+  cost?: number;
 }
 
 export interface TransferRequest {
@@ -90,9 +118,12 @@ interface AppContextType {
   setRole: (role: Role | null) => void;
   cycleMode: "Annual" | "Trimestral";
   setCycleMode: (mode: "Annual" | "Trimestral") => void;
+  theme: "classic-dark" | "light-slate";
+  setTheme: (t: "classic-dark" | "light-slate") => void;
   repairRequests: RepairRequest[];
   addRepairRequest: (req: RepairRequest) => void;
   acknowledgeRepair: (id: string) => void;
+  updateRepairStatus: (id: string, statusLabel: string) => void;
   unacknowledgedCount: number;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
@@ -115,165 +146,481 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
-const initialAssets: Asset[] = [
-  { id: "EQ-2024-001", name: "Dell PowerEdge R740 Server", serial: "SN-DPE-740-001", manufacturer: "Dell Technologies", category: "Computing Array", funding: "DOST", procured: "2024-01-15", warranty: "2027-01-15", location: "Manila", lab: "CITe4D", status: "On Loan", condition: 96, custodian: "Dr. Santos" },
-  { id: "EQ-2024-002", name: "NVIDIA DGX A100 Workstation", serial: "SN-DGX-A100-02", manufacturer: "NVIDIA Corporation", category: "Computing Array", funding: "USAID", procured: "2024-02-20", warranty: "2026-02-20", location: "Laguna", lab: "CAR", status: "Active", condition: 82 },
-  { id: "EQ-2024-003", name: "UR10e Collaborative Robot", serial: "SN-UR10e-0034", manufacturer: "Universal Robots", category: "Robotic Node", funding: "CHED", procured: "2024-03-10", warranty: "2026-03-10", location: "Manila", lab: "CeHCI", status: "Active", condition: 91 },
-  { id: "EQ-2024-004", name: "Boston Dynamics Spot Robot", serial: "SN-SPOT-0178", manufacturer: "Boston Dynamics", category: "Robotic Node", funding: "Internal Grants", procured: "2023-11-05", warranty: "2025-11-05", location: "Laguna", lab: "HXIL", status: "Maintenance", condition: 67 },
-  { id: "EQ-2024-005", name: "Leica BLK360 3D Scanner", serial: "SN-LBK-360-09", manufacturer: "Leica Geosystems", category: "Sensor Array", funding: "DOST", procured: "2024-04-01", warranty: "2027-04-01", location: "Manila", lab: "CITe4D", status: "On Loan", condition: 99, custodian: "A. Garcia" },
-  { id: "EQ-2024-006", name: "Surface Pro 9 i7 (Bundle×12)", serial: "SN-SP9-BNDL-03", manufacturer: "Microsoft", category: "Mobile Infrastructure", funding: "CHED", procured: "2024-05-22", warranty: "2026-05-22", location: "Manila", lab: "GAME", status: "Active", condition: 88 },
-  { id: "EQ-2024-007", name: "Raspberry Pi 4 Cluster (×32)", serial: "SN-RPI4-CLU-07", manufacturer: "Raspberry Pi Ltd", category: "Computing Array", funding: "USAID", procured: "2024-06-01", warranty: "2026-06-01", location: "Laguna", lab: "CeLT", status: "Active", condition: 94 },
-  { id: "EQ-2024-008", name: "Phantom VEO4K Ultra-HSC", serial: "SN-PH-VEO-4K-01", manufacturer: "Vision Research", category: "Sensor Array", funding: "DOST", procured: "2024-01-28", warranty: "2027-01-28", location: "Manila", lab: "Bio", status: "Active", condition: 100 },
-  { id: "EQ-2024-009", name: "Cisco Catalyst 9300 Switch", serial: "FCW2549L0GR", manufacturer: "Cisco Systems", category: "Networking", funding: "CHED", procured: "2024-06-09", warranty: "2027-06-09", location: "Manila", lab: "CITe4D", status: "Active", condition: 100 },
-  { id: "EQ-2024-010", name: "Vuzix M400 Smart Glasses ×4", serial: "VX-M400-DLSU", manufacturer: "Vuzix", category: "Peripheral", funding: "Internal Grants", procured: "2024-06-06", warranty: "2026-06-06", location: "Laguna", lab: "CAR", status: "Active", condition: 90 },
-  
-  // Custodian's own borrowed assets
-  { id: "EQ-2024-051", name: "MacBook Pro M2 Max", serial: "C02Z4K01Q6LR", manufacturer: "Apple Inc.", category: "Mobile Infrastructure", funding: "Internal Grants", procured: "2024-02-15", warranty: "2027-02-15", location: "Manila", lab: "CITe4D", status: "On Loan", condition: 88, custodian: "A. Dela Cruz (Active Custodian)", borrowedOn: "Jun 01, 2026", dueDate: "Jun 30, 2026", daysLeft: 19 },
-  { id: "EQ-2024-055", name: "Raspberry Pi 4 Kit ×3", serial: "RPI4-DLSU-009", manufacturer: "Raspberry Pi Ltd", category: "Computing Array", funding: "Internal Grants", procured: "2024-03-20", warranty: "2026-03-20", location: "Laguna", lab: "CeLT", status: "On Loan", condition: 85, custodian: "A. Dela Cruz (Active Custodian)", borrowedOn: "May 20, 2026", dueDate: "Jun 20, 2026", daysLeft: -1 },
-  { id: "EQ-2024-012", name: "Vuzix M400 Smart Glass", serial: "VX-M400-007", manufacturer: "Vuzix", category: "Peripheral", funding: "Internal Grants", procured: "2024-04-10", warranty: "2026-04-10", location: "Laguna", lab: "CAR", status: "On Loan", condition: 90, custodian: "A. Dela Cruz (Active Custodian)", borrowedOn: "Jun 05, 2026", dueDate: "Jul 05, 2026", daysLeft: 24 },
-  
-  { id: "EQ-2024-015", name: "Dell PowerEdge R740 Server", serial: "SN-DPE-740-001", manufacturer: "Dell", category: "Computing Array", funding: "DOST", procured: "2024-03-15", warranty: "2027-03-15", location: "Manila", lab: "CITe4D", status: "On Loan", condition: 94, custodian: "A. Dela Cruz (Active Custodian)" },
-  { id: "EQ-2024-016", name: "NVIDIA DGX A100 Workstation", serial: "SN-DGX-A100-02", manufacturer: "NVIDIA", category: "Computing Array", funding: "Internal Grants", procured: "2024-06-20", warranty: "2026-06-20", location: "Laguna", lab: "CAR", status: "On Loan", condition: 88, custodian: "M. Tan" },
-  { id: "EQ-2024-017", name: "UR10e Cobot Robotic Arm", serial: "SN-UR10e-0034", manufacturer: "Universal Robots", category: "Robotic Node", funding: "USAST", procured: "2024-01-10", warranty: "2025-01-10", location: "Manila", lab: "CeHCI", status: "On Loan", condition: 72, custodian: "J. Sy" },
-  { id: "EQ-2024-018", name: "Boston Dynamics Spot Robot", serial: "SN-SPOT-0178", manufacturer: "Boston Dynamics", category: "Robotic Node", funding: "CHED", procured: "2023-11-05", warranty: "2024-11-05", location: "Manila", lab: "HXIL", status: "On Loan", condition: 54, custodian: "Felix Torres" },
-  { id: "EQ-2024-019", name: "Leica BLK360 Laser Scanner", serial: "SN-LBK-360-09", manufacturer: "Leica", category: "Sensor Array", funding: "USAID", procured: "2024-02-18", warranty: "2026-02-18", location: "Manila", lab: "CITe4D", status: "On Loan", condition: 91, custodian: "A. Dela Cruz (Active Custodian)" },
-  { id: "EQ-2024-020", name: "Surface Pro 9 Tablet Bundle (x8)", serial: "SN-SP9-BNDL-03", manufacturer: "Microsoft", category: "Mobile Infrastructure", funding: "Internal Grants", procured: "2024-05-01", warranty: "2025-05-01", location: "Manila", lab: "GAME", status: "On Loan", condition: 83, custodian: "T. Lim" },
-  { id: "EQ-2024-021", name: "Raspberry Pi 4 Cluster (32 nodes)", serial: "SN-RPI4-CLU-07", manufacturer: "Raspberry Pi", category: "Computing Array", funding: "DOST", procured: "2024-04-12", warranty: "2025-04-12", location: "Laguna", lab: "CeLT", status: "On Loan", condition: 96, custodian: "A. Dela Cruz (Active Custodian)" },
-];
-
-const initialTransfers: TransferRequest[] = [
-  { id: "TXN-2026-0035", asset: "Dell PowerEdge R740 Server", assetId: "EQ-2024-001", from: "A. Dela Cruz (Active Custodian)", fromRole: "Lead Researcher", to: "Dr. Juan Dela Cruz", toRole: "Lab Head", lab: "CITe4D", initiated: "Jun 20, 2026", status: "Pending" },
-  { id: "TXN-2026-0036", asset: "NVIDIA DGX A100 Workstation", assetId: "EQ-2024-002", from: "M. Tan", fromRole: "Assistant Professor", to: "C. Santos", toRole: "Researcher", lab: "CAR", initiated: "Jun 18, 2026", status: "Approved" },
-  { id: "TXN-2026-0037", asset: "Boston Dynamics Spot Robot", assetId: "EQ-2024-004", from: "Felix Torres", fromRole: "Research Fellow", to: "Isabelle Flores", toRole: "PhD Candidate", lab: "HXIL", initiated: "May 29, 2026", status: "Approved" },
-];
-
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [role, setRole] = useState<Role | null>(null);
-  const [cycleMode, setCycleMode] = useState<"Annual" | "Trimestral">("Trimestral");
-  const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [role, setRoleState] = useState<Role | null>(null);
 
-  // Stateful inventories and registries
-  const [assets, setAssets] = useState<Asset[]>(initialAssets);
-  const [transfers, setTransfers] = useState<TransferRequest[]>(initialTransfers);
+  // Load preferences from cookies
+  const [cycleMode, setCycleModeState] = useState<"Annual" | "Trimestral">(() => {
+    const c = getCookie("pref_cycle_mode");
+    return (c === "Annual" || c === "Trimestral") ? c : "Trimestral";
+  });
+
+  const [theme, setThemeState] = useState<"classic-dark" | "light-slate">(() => {
+    const c = getCookie("pref_theme");
+    return (c === "classic-dark" || c === "light-slate") ? c : "classic-dark";
+  });
+
+  const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(() => {
+    return getCookie("pref_sidebar_collapsed") === "true";
+  });
+
+  const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [transfers, setTransfers] = useState<TransferRequest[]>([]);
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [inspections, setInspections] = useState<InspectionReport[]>([]);
 
-  const addRepairRequest = (req: RepairRequest) => {
-    setRepairRequests(prev => [req, ...prev]);
-    // Also set the asset's status to "Maintenance" if request type is repair
-    if (req.statusLabel !== "Disposal Recommendation") {
-      setAssets(prev => prev.map(a => a.id === req.assetId ? { ...a, status: "Maintenance" } : a));
+  // Sync state from simulated database (Prisma client)
+  const syncFromDb = async () => {
+    const dbAssets = await prisma.asset.findMany();
+    const dbUsers = await prisma.user.findMany();
+    const dbCenters = await prisma.researchCenter.findMany();
+    const dbDisposals = await prisma.assetDisposal.findMany();
+    const dbMonetaries = await prisma.assetMonetary.findMany();
+
+    const mappedAssets = dbAssets.map(a => {
+      const custodianUser = a.custodianId ? dbUsers.find(u => u.userId === a.custodianId) : null;
+      const center = dbCenters.find(c => c.centerId === a.centerId);
+      const disposal = dbDisposals.find(d => d.assetId === a.assetId);
+      const disposerUser = disposal ? dbUsers.find(u => u.userId === disposal.disposedById) : null;
+      const monetary = dbMonetaries.find(m => m.assetId === a.assetId);
+
+      let daysLeft: number | undefined = undefined;
+      if (a.dueDate) {
+        const due = new Date(a.dueDate);
+        const today = new Date();
+        const diffTime = due.getTime() - today.getTime();
+        daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+
+      let disposalDetails: DisposalDetails | undefined = undefined;
+      if (disposal) {
+        disposalDetails = {
+          lastCustodian: custodianUser ? `${custodianUser.firstName} ${custodianUser.lastName}` : "No Custodian",
+          breakdownReasons: disposal.disposalReason,
+          disposalPathway: disposal.pathway,
+          decommissionDate: new Date(disposal.disposalDate).toLocaleDateString(),
+          decommissionedBy: disposerUser ? `${disposerUser.firstName} ${disposerUser.lastName}` : "Admin"
+        };
+      }
+
+      return {
+        id: `EQ-2024-${String(a.assetId).padStart(3, "0")}`,
+        name: a.assetName,
+        serial: a.serial,
+        manufacturer: a.manufacturer,
+        category: a.assetType,
+        funding: a.funding,
+        procured: a.procured,
+        warranty: a.warranty,
+        location: center?.campusLocation === "MANILA_CAMPUS" ? "Manila" : "Laguna",
+        lab: center?.centerName ?? "CITe4D",
+        status: a.status,
+        condition: a.condition,
+        custodian: custodianUser ? `${custodianUser.firstName} ${custodianUser.lastName}` : undefined,
+        borrowedOn: a.borrowedOn,
+        dueDate: a.dueDate,
+        daysLeft,
+        disposalId: disposal ? `DISP-${disposal.disposalId}` : undefined,
+        disposalDetails,
+        cost: monetary ? Number(monetary.acquisitionValue) : 0
+      };
+    });
+    setAssets(mappedAssets);
+
+    // Sync Transfers
+    const dbTransfers = await prisma.custodianshipTransfer.findMany();
+    const mappedTransfers = dbTransfers.map(t => {
+      const fromUser = dbUsers.find(u => u.userId === t.previousCustodianId);
+      const toUser = dbUsers.find(u => u.userId === t.newCustodianId);
+      const asset = dbAssets.find(a => a.assetId === t.assetId);
+
+      return {
+        id: t.uiId,
+        asset: asset?.assetName ?? "Unknown Asset",
+        assetId: `EQ-2024-${String(t.assetId).padStart(3, "0")}`,
+        from: fromUser ? `${fromUser.firstName} ${fromUser.lastName}` : "Unknown",
+        fromRole: fromUser?.userType === "FACULTY" ? "Faculty" : "Student",
+        to: toUser ? `${toUser.firstName} ${toUser.lastName}` : "Unknown",
+        toRole: toUser?.userType === "FACULTY" ? "Faculty" : "Student",
+        lab: t.lab,
+        initiated: t.transferDate,
+        status: t.approvalStatus === "PENDING" ? "Pending" : t.approvalStatus === "APPROVED" ? "Approved" : "Declined"
+      };
+    }) as TransferRequest[];
+    setTransfers(mappedTransfers);
+
+    // Sync Repairs
+    const dbRepairs = await prisma.assetRepair.findMany();
+    const mappedRepairs = dbRepairs.map(r => {
+      const user = dbUsers.find(u => u.userId === r.reportedById);
+      const asset = dbAssets.find(a => a.assetId === r.assetId);
+      return {
+        id: r.uiId,
+        assetId: `EQ-2024-${String(r.assetId).padStart(3, "0")}`,
+        assetName: asset?.assetName ?? "Unknown Asset",
+        custodian: user ? `${user.firstName} ${user.lastName}` : "Unassigned",
+        statusLabel: r.repairStatus === "COMPLETED" ? "Fixed & Completed" : r.repairStatus === "IN_PROGRESS" ? "In Progress" : "Under Maintenance",
+        description: r.issueDescription,
+        submittedAt: r.startDate,
+        priority: r.priority,
+        acknowledged: r.acknowledged,
+        forwardedTo: r.forwardedTo
+      };
+    }) as RepairRequest[];
+    setRepairRequests(mappedRepairs);
+
+    // Sync Returns from local storage
+    const savedReturns = localStorage.getItem("ems_returns");
+    if (savedReturns) setReturns(JSON.parse(savedReturns));
+
+    // Sync and seed Inspections in local storage
+    let savedInspections = localStorage.getItem("ems_inspections");
+    if (!savedInspections || JSON.parse(savedInspections).length === 0) {
+      const defaultInspections = [
+        { id: "INSP-001", assetId: "EQ-2024-004", assetName: "Boston Dynamics Spot Robot", custodian: "Felix Torres", status: "Degraded Performance", description: "Battery capacity decaying under stress load.", images: [], submittedAt: "2026-03-10T10:00:00Z", cycleType: "Trimestral" },
+        { id: "INSP-002", assetId: "EQ-2024-004", assetName: "Boston Dynamics Spot Robot", custodian: "Felix Torres", status: "Operational", description: "Calibration run successful, minor drift.", images: [], submittedAt: "2026-05-15T14:30:00Z", cycleType: "Trimestral" },
+        { id: "INSP-003", assetId: "EQ-2024-004", assetName: "Boston Dynamics Spot Robot", custodian: "Felix Torres", status: "Critical Failure", description: "Leg servo motor failure.", images: [], submittedAt: "2026-07-01T09:00:00Z", cycleType: "Trimestral" },
+        { id: "INSP-004", assetId: "EQ-2024-001", assetName: "Dell PowerEdge R740 Server", custodian: "Dr. Santos", status: "Perfect", description: "Storage sectors nominal.", images: [], submittedAt: "2026-02-20T11:00:00Z", cycleType: "Trimestral" },
+        { id: "INSP-005", assetId: "EQ-2024-001", assetName: "Dell PowerEdge R740 Server", custodian: "Dr. Santos", status: "Operational", description: "Operating under stable loads.", images: [], submittedAt: "2026-06-25T16:00:00Z", cycleType: "Trimestral" },
+        { id: "INSP-006", assetId: "EQ-2024-003", assetName: "UR10e Collaborative Robot", custodian: "J. Sy", status: "Perfect", description: "Joint torque metrics within standard threshold.", images: [], submittedAt: "2026-04-10T12:00:00Z", cycleType: "Trimestral" },
+        { id: "INSP-007", assetId: "EQ-2024-003", assetName: "UR10e Collaborative Robot", custodian: "J. Sy", status: "Operational", description: "Routine health check passed.", images: [], submittedAt: "2026-06-28T14:00:00Z", cycleType: "Trimestral" }
+      ];
+      localStorage.setItem("ems_inspections", JSON.stringify(defaultInspections));
+      savedInspections = JSON.stringify(defaultInspections);
+    }
+    setInspections(JSON.parse(savedInspections));
+  };
+
+  // Sync on mount
+  useEffect(() => {
+    syncFromDb();
+  }, []);
+
+  // Set up preferences color schema in class list
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "classic-dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, [theme]);
+
+  // Session activity verification & decay checks
+  useEffect(() => {
+    const sessionEmail = getCookie("session_user_email");
+    const lastActivityStr = getCookie("session_last_activity");
+    const sessionCreatedStr = getCookie("session_created");
+
+    if (sessionEmail && lastActivityStr && sessionCreatedStr) {
+      const now = Date.now();
+      const lastActivity = parseInt(lastActivityStr, 10);
+      const sessionCreated = parseInt(sessionCreatedStr, 10);
+
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const thirtyDaysMs = 30 * oneDayMs;
+
+      if (now - lastActivity > oneDayMs) {
+        // Session expired due to 24h inactivity
+        setRoleState(null);
+        eraseCookie("session_user_email");
+        eraseCookie("session_last_activity");
+        eraseCookie("session_created");
+        alert("Session expired due to 24 hours of inactivity. Please log in again.");
+      } else if (now - sessionCreated > thirtyDaysMs) {
+        // Session expired due to 30 days max lifespan
+        setRoleState(null);
+        eraseCookie("session_user_email");
+        eraseCookie("session_last_activity");
+        eraseCookie("session_created");
+        alert("Your session has reached its 30-day limit. Please log in again.");
+      } else {
+        // Session valid! Reset activity timer to now + 24 hours
+        setCookie("session_last_activity", String(now), 1);
+
+        prisma.user.findFirst({
+          where: { email: sessionEmail },
+          include: { userRoles: { include: { role: true } } }
+        }).then(user => {
+          if (user) {
+            const roles = user.userRoles || [];
+            let determinedRole: Role = "Custodian";
+            if (roles.some(ur => ur.role?.roleName === "ADMIN" || ur.role?.roleName === "ADRIC_DIRECTOR" || ur.role?.roleName === "ADRIC_SECRETARY")) {
+              determinedRole = "ITS";
+            } else if (roles.some(ur => ur.role?.roleName === "TSG_STAFF")) {
+              determinedRole = "TSG";
+            } else if (roles.some(ur => ur.role?.roleName === "LAB_HEAD")) {
+              determinedRole = "LabHead";
+            }
+            setRoleState(determinedRole);
+          } else {
+            setRoleState(null);
+          }
+        });
+      }
+    }
+  }, []);
+
+  const setRole = (newRole: Role | null) => {
+    setRoleState(newRole);
+    if (newRole === null) {
+      eraseCookie("session_user_email");
+      eraseCookie("session_last_activity");
+      eraseCookie("session_created");
+    } else {
+      // Whenever a role session is explicitly set, update the activity timer
+      setCookie("session_last_activity", String(Date.now()), 1);
     }
   };
 
-  const acknowledgeRepair = (id: string) =>
-    setRepairRequests(prev =>
-      prev.map(r => (r.id === id ? { ...r, acknowledged: true } : r))
-    );
+  const setCycleMode = (mode: "Annual" | "Trimestral") => {
+    setCycleModeState(mode);
+    setCookie("pref_cycle_mode", mode, 365);
+  };
 
-  const updateRepairStatus = (id: string, statusLabel: string) => {
-    setRepairRequests(prev => {
-      const match = prev.find(r => r.id === id);
-      if (match) {
-        if (statusLabel === "Fixed & Completed") {
-          setAssets(prevAssets => prevAssets.map(a => a.id === match.assetId ? {
-            ...a,
-            status: match.custodian && match.custodian !== "Unassigned" && match.custodian !== "No custodian" && match.custodian !== "No Custodian" ? "On Loan" : "Active",
-            custodian: (match.custodian === "Unassigned" || match.custodian === "No custodian" || match.custodian === "No Custodian") ? "" : match.custodian
-          } : a));
-        } else {
-          setAssets(prevAssets => prevAssets.map(a => a.id === match.assetId ? {
-            ...a,
-            status: "Maintenance"
-          } : a));
-        }
+  const setSidebarCollapsed = (v: boolean) => {
+    setSidebarCollapsedState(v);
+    setCookie("pref_sidebar_collapsed", String(v), 365);
+  };
+
+  const setTheme = (t: "classic-dark" | "light-slate") => {
+    setThemeState(t);
+    setCookie("pref_theme", t, 365);
+  };
+
+  const addRepairRequest = async (req: RepairRequest) => {
+    const assetId = parseInt(req.assetId.split("-").pop() || "0", 10);
+    const dbUsers = await prisma.user.findMany();
+    const reporterUser = dbUsers.find(u => `${u.firstName} ${u.lastName}`.toLowerCase() === req.custodian.toLowerCase());
+
+    await prisma.assetRepair.create({
+      data: {
+        assetId,
+        reportedById: reporterUser?.userId || 4,
+        issueDescription: req.description,
+        startDate: req.submittedAt,
+        repairStatus: req.statusLabel === "Fixed & Completed" ? "COMPLETED" : "REPORTED",
+        uiId: req.id,
+        priority: req.priority,
+        acknowledged: req.acknowledged,
+        forwardedTo: req.forwardedTo
       }
-      return prev.map(r => r.id === id ? { ...r, statusLabel, acknowledged: true } : r);
     });
+
+    if (req.statusLabel !== "Disposal Recommendation") {
+      await prisma.asset.update({
+        where: { assetId },
+        data: { status: "Maintenance" }
+      });
+    }
+
+    await syncFromDb();
+  };
+
+  const acknowledgeRepair = async (id: string) => {
+    const dbRepairs = await prisma.assetRepair.findMany();
+    const match = dbRepairs.find(r => r.uiId === id);
+    if (match) {
+      await prisma.assetRepair.update({
+        where: { repairId: match.repairId },
+        data: { acknowledged: true }
+      });
+    }
+    await syncFromDb();
+  };
+
+  const updateRepairStatus = async (id: string, statusLabel: string) => {
+    const dbRepairs = await prisma.assetRepair.findMany();
+    const match = dbRepairs.find(r => r.uiId === id);
+    if (match) {
+      const statusMapped = statusLabel === "Fixed & Completed" ? "COMPLETED" : "IN_PROGRESS";
+      await prisma.assetRepair.update({
+        where: { repairId: match.repairId },
+        data: {
+          repairStatus: statusMapped,
+          completionDate: statusLabel === "Fixed & Completed" ? new Date().toISOString() : undefined
+        }
+      });
+
+      if (statusLabel === "Fixed & Completed") {
+        const asset = await prisma.asset.findUnique({ where: { assetId: match.assetId } });
+        if (asset) {
+          await prisma.asset.update({
+            where: { assetId: match.assetId },
+            data: {
+              status: asset.custodianId ? "On Loan" : "Active"
+            }
+          });
+        }
+      } else {
+        await prisma.asset.update({
+          where: { assetId: match.assetId },
+          data: { status: "Maintenance" }
+        });
+      }
+    }
+    await syncFromDb();
   };
 
   const unacknowledgedCount = repairRequests.filter(r => !r.acknowledged).length;
 
-  const addAsset = (asset: Asset) => {
-    setAssets(prev => [asset, ...prev]);
-  };
-
-  const removeAsset = (id: string) => {
-    setAssets(prev => prev.filter(a => a.id !== id));
-  };
-
-  const updateAsset = (updated: Asset) => {
-    setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
-  };
-
-  const disposeAsset = (assetId: string, details: Omit<DisposalDetails, "decommissionedBy">, role: string) => {
-    const disposalId = `DISP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    setAssets(prev => prev.map(a => a.id === assetId ? {
-      ...a,
-      status: "Disposed",
-      disposalId,
-      disposalDetails: {
-        ...details,
-        decommissionedBy: role
+  const addAsset = async (asset: Omit<Asset, "id">) => {
+    await prisma.asset.create({
+      data: {
+        qrCodeHash: `hash-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        assetName: asset.name,
+        assetType: asset.category as any,
+        centerId: asset.lab === "CAR" ? 2 : asset.lab === "CeHCI" ? 3 : asset.lab === "HXIL" ? 4 : asset.lab === "GAME" ? 5 : asset.lab === "CeLT" ? 6 : asset.lab === "Bio" ? 7 : 1,
+        serial: asset.serial,
+        manufacturer: asset.manufacturer,
+        funding: asset.funding,
+        procured: asset.procured,
+        warranty: asset.warranty,
+        condition: asset.condition,
+        status: asset.status
       }
-    } : a));
-  };
-
-  const addTransferRequest = (req: TransferRequest) => {
-    setTransfers(prev => [req, ...prev]);
-  };
-
-  const updateTransferRequest = (id: string, status: "Approved" | "Declined") => {
-    setTransfers(prev => {
-      const req = prev.find(t => t.id === id);
-      if (req) {
-        setAssets(prevAssets =>
-          prevAssets.map(a =>
-            a.id === req.assetId
-              ? {
-                  ...a,
-                  custodian: status === "Approved" ? req.to : a.custodian,
-                  lab: status === "Approved" ? req.lab : a.lab,
-                  status: status === "Approved" ? "On Loan" : (a.custodian ? "On Loan" : "Active")
-                }
-              : a
-          )
-        );
-      }
-      return prev.map(t => t.id === id ? { ...t, status } : t);
     });
+    await syncFromDb();
+  };
+
+  const removeAsset = async (id: string) => {
+    const assetId = parseInt(id.split("-").pop() || "0", 10);
+    await prisma.asset.delete({ where: { assetId } });
+    await syncFromDb();
+  };
+
+  const updateAsset = async (updated: Asset) => {
+    const assetId = parseInt(updated.id.split("-").pop() || "0", 10);
+    await prisma.asset.update({
+      where: { assetId },
+      data: {
+        assetName: updated.name,
+        serial: updated.serial,
+        manufacturer: updated.manufacturer,
+        funding: updated.funding,
+        procured: updated.procured,
+        warranty: updated.warranty,
+        condition: updated.condition,
+        status: updated.status,
+        borrowedOn: updated.borrowedOn,
+        dueDate: updated.dueDate
+      }
+    });
+    await syncFromDb();
+  };
+
+  const disposeAsset = async (assetIdStr: string, details: Omit<DisposalDetails, "decommissionedBy">, activeRole: string) => {
+    const assetId = parseInt(assetIdStr.split("-").pop() || "0", 10);
+    const sessionEmail = getCookie("session_user_email") || "";
+    const user = await prisma.user.findFirst({ where: { email: sessionEmail } });
+    const userId = user?.userId || 1;
+
+    await prisma.assetDisposal.create({
+      data: {
+        assetId,
+        disposedById: userId,
+        disposalDate: new Date().toISOString(),
+        disposalReason: details.breakdownReasons,
+        pathway: details.disposalPathway
+      }
+    });
+
+    await prisma.asset.update({
+      where: { assetId },
+      data: { status: "Disposed" }
+    });
+
+    await syncFromDb();
+  };
+
+  const addTransferRequest = async (req: TransferRequest) => {
+    const assetId = parseInt(req.assetId.split("-").pop() || "0", 10);
+    const dbUsers = await prisma.user.findMany();
+    const fromUser = dbUsers.find(u => `${u.firstName} ${u.lastName}`.toLowerCase() === req.from.toLowerCase());
+    const toUser = dbUsers.find(u => `${u.firstName} ${u.lastName}`.toLowerCase() === req.to.toLowerCase());
+
+    await prisma.custodianshipTransfer.create({
+      data: {
+        assetId,
+        previousCustodianId: fromUser?.userId || 4,
+        newCustodianId: toUser?.userId || 3,
+        transferDate: req.initiated,
+        approvalStatus: "PENDING",
+        uiId: req.id,
+        lab: req.lab
+      }
+    });
+
+    await syncFromDb();
+  };
+
+  const updateTransferRequest = async (id: string, status: "Approved" | "Declined") => {
+    const dbTransfers = await prisma.custodianshipTransfer.findMany();
+    const tx = dbTransfers.find(t => t.uiId === id);
+    if (tx) {
+      await prisma.custodianshipTransfer.update({
+        where: { transferId: tx.transferId },
+        data: { approvalStatus: status === "Approved" ? "APPROVED" : "REJECTED" }
+      });
+
+      if (status === "Approved") {
+        await prisma.asset.update({
+          where: { assetId: tx.assetId },
+          data: {
+            custodianId: tx.newCustodianId,
+            status: "On Loan"
+          }
+        });
+      }
+    }
+    await syncFromDb();
   };
 
   const addReturnRequest = (req: ReturnRequest) => {
-    setReturns(prev => [req, ...prev]);
+    setReturns(prev => {
+      const next = [req, ...prev];
+      localStorage.setItem("ems_returns", JSON.stringify(next));
+      return next;
+    });
   };
 
-  const finalizeReturn = (id: string, assetId: string, condition: string, checklist: string[], notes: string, clearanceIssued: boolean) => {
+  const finalizeReturn = async (id: string, assetIdStr: string, condition: string, checklist: string[], notes: string, clearanceIssued: boolean) => {
     const certId = clearanceIssued ? `CLR-${Math.random().toString(36).slice(2, 8).toUpperCase()}` : undefined;
-    setReturns(prev =>
-      prev.map(r =>
+
+    setReturns(prev => {
+      const next = prev.map(r =>
         r.id === id
           ? { ...r, status: "Finalized", condition, checklist, notes, clearanceIssued, certId }
           : r
-      )
-    );
-    setAssets(prev =>
-      prev.map(a =>
-        a.id === assetId
-          ? {
-              ...a,
-              status: "Active",
-              custodian: "",
-              condition: condition === "Pristine" ? 100 : condition === "Operational" ? 90 : condition === "Degraded" ? 60 : 20
-            }
-          : a
-      )
-    );
+      );
+      localStorage.setItem("ems_returns", JSON.stringify(next));
+      return next;
+    });
+
+    const assetId = parseInt(assetIdStr.split("-").pop() || "0", 10);
+    const newCondition = condition === "Pristine" ? 100 : condition === "Operational" ? 90 : condition === "Degraded" ? 60 : 20;
+
+    await prisma.asset.update({
+      where: { assetId },
+      data: {
+        status: "Active",
+        custodianId: undefined,
+        condition: newCondition
+      }
+    });
+
+    await syncFromDb();
   };
 
-  const addInspectionReport = (report: InspectionReport) => {
-    setInspections(prev => [report, ...prev]);
+  const addInspectionReport = async (report: InspectionReport) => {
+    setInspections(prev => {
+      const next = [report, ...prev];
+      localStorage.setItem("ems_inspections", JSON.stringify(next));
+      return next;
+    });
+
+    const assetId = parseInt(report.assetId.split("-").pop() || "0", 10);
     const conditionMap: Record<string, number> = {
       "Perfect": 100,
       "Operational": 90,
@@ -283,8 +630,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     const newCondition = conditionMap[report.status];
     if (newCondition !== undefined) {
-      setAssets(prev => prev.map(a => a.id === report.assetId ? { ...a, condition: newCondition } : a));
+      await prisma.asset.update({
+        where: { assetId },
+        data: { condition: newCondition }
+      });
     }
+
+    await syncFromDb();
   };
 
   return (
@@ -292,6 +644,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       value={{
         role, setRole,
         cycleMode, setCycleMode,
+        theme, setTheme,
         repairRequests, addRepairRequest, acknowledgeRepair, updateRepairStatus,
         unacknowledgedCount,
         sidebarCollapsed, setSidebarCollapsed,
@@ -314,15 +667,15 @@ export function useApp() {
 }
 
 export const roleToSlug: Record<Role, string> = {
-  ITS:       "its",
-  TSG:       "tsg",
-  LabHead:   "lab-head",
+  ITS: "its",
+  TSG: "tsg",
+  LabHead: "lab-head",
   Custodian: "custodian",
 };
 
 export const roleDefaultPath: Record<Role, string> = {
-  ITS:       "/its/overview",
-  TSG:       "/tsg/repairs",
-  LabHead:   "/lab-head/custody",
+  ITS: "/its/overview",
+  TSG: "/tsg/repairs",
+  LabHead: "/lab-head/custody",
   Custodian: "/custodian/myassets",
 };

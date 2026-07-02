@@ -1,17 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Shield, Lock } from "lucide-react";
-import { useApp, roleToSlug, type Role } from "../context";
+import { useApp, roleToSlug, type Role, setCookie } from "../context";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+import { prisma } from "../prismaClient";
 
 export function Login() {
   const navigate = useNavigate();
@@ -20,27 +14,78 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<Role | "">("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !selectedRole) {
-      setError("Please fill in all fields and select a session context.");
+    
+    // 1. Input validation first: Email address domain check
+    if (!email) {
+      setError("Please enter your institutional email address.");
       return;
     }
-    if (!email.endsWith("@dlsu.edu.ph")) {
+    if (!email.toLowerCase().endsWith("@dlsu.edu.ph")) {
       setError("Only @dlsu.edu.ph institutional accounts are permitted.");
       return;
     }
+    if (!password) {
+      setError("Please enter your security password.");
+      return;
+    }
+
     setLoading(true);
     setError("");
-    setTimeout(() => {
-      const role = selectedRole as Role;
-      setRole(role);
-      navigate(`/${roleToSlug[role]}`);
-    }, 1200);
+
+    try {
+      // 2. Fetch user from DB using Prisma ORM simulation
+      const user = await prisma.user.findFirst({
+        where: {
+          email: email.trim(),
+          password: password
+        },
+        include: {
+          userRoles: {
+            include: {
+              role: true
+            }
+          }
+        }
+      });
+
+      if (!user) {
+        setLoading(false);
+        setError("Invalid institutional email address or password.");
+        return;
+      }
+
+      // 3. Assume userroles from user record in the database
+      const roles = user.userRoles || [];
+      let determinedRole: Role = "Custodian";
+      
+      if (roles.some(ur => ur.role?.roleName === "ADMIN" || ur.role?.roleName === "ADRIC_DIRECTOR" || ur.role?.roleName === "ADRIC_SECRETARY")) {
+        determinedRole = "ITS";
+      } else if (roles.some(ur => ur.role?.roleName === "TSG_STAFF")) {
+        determinedRole = "TSG";
+      } else if (roles.some(ur => ur.role?.roleName === "LAB_HEAD")) {
+        determinedRole = "LabHead";
+      }
+
+      // 4. Session Handling and Cookies (Set session details)
+      setCookie("session_user_email", user.email, 30);
+      const now = String(Date.now());
+      setCookie("session_last_activity", now, 1);
+      setCookie("session_created", now, 30);
+
+      setTimeout(() => {
+        setRole(determinedRole);
+        navigate(`/${roleToSlug[determinedRole]}`);
+      }, 1000);
+
+    } catch (err) {
+      setLoading(false);
+      setError("An error occurred during authentication. Please try again.");
+    }
   };
 
   return (
@@ -109,23 +154,6 @@ export function Login() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">
-                Session Access Context
-              </Label>
-              <Select value={selectedRole} onValueChange={v => setSelectedRole(v as Role)}>
-                <SelectTrigger className="bg-slate-50/50 border-slate-200 focus-visible:ring-emerald-600 focus-visible:border-emerald-600">
-                  <SelectValue placeholder="Select context role..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ITS">Information Technology Services (ITS)</SelectItem>
-                  <SelectItem value="TSG">Technical Support Group (TSG)</SelectItem>
-                  <SelectItem value="LabHead">Lab Head / Project Leader</SelectItem>
-                  <SelectItem value="Custodian">Active Custodian / Borrower</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 flex items-start gap-2">
                 <span className="font-bold">Error:</span> {error}
@@ -144,7 +172,7 @@ export function Login() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <span>Authenticating Context...</span>
+                  <span>Authenticating Credentials...</span>
                 </div>
               ) : (
                 <span className="flex items-center gap-2 justify-center">

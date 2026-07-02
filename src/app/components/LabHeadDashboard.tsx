@@ -3,6 +3,7 @@ import { useApp } from "../context";
 import { CheckCircle, XCircle, AlertTriangle, Search, ArrowRight, Package, MapPin, Calendar, LayoutGrid, Table2, Printer, Download } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
+import { AnalyticsModule } from "./AnalyticsModule";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -305,7 +306,18 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     );
   }
 
-
+  // ── Health Benchmarking ───────────────────────────────────────────────────
+  if (activeTab === "health") {
+    return (
+      <div>
+        <div className="mb-6">
+          <h1 className="text-foreground mb-1">Predictive Branch Analytics</h1>
+          <p className="text-muted-foreground text-sm">Analytics index computed only for CITe4D research center equipment.</p>
+        </div>
+        <AnalyticsModule />
+      </div>
+    );
+  }
 
   // ── Branch Inventory ──────────────────────────────────────────────────────
   const filtered = branchInventory.filter(eq => eq.name.toLowerCase().includes(search.toLowerCase()));

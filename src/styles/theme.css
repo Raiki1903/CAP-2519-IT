@@ -217,6 +217,16 @@
   animation: bgGradientShift 20s ease infinite;
 }
 
+.dark .dashboard-bg {
+  background: linear-gradient(
+    -45deg,
+    #0A1F14,
+    #022315,
+    #051c11,
+    #022315
+  );
+}
+
 /* ── Card lift on hover ──────────────────────────────────────────────────── */
 [data-slot="card"] {
   transition: box-shadow 0.25s ease, transform 0.25s ease;

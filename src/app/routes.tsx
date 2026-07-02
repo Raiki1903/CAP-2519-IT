@@ -56,6 +56,7 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="custody" replace /> },
           { path: "custody",     element: <LabHeadDashboard activeTab="custody" /> },
           { path: "inventory",   element: <LabHeadDashboard activeTab="inventory" /> },
+          { path: "health",      element: <LabHeadDashboard activeTab="health" /> },
         ],
       },
 

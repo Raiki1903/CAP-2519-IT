@@ -1,11 +1,12 @@
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Shield, LogOut, Monitor, Users, Wrench, QrCode,
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
-  ChevronsLeft, ChevronsRight, ClipboardCheck
+  ChevronsLeft, ChevronsRight, ClipboardCheck, Settings
 } from "lucide-react";
-import { useApp, roleToSlug, type Role } from "../context";
+import { useApp, roleToSlug, type Role, getCookie } from "../context";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import {
@@ -58,6 +59,7 @@ const roleConfig: Record<Role, {
     nav: [
       { id: "custody",     label: "Custody Transitions", icon: Users         },
       { id: "inventory",   label: "Branch Inventory",    icon: ClipboardList },
+      { id: "health",      label: "Health Benchmarking",   icon: BarChart3     },
     ],
   },
   Custodian: {
@@ -73,7 +75,8 @@ const roleConfig: Record<Role, {
 };
 
 export function Sidebar({ onLogout }: { onLogout: () => void }) {
-  const { role, unacknowledgedCount, sidebarCollapsed, setSidebarCollapsed } = useApp();
+  const { role, unacknowledgedCount, sidebarCollapsed, setSidebarCollapsed, cycleMode, setCycleMode, theme, setTheme } = useApp();
+  const [showSettings, setShowSettings] = useState(false);
   const navigate   = useNavigate();
   const location   = useLocation();
 
@@ -322,6 +325,39 @@ export function Sidebar({ onLogout }: { onLogout: () => void }) {
             )}
           </AnimatePresence>
 
+          {/* Preferences Settings Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
+                <Button
+                  variant="outline"
+                  size={collapsed ? "icon" : "sm"}
+                  onClick={() => setShowSettings(true)}
+                  className={cn(
+                    "border-emerald-900/40 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-950/40 hover:text-emerald-200",
+                    collapsed ? "w-full" : "w-full text-[11px]"
+                  )}
+                >
+                  <Settings size={12} />
+                  <AnimatePresence initial={false}>
+                    {!collapsed && (
+                      <motion.span
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: "auto" }}
+                        exit={{ opacity: 0, width: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="overflow-hidden whitespace-nowrap ml-2"
+                      >
+                        Preferences
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </Button>
+              </motion.div>
+            </TooltipTrigger>
+            {collapsed && <TooltipContent side="right">Preferences</TooltipContent>}
+          </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
@@ -355,6 +391,111 @@ export function Sidebar({ onLogout }: { onLogout: () => void }) {
           </Tooltip>
         </div>
       </motion.aside>
+
+      {/* ── Settings Modal ────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-slate-900 border border-emerald-500/20 rounded-2xl overflow-hidden shadow-2xl text-slate-100"
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
+            >
+              <div className="h-1.5 bg-[#005A36]" />
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    <Settings size={18} className="text-emerald-400" />
+                    System Preferences &amp; Session
+                  </h3>
+                  <button
+                    onClick={() => setShowSettings(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <LogOut size={16} className="rotate-180" />
+                  </button>
+                </div>
+
+                <div className="space-y-5">
+                  {/* Theme Option */}
+                  <div className="flex items-center justify-between p-3 bg-slate-950/40 rounded-xl border border-white/5">
+                    <div>
+                      <p className="text-xs font-bold text-white uppercase tracking-wider">Interface Theme</p>
+                      <p className="text-[10px] text-slate-400">Toggle classic dark or light slate</p>
+                    </div>
+                    <select
+                      value={theme}
+                      onChange={(e) => setTheme(e.target.value as any)}
+                      className="bg-slate-800 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 text-white"
+                    >
+                      <option value="classic-dark">Classic Dark</option>
+                      <option value="light-slate">Light Slate</option>
+                    </select>
+                  </div>
+
+                  {/* Cycle Mode Option */}
+                  <div className="flex items-center justify-between p-3 bg-slate-950/40 rounded-xl border border-white/5">
+                    <div>
+                      <p className="text-xs font-bold text-white uppercase tracking-wider">Active Inspection Cycle</p>
+                      <p className="text-[10px] text-slate-400">Term-based or Annual schedules</p>
+                    </div>
+                    <select
+                      value={cycleMode}
+                      onChange={(e) => setCycleMode(e.target.value as any)}
+                      className="bg-slate-800 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 text-white"
+                    >
+                      <option value="Trimestral">Trimestral Cycle</option>
+                      <option value="Annual">Annual Cycle</option>
+                    </select>
+                  </div>
+
+                  {/* Session Information */}
+                  <div className="p-4 bg-[#0A1F14] border border-emerald-500/10 rounded-xl space-y-2.5">
+                    <p className="text-[10px] font-extrabold text-emerald-400 tracking-wider uppercase">Active Session Details</p>
+                    
+                    <div className="space-y-1.5 text-[11px]">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Authorized User:</span>
+                        <span className="font-semibold text-white truncate max-w-[200px]" title={getCookie("session_user_email") || "guest@dlsu.edu.ph"}>
+                          {getCookie("session_user_email") || "guest@dlsu.edu.ph"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Role Context:</span>
+                        <span className="font-semibold text-white">{role}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Session Created:</span>
+                        <span className="font-mono text-slate-300">
+                          {getCookie("session_created") ? new Date(parseInt(getCookie("session_created")!, 10)).toLocaleString() : "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Last Activity:</span>
+                        <span className="font-mono text-slate-300">
+                          {getCookie("session_last_activity") ? new Date(parseInt(getCookie("session_last_activity")!, 10)).toLocaleString() : "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-t border-emerald-500/15 pt-2 mt-2">
+                        <span className="text-slate-400 font-medium">Session Policy:</span>
+                        <span className="text-emerald-300 font-semibold text-[10px] uppercase">24h Decay / 30d Refresh</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <Button onClick={() => setShowSettings(false)} className="bg-[#005A36] hover:bg-[#004225] text-white text-xs">
+                    Save &amp; Close
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </TooltipProvider>
   );
 }
