@@ -4,6 +4,7 @@ import { Login } from "./components/Login";
 import { ITSDashboard } from "./components/ITSDashboard";
 import { LabHeadDashboard } from "./components/LabHeadDashboard";
 import { CustodianPortal } from "./components/CustodianPortal";
+import { AdRICDirectorDashboard } from "./components/AdRICDirectorDashboard";
 import { NotFound } from "./components/NotFound";
 
 export const router = createBrowserRouter([
@@ -69,6 +70,18 @@ export const router = createBrowserRouter([
           { path: "available", element: <CustodianPortal activeTab="available" /> },
           { path: "scan",      element: <CustodianPortal activeTab="scan" /> },
           { path: "report",    element: <CustodianPortal activeTab="report" /> },
+        ],
+      },
+
+      // AdRIC Director routes
+      {
+        path: "adric-director",
+        children: [
+          { index: true, element: <Navigate to="overview" replace /> },
+          { path: "overview",           element: <AdRICDirectorDashboard activeTab="overview" /> },
+          { path: "analytics",          element: <AdRICDirectorDashboard activeTab="analytics" /> },
+          { path: "clearance-disposal", element: <AdRICDirectorDashboard activeTab="clearance-disposal" /> },
+          { path: "reports",            element: <AdRICDirectorDashboard activeTab="reports" /> },
         ],
       },
     ],

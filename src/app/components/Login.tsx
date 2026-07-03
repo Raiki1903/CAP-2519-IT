@@ -63,8 +63,10 @@ export function Login() {
       const roles = user.userRoles || [];
       let determinedRole: Role = "Custodian";
       
-      if (roles.some(ur => ur.role?.roleName === "ADMIN" || ur.role?.roleName === "ADRIC_DIRECTOR" || ur.role?.roleName === "ADRIC_SECRETARY")) {
+      if (roles.some(ur => ur.role?.roleName === "ADMIN" || ur.role?.roleName === "ADRIC_SECRETARY")) {
         determinedRole = "ITS";
+      } else if (roles.some(ur => ur.role?.roleName === "ADRIC_DIRECTOR")) {
+        determinedRole = "AdRICDirector";
       } else if (roles.some(ur => ur.role?.roleName === "TSG_STAFF")) {
         determinedRole = "TSG";
       } else if (roles.some(ur => ur.role?.roleName === "LAB_HEAD")) {

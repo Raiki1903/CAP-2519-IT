@@ -27,7 +27,27 @@ export function eraseCookie(name: string) {
   document.cookie = name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
 }
 
-export type Role = "ITS" | "TSG" | "LabHead" | "Custodian";
+export type Role = "ITS" | "TSG" | "LabHead" | "Custodian" | "AdRICDirector";
+
+export interface PendingDisposal {
+  id: string;
+  assetId: string;
+  assetName: string;
+  lastCustodian: string;
+  breakdownReasons: string;
+  disposalPathway: string;
+  requestedBy: string;
+  requestedAt: string;
+}
+
+export interface AffiliateClearance {
+  userId: number;
+  name: string;
+  email: string;
+  role: string; // "Student" or "Faculty"
+  holdStatus: "Hold Active" | "Cleared";
+  notes?: string;
+}
 
 export interface RepairRequest {
   id: string;
@@ -71,6 +91,8 @@ export interface Asset {
   disposalId?: string;
   disposalDetails?: DisposalDetails;
   cost?: number;
+  itsPropertyTag?: string;
+  tsgPropertyTag?: string;
 }
 
 export interface TransferRequest {
@@ -142,6 +164,11 @@ interface AppContextType {
   finalizeReturn: (id: string, assetId: string, condition: string, checklist: string[], notes: string, clearanceIssued: boolean) => void;
   inspections: InspectionReport[];
   addInspectionReport: (report: InspectionReport) => void;
+  pendingDisposals: PendingDisposal[];
+  approveDisposal: (id: string) => void;
+  rejectDisposal: (id: string) => void;
+  manualClearanceHolds: AffiliateClearance[];
+  toggleClearanceHold: (userId: number, holdStatus: "Hold Active" | "Cleared", notes?: string) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -169,14 +196,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [transfers, setTransfers] = useState<TransferRequest[]>([]);
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [inspections, setInspections] = useState<InspectionReport[]>([]);
+  const [pendingDisposals, setPendingDisposals] = useState<PendingDisposal[]>(() => {
+    const saved = localStorage.getItem("ems_pending_disposals");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [manualClearanceHolds, setManualClearanceHolds] = useState<AffiliateClearance[]>(() => {
+    const saved = localStorage.getItem("ems_manual_clearance_holds");
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  // Sync state from simulated database (Prisma client)
   const syncFromDb = async () => {
     const dbAssets = await prisma.asset.findMany();
     const dbUsers = await prisma.user.findMany();
     const dbCenters = await prisma.researchCenter.findMany();
     const dbDisposals = await prisma.assetDisposal.findMany();
     const dbMonetaries = await prisma.assetMonetary.findMany();
+    const dbTags = await prisma.assetTag.findMany();
 
     const mappedAssets = dbAssets.map(a => {
       const custodianUser = a.custodianId ? dbUsers.find(u => u.userId === a.custodianId) : null;
@@ -184,6 +219,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const disposal = dbDisposals.find(d => d.assetId === a.assetId);
       const disposerUser = disposal ? dbUsers.find(u => u.userId === disposal.disposedById) : null;
       const monetary = dbMonetaries.find(m => m.assetId === a.assetId);
+      const tags = dbTags.find(t => t.assetId === a.assetId);
 
       let daysLeft: number | undefined = undefined;
       if (a.dueDate) {
@@ -223,7 +259,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         daysLeft,
         disposalId: disposal ? `DISP-${disposal.disposalId}` : undefined,
         disposalDetails,
-        cost: monetary ? Number(monetary.acquisitionValue) : 0
+        cost: monetary ? Number(monetary.acquisitionValue) : 0,
+        itsPropertyTag: tags?.itsPropertyTag ?? `DLSU-ITS-2024-${String(a.assetId).padStart(3, "0")}`,
+        tsgPropertyTag: tags?.tsgPropertyTag ?? `DLSU-TSG-2024-${String(a.assetId).padStart(3, "0")}`
       };
     });
     setAssets(mappedAssets);
@@ -346,8 +384,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (user) {
             const roles = user.userRoles || [];
             let determinedRole: Role = "Custodian";
-            if (roles.some(ur => ur.role?.roleName === "ADMIN" || ur.role?.roleName === "ADRIC_DIRECTOR" || ur.role?.roleName === "ADRIC_SECRETARY")) {
+            if (roles.some(ur => ur.role?.roleName === "ADMIN" || ur.role?.roleName === "ADRIC_SECRETARY")) {
               determinedRole = "ITS";
+            } else if (roles.some(ur => ur.role?.roleName === "ADRIC_DIRECTOR")) {
+              determinedRole = "AdRICDirector";
             } else if (roles.some(ur => ur.role?.roleName === "TSG_STAFF")) {
               determinedRole = "TSG";
             } else if (roles.some(ur => ur.role?.roleName === "LAB_HEAD")) {
@@ -512,17 +552,77 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const disposeAsset = async (assetIdStr: string, details: Omit<DisposalDetails, "decommissionedBy">, activeRole: string) => {
     const assetId = parseInt(assetIdStr.split("-").pop() || "0", 10);
+    
+    if (activeRole === "AdRICDirector") {
+      const sessionEmail = getCookie("session_user_email") || "";
+      const user = await prisma.user.findFirst({ where: { email: sessionEmail } });
+      const userId = user?.userId || 11;
+
+      await prisma.assetDisposal.create({
+        data: {
+          assetId,
+          disposedById: userId,
+          disposalDate: new Date().toISOString(),
+          disposalReason: details.breakdownReasons,
+          pathway: details.disposalPathway
+        }
+      });
+
+      await prisma.asset.update({
+        where: { assetId },
+        data: { status: "Disposed" }
+      });
+
+      await syncFromDb();
+    } else {
+      const sessionEmail = getCookie("session_user_email") || "";
+      const user = await prisma.user.findFirst({ where: { email: sessionEmail } });
+      const requestedBy = user ? `${user.firstName} ${user.lastName}` : "ITS Admin";
+
+      const matchedAsset = assets.find(a => a.id === assetIdStr);
+
+      const newPending: PendingDisposal = {
+        id: `PDISP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        assetId: assetIdStr,
+        assetName: matchedAsset?.name || "Unknown Asset",
+        lastCustodian: details.lastCustodian,
+        breakdownReasons: details.breakdownReasons,
+        disposalPathway: details.disposalPathway,
+        requestedBy,
+        requestedAt: new Date().toISOString()
+      };
+
+      setPendingDisposals(prev => {
+        const next = [newPending, ...prev];
+        localStorage.setItem("ems_pending_disposals", JSON.stringify(next));
+        return next;
+      });
+
+      await prisma.asset.update({
+        where: { assetId },
+        data: { status: "Pending Disposal" }
+      });
+
+      await syncFromDb();
+    }
+  };
+
+  const approveDisposal = async (id: string) => {
+    const req = pendingDisposals.find(p => p.id === id);
+    if (!req) return;
+
+    const assetId = parseInt(req.assetId.split("-").pop() || "0", 10);
     const sessionEmail = getCookie("session_user_email") || "";
     const user = await prisma.user.findFirst({ where: { email: sessionEmail } });
-    const userId = user?.userId || 1;
+    const userId = user?.userId || 11;
 
     await prisma.assetDisposal.create({
       data: {
         assetId,
         disposedById: userId,
         disposalDate: new Date().toISOString(),
-        disposalReason: details.breakdownReasons,
-        pathway: details.disposalPathway
+        disposalReason: req.breakdownReasons,
+        pathway: req.disposalPathway
       }
     });
 
@@ -531,7 +631,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       data: { status: "Disposed" }
     });
 
+    setPendingDisposals(prev => {
+      const next = prev.filter(p => p.id !== id);
+      localStorage.setItem("ems_pending_disposals", JSON.stringify(next));
+      return next;
+    });
+
     await syncFromDb();
+  };
+
+  const rejectDisposal = async (id: string) => {
+    const req = pendingDisposals.find(p => p.id === id);
+    if (!req) return;
+
+    const assetId = parseInt(req.assetId.split("-").pop() || "0", 10);
+    await prisma.asset.update({
+      where: { assetId },
+      data: { status: "Maintenance" }
+    });
+
+    setPendingDisposals(prev => {
+      const next = prev.filter(p => p.id !== id);
+      localStorage.setItem("ems_pending_disposals", JSON.stringify(next));
+      return next;
+    });
+
+    await syncFromDb();
+  };
+
+  const toggleClearanceHold = (userId: number, holdStatus: "Hold Active" | "Cleared", notes?: string) => {
+    setManualClearanceHolds(prev => {
+      const existingIdx = prev.findIndex(h => h.userId === userId);
+      let next = [...prev];
+      if (existingIdx > -1) {
+        next[existingIdx] = { ...next[existingIdx], holdStatus, notes };
+      } else {
+        prisma.user.findUnique({ where: { userId } }).then(u => {
+          if (u) {
+            const newHold: AffiliateClearance = {
+              userId,
+              name: `${u.firstName} ${u.lastName}`,
+              email: u.email,
+              role: u.userType === "FACULTY" ? "Faculty" : "Student",
+              holdStatus,
+              notes
+            };
+            setManualClearanceHolds(p => {
+              const n = [...p.filter(h => h.userId !== userId), newHold];
+              localStorage.setItem("ems_manual_clearance_holds", JSON.stringify(n));
+              return n;
+            });
+          }
+        });
+      }
+      localStorage.setItem("ems_manual_clearance_holds", JSON.stringify(next));
+      return next;
+    });
   };
 
   const addTransferRequest = async (req: TransferRequest) => {
@@ -652,7 +807,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         assets, addAsset, removeAsset, updateAsset, disposeAsset,
         transfers, addTransferRequest, updateTransferRequest,
         returns, addReturnRequest, finalizeReturn,
-        inspections, addInspectionReport
+        inspections, addInspectionReport,
+        pendingDisposals, approveDisposal, rejectDisposal,
+        manualClearanceHolds, toggleClearanceHold
       }}
     >
       {children}
@@ -671,6 +828,7 @@ export const roleToSlug: Record<Role, string> = {
   TSG: "tsg",
   LabHead: "lab-head",
   Custodian: "custodian",
+  AdRICDirector: "adric-director",
 };
 
 export const roleDefaultPath: Record<Role, string> = {
@@ -678,4 +836,5 @@ export const roleDefaultPath: Record<Role, string> = {
   TSG: "/tsg/repairs",
   LabHead: "/lab-head/custody",
   Custodian: "/custodian/myassets",
+  AdRICDirector: "/adric-director/overview",
 };

@@ -72,6 +72,16 @@ const roleConfig: Record<Role, {
       { id: "report",    label: "Report Issue",        icon: Bell    },
     ],
   },
+  AdRICDirector: {
+    label: "AdRIC Director",
+    subtitle: "Executive Oversight",
+    nav: [
+      { id: "overview",           label: "Executive Overview",  icon: Monitor       },
+      { id: "analytics",          label: "Descriptive Analytics",icon: BarChart3     },
+      { id: "clearance-disposal", label: "Approvals & Holds",     icon: ClipboardCheck },
+      { id: "reports",            label: "Audit Generator",     icon: ClipboardList },
+    ],
+  },
 };
 
 export function Sidebar({ onLogout }: { onLogout: () => void }) {
