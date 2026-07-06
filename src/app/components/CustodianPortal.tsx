@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
-import { QrCode, Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
+import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
 import { useApp } from "../context";
@@ -41,7 +41,8 @@ const statusPills = [
 ];
 
 export function CustodianPortal({ activeTab }: { activeTab: string }) {
-  const { cycleMode, addRepairRequest: onRepairRequest, assets, addInspectionReport } = useApp();
+  const { cycleMode, addRepairRequest: onRepairRequest, assets, addInspectionReport, currentUser } = useApp();
+  const currentUserName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)";
 
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
   const [scanActive, setScanActive] = useState(false);
@@ -169,20 +170,9 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     };
   }, [scanActive, scanLoading, scanResult]);
 
-  const simulateScan = () => {
-    setScanLoading(true); setScanResult(null);
-    setTimeout(() => {
-      setScanLoading(false);
-      const active = assets.filter(a => a.status !== "Disposed");
-      const newestAsset = active.find(a => a.id.startsWith("EQ-2026-")) || active[0] || { id: "EQ-2024-051" };
-      const matched = assets.find(a => a.id === newestAsset.id) || newestAsset;
-      setSelectedAsset(matched as any);
-      setScanResult(newestAsset.id);
-      setScanActive(false);
-    }, 2000);
-  };
 
-  const custodianAssets = assets.filter(a => a.custodian === "A. Dela Cruz (Active Custodian)");
+
+  const custodianAssets = assets.filter(a => a.custodian === currentUserName);
 
   const selectedPill = statusPills.find(p => p.label === reportStatus);
   const isAlert   = selectedPill && (selectedPill.severity === "alert"   || selectedPill.severity === "critical");
@@ -220,7 +210,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         id: ref,
         assetId: reportAsset,
         assetName: asset.name,
-        custodian: "A. Dela Cruz (Active Custodian)",
+        custodian: currentUserName,
         status: reportStatus,
         description: reportDesc || "Regular check-in evaluation.",
         images: reportImages,
@@ -229,7 +219,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
       });
 
       if (triggerRepair) {
-        onRepairRequest({ id:ref, assetId:reportAsset, assetName:asset.name, custodian:"A. Dela Cruz (Active Custodian)",
+        onRepairRequest({ id:ref, assetId:reportAsset, assetName:asset.name, custodian:currentUserName,
           statusLabel:reportStatus, description:reportDesc||"No description.", imageUrl:reportImages[0],
           submittedAt:new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}),
           priority:requestImmediate ? "Critical" : (selectedPill?.severity==="critical"?"Critical":"High"), acknowledged:false });
@@ -512,16 +502,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               </div>
             )}
             {scanActive && !scanLoading && !scanResult && (
-              <>
-                <Button className="flex-1" onClick={simulateScan}>
-                  <QrCode size={14} />
-                  Simulate Mock Scan ({
-                    assets.filter(a => a.status !== "Disposed").find(a => a.id.startsWith("EQ-2026-"))?.id || 
-                    assets.filter(a => a.status !== "Disposed")[0]?.id || "EQ-2024-051"
-                  })
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => setScanActive(false)}><X size={14} />Cancel</Button>
-              </>
+              <Button variant="outline" className="w-full" onClick={() => setScanActive(false)}><X size={14} />Cancel</Button>
             )}
             {scanResult && <Button variant="outline" className="flex-1" onClick={() => { setScanResult(null); setScanActive(false); }}>Scan Another</Button>}
           </div>

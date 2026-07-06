@@ -44,6 +44,7 @@ export interface User {
   password: string;
   idNumber: number;
   userType: UserType;
+  profilePicture?: string;
 }
 
 export interface Role {
@@ -178,7 +179,8 @@ const seedData: DatabaseState = {
     { userId: 7, firstName: "M.", lastName: "Tan", email: "m.tan@dlsu.edu.ph", password: "password123", idNumber: 77777777, userType: "FACULTY" },
     { userId: 8, firstName: "J.", lastName: "Sy", email: "j.sy@dlsu.edu.ph", password: "password123", idNumber: 88888888, userType: "FACULTY" },
     { userId: 9, firstName: "Felix", lastName: "Torres", email: "felix.torres@dlsu.edu.ph", password: "password123", idNumber: 99999999, userType: "FACULTY" },
-    { userId: 10, firstName: "T.", lastName: "Lim", email: "t.lim@dlsu.edu.ph", password: "password123", idNumber: 10101010, userType: "FACULTY" }
+    { userId: 10, firstName: "T.", lastName: "Lim", email: "t.lim@dlsu.edu.ph", password: "password123", idNumber: 10101010, userType: "FACULTY" },
+    { userId: 11, firstName: "Dr. Elena", lastName: "Castro", email: "director@dlsu.edu.ph", password: "director_password", idNumber: 12121212, userType: "FACULTY" }
   ],
   roles: [
     { roleId: 1, roleName: "ADMIN" },
@@ -192,7 +194,8 @@ const seedData: DatabaseState = {
     { userRoleId: 2, userId: 2, roleId: 4 },
     { userRoleId: 3, userId: 3, roleId: 5 },
     { userRoleId: 4, userId: 5, roleId: 5 },
-    { userRoleId: 5, userId: 7, roleId: 5 }
+    { userRoleId: 5, userId: 7, roleId: 5 },
+    { userRoleId: 6, userId: 11, roleId: 2 }
   ],
   researchCenters: [
     { centerId: 1, centerName: "CITe4D", campusLocation: "MANILA_CAMPUS" },
@@ -235,7 +238,28 @@ const seedData: DatabaseState = {
     { assetId: 20, qrCodeHash: "hash-020", assetName: "Raspberry Pi 4 Cluster (32 nodes)", assetType: "DEV_KIT", centerId: 6, serial: "SN-RPI4-CLU-07", manufacturer: "Raspberry Pi", funding: "DOST", procured: "2024-04-12", warranty: "2025-04-12", condition: 96, status: "On Loan", custodianId: 4 }
   ],
   assetRecords: [],
-  assetTags: [],
+  assetTags: [
+    { assetTagId: 1, itsPropertyTag: "DLSU-ITS-2024-001", tsgPropertyTag: "DLSU-TSG-2024-001", assetId: 1 },
+    { assetTagId: 2, itsPropertyTag: "DLSU-ITS-2024-002", tsgPropertyTag: "DLSU-TSG-2024-002", assetId: 2 },
+    { assetTagId: 3, itsPropertyTag: "DLSU-ITS-2024-003", tsgPropertyTag: "DLSU-TSG-2024-003", assetId: 3 },
+    { assetTagId: 4, itsPropertyTag: "DLSU-ITS-2024-004", tsgPropertyTag: "DLSU-TSG-2024-004", assetId: 4 },
+    { assetTagId: 5, itsPropertyTag: "DLSU-ITS-2024-005", tsgPropertyTag: "DLSU-TSG-2024-005", assetId: 5 },
+    { assetTagId: 6, itsPropertyTag: "DLSU-ITS-2024-006", tsgPropertyTag: "DLSU-TSG-2024-006", assetId: 6 },
+    { assetTagId: 7, itsPropertyTag: "DLSU-ITS-2024-007", tsgPropertyTag: "DLSU-TSG-2024-007", assetId: 7 },
+    { assetTagId: 8, itsPropertyTag: "DLSU-ITS-2024-008", tsgPropertyTag: "DLSU-TSG-2024-008", assetId: 8 },
+    { assetTagId: 9, itsPropertyTag: "DLSU-ITS-2024-009", tsgPropertyTag: "DLSU-TSG-2024-009", assetId: 9 },
+    { assetTagId: 10, itsPropertyTag: "DLSU-ITS-2024-010", tsgPropertyTag: "DLSU-TSG-2024-010", assetId: 10 },
+    { assetTagId: 11, itsPropertyTag: "DLSU-ITS-2024-011", tsgPropertyTag: "DLSU-TSG-2024-011", assetId: 11 },
+    { assetTagId: 12, itsPropertyTag: "DLSU-ITS-2024-012", tsgPropertyTag: "DLSU-TSG-2024-012", assetId: 12 },
+    { assetTagId: 13, itsPropertyTag: "DLSU-ITS-2024-013", tsgPropertyTag: "DLSU-TSG-2024-013", assetId: 13 },
+    { assetTagId: 14, itsPropertyTag: "DLSU-ITS-2024-014", tsgPropertyTag: "DLSU-TSG-2024-014", assetId: 14 },
+    { assetTagId: 15, itsPropertyTag: "DLSU-ITS-2024-015", tsgPropertyTag: "DLSU-TSG-2024-015", assetId: 15 },
+    { assetTagId: 16, itsPropertyTag: "DLSU-ITS-2024-016", tsgPropertyTag: "DLSU-TSG-2024-016", assetId: 16 },
+    { assetTagId: 17, itsPropertyTag: "DLSU-ITS-2024-017", tsgPropertyTag: "DLSU-TSG-2024-017", assetId: 17 },
+    { assetTagId: 18, itsPropertyTag: "DLSU-ITS-2024-018", tsgPropertyTag: "DLSU-TSG-2024-018", assetId: 18 },
+    { assetTagId: 19, itsPropertyTag: "DLSU-ITS-2024-019", tsgPropertyTag: "DLSU-TSG-2024-019", assetId: 19 },
+    { assetTagId: 20, itsPropertyTag: "DLSU-ITS-2024-020", tsgPropertyTag: "DLSU-TSG-2024-020", assetId: 20 }
+  ],
   assetMonetaries: [
     { assetMonetaryId: 1, fundingSource: "DOST", acquisitionValue: 250000, assetId: 1 },
     { assetMonetaryId: 2, fundingSource: "USAID", acquisitionValue: 950000, assetId: 2 },
@@ -280,7 +304,19 @@ function getDb(): DatabaseState {
     return seedData;
   }
   try {
-    return JSON.parse(data);
+    const db = JSON.parse(data) as DatabaseState;
+    if (db && db.users && !db.users.some(u => u.email === "director@dlsu.edu.ph")) {
+      db.users.push({ userId: 11, firstName: "Dr. Elena", lastName: "Castro", email: "director@dlsu.edu.ph", password: "director_password", idNumber: 12121212, userType: "FACULTY" });
+      if (db.userRoles) {
+        const nextUrId = db.userRoles.reduce((max, ur) => Math.max(max, ur.userRoleId), 0) + 1;
+        db.userRoles.push({ userRoleId: nextUrId, userId: 11, roleId: 2 });
+      }
+      if (!db.assetTags || db.assetTags.length === 0) {
+        db.assetTags = seedData.assetTags;
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    }
+    return db;
   } catch (e) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(seedData));
     return seedData;
@@ -522,6 +558,19 @@ export const prisma = {
       db.assetMonetaries.push(newM);
       saveDb(db);
       return newM;
+    }
+  },
+  assetTag: {
+    findMany: async () => {
+      return clone(getDb().assetTags);
+    },
+    create: async (args: { data: Omit<AssetTag, "assetTagId"> }) => {
+      const db = getDb();
+      const nextId = db.assetTags.reduce((max, t) => Math.max(max, t.assetTagId), 0) + 1;
+      const newTag = { ...args.data, assetTagId: nextId };
+      db.assetTags.push(newTag);
+      saveDb(db);
+      return newTag;
     }
   }
 };
