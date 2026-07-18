@@ -44,6 +44,7 @@ export interface User {
   password: string;
   idNumber: number;
   userType: UserType;
+  profilePicture?: string;
 }
 
 export interface Role {
@@ -85,6 +86,15 @@ export interface Asset {
   custodianId?: number; // User ID
   borrowedOn?: string;
   dueDate?: string;
+  projectId?: string;
+  projectName?: string;
+  projectLeader?: string;
+  ccsLab?: string;
+  fundingAgency?: string;
+  projectStartYear?: string;
+  description?: string;
+  image?: string;
+  specs?: string;
 }
 
 export interface AssetRecord {
@@ -150,6 +160,25 @@ export interface AssetRepair {
   forwardedTo?: "TSG" | "ITS" | "Both";
 }
 
+export interface InspectionSchedule {
+  scheduleId: number;
+  labGroupId: string;
+  inspectionDate: string;
+  cycleType: "Annual" | "Trimestral";
+  createdAt: string;
+}
+
+export interface MaintenanceQueueItem {
+  id: string;
+  asset: string;
+  serial: string;
+  lab: string;
+  lastInspected: string;
+  status: "Due Soon" | "Overdue" | "Scheduled" | "Inspected";
+  urgency: "Low" | "Normal" | "High" | "Critical";
+  labGroupId: string;
+}
+
 interface DatabaseState {
   users: User[];
   roles: Role[];
@@ -163,6 +192,8 @@ interface DatabaseState {
   transfers: CustodianshipTransfer[];
   disposals: AssetDisposal[];
   repairs: AssetRepair[];
+  inspectionSchedules: InspectionSchedule[];
+  maintenanceQueue: MaintenanceQueueItem[];
 }
 
 const STORAGE_KEY = "dlsu_equipment_ms_db_v2";
@@ -178,7 +209,8 @@ const seedData: DatabaseState = {
     { userId: 7, firstName: "M.", lastName: "Tan", email: "m.tan@dlsu.edu.ph", password: "password123", idNumber: 77777777, userType: "FACULTY" },
     { userId: 8, firstName: "J.", lastName: "Sy", email: "j.sy@dlsu.edu.ph", password: "password123", idNumber: 88888888, userType: "FACULTY" },
     { userId: 9, firstName: "Felix", lastName: "Torres", email: "felix.torres@dlsu.edu.ph", password: "password123", idNumber: 99999999, userType: "FACULTY" },
-    { userId: 10, firstName: "T.", lastName: "Lim", email: "t.lim@dlsu.edu.ph", password: "password123", idNumber: 10101010, userType: "FACULTY" }
+    { userId: 10, firstName: "T.", lastName: "Lim", email: "t.lim@dlsu.edu.ph", password: "password123", idNumber: 10101010, userType: "FACULTY" },
+    { userId: 11, firstName: "Dr. Elena", lastName: "Castro", email: "director@dlsu.edu.ph", password: "director_password", idNumber: 12121212, userType: "FACULTY" }
   ],
   roles: [
     { roleId: 1, roleName: "ADMIN" },
@@ -192,7 +224,8 @@ const seedData: DatabaseState = {
     { userRoleId: 2, userId: 2, roleId: 4 },
     { userRoleId: 3, userId: 3, roleId: 5 },
     { userRoleId: 4, userId: 5, roleId: 5 },
-    { userRoleId: 5, userId: 7, roleId: 5 }
+    { userRoleId: 5, userId: 7, roleId: 5 },
+    { userRoleId: 6, userId: 11, roleId: 2 }
   ],
   researchCenters: [
     { centerId: 1, centerName: "CITe4D", campusLocation: "MANILA_CAMPUS" },
@@ -210,9 +243,9 @@ const seedData: DatabaseState = {
     { userCentersId: 4, userId: 4, centerId: 1 }
   ],
   assets: [
-    { assetId: 1, qrCodeHash: "hash-001", assetName: "Dell PowerEdge R740 Server", assetType: "CPU", centerId: 1, serial: "SN-DPE-740-001", manufacturer: "Dell Technologies", funding: "DOST", procured: "2024-01-15", warranty: "2027-01-15", condition: 96, status: "On Loan", custodianId: 5 },
-    { assetId: 2, qrCodeHash: "hash-002", assetName: "NVIDIA DGX A100 Workstation", assetType: "CPU", centerId: 2, serial: "SN-DGX-A100-02", manufacturer: "NVIDIA Corporation", funding: "USAID", procured: "2024-02-20", warranty: "2026-02-20", condition: 82, status: "Active" },
-    { assetId: 3, qrCodeHash: "hash-003", assetName: "UR10e Collaborative Robot", assetType: "SIMULATOR", centerId: 3, serial: "SN-UR10e-0034", manufacturer: "Universal Robots", category: "Robotic Node", funding: "CHED", procured: "2024-03-10", warranty: "2026-03-10", condition: 91, status: "Active" },
+    { assetId: 1, qrCodeHash: "hash-001", assetName: "Dell PowerEdge R740 Server", assetType: "CPU", centerId: 1, serial: "SN-DPE-740-001", manufacturer: "Dell Technologies", funding: "DOST", procured: "2024-01-15", warranty: "2027-01-15", condition: 96, status: "On Loan", custodianId: 5, projectId: "PRJ-2024-CIT", projectName: "CITe4D Smart Campus Platform", projectLeader: "Dr. Juan Dela Cruz", ccsLab: "CITe4D", fundingAgency: "DOST-PCIEERD", projectStartYear: "2024", description: "Primary compute node for processing smart campus IoT sensor feeds." },
+    { assetId: 2, qrCodeHash: "hash-002", assetName: "NVIDIA DGX A100 Workstation", assetType: "CPU", centerId: 2, serial: "SN-DGX-A100-02", manufacturer: "NVIDIA Corporation", funding: "USAID", procured: "2024-02-20", warranty: "2026-02-20", condition: 82, status: "Active", projectId: "PRJ-2024-CAR", projectName: "CAR Autonomous Driving Models", projectLeader: "Dr. Santos", ccsLab: "CAR", fundingAgency: "USAID", projectStartYear: "2024", description: "Deep learning workstation configured with GPU clustering for autonomous vehicle simulations." },
+    { assetId: 3, qrCodeHash: "hash-003", assetName: "UR10e Collaborative Robot", assetType: "SIMULATOR", centerId: 3, serial: "SN-UR10e-0034", manufacturer: "Universal Robots", funding: "CHED", procured: "2024-03-10", warranty: "2026-03-10", condition: 91, status: "Active" },
     { assetId: 4, qrCodeHash: "hash-004", assetName: "Boston Dynamics Spot Robot", assetType: "SIMULATOR", centerId: 4, serial: "SN-SPOT-0178", manufacturer: "Boston Dynamics", funding: "Internal Grants", procured: "2023-11-05", warranty: "2025-11-05", condition: 67, status: "Maintenance" },
     { assetId: 5, qrCodeHash: "hash-005", assetName: "Leica BLK360 3D Scanner", assetType: "CAMERA", centerId: 1, serial: "SN-LBK-360-09", manufacturer: "Leica Geosystems", funding: "DOST", procured: "2024-04-01", warranty: "2027-04-01", condition: 99, status: "On Loan", custodianId: 6 },
     { assetId: 6, qrCodeHash: "hash-006", assetName: "Surface Pro 9 i7 (Bundle×12)", assetType: "TABLET", centerId: 5, serial: "SN-SP9-BNDL-03", manufacturer: "Microsoft", funding: "CHED", procured: "2024-05-22", warranty: "2026-05-22", condition: 88, status: "Active" },
@@ -235,7 +268,28 @@ const seedData: DatabaseState = {
     { assetId: 20, qrCodeHash: "hash-020", assetName: "Raspberry Pi 4 Cluster (32 nodes)", assetType: "DEV_KIT", centerId: 6, serial: "SN-RPI4-CLU-07", manufacturer: "Raspberry Pi", funding: "DOST", procured: "2024-04-12", warranty: "2025-04-12", condition: 96, status: "On Loan", custodianId: 4 }
   ],
   assetRecords: [],
-  assetTags: [],
+  assetTags: [
+    { assetTagId: 1, itsPropertyTag: "DLSU-ITS-2024-001", tsgPropertyTag: "DLSU-TSG-2024-001", assetId: 1 },
+    { assetTagId: 2, itsPropertyTag: "DLSU-ITS-2024-002", tsgPropertyTag: "DLSU-TSG-2024-002", assetId: 2 },
+    { assetTagId: 3, itsPropertyTag: "DLSU-ITS-2024-003", tsgPropertyTag: "DLSU-TSG-2024-003", assetId: 3 },
+    { assetTagId: 4, itsPropertyTag: "DLSU-ITS-2024-004", tsgPropertyTag: "DLSU-TSG-2024-004", assetId: 4 },
+    { assetTagId: 5, itsPropertyTag: "DLSU-ITS-2024-005", tsgPropertyTag: "DLSU-TSG-2024-005", assetId: 5 },
+    { assetTagId: 6, itsPropertyTag: "DLSU-ITS-2024-006", tsgPropertyTag: "DLSU-TSG-2024-006", assetId: 6 },
+    { assetTagId: 7, itsPropertyTag: "DLSU-ITS-2024-007", tsgPropertyTag: "DLSU-TSG-2024-007", assetId: 7 },
+    { assetTagId: 8, itsPropertyTag: "DLSU-ITS-2024-008", tsgPropertyTag: "DLSU-TSG-2024-008", assetId: 8 },
+    { assetTagId: 9, itsPropertyTag: "DLSU-ITS-2024-009", tsgPropertyTag: "DLSU-TSG-2024-009", assetId: 9 },
+    { assetTagId: 10, itsPropertyTag: "DLSU-ITS-2024-010", tsgPropertyTag: "DLSU-TSG-2024-010", assetId: 10 },
+    { assetTagId: 11, itsPropertyTag: "DLSU-ITS-2024-011", tsgPropertyTag: "DLSU-TSG-2024-011", assetId: 11 },
+    { assetTagId: 12, itsPropertyTag: "DLSU-ITS-2024-012", tsgPropertyTag: "DLSU-TSG-2024-012", assetId: 12 },
+    { assetTagId: 13, itsPropertyTag: "DLSU-ITS-2024-013", tsgPropertyTag: "DLSU-TSG-2024-013", assetId: 13 },
+    { assetTagId: 14, itsPropertyTag: "DLSU-ITS-2024-014", tsgPropertyTag: "DLSU-TSG-2024-014", assetId: 14 },
+    { assetTagId: 15, itsPropertyTag: "DLSU-ITS-2024-015", tsgPropertyTag: "DLSU-TSG-2024-015", assetId: 15 },
+    { assetTagId: 16, itsPropertyTag: "DLSU-ITS-2024-016", tsgPropertyTag: "DLSU-TSG-2024-016", assetId: 16 },
+    { assetTagId: 17, itsPropertyTag: "DLSU-ITS-2024-017", tsgPropertyTag: "DLSU-TSG-2024-017", assetId: 17 },
+    { assetTagId: 18, itsPropertyTag: "DLSU-ITS-2024-018", tsgPropertyTag: "DLSU-TSG-2024-018", assetId: 18 },
+    { assetTagId: 19, itsPropertyTag: "DLSU-ITS-2024-019", tsgPropertyTag: "DLSU-TSG-2024-019", assetId: 19 },
+    { assetTagId: 20, itsPropertyTag: "DLSU-ITS-2024-020", tsgPropertyTag: "DLSU-TSG-2024-020", assetId: 20 }
+  ],
   assetMonetaries: [
     { assetMonetaryId: 1, fundingSource: "DOST", acquisitionValue: 250000, assetId: 1 },
     { assetMonetaryId: 2, fundingSource: "USAID", acquisitionValue: 950000, assetId: 2 },
@@ -269,6 +323,18 @@ const seedData: DatabaseState = {
     { repairId: 2, assetId: 4, reportedById: 9, issueDescription: "Joint encoder calibration failed - drift exceeding 2 degrees", startDate: "2026-06-12T14:30:00Z", repairStatus: "IN_PROGRESS", uiId: "MNT-002", priority: "Critical", acknowledged: true, forwardedTo: "TSG" },
     { repairId: 3, assetId: 1, reportedById: 5, issueDescription: "Storage sector failure count rising on SSD array", startDate: "2026-01-18T09:00:00Z", completionDate: "2026-01-20T17:00:00Z", repairStatus: "COMPLETED", uiId: "MNT-003", priority: "Medium", acknowledged: true, forwardedTo: "ITS" },
     { repairId: 4, assetId: 15, reportedById: 7, issueDescription: "GPU cooling fan failure causing high thermal profile", startDate: "2026-06-02T11:00:00Z", completionDate: "2026-06-05T15:00:00Z", repairStatus: "COMPLETED", uiId: "MNT-004", priority: "High", acknowledged: true, forwardedTo: "TSG" }
+  ],
+  inspectionSchedules: [],
+  maintenanceQueue: [
+    { id:"MNT-2026-0141", asset:"Dell PowerEdge R740", serial:"SN-DPE-740-001", lab:"CITe4D", lastInspected:"2025-12-10", status:"Due Soon",  urgency:"Normal",   labGroupId: "A" },
+    { id:"MNT-2026-0142", asset:"NVIDIA DGX A100",     serial:"SN-DGX-A100-02",  lab:"CITe4D", lastInspected:"2025-11-20", status:"Overdue",   urgency:"High",     labGroupId: "A" },
+    { id:"MNT-2026-0143", asset:"Leica BLK360 Scanner",serial:"SN-LBK-360-09",   lab:"CITe4D", lastInspected:"2026-02-15", status:"Inspected", urgency:"Low",      labGroupId: "A" },
+    { id:"MNT-2026-0151", asset:"RPi 4 Cluster ×32",  serial:"SN-RPI4-CLU-07",  lab:"CeLT",   lastInspected:"2026-03-01", status:"Inspected", urgency:"Low",      labGroupId: "B" },
+    { id:"MNT-2026-0152", asset:"Oculus Quest Pro ×8", serial:"OQ-PRO-DLSU",     lab:"CAR",   lastInspected:"2026-01-20", status:"Due Soon",  urgency:"Normal",   labGroupId: "B" },
+    { id:"MNT-2026-0161", asset:"Boston Dynamics Spot",   serial:"SN-SPOT-0178",    lab:"HXIL",  lastInspected:"2025-10-15", status:"Overdue",   urgency:"Critical", labGroupId: "C" },
+    { id:"MNT-2026-0162", asset:"Phantom VEO4K Camera",   serial:"SN-PH-VEO-4K-01", lab:"Bio",   lastInspected:"2026-04-10", status:"Inspected", urgency:"Low",      labGroupId: "C" },
+    { id:"MNT-2026-0171", asset:"Surface Pro 9 Bundle",      serial:"SN-SP9-BNDL-03", lab:"GAME",  lastInspected:"2026-05-01", status:"Inspected", urgency:"Low",      labGroupId: "D" },
+    { id:"MNT-2026-0172", asset:"Trimble SX12 Total Station",serial:"TR-SX12-0092",   lab:"CIVI",  lastInspected:"2026-01-14", status:"Due Soon",  urgency:"Normal",   labGroupId: "D" }
   ]
 };
 
@@ -280,7 +346,34 @@ function getDb(): DatabaseState {
     return seedData;
   }
   try {
-    return JSON.parse(data);
+    const db = JSON.parse(data) as DatabaseState;
+    if (db && !db.inspectionSchedules) {
+      db.inspectionSchedules = [];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    }
+    if (db && !db.maintenanceQueue) {
+      db.maintenanceQueue = seedData.maintenanceQueue;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    }
+    
+    // Check if we need to reset/migrate localStorage data to introduce project fields
+    if (db && db.assets && db.assets.length > 0 && !db.assets[0].hasOwnProperty("projectId")) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(seedData));
+      return seedData;
+    }
+
+    if (db && db.users && !db.users.some(u => u.email === "director@dlsu.edu.ph")) {
+      db.users.push({ userId: 11, firstName: "Dr. Elena", lastName: "Castro", email: "director@dlsu.edu.ph", password: "director_password", idNumber: 12121212, userType: "FACULTY" });
+      if (db.userRoles) {
+        const nextUrId = db.userRoles.reduce((max, ur) => Math.max(max, ur.userRoleId), 0) + 1;
+        db.userRoles.push({ userRoleId: nextUrId, userId: 11, roleId: 2 });
+      }
+      if (!db.assetTags || db.assetTags.length === 0) {
+        db.assetTags = seedData.assetTags;
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    }
+    return db;
   } catch (e) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(seedData));
     return seedData;
@@ -522,6 +615,54 @@ export const prisma = {
       db.assetMonetaries.push(newM);
       saveDb(db);
       return newM;
+    }
+  },
+  assetTag: {
+    findMany: async () => {
+      return clone(getDb().assetTags);
+    },
+    create: async (args: { data: Omit<AssetTag, "assetTagId"> }) => {
+      const db = getDb();
+      const nextId = db.assetTags.reduce((max, t) => Math.max(max, t.assetTagId), 0) + 1;
+      const newTag = { ...args.data, assetTagId: nextId };
+      db.assetTags.push(newTag);
+      saveDb(db);
+      return newTag;
+    }
+  },
+  inspectionSchedule: {
+    findMany: async () => {
+      const db = getDb();
+      return clone(db.inspectionSchedules || []);
+    },
+    create: async (args: { data: Omit<InspectionSchedule, "scheduleId"> }) => {
+      const db = getDb();
+      if (!db.inspectionSchedules) db.inspectionSchedules = [];
+      const nextId = db.inspectionSchedules.reduce((max, s) => Math.max(max, s.scheduleId), 0) + 1;
+      const newSched = { ...args.data, scheduleId: nextId };
+      db.inspectionSchedules.push(newSched);
+      saveDb(db);
+      return newSched;
+    },
+    deleteMany: async () => {
+      const db = getDb();
+      db.inspectionSchedules = [];
+      saveDb(db);
+      return [];
+    }
+  },
+  maintenanceQueue: {
+    findMany: async () => {
+      const db = getDb();
+      return clone(db.maintenanceQueue || []);
+    },
+    update: async (args: { where: { id: string }, data: Partial<MaintenanceQueueItem> }) => {
+      const db = getDb();
+      db.maintenanceQueue = db.maintenanceQueue.map(item =>
+        item.id === args.where.id ? { ...item, ...args.data } : item
+      );
+      saveDb(db);
+      return clone(db.maintenanceQueue.find(item => item.id === args.where.id) || null);
     }
   }
 };

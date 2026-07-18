@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { prisma } from "./prismaClient";
+import { prisma, type User, type InspectionSchedule, type MaintenanceQueueItem } from "./prismaClient";
+import { api } from "./api";
 
 // ── Cookie Helper Functions ────────────────────────────────────────────────
 export function setCookie(name: string, value: string, days?: number) {
@@ -27,7 +28,7 @@ export function eraseCookie(name: string) {
   document.cookie = name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
 }
 
-export type Role = "ITS" | "TSG" | "LabHead" | "Custodian";
+export type Role = "ITS" | "TSG" | "LabHead" | "Custodian" | "AdRICDirector";
 
 export interface RepairRequest {
   id: string;
@@ -41,6 +42,10 @@ export interface RepairRequest {
   priority: "Medium" | "High" | "Critical";
   acknowledged: boolean;
   forwardedTo?: "TSG" | "ITS" | "Both";
+  // Internal: present only for tickets backed by the real asset_repairs table —
+  // needed to target PUT /api/asset_repairs/:repairId. Absent for local-only
+  // "Disposal Recommendation" tickets, which the backend has no route for.
+  repairId?: number;
 }
 
 export interface DisposalDetails {
@@ -71,6 +76,17 @@ export interface Asset {
   disposalId?: string;
   disposalDetails?: DisposalDetails;
   cost?: number;
+  itsPropertyTag?: string;
+  tsgPropertyTag?: string;
+  projectId?: string;
+  projectName?: string;
+  projectLeader?: string;
+  ccsLab?: string;
+  fundingAgency?: string;
+  projectStartYear?: string;
+  description?: string;
+  image?: string;
+  specs?: string;
 }
 
 export interface TransferRequest {
@@ -84,6 +100,23 @@ export interface TransferRequest {
   lab: string;
   initiated: string;
   status: "Pending" | "Approved" | "Declined";
+  reason?: string; // justification, required by the real transfer endpoint
+  // Internal: which backend resource this row actually maps to, and its numeric
+  // id — asset_loans and asset_transfers are separate tables/endpoints server-side,
+  // but the UI shows them merged in one "custody handshake" list.
+  kind?: "loan" | "transfer";
+  loanId?: number;
+  transferId?: number;
+}
+
+export interface LoanRequestInput {
+  id: string;
+  asset: string;
+  assetId: string;
+  borrower: string;
+  purpose: string;
+  dueDate: string;
+  lab: string;
 }
 
 export interface ReturnRequest {
@@ -113,6 +146,32 @@ export interface InspectionReport {
   cycleType: "Trimestral" | "Annual";
 }
 
+export interface PendingDisposal {
+  id: string;
+  assetId: string;
+  assetName: string;
+  lastCustodian: string;
+  breakdownReasons: string;
+  disposalPathway: string;
+  requestedBy: string;
+  requestedAt: string;
+}
+
+export interface AffiliateClearance {
+  userId: number;
+  name: string;
+  email: string;
+  role: "Faculty" | "Student";
+  holdStatus: "Hold Active" | "Cleared";
+  notes?: string;
+}
+
+interface AssetOverride {
+  status: string;
+  disposalId?: string;
+  disposalDetails?: DisposalDetails;
+}
+
 interface AppContextType {
   role: Role | null;
   setRole: (role: Role | null) => void;
@@ -136,15 +195,32 @@ interface AppContextType {
   disposeAsset: (assetId: string, details: Omit<DisposalDetails, "decommissionedBy">, role: string) => void;
   transfers: TransferRequest[];
   addTransferRequest: (req: TransferRequest) => void;
+  addLoanRequest: (req: LoanRequestInput) => void;
   updateTransferRequest: (id: string, status: "Approved" | "Declined") => void;
   returns: ReturnRequest[];
   addReturnRequest: (req: ReturnRequest) => void;
   finalizeReturn: (id: string, assetId: string, condition: string, checklist: string[], notes: string, clearanceIssued: boolean) => void;
   inspections: InspectionReport[];
   addInspectionReport: (report: InspectionReport) => void;
+  pendingDisposals: PendingDisposal[];
+  approveDisposal: (id: string) => void;
+  rejectDisposal: (id: string) => void;
+  manualClearanceHolds: AffiliateClearance[];
+  toggleClearanceHold: (userId: number, holdStatus: "Hold Active" | "Cleared", notes?: string) => void;
+  currentUser: User | null;
+  updateProfile: (firstName: string, lastName: string, profilePicture: string) => Promise<void>;
+  inspectionSchedules: InspectionSchedule[];
+  addInspectionSchedule: (groupId: string, date: string, cycleType: "Annual" | "Trimestral") => void;
+  maintenanceQueue: MaintenanceQueueItem[];
+  resolveMaintenanceItem: (id: string, presetStatus: string, remarks: string) => void;
+  resetInspectionCycle: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
+
+// Tickets other than these two just-reported statuses count as "acknowledged" —
+// mirrors the convention server/server.ts's PUT /api/asset_repairs/:id documents.
+const UNACKNOWLEDGED_STATUSES = ["Pending TSG Review", "Awaiting Immediate Dispatch"];
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<Role | null>(null);
@@ -169,106 +245,135 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [transfers, setTransfers] = useState<TransferRequest[]>([]);
   const [returns, setReturns] = useState<ReturnRequest[]>([]);
   const [inspections, setInspections] = useState<InspectionReport[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [inspectionSchedules, setInspectionSchedules] = useState<InspectionSchedule[]>([]);
+  const [maintenanceQueue, setMaintenanceQueue] = useState<MaintenanceQueueItem[]>([]);
+  const [pendingDisposals, setPendingDisposals] = useState<PendingDisposal[]>(() => {
+    const saved = localStorage.getItem("ems_pending_disposals");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [manualClearanceHolds, setManualClearanceHolds] = useState<AffiliateClearance[]>(() => {
+    const saved = localStorage.getItem("ems_manual_clearance_holds");
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  // Sync state from simulated database (Prisma client)
+  // Disposal has no backend route at all (asset_disposals is a schema-only table) —
+  // these overrides let the real backend's asset list stay the source of truth for
+  // everything else while disposal state is tracked entirely client-side.
+  const [assetOverrides, setAssetOverrides] = useState<Record<string, AssetOverride>>(() => {
+    const saved = localStorage.getItem("ems_asset_overrides");
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // "Disposal Recommendation" tickets (from RepairForm's disposal path) have no
+  // backend equivalent either — kept local and merged alongside the real
+  // asset_repairs-backed tickets in `repairRequests`.
+  const [localRepairTickets, setLocalRepairTickets] = useState<RepairRequest[]>(() => {
+    const saved = localStorage.getItem("ems_local_repair_tickets");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const applyAssetOverride = (assetId: string, override: AssetOverride | null) => {
+    setAssetOverrides(prev => {
+      const next = { ...prev };
+      if (override) next[assetId] = override;
+      else delete next[assetId];
+      localStorage.setItem("ems_asset_overrides", JSON.stringify(next));
+      return next;
+    });
+    setAssets(prev => prev.map(a => {
+      if (a.id !== assetId) return a;
+      if (override) return { ...a, status: override.status, disposalId: override.disposalId, disposalDetails: override.disposalDetails };
+      const { disposalId, disposalDetails, ...rest } = a;
+      return rest as Asset;
+    }));
+  };
+
+  // Sync state from the real backend (assets/repairs/loans/transfers) plus the
+  // local-only mock (users/roles) and localStorage (returns/inspections/disposal).
   const syncFromDb = async () => {
-    const dbAssets = await prisma.asset.findMany();
-    const dbUsers = await prisma.user.findMany();
-    const dbCenters = await prisma.researchCenter.findMany();
-    const dbDisposals = await prisma.assetDisposal.findMany();
-    const dbMonetaries = await prisma.assetMonetary.findMany();
+    const dbSchedules = await prisma.inspectionSchedule.findMany();
+    setInspectionSchedules(dbSchedules);
+    const dbQueue = await prisma.maintenanceQueue.findMany();
+    setMaintenanceQueue(dbQueue);
 
-    const mappedAssets = dbAssets.map(a => {
-      const custodianUser = a.custodianId ? dbUsers.find(u => u.userId === a.custodianId) : null;
-      const center = dbCenters.find(c => c.centerId === a.centerId);
-      const disposal = dbDisposals.find(d => d.assetId === a.assetId);
-      const disposerUser = disposal ? dbUsers.find(u => u.userId === disposal.disposedById) : null;
-      const monetary = dbMonetaries.find(m => m.assetId === a.assetId);
-
-      let daysLeft: number | undefined = undefined;
-      if (a.dueDate) {
-        const due = new Date(a.dueDate);
-        const today = new Date();
-        const diffTime = due.getTime() - today.getTime();
-        daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      }
-
-      let disposalDetails: DisposalDetails | undefined = undefined;
-      if (disposal) {
-        disposalDetails = {
-          lastCustodian: custodianUser ? `${custodianUser.firstName} ${custodianUser.lastName}` : "No Custodian",
-          breakdownReasons: disposal.disposalReason,
-          disposalPathway: disposal.pathway,
-          decommissionDate: new Date(disposal.disposalDate).toLocaleDateString(),
-          decommissionedBy: disposerUser ? `${disposerUser.firstName} ${disposerUser.lastName}` : "Admin"
-        };
-      }
-
+    // Assets
+    const assetsRes = await api.getAssets();
+    const mappedAssets: Asset[] = assetsRes.assets.map(a => {
+      const override = assetOverrides[a.id];
       return {
-        id: `EQ-2024-${String(a.assetId).padStart(3, "0")}`,
-        name: a.assetName,
+        id: a.id,
+        name: a.name,
         serial: a.serial,
         manufacturer: a.manufacturer,
-        category: a.assetType,
+        category: a.category,
         funding: a.funding,
         procured: a.procured,
         warranty: a.warranty,
-        location: center?.campusLocation === "MANILA_CAMPUS" ? "Manila" : "Laguna",
-        lab: center?.centerName ?? "CITe4D",
-        status: a.status,
+        location: a.location,
+        lab: a.lab,
+        status: override?.status ?? a.status,
         condition: a.condition,
-        custodian: custodianUser ? `${custodianUser.firstName} ${custodianUser.lastName}` : undefined,
+        custodian: a.custodian,
         borrowedOn: a.borrowedOn,
         dueDate: a.dueDate,
-        daysLeft,
-        disposalId: disposal ? `DISP-${disposal.disposalId}` : undefined,
-        disposalDetails,
-        cost: monetary ? Number(monetary.acquisitionValue) : 0
+        daysLeft: a.daysLeft,
+        cost: a.cost,
+        disposalId: override?.disposalId,
+        disposalDetails: override?.disposalDetails,
       };
     });
     setAssets(mappedAssets);
 
-    // Sync Transfers
-    const dbTransfers = await prisma.custodianshipTransfer.findMany();
-    const mappedTransfers = dbTransfers.map(t => {
-      const fromUser = dbUsers.find(u => u.userId === t.previousCustodianId);
-      const toUser = dbUsers.find(u => u.userId === t.newCustodianId);
-      const asset = dbAssets.find(a => a.assetId === t.assetId);
+    // Repairs
+    const repairsRes = await api.getRepairs();
+    const mappedRepairs: RepairRequest[] = repairsRes.repairs.map(r => ({
+      id: r.id,
+      repairId: r.repairId,
+      assetId: r.assetId,
+      assetName: r.asset,
+      custodian: r.reportedBy,
+      statusLabel: r.progressStatus,
+      description: r.description,
+      submittedAt: new Date(r.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+      priority: r.isImmediate ? "Critical" : "Medium",
+      acknowledged: !UNACKNOWLEDGED_STATUSES.includes(r.progressStatus),
+      forwardedTo: undefined,
+    }));
+    setRepairRequests([...mappedRepairs, ...localRepairTickets]);
 
-      return {
-        id: t.uiId,
-        asset: asset?.assetName ?? "Unknown Asset",
-        assetId: `EQ-2024-${String(t.assetId).padStart(3, "0")}`,
-        from: fromUser ? `${fromUser.firstName} ${fromUser.lastName}` : "Unknown",
-        fromRole: fromUser?.userType === "FACULTY" ? "Faculty" : "Student",
-        to: toUser ? `${toUser.firstName} ${toUser.lastName}` : "Unknown",
-        toRole: toUser?.userType === "FACULTY" ? "Faculty" : "Student",
-        lab: t.lab,
-        initiated: t.transferDate,
-        status: t.approvalStatus === "PENDING" ? "Pending" : t.approvalStatus === "APPROVED" ? "Approved" : "Declined"
-      };
-    }) as TransferRequest[];
-    setTransfers(mappedTransfers);
-
-    // Sync Repairs
-    const dbRepairs = await prisma.assetRepair.findMany();
-    const mappedRepairs = dbRepairs.map(r => {
-      const user = dbUsers.find(u => u.userId === r.reportedById);
-      const asset = dbAssets.find(a => a.assetId === r.assetId);
-      return {
-        id: r.uiId,
-        assetId: `EQ-2024-${String(r.assetId).padStart(3, "0")}`,
-        assetName: asset?.assetName ?? "Unknown Asset",
-        custodian: user ? `${user.firstName} ${user.lastName}` : "Unassigned",
-        statusLabel: r.repairStatus === "COMPLETED" ? "Fixed & Completed" : r.repairStatus === "IN_PROGRESS" ? "In Progress" : "Under Maintenance",
-        description: r.issueDescription,
-        submittedAt: r.startDate,
-        priority: r.priority,
-        acknowledged: r.acknowledged,
-        forwardedTo: r.forwardedTo
-      };
-    }) as RepairRequest[];
-    setRepairRequests(mappedRepairs);
+    // Loans + Transfers — two separate backend resources, merged into one
+    // "custody handshake" list the UI has always treated as a single concept.
+    const [loansRes, transfersRes] = await Promise.all([api.getLoans(), api.getTransfers()]);
+    const mappedLoans: TransferRequest[] = loansRes.loans.map(l => ({
+      id: l.id,
+      loanId: l.loanId,
+      kind: "loan",
+      asset: l.asset,
+      assetId: l.assetId,
+      from: "Inventory Storage",
+      fromRole: "System Registry",
+      to: l.borrower,
+      toRole: "Active Custodian",
+      lab: l.lab,
+      initiated: l.requestedOn,
+      status: l.status,
+    }));
+    const mappedTransfers: TransferRequest[] = transfersRes.transfers.map(t => ({
+      id: t.id,
+      transferId: t.transferId,
+      kind: "transfer",
+      asset: t.asset,
+      assetId: t.assetId,
+      from: t.from,
+      fromRole: "Active Custodian",
+      to: t.to,
+      toRole: "Researcher",
+      lab: t.lab,
+      initiated: t.requestedOn,
+      status: t.status,
+    }));
+    setTransfers([...mappedLoans, ...mappedTransfers]);
 
     // Sync Returns from local storage
     const savedReturns = localStorage.getItem("ems_returns");
@@ -346,21 +451,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (user) {
             const roles = user.userRoles || [];
             let determinedRole: Role = "Custodian";
-            if (roles.some(ur => ur.role?.roleName === "ADMIN" || ur.role?.roleName === "ADRIC_DIRECTOR" || ur.role?.roleName === "ADRIC_SECRETARY")) {
+            if (roles.some((ur: any) => ur.role?.roleName === "ADMIN" || ur.role?.roleName === "ADRIC_SECRETARY")) {
               determinedRole = "ITS";
-            } else if (roles.some(ur => ur.role?.roleName === "TSG_STAFF")) {
+            } else if (roles.some((ur: any) => ur.role?.roleName === "ADRIC_DIRECTOR")) {
+              determinedRole = "AdRICDirector";
+            } else if (roles.some((ur: any) => ur.role?.roleName === "TSG_STAFF")) {
               determinedRole = "TSG";
-            } else if (roles.some(ur => ur.role?.roleName === "LAB_HEAD")) {
+            } else if (roles.some((ur: any) => ur.role?.roleName === "LAB_HEAD")) {
               determinedRole = "LabHead";
             }
             setRoleState(determinedRole);
+            setCurrentUser(user as any);
           } else {
             setRoleState(null);
+            setCurrentUser(null);
           }
         });
       }
     }
   }, []);
+
+  const setCycleMode = (mode: "Annual" | "Trimestral") => {
+    setCycleModeState(mode);
+    setCookie("pref_cycle_mode", mode, 365);
+  };
 
   const setRole = (newRole: Role | null) => {
     setRoleState(newRole);
@@ -368,15 +482,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       eraseCookie("session_user_email");
       eraseCookie("session_last_activity");
       eraseCookie("session_created");
+      setCurrentUser(null);
     } else {
       // Whenever a role session is explicitly set, update the activity timer
       setCookie("session_last_activity", String(Date.now()), 1);
+      const email = getCookie("session_user_email");
+      if (email) {
+        prisma.user.findFirst({
+          where: { email }
+        }).then(u => {
+          if (u) setCurrentUser(u as any);
+        });
+      }
     }
   };
 
-  const setCycleMode = (mode: "Annual" | "Trimestral") => {
-    setCycleModeState(mode);
-    setCookie("pref_cycle_mode", mode, 365);
+  const updateProfile = async (firstName: string, lastName: string, profilePicture: string) => {
+    if (!currentUser) return;
+    const updated = await prisma.user.update({
+      where: { userId: currentUser.userId },
+      data: {
+        firstName,
+        lastName,
+        profilePicture
+      }
+    });
+    if (updated) {
+      setCurrentUser(updated as any);
+    }
   };
 
   const setSidebarCollapsed = (v: boolean) => {
@@ -390,189 +523,223 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addRepairRequest = async (req: RepairRequest) => {
-    const assetId = parseInt(req.assetId.split("-").pop() || "0", 10);
-    const dbUsers = await prisma.user.findMany();
-    const reporterUser = dbUsers.find(u => `${u.firstName} ${u.lastName}`.toLowerCase() === req.custodian.toLowerCase());
-
-    await prisma.assetRepair.create({
-      data: {
-        assetId,
-        reportedById: reporterUser?.userId || 4,
-        issueDescription: req.description,
-        startDate: req.submittedAt,
-        repairStatus: req.statusLabel === "Fixed & Completed" ? "COMPLETED" : "REPORTED",
-        uiId: req.id,
-        priority: req.priority,
-        acknowledged: req.acknowledged,
-        forwardedTo: req.forwardedTo
-      }
-    });
-
-    if (req.statusLabel !== "Disposal Recommendation") {
-      await prisma.asset.update({
-        where: { assetId },
-        data: { status: "Maintenance" }
+    if (req.statusLabel === "Disposal Recommendation") {
+      // No backend route covers this — RepairForm's "disposal recommendation"
+      // sub-flow stays a local-only ticket that just surfaces in the repair queue.
+      setLocalRepairTickets(prev => {
+        const next = [req, ...prev];
+        localStorage.setItem("ems_local_repair_tickets", JSON.stringify(next));
+        return next;
       });
+      setRepairRequests(prev => [req, ...prev]);
+      return;
     }
 
+    await api.reportRepair(req.assetId, {
+      description: req.description,
+      isImmediate: false,
+      reportedBy: req.custodian,
+    });
     await syncFromDb();
   };
 
   const acknowledgeRepair = async (id: string) => {
-    const dbRepairs = await prisma.assetRepair.findMany();
-    const match = dbRepairs.find(r => r.uiId === id);
-    if (match) {
-      await prisma.assetRepair.update({
-        where: { repairId: match.repairId },
-        data: { acknowledged: true }
+    const match = repairRequests.find(r => r.id === id);
+    if (!match) return;
+
+    if (match.repairId != null) {
+      // No distinct "acknowledged" column server-side — moving the ticket into
+      // "Inspection Phase" is what the backend treats as acknowledgement (see
+      // server/server.ts's PUT /api/asset_repairs/:id comment).
+      await api.updateRepairStatus(match.repairId, "Inspection Phase");
+      await syncFromDb();
+    } else {
+      setLocalRepairTickets(prev => {
+        const next = prev.map(r => r.id === id ? { ...r, acknowledged: true } : r);
+        localStorage.setItem("ems_local_repair_tickets", JSON.stringify(next));
+        return next;
       });
+      setRepairRequests(prev => prev.map(r => r.id === id ? { ...r, acknowledged: true } : r));
     }
-    await syncFromDb();
   };
 
   const updateRepairStatus = async (id: string, statusLabel: string) => {
-    const dbRepairs = await prisma.assetRepair.findMany();
-    const match = dbRepairs.find(r => r.uiId === id);
-    if (match) {
-      const statusMapped = statusLabel === "Fixed & Completed" ? "COMPLETED" : "IN_PROGRESS";
-      await prisma.assetRepair.update({
-        where: { repairId: match.repairId },
-        data: {
-          repairStatus: statusMapped,
-          completionDate: statusLabel === "Fixed & Completed" ? new Date().toISOString() : undefined
-        }
-      });
+    const match = repairRequests.find(r => r.id === id);
+    if (!match) return;
 
-      if (statusLabel === "Fixed & Completed") {
-        const asset = await prisma.asset.findUnique({ where: { assetId: match.assetId } });
-        if (asset) {
-          await prisma.asset.update({
-            where: { assetId: match.assetId },
-            data: {
-              status: asset.custodianId ? "On Loan" : "Active"
-            }
-          });
-        }
-      } else {
-        await prisma.asset.update({
-          where: { assetId: match.assetId },
-          data: { status: "Maintenance" }
-        });
-      }
+    if (match.repairId != null) {
+      await api.updateRepairStatus(match.repairId, statusLabel);
+      await syncFromDb();
+    } else {
+      setLocalRepairTickets(prev => {
+        const next = prev.map(r => r.id === id ? { ...r, statusLabel } : r);
+        localStorage.setItem("ems_local_repair_tickets", JSON.stringify(next));
+        return next;
+      });
+      setRepairRequests(prev => prev.map(r => r.id === id ? { ...r, statusLabel } : r));
     }
-    await syncFromDb();
   };
 
   const unacknowledgedCount = repairRequests.filter(r => !r.acknowledged).length;
 
   const addAsset = async (asset: Omit<Asset, "id">) => {
-    await prisma.asset.create({
-      data: {
-        qrCodeHash: `hash-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-        assetName: asset.name,
-        assetType: asset.category as any,
-        centerId: asset.lab === "CAR" ? 2 : asset.lab === "CeHCI" ? 3 : asset.lab === "HXIL" ? 4 : asset.lab === "GAME" ? 5 : asset.lab === "CeLT" ? 6 : asset.lab === "Bio" ? 7 : 1,
-        serial: asset.serial,
-        manufacturer: asset.manufacturer,
-        funding: asset.funding,
-        procured: asset.procured,
-        warranty: asset.warranty,
-        condition: asset.condition,
-        status: asset.status
-      }
+    await api.createAsset({
+      name: asset.name,
+      category: asset.category,
+      serial: asset.serial,
+      manufacturer: asset.manufacturer,
+      procured: asset.procured,
+      warranty: asset.warranty,
+      funding: asset.funding,
+      location: asset.location,
+      lab: asset.lab,
     });
     await syncFromDb();
   };
 
   const removeAsset = async (id: string) => {
-    const assetId = parseInt(id.split("-").pop() || "0", 10);
-    await prisma.asset.delete({ where: { assetId } });
+    await api.deleteAsset(id);
     await syncFromDb();
   };
 
   const updateAsset = async (updated: Asset) => {
-    const assetId = parseInt(updated.id.split("-").pop() || "0", 10);
-    await prisma.asset.update({
-      where: { assetId },
-      data: {
-        assetName: updated.name,
-        serial: updated.serial,
-        manufacturer: updated.manufacturer,
-        funding: updated.funding,
-        procured: updated.procured,
-        warranty: updated.warranty,
-        condition: updated.condition,
-        status: updated.status,
-        borrowedOn: updated.borrowedOn,
-        dueDate: updated.dueDate
-      }
+    await api.updateAsset(updated.id, {
+      name: updated.name,
+      serial: updated.serial,
+      manufacturer: updated.manufacturer,
+      category: updated.category,
+      funding: updated.funding,
+      procured: updated.procured,
+      warranty: updated.warranty,
+      location: updated.location,
+      lab: updated.lab,
+      status: updated.status,
+      custodian: updated.custodian,
     });
     await syncFromDb();
   };
 
-  const disposeAsset = async (assetIdStr: string, details: Omit<DisposalDetails, "decommissionedBy">, activeRole: string) => {
-    const assetId = parseInt(assetIdStr.split("-").pop() || "0", 10);
-    const sessionEmail = getCookie("session_user_email") || "";
-    const user = await prisma.user.findFirst({ where: { email: sessionEmail } });
-    const userId = user?.userId || 1;
+  const disposeAsset = (assetIdStr: string, details: Omit<DisposalDetails, "decommissionedBy">, activeRole: string) => {
+    const decommissionedBy = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : (activeRole === "AdRICDirector" ? "AdRIC Director" : "ITS Admin");
 
-    await prisma.assetDisposal.create({
-      data: {
-        assetId,
-        disposedById: userId,
-        disposalDate: new Date().toISOString(),
-        disposalReason: details.breakdownReasons,
-        pathway: details.disposalPathway
+    if (activeRole === "AdRICDirector") {
+      applyAssetOverride(assetIdStr, {
+        status: "Disposed",
+        disposalId: `DISP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        disposalDetails: { ...details, decommissionedBy },
+      });
+    } else {
+      const matchedAsset = assets.find(a => a.id === assetIdStr);
+      const newPending: PendingDisposal = {
+        id: `PDISP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        assetId: assetIdStr,
+        assetName: matchedAsset?.name || "Unknown Asset",
+        lastCustodian: details.lastCustodian,
+        breakdownReasons: details.breakdownReasons,
+        disposalPathway: details.disposalPathway,
+        requestedBy: decommissionedBy,
+        requestedAt: new Date().toISOString()
+      };
+
+      setPendingDisposals(prev => {
+        const next = [newPending, ...prev];
+        localStorage.setItem("ems_pending_disposals", JSON.stringify(next));
+        return next;
+      });
+
+      applyAssetOverride(assetIdStr, { status: "Pending Disposal" });
+    }
+  };
+
+  const approveDisposal = (id: string) => {
+    const req = pendingDisposals.find(p => p.id === id);
+    if (!req) return;
+
+    const decommissionedBy = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "AdRIC Director";
+
+    applyAssetOverride(req.assetId, {
+      status: "Disposed",
+      disposalId: `DISP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      disposalDetails: {
+        lastCustodian: req.lastCustodian,
+        breakdownReasons: req.breakdownReasons,
+        disposalPathway: req.disposalPathway,
+        decommissionDate: new Date().toLocaleDateString(),
+        decommissionedBy,
+      },
+    });
+
+    setPendingDisposals(prev => {
+      const next = prev.filter(p => p.id !== id);
+      localStorage.setItem("ems_pending_disposals", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const rejectDisposal = (id: string) => {
+    const req = pendingDisposals.find(p => p.id === id);
+    if (!req) return;
+
+    // Clears the local override so the asset reverts to whatever the real
+    // backend actually has on file — it was never touched by the pending flow.
+    applyAssetOverride(req.assetId, null);
+
+    setPendingDisposals(prev => {
+      const next = prev.filter(p => p.id !== id);
+      localStorage.setItem("ems_pending_disposals", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const toggleClearanceHold = (userId: number, holdStatus: "Hold Active" | "Cleared", notes?: string) => {
+    setManualClearanceHolds(prev => {
+      const existingIdx = prev.findIndex(h => h.userId === userId);
+      let next = [...prev];
+      if (existingIdx > -1) {
+        next[existingIdx] = { ...next[existingIdx], holdStatus, notes };
+      } else {
+        prisma.user.findUnique({ where: { userId } }).then(u => {
+          if (u) {
+            const newHold: AffiliateClearance = {
+              userId,
+              name: `${u.firstName} ${u.lastName}`,
+              email: u.email,
+              role: u.userType === "FACULTY" ? "Faculty" : "Student",
+              holdStatus,
+              notes
+            };
+            setManualClearanceHolds(p => {
+              const n = [...p.filter(h => h.userId !== userId), newHold];
+              localStorage.setItem("ems_manual_clearance_holds", JSON.stringify(n));
+              return n;
+            });
+          }
+        });
       }
+      localStorage.setItem("ems_manual_clearance_holds", JSON.stringify(next));
+      return next;
     });
-
-    await prisma.asset.update({
-      where: { assetId },
-      data: { status: "Disposed" }
-    });
-
-    await syncFromDb();
   };
 
   const addTransferRequest = async (req: TransferRequest) => {
-    const assetId = parseInt(req.assetId.split("-").pop() || "0", 10);
-    const dbUsers = await prisma.user.findMany();
-    const fromUser = dbUsers.find(u => `${u.firstName} ${u.lastName}`.toLowerCase() === req.from.toLowerCase());
-    const toUser = dbUsers.find(u => `${u.firstName} ${u.lastName}`.toLowerCase() === req.to.toLowerCase());
+    await api.requestTransfer(req.assetId, { toCustodian: req.to, reason: req.reason || "" });
+    await syncFromDb();
+  };
 
-    await prisma.custodianshipTransfer.create({
-      data: {
-        assetId,
-        previousCustodianId: fromUser?.userId || 4,
-        newCustodianId: toUser?.userId || 3,
-        transferDate: req.initiated,
-        approvalStatus: "PENDING",
-        uiId: req.id,
-        lab: req.lab
-      }
-    });
-
+  const addLoanRequest = async (req: LoanRequestInput) => {
+    await api.borrowAsset(req.assetId, { borrower: req.borrower, purpose: req.purpose, dueDate: req.dueDate });
     await syncFromDb();
   };
 
   const updateTransferRequest = async (id: string, status: "Approved" | "Declined") => {
-    const dbTransfers = await prisma.custodianshipTransfer.findMany();
-    const tx = dbTransfers.find(t => t.uiId === id);
-    if (tx) {
-      await prisma.custodianshipTransfer.update({
-        where: { transferId: tx.transferId },
-        data: { approvalStatus: status === "Approved" ? "APPROVED" : "REJECTED" }
-      });
+    const match = transfers.find(t => t.id === id);
+    if (!match) return;
 
-      if (status === "Approved") {
-        await prisma.asset.update({
-          where: { assetId: tx.assetId },
-          data: {
-            custodianId: tx.newCustodianId,
-            status: "On Loan"
-          }
-        });
-      }
+    const decision = status === "Approved" ? "approve" : "decline";
+    if (match.kind === "loan" && match.loanId != null) {
+      await api.decideLoan(match.loanId, decision);
+    } else if (match.transferId != null) {
+      await api.decideTransfer(match.transferId, decision);
     }
     await syncFromDb();
   };
@@ -586,28 +753,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const finalizeReturn = async (id: string, assetIdStr: string, condition: string, checklist: string[], notes: string, clearanceIssued: boolean) => {
-    const certId = clearanceIssued ? `CLR-${Math.random().toString(36).slice(2, 8).toUpperCase()}` : undefined;
+    const returnedBy = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : undefined;
+    const res: any = await api.finalizeReturn(assetIdStr, { condition, accessories: checklist, returnedBy });
+    const certId = clearanceIssued ? (res?.return?.reference_number as string | undefined) : undefined;
 
     setReturns(prev => {
       const next = prev.map(r =>
         r.id === id
-          ? { ...r, status: "Finalized", condition, checklist, notes, clearanceIssued, certId }
+          ? { ...r, status: "Finalized" as const, condition, checklist, notes, clearanceIssued, certId }
           : r
       );
       localStorage.setItem("ems_returns", JSON.stringify(next));
       return next;
-    });
-
-    const assetId = parseInt(assetIdStr.split("-").pop() || "0", 10);
-    const newCondition = condition === "Pristine" ? 100 : condition === "Operational" ? 90 : condition === "Degraded" ? 60 : 20;
-
-    await prisma.asset.update({
-      where: { assetId },
-      data: {
-        status: "Active",
-        custodianId: undefined,
-        condition: newCondition
-      }
     });
 
     await syncFromDb();
@@ -619,24 +776,77 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem("ems_inspections", JSON.stringify(next));
       return next;
     });
+    // Note: the real backend hardcodes asset condition at 100 and exposes no
+    // route to change it, so there's nothing to persist server-side here.
+  };
 
-    const assetId = parseInt(report.assetId.split("-").pop() || "0", 10);
-    const conditionMap: Record<string, number> = {
-      "Perfect": 100,
-      "Operational": 90,
-      "Minor Drift": 78,
-      "Degraded Performance": 60,
-      "Critical Failure": 35,
-    };
-    const newCondition = conditionMap[report.status];
-    if (newCondition !== undefined) {
-      await prisma.asset.update({
-        where: { assetId },
-        data: { condition: newCondition }
+  const addInspectionSchedule = async (groupId: string, date: string, cycleType: "Annual" | "Trimestral") => {
+    await prisma.inspectionSchedule.create({
+      data: {
+        labGroupId: groupId,
+        inspectionDate: date,
+        cycleType,
+        createdAt: new Date().toISOString()
+      }
+    });
+
+    const dbQueue = await prisma.maintenanceQueue.findMany();
+    for (const item of dbQueue) {
+      if (item.labGroupId === groupId && item.status !== "Inspected") {
+        await prisma.maintenanceQueue.update({
+          where: { id: item.id },
+          data: { status: "Scheduled" }
+        });
+      }
+    }
+
+    const updatedSchedules = await prisma.inspectionSchedule.findMany();
+    setInspectionSchedules(updatedSchedules);
+    const updatedQueue = await prisma.maintenanceQueue.findMany();
+    setMaintenanceQueue(updatedQueue);
+  };
+
+  const resolveMaintenanceItem = async (id: string, presetStatus: string, remarks: string) => {
+    await prisma.maintenanceQueue.update({
+      where: { id },
+      data: { status: "Inspected" }
+    });
+
+    const dbQueue = await prisma.maintenanceQueue.findMany();
+    const item = dbQueue.find(i => i.id === id);
+    if (item) {
+      const reportId = `RPT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      await addInspectionReport({
+        id: reportId,
+        assetId: item.asset,
+        assetName: item.asset,
+        custodian: "A. Dela Cruz",
+        status: presetStatus,
+        description: remarks,
+        images: [],
+        submittedAt: new Date().toLocaleDateString("en-US", { year: 'numeric', month: 'short', day: 'numeric' }),
+        cycleType: cycleMode
       });
     }
 
-    await syncFromDb();
+    setMaintenanceQueue(dbQueue);
+  };
+
+  const resetInspectionCycle = async () => {
+    await prisma.inspectionSchedule.deleteMany();
+
+    const dbQueue = await prisma.maintenanceQueue.findMany();
+    for (const item of dbQueue) {
+      const defaultStatus = (item.urgency === "Critical" || item.urgency === "High") ? "Overdue" : "Due Soon";
+      await prisma.maintenanceQueue.update({
+        where: { id: item.id },
+        data: { status: defaultStatus }
+      });
+    }
+
+    setInspectionSchedules([]);
+    const updatedQueue = await prisma.maintenanceQueue.findMany();
+    setMaintenanceQueue(updatedQueue);
   };
 
   return (
@@ -650,9 +860,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sidebarCollapsed, setSidebarCollapsed,
 
         assets, addAsset, removeAsset, updateAsset, disposeAsset,
-        transfers, addTransferRequest, updateTransferRequest,
+        transfers, addTransferRequest, addLoanRequest, updateTransferRequest,
         returns, addReturnRequest, finalizeReturn,
-        inspections, addInspectionReport
+        inspections, addInspectionReport,
+        pendingDisposals, approveDisposal, rejectDisposal,
+        manualClearanceHolds, toggleClearanceHold,
+        currentUser, updateProfile,
+        inspectionSchedules, addInspectionSchedule,
+        maintenanceQueue, resolveMaintenanceItem,
+        resetInspectionCycle
       }}
     >
       {children}
@@ -671,6 +887,7 @@ export const roleToSlug: Record<Role, string> = {
   TSG: "tsg",
   LabHead: "lab-head",
   Custodian: "custodian",
+  AdRICDirector: "adric-director",
 };
 
 export const roleDefaultPath: Record<Role, string> = {
@@ -678,4 +895,5 @@ export const roleDefaultPath: Record<Role, string> = {
   TSG: "/tsg/repairs",
   LabHead: "/lab-head/custody",
   Custodian: "/custodian/myassets",
+  AdRICDirector: "/adric-director/overview",
 };

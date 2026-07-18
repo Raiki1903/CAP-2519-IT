@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -72,13 +72,35 @@ const roleConfig: Record<Role, {
       { id: "report",    label: "Report Issue",        icon: Bell    },
     ],
   },
+  AdRICDirector: {
+    label: "AdRIC Director",
+    subtitle: "Executive Oversight",
+    nav: [
+      { id: "overview",           label: "Executive Overview",  icon: Monitor       },
+      { id: "analytics",          label: "Descriptive Analytics",icon: BarChart3     },
+      { id: "clearance-disposal", label: "Approvals & Holds",     icon: ClipboardCheck },
+      { id: "reports",            label: "Audit Generator",     icon: ClipboardList },
+    ],
+  },
 };
 
-export function Sidebar({ onLogout }: { onLogout: () => void }) {
-  const { role, unacknowledgedCount, sidebarCollapsed, setSidebarCollapsed, cycleMode, setCycleMode, theme, setTheme } = useApp();
+export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: () => void; isMobileOpen?: boolean; onCloseMobile?: () => void }) {
+  const { role, unacknowledgedCount, sidebarCollapsed, setSidebarCollapsed, cycleMode, setCycleMode, theme, setTheme, currentUser } = useApp();
   const [showSettings, setShowSettings] = useState(false);
   const navigate   = useNavigate();
   const location   = useLocation();
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const handleNavClick = (path: string) => {
+    navigate(path);
+    if (onCloseMobile) onCloseMobile();
+  };
 
   if (!role) return null;
 
@@ -90,9 +112,15 @@ export function Sidebar({ onLogout }: { onLogout: () => void }) {
   return (
     <TooltipProvider delayDuration={150}>
       <motion.aside
-        animate={{ width: collapsed ? COLLAPSED_W : EXPANDED_W }}
+        animate={isMobile
+          ? { x: isMobileOpen ? 0 : -EXPANDED_W, width: EXPANDED_W }
+          : { x: 0, width: collapsed ? COLLAPSED_W : EXPANDED_W }
+        }
         transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
-        className="flex flex-col h-full flex-shrink-0 overflow-hidden"
+        className={cn(
+          "flex flex-col h-full flex-shrink-0 overflow-hidden z-50",
+          "fixed inset-y-0 left-0 md:relative"
+        )}
         style={{ background: "#0A1F14", borderRight: "1px solid rgba(16,185,129,0.12)" }}
       >
         {/* ── Top: brand + collapse toggle ─────────────────────────────── */}
@@ -137,46 +165,106 @@ export function Sidebar({ onLogout }: { onLogout: () => void }) {
           </AnimatePresence>
 
           {/* Collapse toggle */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setSidebarCollapsed(!collapsed)}
-                className={cn(
-                  "flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center transition-colors",
-                  "text-[#4ADE80] hover:bg-white/10",
-                  collapsed && "mx-auto"
-                )}
-              >
-                {collapsed
-                  ? <ChevronsRight size={13} />
-                  : <ChevronsLeft  size={13} />
-                }
-              </motion.button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              {collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            </TooltipContent>
-          </Tooltip>
+          {!isMobile && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setSidebarCollapsed(!collapsed)}
+                  className={cn(
+                    "flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center transition-colors",
+                    "text-[#4ADE80] hover:bg-white/10",
+                    collapsed && "mx-auto"
+                  )}
+                >
+                  {collapsed
+                    ? <ChevronsRight size={13} />
+                    : <ChevronsLeft  size={13} />
+                  }
+                </motion.button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
-        {/* ── Session badge ─────────────────────────────────────────────── */}
+        {/* ── Active Session Button/Card ───────────────────────────────── */}
         <AnimatePresence initial={false}>
-          {!collapsed && (
+          {!collapsed ? (
             <motion.div
-              key="session"
+              key="session-expanded"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.22 }}
-              className="overflow-hidden"
+              className="overflow-hidden px-3 mt-3"
             >
-              <div className="mx-3 mt-3 rounded-lg p-2.5" style={{ background: "rgba(0,90,54,0.4)", border: "1px solid rgba(16,185,129,0.2)" }}>
-                <p className="text-[8px] font-bold tracking-[2px] mb-0.5" style={{ color: "#6EE7B7" }}>ACTIVE SESSION</p>
-                <p className="text-[11px] font-semibold text-white leading-snug" style={{ fontFamily: "'Montserrat', sans-serif" }}>{cfg.label}</p>
-                <p className="text-[8px] mt-0.5" style={{ color: "#34D399" }}>{cfg.subtitle}</p>
-              </div>
+              <p className="text-[8px] font-extrabold tracking-[2px] mb-1.5" style={{ color: "#6EE7B7" }}>ACTIVE SESSION</p>
+              <button
+                onClick={() => handleNavClick(`/${slug}/account`)}
+                className="w-full flex items-center gap-3 rounded-lg p-2 text-left border cursor-pointer hover:bg-white/5 transition-all focus:outline-none"
+                style={{ background: "rgba(0,90,54,0.4)", borderColor: "rgba(16,185,129,0.2)" }}
+              >
+                <div className="w-9 h-9 rounded-full border border-emerald-400 overflow-hidden flex-shrink-0">
+                  <img
+                    src={currentUser?.profilePicture || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150"}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0 flex-1 leading-snug">
+                  <p className="text-[11px] font-bold text-white truncate" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+                    {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)"}
+                  </p>
+                  <p className="text-[9px] text-[#34D399] truncate font-semibold">
+                    {role === "AdRICDirector" ? "AdRIC Director" :
+                     role === "Custodian" ? "Active Custodian" :
+                     role === "ITS" ? "ITS Admin" :
+                     role === "TSG" ? "TSG Staff" :
+                     role === "LabHead" ? "Lab Head" : role}
+                  </p>
+                </div>
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="session-collapsed"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.18 }}
+              className="mx-auto mt-3 flex flex-col items-center gap-1"
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => handleNavClick(`/${slug}/account`)}
+                    className="w-9 h-9 rounded-full border-2 border-emerald-400 overflow-hidden flex-shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-md focus:outline-none"
+                  >
+                    <img
+                      src={currentUser?.profilePicture || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150"}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p className="text-xs font-bold">
+                    {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {role === "AdRICDirector" ? "AdRIC Director" :
+                     role === "Custodian" ? "Active Custodian" :
+                     role === "ITS" ? "ITS Admin" :
+                     role === "TSG" ? "TSG Staff" :
+                     role === "LabHead" ? "Lab Head" : role}
+                  </p>
+                  <p className="text-[9px] text-emerald-400 mt-1 uppercase tracking-wider font-extrabold">Active Session (Click to Edit)</p>
+                </TooltipContent>
+              </Tooltip>
             </motion.div>
           )}
         </AnimatePresence>
@@ -209,7 +297,7 @@ export function Sidebar({ onLogout }: { onLogout: () => void }) {
                 key={id}
                 whileHover={{ x: collapsed ? 0 : 3 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => navigate(`/${slug}/${id}`)}
+                onClick={() => handleNavClick(`/${slug}/${id}`)}
                 className={cn(
                   "w-full flex items-center rounded-lg mb-0.5 transition-colors",
                   collapsed ? "justify-center h-10" : "gap-2.5 h-9 px-2.5",

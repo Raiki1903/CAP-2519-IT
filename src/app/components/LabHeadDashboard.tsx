@@ -252,7 +252,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
           <h1 className="text-foreground mb-1">Digital Handshake Monitoring</h1>
           <p className="text-muted-foreground text-sm">Device custody transitions and authorization control for CITe4D research branch.</p>
         </div>
-        <div className="grid grid-cols-3 gap-4 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
           <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-amber-600">{pendingCount}</p><p className="text-xs text-muted-foreground">Pending Authorization</p></CardContent></Card>
           <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-emerald-700">{transfers.filter(t=>t.status==="Approved").length}</p><p className="text-xs text-muted-foreground">Approved This Period</p></CardContent></Card>
           <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-red-700">{transfers.filter(t=>t.status==="Declined").length}</p><p className="text-xs text-muted-foreground">Declined Requests</p></CardContent></Card>
@@ -350,7 +350,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
           {filtered.map(eq => (
             <Card key={eq.id} className={cn("overflow-hidden p-0 gap-0 transition-all cursor-pointer", eq.status === "Disposed" ? "opacity-60 grayscale bg-muted/20 border-dashed border-muted-foreground/30 shadow-none hover:opacity-75" : "hover:shadow-md")} onClick={() => setSelectedAsset({ id:eq.id, name:eq.name, category:eq.category, status:eq.status, custodian:eq.custodian, location:eq.location, condition:eq.condition, funding:eq.funding })}>
               <div className="relative">
-                <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" />
+                <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image} />
                 <Badge className={cn("absolute top-2 right-2 text-[9px]", statusClass[eq.status]??statusClass["Active"])}>{eq.status}</Badge>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-border">
                   <div className={cn("h-full", eq.condition>=90?"bg-emerald-400":"bg-amber-400")} style={{width:`${eq.condition}%`}} />
@@ -381,7 +381,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
             <TableBody>
               {filtered.map(eq => (
                 <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "Disposed" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset({ id:eq.id, name:eq.name, category:eq.category, status:eq.status, custodian:eq.custodian, location:eq.location, condition:eq.condition, funding:eq.funding })}>
-                  <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" /></div></TableCell>
+                  <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image} /></div></TableCell>
                   <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                   <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{eq.category}</TableCell>

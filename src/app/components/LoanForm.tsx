@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp } from "../context";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -69,8 +69,16 @@ interface Props {
 }
 
 export function LoanForm({ asset, onBack, onClose }: Props) {
-  const { addTransferRequest } = useApp();
-  const [borrower, setBorrower] = useState("A. Dela Cruz (Active Custodian)");
+  const { addLoanRequest, currentUser } = useApp();
+  const [borrower, setBorrower] = useState(() => {
+    return currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)";
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      setBorrower(`${currentUser.firstName} ${currentUser.lastName}`);
+    }
+  }, [currentUser]);
   const [selectedLab, setSelectedLab] = useState("CITe4D");
   const [purpose, setPurpose] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -90,17 +98,14 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
     if (!canSubmit) return;
     setSubmitting(true);
     setTimeout(() => {
-      addTransferRequest({
+      addLoanRequest({
         id: refId,
         asset: asset.name,
         assetId: asset.id,
-        from: "Inventory Storage",
-        fromRole: "System Registry",
-        to: borrower,
-        toRole: "Active Custodian",
+        borrower,
+        purpose,
+        dueDate,
         lab: selectedLab,
-        initiated: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        status: "Pending"
       });
       setSubmitting(false);
       setSubmitted(true);

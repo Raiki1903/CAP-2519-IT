@@ -33,6 +33,15 @@ export interface AssetDetail {
   custodian?: string;
   disposalId?: string;
   disposalDetails?: DisposalDetails;
+  projectId?: string;
+  projectName?: string;
+  projectLeader?: string;
+  ccsLab?: string;
+  fundingAgency?: string;
+  projectStartYear?: string;
+  description?: string;
+  image?: string;
+  specs?: string;
 }
 
 type FormView = "detail" | "transfer" | "return" | "repair" | "loan";
@@ -200,7 +209,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           className="rounded-xl overflow-hidden border border-border flex-shrink-0"
                           style={{ width: 148 }}
                         >
-                          <AssetImagePlaceholder category={asset.category} aspectRatio="4/3" />
+                          <AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image} />
                         </div>
                         <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-3 content-start">
                           {metaRows.map(({ icon: Icon, label, value }) => (
@@ -228,6 +237,57 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                               <p><strong>Last Custodian:</strong> {asset.disposalDetails.lastCustodian}</p>
                               <p><strong>Pathway:</strong> {asset.disposalDetails.disposalPathway}</p>
                               <p><strong>Justification:</strong> {asset.disposalDetails.breakdownReasons}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Project Context & Free Notes */}
+                      {(asset.projectId || asset.projectName || asset.projectLeader || asset.ccsLab || asset.fundingAgency || asset.projectStartYear || asset.description) && (
+                        <div className="mt-4 p-4 bg-emerald-50/5 border border-emerald-100 dark:border-emerald-500/20 rounded-xl space-y-3">
+                          <p className="text-[10px] font-extrabold text-[#005A36] dark:text-[#10B981] tracking-[1.5px] uppercase">Project &amp; Research Context</p>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
+                            {asset.projectId && (
+                              <div>
+                                <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase">Project / Master ID</p>
+                                <p className="font-semibold text-foreground">{asset.projectId}</p>
+                              </div>
+                            )}
+                            {asset.projectName && (
+                              <div>
+                                <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase">Project Name</p>
+                                <p className="font-semibold text-foreground">{asset.projectName}</p>
+                              </div>
+                            )}
+                            {asset.projectLeader && (
+                              <div>
+                                <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase">Project Leader</p>
+                                <p className="font-semibold text-foreground">{asset.projectLeader}</p>
+                              </div>
+                            )}
+                            {asset.ccsLab && (
+                              <div>
+                                <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase">CCS Laboratory</p>
+                                <p className="font-semibold text-[#005A36] dark:text-[#10B981]">{asset.ccsLab}</p>
+                              </div>
+                            )}
+                            {asset.fundingAgency && (
+                              <div>
+                                <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase">Funding Agency</p>
+                                <p className="font-semibold text-foreground">{asset.fundingAgency}</p>
+                              </div>
+                            )}
+                            {asset.projectStartYear && (
+                              <div>
+                                <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase">Project Start Year</p>
+                                <p className="font-semibold text-foreground">{asset.projectStartYear}</p>
+                              </div>
+                            )}
+                          </div>
+                          {asset.description && (
+                            <div className="pt-2.5 border-t border-border">
+                              <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase mb-1">Asset Description / Note</p>
+                              <p className="text-xs text-foreground leading-relaxed whitespace-pre-line bg-muted/25 p-2.5 rounded-lg border border-border">{asset.description}</p>
                             </div>
                           )}
                         </div>

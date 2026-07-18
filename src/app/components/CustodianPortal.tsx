@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
-import { QrCode, Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
+import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
 import { useApp } from "../context";
@@ -41,7 +41,8 @@ const statusPills = [
 ];
 
 export function CustodianPortal({ activeTab }: { activeTab: string }) {
-  const { cycleMode, addRepairRequest: onRepairRequest, assets, addInspectionReport } = useApp();
+  const { cycleMode, addRepairRequest: onRepairRequest, assets, addInspectionReport, currentUser } = useApp();
+  const currentUserName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)";
 
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
   const [scanActive, setScanActive] = useState(false);
@@ -169,20 +170,9 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     };
   }, [scanActive, scanLoading, scanResult]);
 
-  const simulateScan = () => {
-    setScanLoading(true); setScanResult(null);
-    setTimeout(() => {
-      setScanLoading(false);
-      const active = assets.filter(a => a.status !== "Disposed");
-      const newestAsset = active.find(a => a.id.startsWith("EQ-2026-")) || active[0] || { id: "EQ-2024-051" };
-      const matched = assets.find(a => a.id === newestAsset.id) || newestAsset;
-      setSelectedAsset(matched as any);
-      setScanResult(newestAsset.id);
-      setScanActive(false);
-    }, 2000);
-  };
 
-  const custodianAssets = assets.filter(a => a.custodian === "A. Dela Cruz (Active Custodian)");
+
+  const custodianAssets = assets.filter(a => a.custodian === currentUserName);
 
   const selectedPill = statusPills.find(p => p.label === reportStatus);
   const isAlert   = selectedPill && (selectedPill.severity === "alert"   || selectedPill.severity === "critical");
@@ -220,7 +210,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         id: ref,
         assetId: reportAsset,
         assetName: asset.name,
-        custodian: "A. Dela Cruz (Active Custodian)",
+        custodian: currentUserName,
         status: reportStatus,
         description: reportDesc || "Regular check-in evaluation.",
         images: reportImages,
@@ -229,7 +219,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
       });
 
       if (triggerRepair) {
-        onRepairRequest({ id:ref, assetId:reportAsset, assetName:asset.name, custodian:"A. Dela Cruz (Active Custodian)",
+        onRepairRequest({ id:ref, assetId:reportAsset, assetName:asset.name, custodian:currentUserName,
           statusLabel:reportStatus, description:reportDesc||"No description.", imageUrl:reportImages[0],
           submittedAt:new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}),
           priority:requestImmediate ? "Critical" : (selectedPill?.severity==="critical"?"Critical":"High"), acknowledged:false });
@@ -272,7 +262,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                 style={{borderTopWidth:4, borderLeftWidth:0}}
                 onClick={() => setSelectedAsset(asset)}
               >
-                <div className="w-full h-28 overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="16/9" /></div>
+                <div className="w-full h-28 overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="16/9" imageUrl={asset.image} /></div>
                 <div className="p-3 flex-1 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
@@ -301,7 +291,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                 onClick={() => setSelectedAsset(asset)}
               >
                 <div className="flex">
-                  <div className="w-28 flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" /></div>
+                  <div className="w-28 flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image} /></div>
                   <div className="flex-1 px-4 py-3 flex justify-between items-start">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
@@ -395,7 +385,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                 style={{borderTopWidth:4, borderLeftWidth:0}}
                 onClick={() => setSelectedAsset(asset)}
               >
-                <div className="w-full h-28 overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="16/9" /></div>
+                <div className="w-full h-28 overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="16/9" imageUrl={asset.image} /></div>
                 <div className="p-3 flex-1 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
@@ -422,7 +412,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                 onClick={() => setSelectedAsset(asset)}
               >
                 <div className="flex">
-                  <div className="w-28 flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" /></div>
+                  <div className="w-28 flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image} /></div>
                   <div className="flex-1 px-4 py-3 flex justify-between items-start">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
@@ -512,16 +502,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               </div>
             )}
             {scanActive && !scanLoading && !scanResult && (
-              <>
-                <Button className="flex-1" onClick={simulateScan}>
-                  <QrCode size={14} />
-                  Simulate Mock Scan ({
-                    assets.filter(a => a.status !== "Disposed").find(a => a.id.startsWith("EQ-2026-"))?.id || 
-                    assets.filter(a => a.status !== "Disposed")[0]?.id || "EQ-2024-051"
-                  })
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => setScanActive(false)}><X size={14} />Cancel</Button>
-              </>
+              <Button variant="outline" className="w-full" onClick={() => setScanActive(false)}><X size={14} />Cancel</Button>
             )}
             {scanResult && <Button variant="outline" className="flex-1" onClick={() => { setScanResult(null); setScanActive(false); }}>Scan Another</Button>}
           </div>
@@ -592,7 +573,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               {custodianAssets.map(asset => (
                 <button key={asset.id} onClick={() => setReportAsset(asset.id)}
                   className={cn("flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer text-left transition-all w-full", reportAsset===asset.id?"border-primary bg-emerald-50":"border-border hover:border-primary/40 bg-white")}>
-                  <div className="w-12 h-9 rounded overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" /></div>
+                  <div className="w-12 h-9 rounded overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image} /></div>
                   <div className="flex-1">
                     <p className="text-xs font-bold text-foreground">{asset.name}</p>
                     <p className="text-[10px] text-muted-foreground">{asset.id} · {asset.lab}</p>

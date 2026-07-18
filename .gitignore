@@ -1,0 +1,13 @@
+node_modules/
+dist/
+
+# Environment variables / secrets
+.env
+.env.local
+server/.env
+
+# Prisma generated client
+server/generated/
+
+# Editor/OS noise
+.DS_Store

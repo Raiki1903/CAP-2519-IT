@@ -22,11 +22,36 @@ import {
   Plus, Search, Download, CheckCircle, Clock, Package, DollarSign,
   ChevronRight, LayoutGrid, Table2, MapPin, Calendar, Tag, Wrench,
   BarChart3, Bell, AlertTriangle, Shield, QrCode, Printer, Zap, Eye,
-  Image as ImageIcon, XCircle, Trash2, Pencil, Archive, ClipboardCheck
+  Image as ImageIcon, XCircle, Trash2, Pencil, Archive, ClipboardCheck, RotateCcw
 } from "lucide-react";
 
 const MINT = "#10B981";
 const fundingSources = ["DOST", "USAID", "CHED", "Internal Grants"];
+
+// Must match the backend's `assets_category` Prisma enum (server/prisma/schema.prisma) exactly —
+// the API rejects any value outside this set.
+const assetCategories = [
+  { value: "DEV_KIT", label: "Dev Kit" },
+  { value: "MONITOR", label: "Monitor" },
+  { value: "TV", label: "TV" },
+  { value: "CPU", label: "CPU" },
+  { value: "KEYBOARD", label: "Keyboard" },
+  { value: "MOUSE", label: "Mouse" },
+  { value: "CAMERA", label: "Camera" },
+  { value: "MEMORY_CARD", label: "Memory Card" },
+  { value: "PROJECTOR", label: "Projector" },
+  { value: "RECORDER", label: "Recorder" },
+  { value: "ROUTER", label: "Router" },
+  { value: "SIMULATOR", label: "Simulator" },
+  { value: "TABLET", label: "Tablet" },
+  { value: "VR", label: "VR" },
+  { value: "PRINTER", label: "Printer" },
+  { value: "SWITCH", label: "Switch" },
+  { value: "HARD_DRIVE", label: "Hard Drive" },
+  { value: "AUDIO", label: "Audio" },
+  { value: "VIDEO_CAMERA", label: "Video Camera" },
+  { value: "SPEAKER", label: "Speaker" },
+];
 
 const statusBadgeClass: Record<string, string> = {
   "Active":             "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -37,31 +62,11 @@ const statusBadgeClass: Record<string, string> = {
 
 // TSG Specific Constants
 const labGroups = [
-  { id: "A", name: "Group A", labs: ["CITe4D"],              assets: 312, due: 4, color: "text-blue-600"    },
-  { id: "B", name: "Group B", labs: ["CAR", "CeLT"],         assets: 198, due: 2, color: "text-violet-600"  },
-  { id: "C", name: "Group C", labs: ["CeHCI","Bio","HXIL"],  assets: 274, due: 7, color: "text-amber-600"   },
-  { id: "D", name: "Group D", labs: ["GAME", "CIVI"],        assets: 156, due: 1, color: "text-emerald-600" },
+  { id: "A", name: "Group A", labs: ["CITe4D", "COMET"],         assets: 312, due: 4, color: "text-blue-600"    },
+  { id: "B", name: "Group B", labs: ["CAR", "CeLT", "CNIS"],     assets: 198, due: 2, color: "text-violet-600"  },
+  { id: "C", name: "Group C", labs: ["CeHCI", "Bio", "HXIL"],    assets: 274, due: 7, color: "text-amber-600"   },
+  { id: "D", name: "Group D", labs: ["GAME", "CIVI"],            assets: 156, due: 1, color: "text-emerald-600" },
 ];
-
-const maintenanceQueues: Record<string, { id:string; asset:string; serial:string; lab:string; lastInspected:string; status:string; urgency:string }[]> = {
-  A: [
-    { id:"MNT-2026-0141", asset:"Dell PowerEdge R740", serial:"SN-DPE-740-001", lab:"CITe4D", lastInspected:"2025-12-10", status:"Due Soon",  urgency:"Normal"   },
-    { id:"MNT-2026-0142", asset:"NVIDIA DGX A100",     serial:"SN-DGX-A100-02",  lab:"CITe4D", lastInspected:"2025-11-20", status:"Overdue",   urgency:"High"     },
-    { id:"MNT-2026-0143", asset:"Leica BLK360 Scanner",serial:"SN-LBK-360-09",   lab:"CITe4D", lastInspected:"2026-02-15", status:"Inspected", urgency:"Low"      },
-  ],
-  B: [
-    { id:"MNT-2026-0151", asset:"RPi 4 Cluster ×32",  serial:"SN-RPI4-CLU-07",  lab:"CeLT", lastInspected:"2026-03-01", status:"Inspected", urgency:"Low"    },
-    { id:"MNT-2026-0152", asset:"Oculus Quest Pro ×8", serial:"OQ-PRO-DLSU",     lab:"CAR",  lastInspected:"2026-01-20", status:"Due Soon",  urgency:"Normal" },
-  ],
-  C: [
-    { id:"MNT-2026-0161", asset:"Boston Dynamics Spot",   serial:"SN-SPOT-0178",    lab:"HXIL", lastInspected:"2025-10-15", status:"Overdue",   urgency:"Critical" },
-    { id:"MNT-2026-0162", asset:"Phantom VEO4K Camera",   serial:"SN-PH-VEO-4K-01", lab:"Bio",  lastInspected:"2026-04-10", status:"Inspected", urgency:"Low"      },
-  ],
-  D: [
-    { id:"MNT-2026-0171", asset:"Surface Pro 9 Bundle",      serial:"SN-SP9-BNDL-03", lab:"GAME", lastInspected:"2026-05-01", status:"Inspected", urgency:"Low"    },
-    { id:"MNT-2026-0172", asset:"Trimble SX12 Total Station",serial:"TR-SX12-0092",   lab:"CIVI", lastInspected:"2026-01-14", status:"Due Soon",  urgency:"Normal" },
-  ],
-};
 
 // Deterministic unique QR grid generator
 const generateUniqueQRGrid = (id: string) => {
@@ -93,6 +98,7 @@ const statusBadge: Record<string,string> = {
   Inspected: "bg-emerald-50 text-emerald-700 border-emerald-200",
   "Due Soon": "bg-amber-50 text-amber-700 border-amber-200",
   Overdue:    "bg-red-50 text-red-700 border-red-200",
+  Scheduled:  "bg-blue-50 text-blue-700 border-blue-200"
 };
 
 const urgencyBadge: Record<string,string> = {
@@ -113,12 +119,22 @@ interface IntakeForm {
   location: string;
   lab: string;
   specs: string;
+  projectId: string;
+  projectName: string;
+  projectLeader: string;
+  ccsLab: string;
+  fundingAgency: string;
+  projectStartYear: string;
+  description: string;
+  image?: string;
 }
 
 const emptyForm: IntakeForm = {
-  name: "", serial: "", manufacturer: "", category: "Computing Array",
+  name: "", serial: "", manufacturer: "", category: "DEV_KIT",
   funding: "DOST", procured: new Date().toISOString().split("T")[0],
   warranty: "", location: "Manila", lab: "CITe4D", specs: "",
+  projectId: "", projectName: "", projectLeader: "", ccsLab: "", fundingAgency: "", projectStartYear: "", description: "",
+  image: "",
 };
 
 function ConditionBar({ value }: { value: number }) {
@@ -134,7 +150,7 @@ function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommission }: { 
   return (
     <Card onClick={onSelect} className={cn("overflow-hidden p-0 gap-0 transition-all relative cursor-pointer", isDisposed ? "opacity-60 grayscale bg-muted/20 border-dashed border-muted-foreground/30 shadow-none hover:opacity-75" : "hover:shadow-md")}>
       <div className="relative">
-        <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" />
+        <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image} />
         <Badge className={cn("absolute top-2.5 right-2.5 text-[9px] border font-bold uppercase tracking-wider", statusBadgeClass[eq.status])}>{eq.status}</Badge>
         <div className="absolute top-2.5 left-2.5 flex gap-1 z-10">
           {onEdit && (
@@ -248,9 +264,44 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     assets, addAsset, removeAsset, updateAsset, disposeAsset,
     cycleMode, setCycleMode,
     repairRequests, acknowledgeRepair, updateRepairStatus,
-    returns, role, inspections
+    returns, role, inspections,
+    addInspectionSchedule,
+    inspectionSchedules,
+    maintenanceQueue,
+    resolveMaintenanceItem,
+    resetInspectionCycle
   } = useApp();
   const navigate = useNavigate();
+
+  const [schedulingItem, setSchedulingItem] = useState<any | null>(null);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  const [resolvingItem, setResolvingItem] = useState<any | null>(null);
+  const [resolveStatus, setResolveStatus] = useState("Perfect");
+  const [resolveRemarks, setResolveRemarks] = useState("");
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ["image/jpeg", "image/png"];
+    const fileExtension = file.name.split(".").pop()?.toLowerCase();
+    const validExtensions = ["jpg", "jpeg", "png"];
+
+    if (!validTypes.includes(file.type) || !validExtensions.includes(fileExtension || "")) {
+      alert("Security Error: Only JPG and PNG image formats are allowed.");
+      e.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) {
+        setForm(prev => ({ ...prev, image: ev.target!.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // ITS specific states
   const [showModal, setShowModal] = useState(false);
@@ -305,7 +356,15 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     id: eq.id, name: eq.name, serial: eq.serial, manufacturer: eq.manufacturer,
     category: eq.category, funding: eq.funding, procured: eq.procured,
     warranty: eq.warranty, location: eq.location, lab: eq.lab,
-    status: eq.status, condition: eq.condition, custodian: eq.custodian
+    status: eq.status, condition: eq.condition, custodian: eq.custodian,
+    projectId: eq.projectId,
+    projectName: eq.projectName,
+    projectLeader: eq.projectLeader,
+    ccsLab: eq.ccsLab,
+    fundingAgency: eq.fundingAgency,
+    projectStartYear: eq.projectStartYear,
+    description: eq.description,
+    image: eq.image
   });
 
   const filtered = assets.filter(eq => {
@@ -339,7 +398,15 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
         lab: form.lab,
         status: "Active",
         condition: 100,
-        specs: form.specs
+        specs: form.specs,
+        projectId: form.projectId,
+        projectName: form.projectName,
+        projectLeader: form.projectLeader,
+        ccsLab: form.ccsLab,
+        fundingAgency: form.fundingAgency,
+        projectStartYear: form.projectStartYear,
+        description: form.description,
+        image: form.image
       });
       setShowModal(false);
       setForm(emptyForm);
@@ -468,7 +535,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
               <CardTitle className="text-sm">Procurement Intake Wizard</CardTitle>
               <p className="text-[10px] text-muted-foreground mt-0.5">Complete all fields to compile hardware records</p>
             </div>
-            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-extrabold">STEP {step} OF 3</Badge>
+            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-extrabold">STEP {step} OF 4</Badge>
           </CardHeader>
           <CardContent className="p-5 space-y-4">
             {step === 1 && (
@@ -491,8 +558,8 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                   <Label className="text-xs font-bold text-foreground">Asset Category</Label>
                   <select value={form.category} onChange={e=>setForm({...form, category:e.target.value})}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    {["Computing Array", "Robotic Node", "Mobile Infrastructure", "Sensor Array", "Networking", "Peripheral"].map(c => (
-                      <option key={c} value={c}>{c}</option>
+                    {assetCategories.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
                     ))}
                   </select>
                 </div>
@@ -530,6 +597,41 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-bold text-foreground">Project ID / Master ID</Label>
+                    <Input placeholder="e.g. PRJ-2026-001" value={form.projectId} onChange={e=>setForm({...form, projectId:e.target.value})} className="text-xs" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-bold text-foreground">Project Name</Label>
+                    <Input placeholder="e.g. AI Smart Agri Platform" value={form.projectName} onChange={e=>setForm({...form, projectName:e.target.value})} className="text-xs" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-bold text-foreground">Project Leader</Label>
+                    <Input placeholder="e.g. Dr. Juan Dela Cruz" value={form.projectLeader} onChange={e=>setForm({...form, projectLeader:e.target.value})} className="text-xs" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-bold text-foreground">CCS Laboratory (CCS Lab)</Label>
+                    <Input placeholder="e.g. CITe4D" value={form.ccsLab} onChange={e=>setForm({...form, ccsLab:e.target.value})} className="text-xs" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-bold text-foreground">Funding Agency</Label>
+                    <Input placeholder="e.g. DOST-PCIEERD" value={form.fundingAgency} onChange={e=>setForm({...form, fundingAgency:e.target.value})} className="text-xs" />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-bold text-foreground">Project Start Date Year Start</Label>
+                    <Input placeholder="e.g. 2024" value={form.projectStartYear} onChange={e=>setForm({...form, projectStartYear:e.target.value})} className="text-xs" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
                     <Label className="text-xs font-bold text-foreground">Campus Location</Label>
                     <select value={form.location} onChange={e=>setForm({...form, location:e.target.value})}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -545,6 +647,38 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                         <option key={l} value={l}>{l}</option>
                       ))}
                     </select>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs font-bold text-foreground">Asset Free Description / Notes</Label>
+                  <textarea placeholder="Enter custom notes, descriptions, or observations..." value={form.description} onChange={e=>setForm({...form, description:e.target.value})} rows={3}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs font-bold text-foreground">Asset Image Upload (JPG/PNG only)</Label>
+                  <div className="flex items-center gap-3">
+                    <Input 
+                      type="file" 
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png" 
+                      onChange={handleImageUpload} 
+                      className="text-xs flex-1 cursor-pointer"
+                    />
+                    {form.image && (
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="w-10 h-10 rounded border border-border overflow-hidden bg-muted">
+                          <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setForm(prev => ({ ...prev, image: "" }))}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 text-[10px] px-2 h-7"
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="p-4 bg-muted/40 rounded-xl border border-border text-xs space-y-1.5 text-muted-foreground">
@@ -563,7 +697,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                 <Button variant="outline" onClick={() => setStep(step - 1)}>Back</Button>
               ) : <div />}
 
-              {step < 3 ? (
+              {step < 4 ? (
                 <Button onClick={() => setStep(step + 1)} disabled={!form.name || !form.serial}>Continue Step {step + 1}</Button>
               ) : (
                 <Button onClick={handleSubmit} disabled={submitted}>
@@ -654,7 +788,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
               <TableBody>
                 {filtered.map(eq => (
                   <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "Disposed" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset(openAsset(eq))}>
-                    <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" /></div></TableCell>
+                    <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image} /></div></TableCell>
                     <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                     <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{eq.category}</TableCell>
@@ -724,9 +858,11 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
             asset={disposalAsset}
             onClose={() => setDisposalAsset(null)}
             onDispose={disposeAsset}
-            role={role}
+            role={role || ""}
           />
         )}
+
+
 
         {/* Delete Confirmation Dialog */}
         <Dialog open={assetToDelete !== null} onOpenChange={open => { if(!open) setAssetToDelete(null); }}>
@@ -991,17 +1127,33 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
           <p className="text-muted-foreground text-sm">Configure periodic schedules and monitor periodic custodian check-in logs.</p>
         </div>
 
-        {/* Frequency toggle */}
+        {/* Frequency toggle & Reset action */}
         <Card className="mb-5">
-          <CardContent className="pt-5 flex items-center justify-between">
+          <CardContent className="pt-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <p className="font-bold text-foreground text-sm">Inspection Frequency Engine</p>
               <p className="text-xs text-muted-foreground mt-0.5">Active cycle: <strong className="text-primary">{cycleMode === "Annual" ? "Annual Cycle (once per year)" : "Trimestral Cycle (every trimester)"}</strong></p>
             </div>
-            <div className="flex items-center gap-3">
-              <Label className={cn("text-xs font-semibold", cycleMode === "Annual" ? "text-foreground" : "text-muted-foreground")}>Annual</Label>
-              <Switch checked={cycleMode === "Trimestral"} onCheckedChange={c => setCycleMode(c ? "Trimestral" : "Annual")} className="data-[state=checked]:bg-primary" />
-              <Label className={cn("text-xs font-semibold", cycleMode === "Trimestral" ? "text-foreground" : "text-muted-foreground")}>Trimestral</Label>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-3 bg-muted/40 px-3 py-1.5 rounded-lg border border-border">
+                <Label className={cn("text-xs font-semibold", cycleMode === "Annual" ? "text-foreground" : "text-muted-foreground")}>Annual</Label>
+                <Switch checked={cycleMode === "Trimestral"} onCheckedChange={c => setCycleMode(c ? "Trimestral" : "Annual")} className="data-[state=checked]:bg-primary" />
+                <Label className={cn("text-xs font-semibold", cycleMode === "Trimestral" ? "text-foreground" : "text-muted-foreground")}>Trimestral</Label>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  if (confirm("Are you sure you want to reset all active inspection schedules and return all resolved/completed queue items back to unscheduled status?")) {
+                    resetInspectionCycle();
+                    alert("Success: Inspection cycles and queue states have been reset. You can now schedule them again.");
+                  }
+                }}
+                className="text-xs font-bold gap-1 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+              >
+                <RotateCcw size={13} />
+                Reset Inspection Engine
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -1020,7 +1172,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
 
           {labGroups.map(g => (
             <TabsContent key={g.id} value={g.id}>
-              <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                 {[{val:String(g.assets),label:"Total Assets"},{val:String(g.due),label:"Due / Overdue"},{val:g.labs.join(", "),label:"Labs"}].map(({val,label}) => (
                   <Card key={label}><CardContent className="pt-4 pb-4"><p className="text-xl font-extrabold text-foreground">{val}</p><p className="text-xs text-muted-foreground">{label}</p></CardContent></Card>
                 ))}
@@ -1037,7 +1189,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(maintenanceQueues[g.id] ?? []).map(item => (
+                    {maintenanceQueue.filter(item => item.labGroupId === g.id).map(item => (
                       <TableRow key={item.id}>
                         <TableCell className="font-bold text-primary text-xs">{item.id}</TableCell>
                         <TableCell><p className="text-xs font-semibold text-foreground">{item.asset}</p><p className="text-[10px] text-muted-foreground">{item.serial}</p></TableCell>
@@ -1045,7 +1197,52 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                         <TableCell className="text-xs text-muted-foreground">{item.lastInspected}</TableCell>
                         <TableCell><Badge className={cn("text-[10px]", statusBadge[item.status])}>{item.status}</Badge></TableCell>
                         <TableCell><Badge className={cn("text-[10px]", urgencyBadge[item.urgency])}>{item.urgency}</Badge></TableCell>
-                        <TableCell><Button size="sm" className="text-xs h-7">Schedule</Button></TableCell>
+                        <TableCell>
+                          {item.status === "Scheduled" ? (
+                            <div className="flex items-center gap-1.5">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-xs h-7 border-emerald-700 text-emerald-700 hover:bg-emerald-50 font-bold"
+                                onClick={() => {
+                                  const existing = inspectionSchedules.find(s => s.labGroupId === g.id);
+                                  if (existing) {
+                                    setScheduleDate(existing.inspectionDate);
+                                  } else {
+                                    setScheduleDate("");
+                                  }
+                                  setSchedulingItem({ ...item, labGroupId: g.id });
+                                }}
+                              >
+                                View Schedule
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                className="text-xs h-7 bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                                onClick={() => {
+                                  setResolveStatus("Perfect");
+                                  setResolveRemarks("");
+                                  setResolvingItem({ ...item, labGroupId: g.id });
+                                }}
+                              >
+                                Resolve
+                              </Button>
+                            </div>
+                          ) : item.status === "Inspected" ? (
+                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-extrabold text-[10px] px-2 py-0.5">Completed</Badge>
+                          ) : (
+                            <Button 
+                              size="sm" 
+                              className="text-xs h-7 bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
+                              onClick={() => {
+                                setScheduleDate("");
+                                setSchedulingItem({ ...item, labGroupId: g.id });
+                              }}
+                            >
+                              Schedule
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1207,6 +1404,168 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
             </DialogContent>
           )}
         </Dialog>
+
+        {/* Inspection Scheduling Modal */}
+        {schedulingItem && (() => {
+          const existing = inspectionSchedules.find(s => s.labGroupId === schedulingItem.labGroupId);
+          return (
+            <Dialog open={!!schedulingItem} onOpenChange={open => { if(!open) setSchedulingItem(null); }}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-sm font-bold text-foreground">
+                    {existing ? "View & Update Inspection Schedule" : "Schedule Periodic Inspection"}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    {existing 
+                      ? `An active inspection is already scheduled for Group ${schedulingItem.labGroupId} (${schedulingItem.lab}).` 
+                      : `Set a specific target inspection date for asset ${schedulingItem.asset} under laboratory group Group ${schedulingItem.labGroupId} (${schedulingItem.lab}).`}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  {existing && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 rounded-xl text-xs flex gap-2.5">
+                      <AlertTriangle className="flex-shrink-0" size={16} />
+                      <div>
+                        <p className="font-bold">Active Schedule Established</p>
+                        <p className="mt-0.5">Scheduled Date: <strong>{existing.inspectionDate}</strong> ({existing.cycleType} cycle)</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs font-bold text-foreground">
+                      {existing ? "Update Inspection Date" : "Inspection Date"}
+                    </Label>
+                    <Input 
+                      type="date" 
+                      value={scheduleDate} 
+                      onChange={e => setScheduleDate(e.target.value)} 
+                      className="text-xs" 
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+                  <div className="p-3.5 bg-muted/40 rounded-xl border border-border text-xs text-muted-foreground">
+                    <p className="font-bold text-foreground mb-1">Automatic Alerts Notification</p>
+                    Confirming this schedule will automatically notify custodians linked to Group {schedulingItem.labGroupId} that an inspection has been scheduled and they must comply with their designated date.
+                  </div>
+                </div>
+                <DialogFooter className="gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setSchedulingItem(null)}>Cancel</Button>
+                  <Button 
+                    size="sm" 
+                    disabled={!scheduleDate || (existing && scheduleDate === existing.inspectionDate)} 
+                    onClick={() => {
+                      if (existing) {
+                        setShowOverwriteConfirm(true);
+                      } else {
+                        addInspectionSchedule(schedulingItem.labGroupId, scheduleDate, cycleMode);
+                        setSchedulingItem(null);
+                        setScheduleDate("");
+                        alert(`Success: Inspection schedule established for Group ${schedulingItem.labGroupId} on ${scheduleDate}. Custodians have been notified.`);
+                      }
+                    }} 
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
+                  >
+                    {existing ? "Update Schedule" : "Establish Schedule"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
+
+        {/* Overwrite Confirmation Dialog */}
+        {showOverwriteConfirm && schedulingItem && (
+          <Dialog open={showOverwriteConfirm} onOpenChange={setShowOverwriteConfirm}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <AlertTriangle className="text-amber-500" size={16} />
+                  Reschedule Active Inspection?
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  An inspection schedule has already been sent to custodians of Group <strong>{schedulingItem.labGroupId}</strong> for <strong>{inspectionSchedules.find(s => s.labGroupId === schedulingItem.labGroupId)?.inspectionDate}</strong>.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-2 text-xs text-muted-foreground">
+                Establishing a new schedule will overwrite the previous date and dispatch a new notification to the custodians. Are you sure you want to proceed?
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowOverwriteConfirm(false)}>Cancel</Button>
+                <Button 
+                  size="sm" 
+                  onClick={() => {
+                    addInspectionSchedule(schedulingItem.labGroupId, scheduleDate, cycleMode);
+                    setSchedulingItem(null);
+                    setScheduleDate("");
+                    setShowOverwriteConfirm(false);
+                    alert(`Success: Inspection schedule updated for Group ${schedulingItem.labGroupId} on ${scheduleDate}. Custodians have been notified.`);
+                  }} 
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                >
+                  Yes, Overwrite &amp; Notify
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Resolve Inspection Modal */}
+        {resolvingItem && (
+          <Dialog open={!!resolvingItem} onOpenChange={open => { if(!open) setResolvingItem(null); }}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <ClipboardCheck className="text-blue-600" size={16} />
+                  Resolve Inspection Ticket
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  File the final checklist and findings for asset <strong>{resolvingItem.asset}</strong> (Serial: {resolvingItem.serial}).
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4 space-y-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs font-bold text-foreground">Asset Condition Status</Label>
+                  <select 
+                    value={resolveStatus} 
+                    onChange={e => setResolveStatus(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="Perfect">Perfect / Day 1 Baseline</option>
+                    <option value="Operational">Operational</option>
+                    <option value="Minor Drift">Minor Drift (Needs Calibration)</option>
+                    <option value="Degraded Performance">Degraded Performance</option>
+                    <option value="Critical Failure">Critical Failure</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs font-bold text-foreground">Remarks &amp; Recommendations</Label>
+                  <textarea 
+                    value={resolveRemarks} 
+                    onChange={e => setResolveRemarks(e.target.value)} 
+                    placeholder="Enter inspection summary details..."
+                    className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" size="sm" onClick={() => setResolvingItem(null)}>Cancel</Button>
+                <Button 
+                  size="sm" 
+                  disabled={!resolveRemarks}
+                  onClick={() => {
+                    resolveMaintenanceItem(resolvingItem.id, resolveStatus, resolveRemarks);
+                    setResolvingItem(null);
+                    setResolveRemarks("");
+                    alert(`Success: Ticket ${resolvingItem.id} has been marked resolved. Inspection report added to logs.`);
+                  }} 
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                >
+                  Submit Inspection Report
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     );
   }
@@ -1261,7 +1620,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                                 name: req.assetName,
                                 custodian: req.custodian,
                                 status: "Pending Return",
-                                category: "Computing Array"
+                                category: "DEV_KIT"
                               });
                             }
                           }}
@@ -1468,7 +1827,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
               <CardContent>
                 {selectedQR.length === 0
                   ? <div className="flex flex-col items-center py-8 text-muted-foreground gap-2"><QrCode size={36} /><p className="text-xs">Select assets to preview</p></div>
-                  : <div className="flex flex-col gap-3 max-h-72 overflow-y-auto">
+                  : <div className="flex flex-col gap-3 max-h-[380px] overflow-y-auto">
                       {selectedQR.map(id => {
                         const a = qrAssets.find(x => x.id === id)!;
                         return (
@@ -1482,7 +1841,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                                   bgColor={"#ffffff"}
                                   fgColor={"#111111"}
                                   level={"M"}
-                                />
+                                  />
                               </div>
                               <div>
                                 <p className="text-[9px] font-extrabold text-foreground leading-snug">{a.name}</p>
@@ -1499,8 +1858,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                 }
               </CardContent>
             </Card>
-            <Button disabled={!selectedQR.length} onClick={handlePrintTags} className="gap-2"><Printer size={13} />Print {selectedQR.length > 0 ? `${selectedQR.length} Tag${selectedQR.length > 1 ? "s" : ""}` : "Tags"}</Button>
-            <Button variant="outline" disabled={!selectedQR.length} className="gap-2"><Download size={13} />Export PDF</Button>
+            <Button disabled={!selectedQR.length} onClick={handlePrintTags} className="w-full gap-2"><Printer size={13} />Print {selectedQR.length > 0 ? `${selectedQR.length} Tag${selectedQR.length > 1 ? "s" : ""}` : "Tags"}</Button>
           </div>
         </div>
       </div>
@@ -1601,7 +1959,7 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
     name: asset?.name || "",
     serial: asset?.serial || "",
     manufacturer: asset?.manufacturer || "",
-    category: asset?.category || "IT Equipment",
+    category: asset?.category || "DEV_KIT",
     funding: asset?.funding || "Internal Grants",
     procured: asset?.procured || "",
     warranty: asset?.warranty || "",
@@ -1609,7 +1967,15 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
     lab: asset?.lab || "CITe4D",
     condition: asset?.condition || 100,
     custodian: asset?.custodian || "",
-    status: asset?.status || "Active"
+    status: asset?.status || "Active",
+    projectId: asset?.projectId || "",
+    projectName: asset?.projectName || "",
+    projectLeader: asset?.projectLeader || "",
+    ccsLab: asset?.ccsLab || "",
+    fundingAgency: asset?.fundingAgency || "",
+    projectStartYear: asset?.projectStartYear || "",
+    description: asset?.description || "",
+    image: asset?.image || ""
   });
 
   const handleSave = () => {
@@ -1644,8 +2010,8 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
             <Label className="text-xs font-bold text-foreground">Category</Label>
             <select value={form.category} onChange={e=>setForm({...form, category:e.target.value})}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {["IT Equipment", "Laboratory Equipment", "Chemical Apparatus", "Mechanical Testing Tools", "Computing Nodes", "Electronics & Kits"].map(c => (
-                <option key={c} value={c}>{c}</option>
+              {assetCategories.map(c => (
+                <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </select>
           </div>
@@ -1699,6 +2065,86 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
           <div className="flex flex-col gap-1.5 col-span-2">
             <Label className="text-xs font-bold text-foreground">Current Custodian Assignment</Label>
             <Input value={form.custodian} onChange={e=>setForm({...form, custodian:e.target.value})} placeholder="None / Custodian Name" className="text-xs" />
+          </div>
+
+          <Separator className="col-span-2 my-2" />
+          <div className="col-span-2">
+            <p className="text-[10px] font-extrabold text-[#005A36] tracking-[1.5px] uppercase">Project Context &amp; Description</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-bold text-foreground">Project ID / Master ID</Label>
+            <Input value={form.projectId} onChange={e=>setForm({...form, projectId:e.target.value})} className="text-xs" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-bold text-foreground">Project Name</Label>
+            <Input value={form.projectName} onChange={e=>setForm({...form, projectName:e.target.value})} className="text-xs" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-bold text-foreground">Project Leader</Label>
+            <Input value={form.projectLeader} onChange={e=>setForm({...form, projectLeader:e.target.value})} className="text-xs" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-bold text-foreground">CCS Laboratory (CCS Lab)</Label>
+            <Input value={form.ccsLab} onChange={e=>setForm({...form, ccsLab:e.target.value})} className="text-xs" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-bold text-foreground">Funding Agency</Label>
+            <Input value={form.fundingAgency} onChange={e=>setForm({...form, fundingAgency:e.target.value})} className="text-xs" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-bold text-foreground">Project Start Date Year Start</Label>
+            <Input value={form.projectStartYear} onChange={e=>setForm({...form, projectStartYear:e.target.value})} className="text-xs" />
+          </div>
+          <div className="flex flex-col gap-1.5 col-span-2">
+            <Label className="text-xs font-bold text-foreground">Asset Free Description / Notes</Label>
+            <textarea value={form.description} onChange={e=>setForm({...form, description:e.target.value})} rows={3}
+              placeholder="Include notes or a description freely..."
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
+          </div>
+          <div className="flex flex-col gap-1.5 col-span-2">
+            <Label className="text-xs font-bold text-foreground">Asset Image (JPG/PNG only)</Label>
+            <div className="flex items-center gap-3">
+              <Input 
+                type="file" 
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png" 
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const validTypes = ["image/jpeg", "image/png"];
+                  const fileExtension = file.name.split(".").pop()?.toLowerCase();
+                  const validExtensions = ["jpg", "jpeg", "png"];
+                  if (!validTypes.includes(file.type) || !validExtensions.includes(fileExtension || "")) {
+                    alert("Security Error: Only JPG and PNG image formats are allowed.");
+                    e.target.value = "";
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    if (ev.target?.result) {
+                      setForm(prev => ({ ...prev, image: ev.target!.result as string }));
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                }} 
+                className="text-xs flex-1 cursor-pointer"
+              />
+              {form.image && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="w-10 h-10 rounded border border-border overflow-hidden bg-muted">
+                    <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setForm(prev => ({ ...prev, image: "" }))}
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50 text-[10px] px-2 h-7"
+                  >
+                    Remove
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <DialogFooter className="gap-2 mt-4">

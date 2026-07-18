@@ -108,7 +108,8 @@ export function TransferForm({ asset, onBack, onClose }: Props) {
         toRole: "Researcher",
         lab: location,
         initiated: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        status: "Pending"
+        status: "Pending",
+        reason,
       });
       setSubmitting(false);
       setSubmitted(true);

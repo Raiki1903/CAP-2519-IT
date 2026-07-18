@@ -31,6 +31,13 @@ export default defineConfig({
     },
   },
 
+  server: {
+    // Forwards API calls to the Express backend (server/) during local dev.
+    proxy: {
+      '/api': 'http://localhost:4000',
+    },
+  },
+
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 })
