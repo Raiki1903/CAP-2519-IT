@@ -2,6 +2,7 @@ import { Outlet, Navigate, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp, roleToSlug, roleDefaultPath } from "../context";
 import { Sidebar } from "../components/Sidebar";
+import { NotificationCenter } from "../components/NotificationCenter";
 
 export function RootLayout() {
   const { role, setRole } = useApp();
@@ -43,6 +44,9 @@ export function RootLayout() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Unified floating Notification Center widget */}
+      <NotificationCenter />
     </div>
   );
 }

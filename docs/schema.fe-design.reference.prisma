@@ -1,0 +1,254 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// MODELS
+// -----------------------------------------------------------------------------
+
+model User {
+  userId    Int    @id @default(autoincrement()) @map("user_id")
+  firstName String @map("first_name") @db.VarChar(255)
+  lastName  String @map("last_name") @db.VarChar(255)
+  email     String @map("email") @db.VarChar(255)
+  password  String @map("password") @db.VarChar(255)
+  idNumber  Int    @map("id_number")
+  userType  UserType @map("user_type")
+
+  // Relations
+  userRoles           UserRole[]
+  userCenters         UserCenter[]
+  assetsRecords       AssetRecord[]           @relation("CurrentCustodian")
+  transfersAsPrevious CustodianshipTransfer[] @relation("PreviousCustodian")
+  transfersAsNew      CustodianshipTransfer[] @relation("NewCustodian")
+  assetDisposals      AssetDisposal[]         @relation("DisposedBy")
+  assetRepairs        AssetRepair[]           @relation("ReportedBy")
+
+  @@map("users") 
+}
+
+model Role {
+  roleId   Int      @id @default(autoincrement()) @map("role_id")
+  roleName RoleName @map("role_name")
+
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userRoleId Int @id @default(autoincrement()) @map("user_role_id")
+  userId     Int @map("user_id")
+  roleId     Int @map("role_id")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [roleId], onDelete: Cascade)
+
+  @@map("user_roles")
+}
+
+model ResearchCenter {
+  centerId       Int            @id @default(autoincrement()) @map("center_id")
+  centerName     String         @map("center_name") @db.VarChar(255)
+  campusLocation CampusLocation @map("campus_location")
+
+  userCenters UserCenter[]
+  assets      Asset[]
+
+  @@map("research_centers")
+}
+
+model UserCenter {
+  userCentersId Int @id @default(autoincrement()) @map("user_centers_id")
+  userId        Int @map("user_id")
+  centerId      Int @map("center_id")
+
+  user   User           @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  center ResearchCenter @relation(fields: [centerId], references: [centerId], onDelete: Cascade)
+
+  @@map("user_centers")
+}
+
+model Asset {
+  assetId    Int       @id @default(autoincrement()) @map("asset_id")
+  qrCodeHash String    @map("qr_code_hash") @db.VarChar(255)
+  assetName  String    @map("asset_name") @db.VarChar(255)
+  assetType  AssetType @map("asset_type")
+  centerId   Int       @map("center_id")
+
+  center ResearchCenter @relation(fields: [centerId], references: [centerId])
+
+  assetRecords  AssetRecord[]
+  assetTags     AssetTag[]
+  assetMonetary AssetMonetary? 
+  transfers     CustodianshipTransfer[]
+  disposals     AssetDisposal[]
+  repairs       AssetRepair[]
+
+  @@map("assets")
+}
+
+model AssetRecord {
+  assetRecordId    Int         @id @default(autoincrement()) @map("asset_record_id")
+  status           AssetStatus @map("status")
+  location         String      @map("location") @db.VarChar(255)
+  date             DateTime    @map("Date") @db.Timestamp(0)
+  
+  // Foreign Keys
+  currentCustodian Int  @map("current_custodian")
+  transferId       Int? @map("transfer_id")
+  disposalId       Int? @map("disposal_id")
+  repairId         Int? @map("repair_id")
+  assetId          Int  @map("asset_id")
+
+  // Relations
+  custodian User                   @relation("CurrentCustodian", fields: [currentCustodian], references: [userId])
+  transfer  CustodianshipTransfer? @relation(fields: [transferId], references: [transferId])
+  disposal  AssetDisposal?         @relation(fields: [disposalId], references: [disposalId])
+  repair    AssetRepair?           @relation(fields: [repairId], references: [repairId])
+  asset     Asset                  @relation(fields: [assetId], references: [assetId], onDelete: Cascade)
+
+  @@map("asset_records")
+}
+
+model AssetTag {
+  assetTagId     Int    @id @default(autoincrement()) @map("asset_tag_id")
+  itsPropertyTag String @map("ITS_property_tag") @db.VarChar(255)
+  tsgPropertyTag String @map("TSG_property_tag") @db.VarChar(255)
+  assetId        Int    @map("asset_id")
+
+  asset Asset @relation(fields: [assetId], references: [assetId], onDelete: Cascade)
+
+  @@map("asset_tags")
+}
+
+model AssetMonetary {
+  assetMonetaryId Int     @id @default(autoincrement()) @map("asset_monetory_id") 
+  fundingSource   String  @map("funding_source") @db.VarChar(255)
+  acquisitionValue Decimal @map("acquisition_value") @db.Decimal(10, 2)
+  assetId         Int     @unique @map("asset_id")
+
+  asset Asset @relation(fields: [assetId], references: [assetId], onDelete: Cascade)
+
+  @@map("asset_monetary")
+}
+
+model CustodianshipTransfer {
+  transferId          Int            @id @default(autoincrement()) @map("transfer_id")
+  assetId             Int            @map("asset_id")
+  previousCustodianId Int            @map("previous_custodian_id")
+  newCustodianId      Int            @map("new_custodian")
+  transferDate        DateTime       @map("transfer_date") @db.Timestamp(0)
+  approvalStatus      ApprovalStatus @map("approval_status")
+
+  asset             Asset @relation(fields: [assetId], references: [assetId])
+  previousCustodian User  @relation("PreviousCustodian", fields: [previousCustodianId], references: [userId])
+  newCustodian      User  @relation("NewCustodian", fields: [newCustodianId], references: [userId])
+
+  assetRecords AssetRecord[]
+
+  @@map("custodianship_transfers")
+}
+
+model AssetDisposal {
+  disposalId     Int      @id @default(autoincrement()) @map("disposal_id")
+  assetId        Int      @map("asset_id")
+  disposedById   Int      @map("disposed_by_id")
+  disposalDate   DateTime @map("disposal_date") @db.Timestamp(0)
+  disposalReason String   @map("disposal_reason") @db.Text
+
+  asset      Asset @relation(fields: [assetId], references: [assetId])
+  disposedBy User  @relation("DisposedBy", fields: [disposedById], references: [userId])
+
+  assetRecords AssetRecord[]
+
+  @@map("asset_disposals")
+}
+
+model AssetRepair {
+  repairId         Int          @id @default(autoincrement()) @map("repair_id")
+  assetId          Int          @map("asset_id")
+  reportedById     Int          @map("reported_by_id")
+  issueDescription String       @map("issue_description") @db.VarChar(255)
+  startDate        DateTime     @map("start_date") @db.Timestamp(0)
+  completionDate   DateTime?    @map("completion_date") @db.Timestamp(0)
+  repairStatus     RepairStatus @map("repair_status")
+
+  asset      Asset @relation(fields: [assetId], references: [assetId])
+  reportedBy User  @relation("ReportedBy", fields: [reportedById], references: [userId])
+
+  assetRecords AssetRecord[]
+
+  @@map("asset_repairs")
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS 
+// -----------------------------------------------------------------------------
+
+enum UserType {
+  STUDENT
+  FACULTY
+}
+
+enum RoleName {
+  ADMIN
+  ADRIC_DIRECTOR
+  ADRIC_SECRETARY
+  TSG_STAFF
+  LAB_HEAD
+}
+
+enum CampusLocation {
+  MANILA_CAMPUS
+  LAGUNA_CAMPUS
+}
+
+enum AssetType {
+  DEV_KIT
+  MONITOR
+  TV
+  CPU
+  KEYBOARD
+  MOUSE
+  CAMERA
+  MEMORY_CARD
+  PROJECTOR
+  RECORDER
+  ROUTER
+  SIMULATOR
+  TABLET
+  VR
+  PRINTER
+  SWITCH
+  HARD_DRIVE
+  AUDIO
+  VIDEO_CAMERA
+  SPEAKER
+}
+
+enum AssetStatus {
+  ACTIVE
+  IN_REPAIR
+  DISPOSED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RepairStatus {
+  REPORTED
+  IN_PROGRESS
+  COMPLETED
+}

@@ -1,0 +1,15 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Keep environment variables out of version control
+.env
+
+# Prisma generated client (regenerate with `npm run prisma:generate`)
+/generated/prisma
+
+# Vite / tooling caches
+.vite
+*.log
