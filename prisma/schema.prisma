@@ -1,0 +1,291 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model asset_disposals {
+  disposal_id     Int      @id @default(autoincrement())
+  asset_id        Int
+  disposed_by_id  Int
+  disposal_date   DateTime @default(now()) @db.DateTime(0)
+  disposal_reason String   @db.Text
+  status          String   @default("pending") @db.VarChar(50)
+  assets          assets   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_disposals_asset")
+  users           users    @relation(fields: [disposed_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_disposals_user")
+
+  @@index([asset_id])
+  @@index([disposed_by_id])
+}
+
+model asset_monetary {
+  asset_monetary_id Int     @id @default(autoincrement())
+  asset_id          Int     @unique
+  funding_source    String  @db.VarChar(255)
+  acquisition_value Decimal @db.Decimal(10, 2)
+  assets            assets  @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_monetary_asset")
+}
+
+model asset_records {
+  asset_record_id   Int                           @id @default(autoincrement())
+  asset_id          Int
+  status            asset_records_status
+  location          String                        @db.VarChar(255)
+  current_location  String?                       @db.VarChar(255)
+  date_logged       DateTime                      @default(now()) @db.DateTime(0)
+  current_custodian Int
+  asset_condition   asset_records_asset_condition @default(PERFECT)
+  Asset_Remarks     String?                       @db.Text
+  project_id        Int?
+  transfer_id       Int?
+  disposal_id       Int?
+  repair_id         Int?
+  projects          projects?                     @relation(fields: [project_id], references: [master_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_assets_project")
+  assets            assets                        @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_records_asset")
+  users             users                         @relation(fields: [current_custodian], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_records_custodian")
+
+  @@index([asset_id])
+  @@index([current_custodian])
+  @@index([project_id], map: "fk_records_project")
+}
+
+model asset_repairs {
+  repair_id         Int      @id @default(autoincrement())
+  asset_id          Int
+  reported_by_id    Int
+  issue_description String   @db.Text
+  is_immediate      Boolean  @default(false)
+  progress_status   String   @db.VarChar(100)
+  created_at        DateTime @default(now()) @db.DateTime(0)
+  assets            assets   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_repairs_asset")
+  users             users    @relation(fields: [reported_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_repairs_reporter")
+
+  @@index([asset_id])
+  @@index([reported_by_id])
+}
+
+model assets {
+  asset_id         Int               @id @default(autoincrement())
+  asset_tag        String            @unique @db.VarChar(50)
+  name             String            @db.VarChar(255)
+  serial_number    String?           @db.VarChar(255)
+  manufacturer     String?           @db.VarChar(255)
+  category         assets_category
+  procurement_date DateTime?         @db.Date
+  warranty_expiry  DateTime?         @db.Date
+  image_url        String?           @db.LongText
+  asset_disposals  asset_disposals[]
+  asset_loans      asset_loans[]
+  asset_monetary   asset_monetary?
+  asset_records    asset_records[]
+  asset_repairs    asset_repairs[]
+  asset_reports    asset_reports[]
+  asset_returns    asset_returns[]
+  asset_transfers  asset_transfers[]
+}
+
+model asset_reports {
+  report_id        Int                     @id @default(autoincrement())
+  asset_id         Int
+  reported_by_id   Int
+  report_date      DateTime                @default(now()) @db.DateTime(0)
+  report_img       String?                 @db.LongText
+  report_condition asset_reports_condition
+  report_remarks   String?                 @db.VarChar(255)
+  assets           assets                  @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_asset")
+  users            users                   @relation(fields: [reported_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_reporter")
+
+  @@index([asset_id])
+  @@index([reported_by_id])
+}
+
+model research_centers {
+  center_id    Int                       @id @default(autoincrement())
+  name         String                    @db.VarChar(255)
+  short_code   String                    @unique @db.VarChar(50)
+  location     research_centers_location
+  projects     projects[]
+  user_centers user_centers[]
+}
+
+model roles {
+  role_id    Int             @id @default(autoincrement())
+  role_name  roles_role_name
+  user_roles user_roles[]
+}
+
+model user_centers {
+  user_centers_id  Int              @id @default(autoincrement())
+  user_id          Int
+  center_id        Int
+  research_centers research_centers @relation(fields: [center_id], references: [center_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_centers_center")
+  users            users            @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_centers_user")
+
+  @@index([center_id])
+  @@index([user_id])
+}
+
+model user_roles {
+  user_role_id Int   @id @default(autoincrement())
+  user_id      Int
+  role_id      Int
+  roles        roles @relation(fields: [role_id], references: [role_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_roles_role")
+  users        users @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_roles_user")
+
+  @@index([role_id])
+  @@index([user_id])
+}
+
+model users {
+  user_id         Int               @id @default(autoincrement())
+  first_name      String            @db.VarChar(255)
+  last_name       String            @db.VarChar(255)
+  email           String            @unique @db.VarChar(255)
+  password        String            @db.VarChar(255)
+  id_number       Int               @unique
+  user_img        String?           @db.LongText
+  user_type       users_user_type
+  asset_disposals asset_disposals[]
+  asset_loans     asset_loans[]
+  asset_records   asset_records[]
+  asset_repairs   asset_repairs[]
+  asset_reports   asset_reports[]
+  asset_returns   asset_returns[]
+  user_centers    user_centers[]
+  user_roles      user_roles[]
+}
+
+model asset_loans {
+  loan_id     Int      @id @default(autoincrement())
+  asset_id    Int
+  borrower_id Int
+  purpose     String   @db.Text
+  loaned_on   DateTime @default(now()) @db.DateTime(0)
+  due_date    DateTime @db.Date
+  status      String   @default("pending") @db.VarChar(50)
+  assets      assets   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_loans_asset")
+  users       users    @relation(fields: [borrower_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_loans_borrower")
+
+  @@index([asset_id])
+  @@index([borrower_id])
+}
+
+model asset_returns {
+  return_id        Int                      @id @default(autoincrement())
+  asset_id         Int
+  returned_by_id   Int
+  reference_number String                   @unique @db.VarChar(100)
+  returned_on      DateTime                 @default(now()) @db.DateTime(0)
+  comments         String?                  @db.VarChar(255)
+  condition        asset_returns_condition?
+  assets           assets                   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_returns_asset")
+  users            users                    @relation(fields: [returned_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_returns_processor")
+
+  @@index([asset_id])
+  @@index([returned_by_id])
+}
+
+model asset_transfers {
+  transfer_id       Int      @id @default(autoincrement())
+  asset_id          Int
+  from_custodian_id Int
+  to_custodian_id   Int
+  justification     String   @db.Text
+  status            String   @default("pending") @db.VarChar(50)
+  requested_on      DateTime @default(now()) @db.DateTime(0)
+  assets            assets   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_transfers_asset")
+
+  @@index([asset_id])
+}
+
+model projects {
+  master_id        Int              @id @default(autoincrement())
+  project_id       String           @unique @db.VarChar(255)
+  project_name     String           @db.VarChar(255)
+  project_leader   String           @db.VarChar(255)
+  center_id        Int
+  funding_agency   String           @db.VarChar(255)
+  start_date       DateTime         @db.Date
+  end_date         DateTime?        @db.Date
+  asset_records    asset_records[]
+  research_centers research_centers @relation(fields: [center_id], references: [center_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_projects_center")
+
+  @@index([center_id], map: "fk_projects_center")
+}
+
+enum asset_records_status {
+  ACTIVE
+  ON_LOAN
+  MAINTENANCE
+  DISPOSED
+}
+
+enum research_centers_location {
+  MANILA
+  LAGUNA
+}
+
+enum users_user_type {
+  STUDENT
+  FACULTY
+  STAFF
+}
+
+enum assets_category {
+  DEV_KIT
+  MONITOR
+  TV
+  CPU
+  KEYBOARD
+  MOUSE
+  CAMERA
+  MEMORY_CARD
+  PROJECTOR
+  RECORDER
+  ROUTER
+  SIMULATOR
+  TABLET
+  VR
+  PRINTER
+  SWITCH
+  HARD_DRIVE
+  AUDIO
+  VIDEO_CAMERA
+  SPEAKER
+}
+
+enum roles_role_name {
+  ADMIN
+  ADRIC_DIRECTOR
+  ADRIC_SECRETARY
+  TSG_STAFF
+  ITS_STAFF
+  LAB_HEAD
+  CUSTODIAN
+}
+
+enum asset_records_asset_condition {
+  PERFECT
+  OPERATIONAL
+  MINOR_DRIFT     @map("MINOR DRIFT")
+  DEGRADED
+  CRITICAL_DEFECT @map("CRITICAL DEFECT")
+}
+
+enum asset_reports_condition {
+  PERFECT
+  OPERATIONAL
+  MINOR_DRIFT     @map("MINOR DRIFT")
+  DEGRADED
+  CRITICAL_DEFECT @map("CRITICAL DEFECT")
+}
+
+enum asset_returns_condition {
+  PERFECT
+  OPERATIONAL
+  MINOR_DRIFT
+  DEGRADED
+  CRITICAL_DEFECT
+}
