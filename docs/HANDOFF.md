@@ -51,3 +51,142 @@ Source prompt: [AGENT-PROMPT-DB-REVISIONS.md](AGENT-PROMPT-DB-REVISIONS.md)
 
 - Review [01-codebase-map.md](01-codebase-map.md). Answer or defer the open questions above.
 - Reply "Phase 1 approved" (optionally with answers). The agent then starts Phase 2: writes `docs/02-test-spec.md`, proposes a test folder (expected: `tests/db/`), and writes failing and pending tests for triggers and stored procedures, with a traceability table from each panel comment to its tests.
+
+---
+
+## Phase 1B, 01A system trace and 01B findings register, 2026-09-18
+
+Prompt followed: [AGENT-PROMPT-PHASE-1B-DEEP-MAP.md](AGENT-PROMPT-PHASE-1B-DEEP-MAP.md). Phase 2 and Phase 3 are paused in favor of this deeper map.
+
+### What is done
+
+- [phase-1-b-findings/01A-system-trace.md](phase-1-b-findings/01A-system-trace.md): file inventory, component tree, shared state map, 41 catalogued features with full data paths, entity lifecycle diagrams, role and permission matrix, cross-cutting behavior, and a list of corrections to `01-codebase-map.md`.
+- [phase-1-b-findings/01B-findings-register.md](phase-1-b-findings/01B-findings-register.md): 7 Critical, 20 High, 20 Medium, and 7 Low findings in one sorted table, detailed write-ups with failure scenarios for all Critical and High items, a system health summary, and a demo and defense risk list.
+- Still to write in this phase: `01C-security-map.md`, `01D-restructure-plan.md`, `01E-onboarding-roadmap.md`.
+- No application code, schema, or database was touched. Nothing was staged or committed.
+
+### Key findings new in this phase
+
+- 8 corrections to the earlier map, the largest being that about 2,672 lines of the frontend are dead code (6 components plus one library file), and that there is no `tsconfig.json` anywhere, so TypeScript is never type-checked. Live bugs exist because of it, including inspections recorded with the inspector name "undefined undefined".
+- Only 8 of the 30 analytics endpoints are reachable from a live screen. 11 are called only by dead components, 11 by nothing at all.
+- `GET /api/asset_loans` inserts a loan row when none is pending, so viewing a page creates data.
+- Four analytics responses substitute hardcoded demo series when the real data is empty.
+- Two different repair endpoints produce different side effects for the same user action, and the live database already holds a repair status string that neither code path handles.
+- The Notification Center's transfer and disposal approvals write only to browser storage, while the same actions on the dashboards write to the database.
+- Custodian return requests and the whole inspection scheduling screen keep state only in the browser, the latter while telling the user its records are saved.
+- Six disagreeing hardcoded lab lists exist, and the one real database table of labs is never read by any form.
+- Security findings are unchanged in substance from Phase 1 but now enumerated per route, including that `approve-registration` will create an account with any role from the request body alone.
+
+### Open questions added in this phase
+
+Numbering continues from the Phase 1 list above.
+
+14. Should the dead analytics layer (AnalyticsDashboard, RoleAnalyticsModule, ReportsAnalyticsDashboard, AssetCatalog, StudentAnalyticsView, analyticsReasoning) be deleted in the restructure, or re-attached to the router? It is roughly 2,670 lines and 11 backend endpoints exist only to serve it.
+15. Was the inspection scheduling screen (Groups A to D, trimestral cycle) ever intended to persist, or was it always a mockup for the defense? The answer changes whether it becomes a schema change in Phase 3.
+16. Is `cycleMode` (Annual or Trimestral) an institutional policy or a personal preference? It is currently a per-browser cookie that drives text on shared screens.
+17. Should ITS and TSG keep sharing one dashboard and one set of permissions, or do they need to diverge? They are currently identical apart from the URL.
+18. For the restructure: do you want frontend and backend split into separate workspaces in one repository, or kept in one root package? This is the main structural decision in 01D and I need your preference, or I will recommend one and proceed.
+19. Is there a CI setup, or any plan for one? It affects whether the restructure adds `tsc --noEmit` and tests as scripts only, or as pipeline steps.
+20. Confirmation needed on two items I could not check without database access: whether `asset_monetary.is_documented` really exists in the live database, and whether any triggers, procedures, or views already exist there.
+
+### Exact next step
+
+- Review 01A and 01B. The prompt says to stop here for approval before I continue.
+- Reply "1B approved" and I will write, in order: `01C-security-map.md` (attack surface, per-route authorization table, sensitive data map, prioritized remediation tiers, Data Privacy Act mapping for D2), then `01D-restructure-plan.md` (target tree, move map, `server.ts` split, frontend reorganization, ordered migration steps), then `01E-onboarding-roadmap.md` (the front door document).
+- If you prefer a different order, or want 01D before 01C, say so.
+
+---
+
+## Phase 1B, team answers and schema correction, 2026-09-18
+
+The team approved 01A and 01B, answered the open questions, and supplied the authoritative database schema, now saved at [reference/AdRIC_DB_Schema.sql](reference/AdRIC_DB_Schema.sql).
+
+### Answers received
+
+| Q | Answer |
+|---|---|
+| 14. Dead analytics layer | Keep it, but quarantine it in its own folder and flag it. Planned as `legacy/analytics-v1/` |
+| 15. Inspection scheduling persistence | Undecided, leave open |
+| 16. `cycleMode` policy or preference | Undecided, leave open |
+| 17. ITS and TSG | Same job, they work together, the difference is only the name. Plan merges them into one app role with one route tree, while keeping both database roles |
+| 18. Repository structure | Team asked for a recommendation and leaned feature-based. Recommended: one package, feature folders, shared types via path alias. Reasoning in [phase-1-b-findings/01D-restructure-plan.md](phase-1-b-findings/01D-restructure-plan.md) section 1 |
+| 19. CI | Team had not met the term. Explained in 01D section 10 |
+| 20. `is_documented`, triggers, procedures, views | Column does not exist anywhere. No triggers, no procedures, no views in the database |
+
+### Corrections applied to 01A and 01B
+
+- `asset_monetary.is_documented` is a **phantom** column, not a drifted one. The compliance metric reads a field that exists in neither the Prisma schema nor the database. Finding H-12 rewritten.
+- Three new High findings from reading the supplied schema:
+  - **H-21:** `asset_returns.condition` stores `MINOR DRIFT` and `CRITICAL DEFECT` with spaces, while the Prisma enum uses underscores with no `@map`. Finalizing a return in either condition fails or stores an empty value.
+  - **H-22:** the seed gives `director@dlsu.edu.ph` the CUSTODIAN role, and no seeded user holds ADRIC_DIRECTOR. The Director lands in the student portal and disposal emails address a role nobody holds.
+  - **H-23:** the schema file cannot execute. `VARCAHR(255)` on `asset_records.current_location`, and a stray `;` in the `user_roles` insert that orphans its last row.
+- New section [01A 3.5](phase-1-b-findings/01A-system-trace.md#35-the-two-schemas-and-where-they-disagree) lists six disagreements between `schema.prisma` and the SQL file, including `VARCHAR(500)` image columns that cannot hold the base64 images the app stores in them.
+- Counts are now 7 Critical, 23 High, 20 Medium, 7 Low.
+
+---
+
+## Phase 1B, 01C security map, 2026-09-18
+
+### What is done
+
+[phase-1-b-findings/01C-security-map.md](phase-1-b-findings/01C-security-map.md): attack surface across seven entry points, authentication analysis with a forgery table, a per-route authorization table covering all 62 routes, a sensitive data map (locations and counts only, no values), input handling, configuration and secrets, a Data Privacy Act mapping for panel comment D2, and a three-tier remediation plan.
+
+### Key findings
+
+- The enforced-authorization column is "nothing" for all 62 routes. There is no middleware of any kind.
+- New leak found while writing it: `POST /api/auth/approve-registration` returns the created user row, password field included ([server.ts#L3878](../server.ts#L3878)).
+- `GET /api/analytics/advanced/stewardship-score/:userId` is a direct object reference: changing the number in the URL returns another person's borrowing history.
+- Login compares passwords with a case-insensitive collation, so password case does not matter.
+- Nine Data Privacy Act obligations from the proposal are mapped against reality. All nine currently fail, two of them actively (credentials published, no audit trail means a breach could not even be detected).
+- The one thing already handled correctly: Mailgun credentials are environment-only and not committed.
+
+### Exact next step at the time of writing
+
+Continue to 01D.
+
+---
+
+## Phase 1B, 01D restructure plan, 2026-09-18
+
+### What is done
+
+[phase-1-b-findings/01D-restructure-plan.md](phase-1-b-findings/01D-restructure-plan.md): the structure recommendation with three options compared, the full target tree, how the reference layout was adapted, the layered split explained plainly, a worked example on the real borrow route, move maps for backend and frontend, what to rewrite rather than move, 15 ordered migration steps, an explanation of CI, a risk table, and what the restructure does not fix.
+
+### Key decisions recorded
+
+- **Recommended: one package, feature folders, shared types via a path alias.** Chosen over npm workspaces because the team's stated goals are traceability, readability, and scalability, and workspaces mainly buy dependency isolation at the cost of breaking everyone's setup mid-capstone. The folder layout is deliberately shaped so workspaces remain a later rename if they are ever needed.
+- ITS and TSG merge into one app role, `Staff`, with one route tree. Both database roles are kept.
+- Seven dead frontend files move to `legacy/analytics-v1/` with a README, per the team's answer to question 14.
+- Named for rewrite rather than relocation: `prismaClient.ts` (delete), `context.tsx`, the `GET /api/assets` handler, `NotificationCenter.tsx`, the inspection scheduling tab, and `test-user.ts`.
+- Migration is 15 steps, each independently shippable and revertible. Steps 0 to 9 are frontend and safety work that can run in parallel with Phase 2. Step 14, baselining migrations, is the precondition for Phase 3.
+
+---
+
+## Phase 1B, 01E onboarding roadmap, 2026-09-18
+
+### What is done
+
+[phase-1-b-findings/01E-onboarding-roadmap.md](phase-1-b-findings/01E-onboarding-roadmap.md): what the system is and who uses it, a corrected setup guide with a table of currently broken or misleading steps, four guided reading tours (login, borrowing, equipment intake, and the whole catalogue), a "where do I change this" table covering today and after the restructure, a vocabulary section naming every misleading term, and a traps section.
+
+Phase 1B is complete. All five documents exist.
+
+### Key points
+
+- The existing [README.md](../README.md) is partly wrong: it describes a `generated/prisma/` folder that does not exist and implies `.env` is required when the app silently falls back to hardcoded credentials instead of failing.
+- There is no way to create a local database, because the only SQL build file does not run (H-23). That is why the team shares one live database and why there is no staging environment.
+- The vocabulary section documents the genuinely confusing names: custodian meaning two different things, transfers setting status to ON_LOAN, disposal being called decommission in the UI, and three similar names for two report endpoints.
+
+### Open questions still unanswered
+
+- 15 (inspection scheduling persistence) and 16 (`cycleMode` policy or preference), both deliberately deferred by the team.
+- Question 1 from Phase 1 remains the most important blocker for Phase 3: who approves a transfer, the recipient or the Lab Head?
+
+### Exact next step
+
+Three ways forward, in the order I would recommend:
+
+1. **Do 01C tier 1 now.** Seven small changes, mostly deletions, that stop credentials being published. This needs someone with permission to edit application code and `.gitignore`, which this phase did not have.
+2. **Fix the three one-line defects** while they are fresh: H-21 (add `@map` to `asset_returns_condition`), H-22 (correct the Director's seeded role), H-23 (the two SQL typos). None of them touches application logic.
+3. **Resume Phase 2** (`docs/02-test-spec.md` plus test files), which is still blocked on a separate test database. Note that H-23 must be fixed first, because the test database cannot be created until the schema file runs.
+
+Say which of the three you want, or "start Phase 2", and I will continue.
