@@ -14,7 +14,7 @@ Branch: `refactor/option-a-structure`. Nothing here is pushed by the agent; Raik
 | A | Part A: decision and comment standard | Done | `fbaa777`, `1cfb784` | n/a (docs) | n/a | 2026-09-26 |
 | 0 | Safety net first (01C tier 1, code parts) | Done | `324dfda` | n/a (see note 1) | n/a (step 1 adds it) | 2026-09-26 |
 | 1 | Add `tsconfig.json` and a `typecheck` script | Done | `e5a13ef1` | n/a (see note 2) | **114 (baseline)** | 2026-09-26 |
-| 2 | Quarantine dead code into `legacy/analytics-v1/` | Not started | | | | |
+| 2 | Quarantine dead code into `legacy/analytics-v1/` | Done | `<step2>` | n/a (see note 3) | **98** (from 114) | 2026-09-26 |
 | 3 | Create `shared/`, move enums and the lab list | Not started | | | | |
 | 4 | Introduce `web/api/client.ts`, convert loans | Not started | | | | |
 | 5 | Convert the remaining features to the API client | Not started | | | | |
@@ -90,6 +90,36 @@ Most common codes: 49 of TS2339 (property does not exist), 37 of TS2322 (type no
 
 ---
 
+## Step 2 detail
+
+**What moved:** 7 files, 2,672 lines, from `src/app/components/` and `src/app/lib/` into `legacy/analytics-v1/`. Git recorded all seven as `R100`, pure renames with no content change. `legacy/analytics-v1/README.md` was added.
+
+| File | Lines |
+|---|---|
+| `RoleAnalyticsModule.tsx` | 722 |
+| `ReportsAnalyticsDashboard.tsx` | 523 |
+| `AnalyticsDashboard.tsx` | 498 |
+| `AssetCatalog.tsx` | 403 |
+| `StudentAnalyticsView.tsx` | 291 |
+| `analyticsReasoning.ts` | 214 |
+| `AnalyticsModule.tsx` | 21 |
+
+**Behavior change:** none. Verified before moving that the only references to any of these files are among themselves: `AnalyticsModule.tsx` imports `RoleAnalyticsModule` and `ReportsAnalyticsDashboard`, and nothing imports `AnalyticsModule`. `routes.tsx` imports only the nine live screens. So the set is one closed cluster with no live entry point.
+
+**Side effect:** `src/app/lib/` is now empty, since `analyticsReasoning.ts` was its only file.
+
+**11 backend endpoints now have no caller at all.** They are listed in the README with the component each belonged to. They are still mounted and still unauthenticated, so they remain attack surface (01C section 4.4). Deleting them is a separate decision tied to the open question below.
+
+**Two endpoints these files used are still live** and were deliberately not touched: `GET /api/analytics/location-status` (also called by `TSGAnalyticsView.tsx`) and `GET /api/assets`. Checked by grepping live `src/` after the move.
+
+**Typecheck: 114 to 98.** The drop of 16 is exactly the errors that were in `RoleAnalyticsModule` (8), `ReportsAnalyticsDashboard` (4), `StudentAnalyticsView` (3), and `AssetCatalog` (1), which `tsconfig.json` now excludes. This was the predicted number.
+
+**Verified:** `npm run typecheck` reports 98. `npm run build` passes.
+
+**Still open, and this step does not settle it:** whether `/api/analytics/dashboard` and `AnalyticsDashboard.tsx` are re-attached or stay quarantined (01D section 6, open question 5). Quarantining keeps both options available. The README says what to do in either direction.
+
+---
+
 ## Notes: noticed, deliberately not fixed
 
 Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3").
@@ -109,3 +139,5 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.
 
 **Note 2 (step 1):** no comment commit. The step created only `tsconfig.json` and edited `package.json`, both JSON, where TSDoc and file headers do not apply. The reasoning lives in this log instead.
+
+**Note 3 (step 2):** no comment commit, by design. Per the prompt, files quarantined into `legacy/` get only their README, not per-file headers or TSDoc. Commenting dead code would imply it is maintained.
