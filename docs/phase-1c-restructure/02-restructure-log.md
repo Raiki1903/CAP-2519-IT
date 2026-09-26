@@ -12,7 +12,7 @@ Branch: `refactor/option-a-structure`. Nothing here is pushed by the agent; Raik
 | # | Step | Status | Move commit | Comment commit | Typecheck errors | Date |
 |---|---|---|---|---|---|---|
 | A | Part A: decision and comment standard | Done | `fbaa777`, `1cfb784` | n/a (docs) | n/a | 2026-09-26 |
-| 0 | Safety net first (01C tier 1, code parts) | Done | `<step0>` | n/a (see note 1) | n/a (step 1 adds it) | 2026-09-26 |
+| 0 | Safety net first (01C tier 1, code parts) | Done | `324dfda` | n/a (see note 1) | n/a (step 1 adds it) | 2026-09-26 |
 | 1 | Add `tsconfig.json` and a `typecheck` script | Not started | | | | |
 | 2 | Quarantine dead code into `legacy/analytics-v1/` | Not started | | | | |
 | 3 | Create `shared/`, move enums and the lab list | Not started | | | | |
