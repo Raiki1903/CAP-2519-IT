@@ -51,5 +51,5 @@ The frontend calls the backend at `http://localhost:4000`, so both need to run.
   npm run dev        # Vite dev server (frontend)
   ```
 
-See `docs/MERGE_NOTES.md` for exactly how the two projects were combined and which
+See `docs/phase-0-merge/MERGE_NOTES.md` for exactly how the two projects were combined and which
 conflicting files were resolved.

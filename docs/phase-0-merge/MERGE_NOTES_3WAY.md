@@ -101,7 +101,7 @@ Merged: Backend's `form-data` + `mailgun.js` (email), Analytics' `@tanstack/reac
 
 ### Dropped
 - The Frontend branch's `prisma/schema.prisma` - the stale design schema, already kept
-  at `docs/schema.fe-design.reference.prisma`. The Backend and Analytics schemas were
+  at `docs/reference/schema.fe-design.reference.prisma`. The Backend and Analytics schemas were
   byte-identical, so that one was used.
 - The Frontend branch's `dist/` - a build of the mock-only UI. Shipping it would serve a
   frontend with no backend integration. Rebuild with `npm run build`.
