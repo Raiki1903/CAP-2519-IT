@@ -13,3 +13,7 @@ dist
 # Vite / tooling caches
 .vite
 *.log
+
+# Personal data. Never commit these. (C-01, H-17, M-19)
+scratch/backups/
+pending_registrations.json

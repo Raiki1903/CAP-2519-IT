@@ -4716,14 +4716,28 @@ import path from 'path';
 
 async function performDatabaseBackup() {
     try {
-        const backupDir = path.join(process.cwd(), 'scratch', 'backups');
+        // Disabled unless BACKUP_DIR is set, and the path must be outside the repository.
+        // Writing backups into scratch/backups/ is how 113 files of personal data got
+        // committed, so there is deliberately no default. (C-01, M-19)
+        const backupDir = process.env.BACKUP_DIR;
+        if (!backupDir) {
+            console.warn("⚠️  Backup skipped: BACKUP_DIR is not set. See .env.example.");
+            return;
+        }
+        const resolvedBackupDir = path.resolve(backupDir);
+        const repoRoot = path.resolve(process.cwd());
+        if (resolvedBackupDir === repoRoot || resolvedBackupDir.startsWith(repoRoot + path.sep)) {
+            console.warn("⚠️  Backup skipped: BACKUP_DIR must be outside the repository. (C-01)");
+            return;
+        }
         if (!fs.existsSync(backupDir)) {
             fs.mkdirSync(backupDir, { recursive: true });
         }
 
-        const [assetsData, usersData, transfersData, repairsData, loansData] = await Promise.all([
+        // The users table is never backed up: every row holds a plaintext password
+        // and an ID number, and these files are not access controlled. (C-01, C-03)
+        const [assetsData, transfersData, repairsData, loansData] = await Promise.all([
             prisma.assets.findMany(),
-            prisma.users.findMany(),
             prisma.asset_transfers.findMany(),
             prisma.asset_repairs.findMany(),
             prisma.asset_loans.findMany()
@@ -4732,7 +4746,6 @@ async function performDatabaseBackup() {
         const backupData = {
             timestamp: new Date().toISOString(),
             assets: assetsData,
-            users: usersData,
             transfers: transfersData,
             repairs: repairsData,
             loans: loansData
