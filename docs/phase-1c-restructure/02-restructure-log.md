@@ -14,7 +14,7 @@ Branch: `refactor/option-a-structure`. Nothing here is pushed by the agent; Raik
 | A | Part A: decision and comment standard | Done | `fbaa777`, `1cfb784` | n/a (docs) | n/a | 2026-09-26 |
 | 0 | Safety net first (01C tier 1, code parts) | Done | `324dfda` | n/a (see note 1) | n/a (step 1 adds it) | 2026-09-26 |
 | 1 | Add `tsconfig.json` and a `typecheck` script | Done | `e5a13ef1` | n/a (see note 2) | **114 (baseline)** | 2026-09-26 |
-| 2 | Quarantine dead code into `legacy/analytics-v1/` | Done | `<step2>` | n/a (see note 3) | **98** (from 114) | 2026-09-26 |
+| 2 | Quarantine dead code into `legacy/analytics-v1/` | Done | `5b68bb6b` | n/a (see note 3) | **98** (from 114) | 2026-09-26 |
 | 3 | Create `shared/`, move enums and the lab list | Not started | | | | |
 | 4 | Introduce `web/api/client.ts`, convert loans | Not started | | | | |
 | 5 | Convert the remaining features to the API client | Not started | | | | |

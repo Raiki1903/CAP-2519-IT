@@ -258,3 +258,48 @@ Branch protection for `main` (require a PR, require 1 approval, block force-push
 ### Exact next step
 
 Turn on branch protection, then run `phase-1c-restructure/PROMPT-2-restructure.md` on a `refactor/option-a-structure` branch.
+
+## Phase 1C, restructure Part A and steps 0 to 2, 2026-09-26
+
+Followed `phase-1c-restructure/PROMPT-2-restructure.md`. Branch: `refactor/option-a-structure`. Nothing pushed.
+
+### Part A
+
+- [guides/CODE-COMMENTS.md](guides/CODE-COMMENTS.md): the three-comment standard (file header, TSDoc on every export, inline only for a non-obvious why), one example per layer, a never-write list, and a before-you-commit checklist. Commit `fbaa777`.
+- [phase-1c-restructure/01-restructure-decision.md](phase-1c-restructure/01-restructure-decision.md): confirms 01D Option A as written, an options table scoring Option A against page-first and the hybrid, the page-first rejection backed by verified file references, three transactions traced through the target structure, and the open decisions. Commit `1cfb784`.
+
+### Part B
+
+Running log with per-step detail and a notes section: [phase-1c-restructure/02-restructure-log.md](phase-1c-restructure/02-restructure-log.md).
+
+- **Step 0** (`324dfda`): `performDatabaseBackup()` no longer reads the `users` table and writes only to `BACKUP_DIR`, with no default, refusing any path inside the repo. Added `scratch/backups/` and `pending_registrations.json` to `.gitignore` and untracked 114 files with `git rm --cached` (files remain on disk). Created `.env.example`, names only.
+- **Step 1** (`e5a13ef`): `tsconfig.json` plus a `typecheck` script. Type checking now runs for the first time. **Baseline 114 errors**, recorded per file.
+- **Step 2** (`5b68bb6`): 7 dead files (2,672 lines) moved to `legacy/analytics-v1/` as pure renames, with a README. **Typecheck 114 to 98.**
+
+`npm run build` passes after every step. `node_modules` was absent, so `npm ci` and `npm run prisma:generate` were run first.
+
+### Worth knowing
+
+- **Type checking independently confirmed H-13** at the exact lines 01B named: `ITSDashboard.tsx:1943` (`first_name`), `ITSDashboard.tsx:1973` and `CustodianPortal.tsx:341` (`user_id`). These write wrong data today and deserve their own `fix/h13-*` branch.
+- 37 of the 98 remaining errors are `motion` animation props, cosmetic but they bury the real ones.
+- TypeScript 6 errors on `baseUrl`, so `tsconfig.json` uses `paths` without it.
+- 11 analytics endpoints now have no caller at all. Still mounted, still unauthenticated. Listed in `legacy/analytics-v1/README.md`.
+- `prisma.ts` still holds hardcoded credentials (C-07). Left deliberately: removing them before `server/config/env.ts` exists (step 10) would break every teammate's setup with no replacement.
+
+### Human steps from step 0, NOT done
+
+1. Rotate every password in the 113 backup files, in `pending_registrations.json`, and the database password in `prisma.ts`.
+2. Decide with the adviser whether git history must be rewritten. The repo is public and history still holds every backup. An agent must never do this.
+3. Tell the team to pull after this branch merges and to create `.env` from `.env.example`.
+
+### Open questions
+
+- Is `/api/analytics/dashboard` re-attached or does it stay quarantined (blocks nothing yet, but decides whether 11 endpoints get deleted)?
+- Is the inspection scheduling tab rebuilt or moved to `legacy/` (question 15, H-18)? Needed before step 8.
+- Co-located tests or a root `tests/` folder? Needed before Phase 2.
+- Who approves a transfer, the recipient or the Lab Head (question 1)? Needed before step 12.
+
+### Exact next step
+
+Continue Part B at **step 3** (create `shared/`, move the enums and the lab list into it):
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 3.`
