@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "strict": false,
+    "types": ["node", "vite/client"],
+
+    "paths": {
+      "@/*": ["./src/*"],
+      "@server/*": ["./server/*"],
+      "@web/*": ["./web/*"],
+      "@shared/*": ["./shared/*"]
+    }
+  },
+  "include": [
+    "src",
+    "server",
+    "web",
+    "shared",
+    "server.ts",
+    "prisma.ts",
+    "mailer.ts",
+    "test-user.ts",
+    "vite.config.ts",
+    "prisma.config.ts"
+  ],
+  "exclude": ["node_modules", "dist", "legacy", "scratch"]
+}
