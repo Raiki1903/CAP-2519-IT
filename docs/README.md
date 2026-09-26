@@ -5,7 +5,7 @@ Start here. This page tells you where every document lives, what phase the proje
 ## Where we are now
 
 **Current phase:** 1C, restructure and team conventions.
-**Next prompt to run:** `phase-1b-deep-map/PROMPT-team-briefing.md` (for the team meeting), then `phase-1c-restructure/PROMPT-1-git-workflow.md`.
+**Next prompt to run:** `phase-1c-restructure/PROMPT-1-git-workflow.md` (the team briefing, [01F](phase-1b-deep-map/01F-team-briefing.md), is written and ready for the meeting).
 
 ## Status board
 
@@ -16,7 +16,7 @@ Update this table whenever a prompt finishes (agents do this as part of every pr
 | 0. Merge | (manual, no prompt) | [MERGE_NOTES.md](phase-0-merge/MERGE_NOTES.md), [MERGE_NOTES_3WAY.md](phase-0-merge/MERGE_NOTES_3WAY.md) | Done | |
 | 1. Codebase map | [PROMPT-db-revisions.md](phase-1-codebase-map/PROMPT-db-revisions.md) (Phase 1 part) | [01-codebase-map.md](phase-1-codebase-map/01-codebase-map.md) | Done | 2026-09-17 |
 | 1B. Deep map | [PROMPT-deep-map.md](phase-1b-deep-map/PROMPT-deep-map.md) | 01A to 01E in [phase-1b-deep-map/](phase-1b-deep-map/) | Done | 2026-09-18 |
-| 1B. Team briefing | [PROMPT-team-briefing.md](phase-1b-deep-map/PROMPT-team-briefing.md) | `phase-1b-deep-map/01F-team-briefing.md` | Not started | |
+| 1B. Team briefing | [PROMPT-team-briefing.md](phase-1b-deep-map/PROMPT-team-briefing.md) | [01F-team-briefing.md](phase-1b-deep-map/01F-team-briefing.md) | Done | 2026-09-26 |
 | 1C. Git workflow | [PROMPT-1-git-workflow.md](phase-1c-restructure/PROMPT-1-git-workflow.md) | `guides/GIT-WORKFLOW.md`, `.github/pull_request_template.md` | Not started | |
 | 1C. Restructure | [PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md) | `phase-1c-restructure/01-restructure-decision.md`, `02-restructure-log.md`, `guides/CODE-COMMENTS.md`, the code moves | Not started (steps 0 to 14) | |
 | 1C. Structure guide | [PROMPT-3-structure-guide.md](phase-1c-restructure/PROMPT-3-structure-guide.md) | `guides/DEVELOPER-GUIDE.md` | Not started | |

@@ -198,3 +198,32 @@ Say which of the three you want, or "start Phase 2", and I will continue.
 - New `docs/README.md`: index, status board, folder rules, and how to run a prompt.
 - New prompts: `phase-1b-deep-map/PROMPT-team-briefing.md`, and in `phase-1c-restructure/`: `PROMPT-1-git-workflow.md`, `PROMPT-2-restructure.md`, `PROMPT-3-structure-guide.md`.
 - Decision: the restructure follows 01D Option A as written (not page-first, not the co-located hybrid). Code comments follow a file header + TSDoc + "why only" inline standard, written up by PROMPT-2 Part A.
+
+## Phase 1B, team briefing, 2026-09-26
+
+### What is done
+
+Followed `phase-1b-deep-map/PROMPT-team-briefing.md`. Produced [phase-1b-deep-map/01F-team-briefing.md](phase-1b-deep-map/01F-team-briefing.md): TL;DR, 30-minute agenda, how the system works (diagram, role table, ten workflows), health check, all 7 Criticals, Highs by theme, demo risks, a one-page security summary with the Tier 1 to 3 list, a documentation impact table, nine decisions with recommended answers, next steps with `[name]` owners, speaker notes per section, a glossary, and a full 57-finding index.
+
+### Verification
+
+Spot-checked against the code on 2026-09-26: `server.ts` is still 4,760 lines, `scratch/backups/` still has 113 tracked files, `app.use(cors())` is still at L11, and no auth middleware exists. No Phase 1B finding had changed. No application code was edited and nothing was committed.
+
+### Key decisions proposed (for the meeting, not yet made)
+
+- Do all Tier 1 security items before the next demo.
+- Rotate credentials now; decide on a git history rewrite with the adviser.
+- Fix H-21, H-22, H-23 first (one-line defects; H-23 also unblocks the Phase 2 test database).
+- The paper must describe RBAC and Data Privacy Act compliance as designed, not implemented.
+- Script a safe demo path that avoids the bell approvals, return requests, and inspection scheduling.
+
+### Open questions
+
+- Who approves a transfer, the recipient or the Lab Head (HANDOFF question 1)?
+- Persist inspection scheduling or label it a prototype (question 15)? Is `cycleMode` policy or preference (question 16)?
+- Dead analytics: quarantine or re-attach (01A section 10 item 5)?
+- Is `pending_registrations.json` live data or a test artifact (01A section 10 item 4)?
+
+### Exact next step
+
+Present 01F at the meeting, record the answers to its section 8 decisions here, then run `phase-1c-restructure/PROMPT-1-git-workflow.md`.
