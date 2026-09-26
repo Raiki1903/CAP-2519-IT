@@ -227,3 +227,34 @@ Spot-checked against the code on 2026-09-26: `server.ts` is still 4,760 lines, `
 ### Exact next step
 
 Present 01F at the meeting, record the answers to its section 8 decisions here, then run `phase-1c-restructure/PROMPT-1-git-workflow.md`.
+
+## Phase 1C, git workflow guide, 2026-09-26
+
+### What is done
+
+Followed `phase-1c-restructure/PROMPT-1-git-workflow.md`. Produced:
+
+- [guides/GIT-WORKFLOW.md](guides/GIT-WORKFLOW.md): the one rule (no direct commits to `main`), the mental model with the "push the branch, not main" correction, one-time setup, the daily 10-step loop in both terminal and VS Code form, branch naming, commit message format with project examples, pull requests and what the reviewer checks, keeping a branch current with merge (not rebase) plus conflict resolution in VS Code, the never-commit list, team coordination rules for the restructure and for Phase 3 migrations, rules for AI coding agents, first-time repo cleanup, GitHub settings, a recovery cheat sheet, and a one-page command table.
+- [.github/pull_request_template.md](../.github/pull_request_template.md): what changed, why (finding IDs), how tested (build, screens, no secrets), moves-code-or-changes-behavior, screenshots, reviewer notes.
+
+### Repo state verified (read-only, 2026-09-26)
+
+- `docs/reorganize-docs` **is already merged into `main`** via PR #1 (`6fddd1bc`), and it carried `database-continuation` with it. Cleanup step 1 from the prompt is therefore already done.
+- All seven old pre-defense branches confirmed to share **no common history** with `main`: `asis-balanay-merged`, `frontend-backend-version-one`, `frontend-backend-version-two`, `frontend-backend-version-3`, `new-version-frontend`, `refactored-frontend`, `refactored-and-cleaned`. They must never be merged. Guide recommends tag-then-delete, flagged as a team decision.
+- Two extra local-only branches found that the prompt did not mention: `Frontend-Check` and `old-local-main`. Noted in the guide as local leftovers to delete when no longer needed.
+- No `.github/` folder existed before this session. No `.env` or `.env.example` exists. `.gitignore` still does not cover `scratch/backups/` or `pending_registrations.json` (M-19), so the guide tells people never to use `git add .`.
+- No `typecheck` script in `package.json` yet, so the guide refers to it as "once the restructure adds it".
+
+### Needs the repo owner (cannot be done from here)
+
+Branch protection for `main` (require a PR, require 1 approval, block force-push and deletion), automatically delete head branches on merge, and later a required CI status check. Listed with exact GitHub locations in section 13 of the guide.
+
+### Open questions
+
+- Does the team agree to tag and delete the seven old branches, or keep them as branches?
+- Who owns the `refactor/option-a-structure` branch during the restructure? The coordination rules in section 10 assume one owner.
+- Requiring one approval means the author cannot self-merge. Confirm the team is fine with that with four people.
+
+### Exact next step
+
+Turn on branch protection, then run `phase-1c-restructure/PROMPT-2-restructure.md` on a `refactor/option-a-structure` branch.
