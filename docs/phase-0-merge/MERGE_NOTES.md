@@ -33,7 +33,7 @@ These cannot be blindly unioned: both target the same tables, so keeping both wo
 Prisma two models mapping to one table (e.g. `users` and `User`) and fail generation.
 **Resolution:** the backend schema was kept as the single authoritative
 `prisma/schema.prisma`. The old FE schema was preserved for reference at
-`docs/schema.fe-design.reference.prisma` (nothing imports it).
+`docs/reference/schema.fe-design.reference.prisma` (nothing imports it).
 
 ### `package.json`
 Merged into one root file:

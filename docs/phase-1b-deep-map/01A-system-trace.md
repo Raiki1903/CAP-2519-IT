@@ -13,7 +13,7 @@ Method note: every claim below was checked against the code. Where a file was re
 
 ## Table of contents
 
-1. [Corrections to docs/01-codebase-map.md](#1-corrections-to-docs01-codebase-mapmd)
+1. [Corrections to docs/phase-1-codebase-map/01-codebase-map.md](#1-corrections-to-docs01-codebase-mapmd)
 2. [System context](#2-system-context)
 3. [File inventory](#3-file-inventory)
 4. [Component tree](#4-component-tree)
@@ -26,7 +26,7 @@ Method note: every claim below was checked against the code. Where a file was re
 
 ---
 
-## 1. Corrections to docs/01-codebase-map.md
+## 1. Corrections to docs/phase-1-codebase-map/01-codebase-map.md
 
 The earlier map is broadly accurate. These points are wrong, incomplete, or changed.
 
@@ -206,7 +206,7 @@ Two files describe the same database and neither is generated from the other any
 Also dead or orphaned outside `src/`:
 
 - `scratch/` (27 scripts plus 113 backup JSON files): one-off utilities, including three that run raw `ALTER TABLE` against the live database.
-- [docs/reference/](../reference/) and [docs/schema.fe-design.reference.prisma](../schema.fe-design.reference.prisma): kept deliberately as merge history.
+- [docs/reference/](../reference/) and [docs/reference/schema.fe-design.reference.prisma](../reference/schema.fe-design.reference.prisma): kept deliberately as merge history.
 - `figmaAssetResolver` in [vite.config.ts#L7-L17](../../vite.config.ts#L7-L17) resolves `figma:asset/*` to `src/assets/`, a folder that does not exist.
 
 ---

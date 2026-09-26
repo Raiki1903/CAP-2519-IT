@@ -1,18 +1,18 @@
 # Handoff
 
-Source prompt: [AGENT-PROMPT-DB-REVISIONS.md](AGENT-PROMPT-DB-REVISIONS.md)
+Source prompt: [PROMPT-db-revisions.md](phase-1-codebase-map/PROMPT-db-revisions.md)
 
 ## Status
 
 | Phase | Output | State |
 |---|---|---|
-| 1. Codebase map | [01-codebase-map.md](01-codebase-map.md) | Done, waiting for approval |
+| 1. Codebase map | [01-codebase-map.md](phase-1-codebase-map/01-codebase-map.md) | Done, waiting for approval |
 | 2. Tests | `02-test-spec.md` + test files | Not started (blocked on Phase 1 approval) |
 | 3. Database plan | `03-db-plan.md` | Not started (blocked on Phase 2 approval) |
 
 ## What was done in Phase 1
 
-- Read `server.ts` (all process handlers, auth, backup job, key analytics routes), `prisma/schema.prisma`, `prisma.ts`, `prisma.config.ts`, `package.json`, `test-user.ts`, `mailer.ts` (env key names only), `pending_registrations.json` (password value not printed), `scratch/` DDL scripts, `docs/MERGE_NOTES.md`.
+- Read `server.ts` (all process handlers, auth, backup job, key analytics routes), `prisma/schema.prisma`, `prisma.ts`, `prisma.config.ts`, `package.json`, `test-user.ts`, `mailer.ts` (env key names only), `pending_registrations.json` (password value not printed), `scratch/` DDL scripts, `docs/phase-0-merge/MERGE_NOTES.md`.
 - Read frontend: `routes.tsx`, `RootLayout.tsx`, `context.tsx`, `prismaClient.ts`, `Login.tsx`, `Register.tsx`, `LoanForm.tsx`, `TransferForm.tsx`, `RepairForm.tsx`, `ReturnForm.tsx`, relevant parts of `ITSDashboard.tsx`, `CustodianPortal.tsx`, `LabHeadDashboard.tsx`, `AdRICDirectorDashboard.tsx`, `AssetDetailModal.tsx`, `NotificationCenter.tsx`.
 - Inspected the structure of the newest `scratch/backups` file with a script that printed only field names, row counts, and distinct status values.
 - Not read: older pre-defense branches, `.env` (no `.env` file exists in this working copy), the live database.
@@ -49,19 +49,19 @@ Source prompt: [AGENT-PROMPT-DB-REVISIONS.md](AGENT-PROMPT-DB-REVISIONS.md)
 
 ## Exact next step
 
-- Review [01-codebase-map.md](01-codebase-map.md). Answer or defer the open questions above.
-- Reply "Phase 1 approved" (optionally with answers). The agent then starts Phase 2: writes `docs/02-test-spec.md`, proposes a test folder (expected: `tests/db/`), and writes failing and pending tests for triggers and stored procedures, with a traceability table from each panel comment to its tests.
+- Review [01-codebase-map.md](phase-1-codebase-map/01-codebase-map.md). Answer or defer the open questions above.
+- Reply "Phase 1 approved" (optionally with answers). The agent then starts Phase 2: writes `docs/phase-2-tests/02-test-spec.md`, proposes a test folder (expected: `tests/db/`), and writes failing and pending tests for triggers and stored procedures, with a traceability table from each panel comment to its tests.
 
 ---
 
 ## Phase 1B, 01A system trace and 01B findings register, 2026-09-18
 
-Prompt followed: [AGENT-PROMPT-PHASE-1B-DEEP-MAP.md](AGENT-PROMPT-PHASE-1B-DEEP-MAP.md). Phase 2 and Phase 3 are paused in favor of this deeper map.
+Prompt followed: [PROMPT-deep-map.md](phase-1b-deep-map/PROMPT-deep-map.md). Phase 2 and Phase 3 are paused in favor of this deeper map.
 
 ### What is done
 
-- [phase-1-b-findings/01A-system-trace.md](phase-1-b-findings/01A-system-trace.md): file inventory, component tree, shared state map, 41 catalogued features with full data paths, entity lifecycle diagrams, role and permission matrix, cross-cutting behavior, and a list of corrections to `01-codebase-map.md`.
-- [phase-1-b-findings/01B-findings-register.md](phase-1-b-findings/01B-findings-register.md): 7 Critical, 20 High, 20 Medium, and 7 Low findings in one sorted table, detailed write-ups with failure scenarios for all Critical and High items, a system health summary, and a demo and defense risk list.
+- [phase-1b-deep-map/01A-system-trace.md](phase-1b-deep-map/01A-system-trace.md): file inventory, component tree, shared state map, 41 catalogued features with full data paths, entity lifecycle diagrams, role and permission matrix, cross-cutting behavior, and a list of corrections to `01-codebase-map.md`.
+- [phase-1b-deep-map/01B-findings-register.md](phase-1b-deep-map/01B-findings-register.md): 7 Critical, 20 High, 20 Medium, and 7 Low findings in one sorted table, detailed write-ups with failure scenarios for all Critical and High items, a system health summary, and a demo and defense risk list.
 - Still to write in this phase: `01C-security-map.md`, `01D-restructure-plan.md`, `01E-onboarding-roadmap.md`.
 - No application code, schema, or database was touched. Nothing was staged or committed.
 
@@ -109,7 +109,7 @@ The team approved 01A and 01B, answered the open questions, and supplied the aut
 | 15. Inspection scheduling persistence | Undecided, leave open |
 | 16. `cycleMode` policy or preference | Undecided, leave open |
 | 17. ITS and TSG | Same job, they work together, the difference is only the name. Plan merges them into one app role with one route tree, while keeping both database roles |
-| 18. Repository structure | Team asked for a recommendation and leaned feature-based. Recommended: one package, feature folders, shared types via path alias. Reasoning in [phase-1-b-findings/01D-restructure-plan.md](phase-1-b-findings/01D-restructure-plan.md) section 1 |
+| 18. Repository structure | Team asked for a recommendation and leaned feature-based. Recommended: one package, feature folders, shared types via path alias. Reasoning in [phase-1b-deep-map/01D-restructure-plan.md](phase-1b-deep-map/01D-restructure-plan.md) section 1 |
 | 19. CI | Team had not met the term. Explained in 01D section 10 |
 | 20. `is_documented`, triggers, procedures, views | Column does not exist anywhere. No triggers, no procedures, no views in the database |
 
@@ -120,7 +120,7 @@ The team approved 01A and 01B, answered the open questions, and supplied the aut
   - **H-21:** `asset_returns.condition` stores `MINOR DRIFT` and `CRITICAL DEFECT` with spaces, while the Prisma enum uses underscores with no `@map`. Finalizing a return in either condition fails or stores an empty value.
   - **H-22:** the seed gives `director@dlsu.edu.ph` the CUSTODIAN role, and no seeded user holds ADRIC_DIRECTOR. The Director lands in the student portal and disposal emails address a role nobody holds.
   - **H-23:** the schema file cannot execute. `VARCAHR(255)` on `asset_records.current_location`, and a stray `;` in the `user_roles` insert that orphans its last row.
-- New section [01A 3.5](phase-1-b-findings/01A-system-trace.md#35-the-two-schemas-and-where-they-disagree) lists six disagreements between `schema.prisma` and the SQL file, including `VARCHAR(500)` image columns that cannot hold the base64 images the app stores in them.
+- New section [01A 3.5](phase-1b-deep-map/01A-system-trace.md#35-the-two-schemas-and-where-they-disagree) lists six disagreements between `schema.prisma` and the SQL file, including `VARCHAR(500)` image columns that cannot hold the base64 images the app stores in them.
 - Counts are now 7 Critical, 23 High, 20 Medium, 7 Low.
 
 ---
@@ -129,7 +129,7 @@ The team approved 01A and 01B, answered the open questions, and supplied the aut
 
 ### What is done
 
-[phase-1-b-findings/01C-security-map.md](phase-1-b-findings/01C-security-map.md): attack surface across seven entry points, authentication analysis with a forgery table, a per-route authorization table covering all 62 routes, a sensitive data map (locations and counts only, no values), input handling, configuration and secrets, a Data Privacy Act mapping for panel comment D2, and a three-tier remediation plan.
+[phase-1b-deep-map/01C-security-map.md](phase-1b-deep-map/01C-security-map.md): attack surface across seven entry points, authentication analysis with a forgery table, a per-route authorization table covering all 62 routes, a sensitive data map (locations and counts only, no values), input handling, configuration and secrets, a Data Privacy Act mapping for panel comment D2, and a three-tier remediation plan.
 
 ### Key findings
 
@@ -150,7 +150,7 @@ Continue to 01D.
 
 ### What is done
 
-[phase-1-b-findings/01D-restructure-plan.md](phase-1-b-findings/01D-restructure-plan.md): the structure recommendation with three options compared, the full target tree, how the reference layout was adapted, the layered split explained plainly, a worked example on the real borrow route, move maps for backend and frontend, what to rewrite rather than move, 15 ordered migration steps, an explanation of CI, a risk table, and what the restructure does not fix.
+[phase-1b-deep-map/01D-restructure-plan.md](phase-1b-deep-map/01D-restructure-plan.md): the structure recommendation with three options compared, the full target tree, how the reference layout was adapted, the layered split explained plainly, a worked example on the real borrow route, move maps for backend and frontend, what to rewrite rather than move, 15 ordered migration steps, an explanation of CI, a risk table, and what the restructure does not fix.
 
 ### Key decisions recorded
 
@@ -166,7 +166,7 @@ Continue to 01D.
 
 ### What is done
 
-[phase-1-b-findings/01E-onboarding-roadmap.md](phase-1-b-findings/01E-onboarding-roadmap.md): what the system is and who uses it, a corrected setup guide with a table of currently broken or misleading steps, four guided reading tours (login, borrowing, equipment intake, and the whole catalogue), a "where do I change this" table covering today and after the restructure, a vocabulary section naming every misleading term, and a traps section.
+[phase-1b-deep-map/01E-onboarding-roadmap.md](phase-1b-deep-map/01E-onboarding-roadmap.md): what the system is and who uses it, a corrected setup guide with a table of currently broken or misleading steps, four guided reading tours (login, borrowing, equipment intake, and the whole catalogue), a "where do I change this" table covering today and after the restructure, a vocabulary section naming every misleading term, and a traps section.
 
 Phase 1B is complete. All five documents exist.
 
@@ -187,6 +187,14 @@ Three ways forward, in the order I would recommend:
 
 1. **Do 01C tier 1 now.** Seven small changes, mostly deletions, that stop credentials being published. This needs someone with permission to edit application code and `.gitignore`, which this phase did not have.
 2. **Fix the three one-line defects** while they are fresh: H-21 (add `@map` to `asset_returns_condition`), H-22 (correct the Director's seeded role), H-23 (the two SQL typos). None of them touches application logic.
-3. **Resume Phase 2** (`docs/02-test-spec.md` plus test files), which is still blocked on a separate test database. Note that H-23 must be fixed first, because the test database cannot be created until the schema file runs.
+3. **Resume Phase 2** (`docs/phase-2-tests/02-test-spec.md` plus test files), which is still blocked on a separate test database. Note that H-23 must be fixed first, because the test database cannot be created until the schema file runs.
 
 Say which of the three you want, or "start Phase 2", and I will continue.
+
+## Docs reorganization and Phase 1C prompts, 2026-09-26
+
+- `docs/` reorganized into phase folders: `phase-0-merge/`, `phase-1-codebase-map/`, `phase-1b-deep-map/` (was `phase-1-b-findings/`), `phase-1c-restructure/`, plus `guides/` for living docs and `reference/`. All internal links were updated.
+- Prompts renamed to `PROMPT-<name>.md` and moved into their phase folders. `AGENT-PROMPT-DB-REVISIONS.md` is now `phase-1-codebase-map/PROMPT-db-revisions.md`; its Phase 2 and Phase 3 outputs now go to `phase-2-tests/` and `phase-3-database/`.
+- New `docs/README.md`: index, status board, folder rules, and how to run a prompt.
+- New prompts: `phase-1b-deep-map/PROMPT-team-briefing.md`, and in `phase-1c-restructure/`: `PROMPT-1-git-workflow.md`, `PROMPT-2-restructure.md`, `PROMPT-3-structure-guide.md`.
+- Decision: the restructure follows 01D Option A as written (not page-first, not the co-located hybrid). Code comments follow a file header + TSDoc + "why only" inline standard, written up by PROMPT-2 Part A.

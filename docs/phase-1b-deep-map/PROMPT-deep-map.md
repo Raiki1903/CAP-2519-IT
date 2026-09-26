@@ -5,7 +5,7 @@
 > "proceed to Phase 2" for now. Phase 2 (tests) and Phase 3 (database plan) come after.
 >
 > Suggested first message:
-> `Read docs/AGENT-PROMPT-PHASE-1B-DEEP-MAP.md and follow it.`
+> `Read docs/phase-1b-deep-map/PROMPT-deep-map.md and follow it.`
 
 ---
 
@@ -18,7 +18,7 @@ Produce an onboarding roadmap for this codebase. The reader is a new developer w
 I will also use this to navigate the system myself, so favor precise file and line references over prose.
 
 # Starting point
-- `docs/01-codebase-map.md` already exists. Read it first.
+- `docs/phase-1-codebase-map/01-codebase-map.md` already exists. Read it first.
 - Treat it as a summary written by someone else. Verify its claims against the code as you go. If anything in it is wrong, incomplete, or has changed, say so explicitly in your output and correct it. Do not simply repeat it.
 - Your job is to go deeper and wider than that document, not to restate it.
 
@@ -56,9 +56,9 @@ Out of scope:
 - Deployment and infrastructure, unless a finding depends on it
 
 # Deliverables
-Produce these five documents in `docs/phase-1-b-findings`, in this order.
+Produce these five documents in `docs/phase-1b-deep-map`, in this order.
 
-## `docs/phase-1-b-findings/01A-system-trace.md`
+## `docs/phase-1b-deep-map/01A-system-trace.md`
 A complete trace of how the system works.
 
 - **File inventory.** Every meaningful file in `src/` and at the root, with: purpose in one line, what it imports, what imports it, and rough size. Group by area. Mark files that appear unused.
@@ -77,7 +77,7 @@ A complete trace of how the system works.
 - **Cross-cutting behavior.** Error handling, loading states, notifications, email, logging, date handling, and how consistently each is done.
 - **Diagrams.** A system context diagram, a per-feature sequence diagram for the main flows, and a state diagram for each entity with a lifecycle (asset, loan, transfer, repair, disposal).
 
-## `docs/phase-1-b-findings/01B-findings-register.md`
+## `docs/phase-1b-deep-map/01B-findings-register.md`
 A single register of everything that needs attention. This is the document I will work from, so make it scannable.
 
 - One table, sorted by severity, with columns: ID, severity, category, title, location (file and line), what happens, why it matters, suggested fix direction, effort estimate.
@@ -87,7 +87,7 @@ A single register of everything that needs attention. This is the document I wil
 - Include a "system health" summary: what works reliably, what works by luck, and what is actively broken.
 - Flag anything that would embarrass us in a demo or defense, such as hardcoded fake data, endpoints that write on read, or features that only work on one machine.
 
-## `docs/phase-1-b-findings/01C-security-map.md`
+## `docs/phase-1b-deep-map/01C-security-map.md`
 A security review. We know the answer is bad; the value is in the detail and the ordering.
 
 - **Attack surface.** Every way into the system: HTTP routes, static files, the database connection, email, file reads and writes, and anything reachable from the network.
@@ -100,7 +100,7 @@ A security review. We know the answer is bad; the value is in the detail and the
 - Map findings to the Data Privacy Act obligations we committed to in the proposal, so this connects to panel comment D2.
 - Note clearly that this is a review of our own system for the purpose of fixing it.
 
-## `docs/phase-1-b-findings/01D-restructure-plan.md`
+## `docs/phase-1b-deep-map/01D-restructure-plan.md`
 A plan to reorganize the codebase. Plan only, no files moved.
 
 - **Target structure.** Start from the reference layout below. Adapt it for TypeScript and for the fact that we also have a Vite React frontend, which the reference does not cover. Present the final proposed tree in full.
@@ -162,7 +162,7 @@ project-root/
 └── docs/
 ```
 
-## `docs/phase-1-b-findings/01E-onboarding-roadmap.md`
+## `docs/phase-1b-deep-map/01E-onboarding-roadmap.md`
 The front door. Assume the reader opens this file first and has read nothing else.
 
 - What the system is, who uses it, and what each role does, in plain language.
@@ -178,7 +178,7 @@ The front door. Assume the reader opens this file first and has read nothing els
 - For every major point give two versions:
   - **Technical:** for developers.
   - **Simple:** plain language for someone new to backends.
-- File references as relative links with line numbers, for example `../../server.ts#L559`. These documents live in `docs/phase-1-b-findings/`, so repo-root files are two levels up. Links between the five documents in this folder are plain filenames.
+- File references as relative links with line numbers, for example `../../server.ts#L559`. These documents live in `docs/phase-1b-deep-map/`, so repo-root files are two levels up. Links between the five documents in this folder are plain filenames.
 - Mermaid for diagrams.
 - No em dashes.
 - Be direct. If something is bad, say it is bad and say why. Do not hedge to be polite.

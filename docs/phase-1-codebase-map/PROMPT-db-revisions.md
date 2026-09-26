@@ -22,7 +22,7 @@ You are acting as a Planner, Test Writer, and Quality Analyst for our capstone p
   - `src/`: React frontend
   - `test-user.ts`: seed/test script
   - `pending_registrations.json`: data stored in a file, not the database
-  - `docs/MERGE_NOTES.md`: notes on how frontend and backend were merged
+  - `docs/phase-0-merge/MERGE_NOTES.md`: notes on how frontend and backend were merged
 
 # Working rules
 - Do not commit, stage, or push anything. I will review and commit myself.
@@ -83,7 +83,7 @@ Note: D1 and D2 were answered in the proposal document. The system side of both 
 
 # Work in phases. Stop after each phase and wait for my approval.
 
-## Phase 1: Codebase map → `docs/01-codebase-map.md`
+## Phase 1: Codebase map → `docs/phase-1-codebase-map/01-codebase-map.md`
 Explain:
 - Folder structure and what each part does.
 - Where backend logic lives. If it is all in `server.ts`, list the endpoints grouped by process.
@@ -95,7 +95,7 @@ Explain:
 - Current state of each panel comment (S1 to S7, D1, D2, O1): already supported, partly supported, or missing. Quote the specific file and line that supports your call.
 - Include a Mermaid diagram of the overall request flow, plus per-process diagrams where helpful.
 
-## Phase 2: Tests → `docs/02-test-spec.md` + test files
+## Phase 2: Tests → `docs/phase-2-tests/02-test-spec.md` + test files
 - Write tests for triggers and stored procedures BEFORE any database plan exists.
 - Base expected behavior on current business rules in the code and on the panel comments. Do not design the solution first and write tests to match it.
 - Tests are expected to fail right now. That is intended.
@@ -109,7 +109,7 @@ Explain:
 - Recommend a test setup: framework, separate test database, reset between tests. Note MariaDB vs MySQL syntax differences that affect triggers or procedures.
 - Add a traceability table: each panel comment → the tests that cover it.
 
-## Phase 3: Database plan → `docs/03-db-plan.md`
+## Phase 3: Database plan → `docs/phase-3-database/03-db-plan.md`
 Only after I approve Phase 2.
 - Triggers and procedures per process, and which Phase 2 tests each one passes.
 - What should be a trigger, a procedure, a view, a lookup table, or stay in application code, with reasons.

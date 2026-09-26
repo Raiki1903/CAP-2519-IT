@@ -215,7 +215,7 @@ Things that look like they work, names that mean something unexpected, and code 
 | Know what is broken and how badly | [01B-findings-register.md](01B-findings-register.md) |
 | Fix the security and privacy problems, in order | [01C-security-map.md](01C-security-map.md), section 9 |
 | Reorganize the code | [01D-restructure-plan.md](01D-restructure-plan.md) |
-| See the original, shallower map | [../01-codebase-map.md](../01-codebase-map.md), with corrections listed in [01A section 1](01A-system-trace.md#1-corrections-to-docs01-codebase-mapmd) |
-| Know what the panel asked for | [../AGENT-PROMPT-DB-REVISIONS.md](../AGENT-PROMPT-DB-REVISIONS.md), which quotes the defense form verbatim |
+| See the original, shallower map | [../01-codebase-map.md](../phase-1-codebase-map/01-codebase-map.md), with corrections listed in [01A section 1](01A-system-trace.md#1-corrections-to-docs01-codebase-mapmd) |
+| Know what the panel asked for | [PROMPT-db-revisions.md](../phase-1-codebase-map/PROMPT-db-revisions.md), which quotes the defense form verbatim |
 | See the database as the team defines it | [../reference/AdRIC_DB_Schema.sql](../reference/AdRIC_DB_Schema.sql), and note it disagrees with `schema.prisma` in six places ([01A section 3.5](01A-system-trace.md#35-the-two-schemas-and-where-they-disagree)) |
 | Follow open decisions | [../HANDOFF.md](../HANDOFF.md) |
