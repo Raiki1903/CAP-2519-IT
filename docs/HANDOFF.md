@@ -303,3 +303,27 @@ Running log with per-step detail and a notes section: [phase-1c-restructure/02-r
 
 Continue Part B at **step 3** (create `shared/`, move the enums and the lab list into it):
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 3.`
+
+---
+
+## Phase 1C, restructure step 3, 2026-09-30
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B. Asked for steps 3 to 5; the prompt stops after every step, so this session reached step 3 and is waiting for review. Branch: `refactor/feature-based-structure`.
+
+### What was produced
+
+- **Step 3** (`e88ae11b`, comments `docs(step 3)` commit): created `shared/`. `labs.ts` moved to `shared/constants/labs.ts`. New `shared/enums/assetCondition.ts`, `assetCategory.ts`, and `role.ts` replace identical copies in `server.ts`, `ITSDashboard.tsx`, `ReturnForm.tsx`, and `context.tsx`. `vite.config.ts` gained the `@shared` alias; the server resolves it through `tsx` with no change. No behavior change. **Typecheck stays at 98.** Detail in [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-3-detail).
+
+### Worth knowing
+
+- `TSGAnalyticsView.tsx` offers category filters (`WORKSTATION`, `ROBOTICS`, and others) that do not exist in the database enum, so they can never match. Logged, not fixed.
+- Three lab lists remain besides `shared/constants/labs.ts` (M-03). Logged.
+
+### Open questions
+
+Unchanged from the previous entry, except that transfers, inspection scheduling, and the test folder are now decided in the prompt. Still open: `/api/analytics/dashboard` (re-attach or quarantine), and git history cleanup (C-01).
+
+### Exact next step
+
+After review of step 3, continue with **step 4** (introduce `web/api/client.ts`, convert loans):
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with steps 4 to 5.`
