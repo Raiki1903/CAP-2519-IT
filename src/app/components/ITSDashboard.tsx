@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useApp, roleToSlug } from "../context";
 import type { RepairRequest } from "../context";
+import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
+import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ReturnForm } from "./ReturnForm";
@@ -94,14 +96,6 @@ const emptyForm: IntakeForm = {
   funding: "DOST", acquisitionValue: 0, procured: new Date().toISOString().split("T")[0],
   warranty: "", location: "Manila", lab: "CITe4D", image: "", remarks: ""
 };
-
-// Mirrors the `assets.asset_type` ENUM in the MySQL schema
-const category = [
-  "DEV_KIT", "MONITOR", "TV", "CPU", "KEYBOARD", "MOUSE", "CAMERA",
-  "MEMORY_CARD", "PROJECTOR", "RECORDER", "ROUTER", "SIMULATOR",
-  "TABLET", "VR", "PRINTER", "SWITCH", "HARD_DRIVE", "AUDIO",
-  "VIDEO_CAMERA", "SPEAKER"
-];
 
 // Mirrors the `asset_records.asset_condition` ENUM in the MySQL schema —
 // same 5-state condition the ReturnForm and AssetDetailModal use, so the
@@ -875,7 +869,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                     <Label className="text-xs font-bold text-foreground">Asset Category</Label>
                     <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {category.map(t => (
+                      {ASSET_CATEGORIES.map(t => (
                         <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
                       ))}
                     </select>
@@ -2621,7 +2615,7 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
           <div className="flex flex-col gap-1.5 col-span-2">
             <Label className="text-xs font-bold text-foreground">Condition State</Label>
             <div className="grid grid-cols-3 gap-2">
-              {["PERFECT", "OPERATIONAL", "MINOR_DRIFT", "DEGRADED", "CRITICAL_DEFECT"].map(c => (
+              {ASSET_CONDITIONS.map(c => (
                 <button
                   key={c}
                   type="button"

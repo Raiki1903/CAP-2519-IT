@@ -4,6 +4,8 @@ import cors from 'cors';
 import 'dotenv/config';
 import { sendEmail, emailTemplate } from './mailer';
 import { prisma } from './prisma.js';
+import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
+import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 
 const app = express();
 
@@ -25,16 +27,6 @@ const LAGUNA_LABS = new Set(["CAR", "HXIL", "CeLT", "CIVI", "MECH"]);
 function campusForLab(lab: string): string {
     return LAGUNA_LABS.has(lab) ? "Laguna" : "Manila";
 }
-
-// Canonical 5-state condition enum — mirrors `asset_records.asset_condition`
-// in the MySQL schema. IMPORTANT: these are the Prisma enum member names
-// (asset_records_asset_condition / asset_returns_condition in schema.prisma),
-// not the raw DB storage strings — MINOR_DRIFT/CRITICAL_DEFECT use
-// @map("MINOR DRIFT") / @map("CRITICAL DEFECT") to store a space-separated
-// label in MySQL, but the Prisma Client only ever accepts/returns the
-// underscore form in code. Using the space form here causes TS2367 "no
-// overlap" errors and fails at runtime against Prisma.
-const ASSET_CONDITIONS = ["PERFECT", "OPERATIONAL", "MINOR_DRIFT", "DEGRADED", "CRITICAL_DEFECT"];
 
 // Fail loudly and immediately if DEFAULT_CUSTODIAN_ID doesn't exist, instead of
 // letting every asset write crash later with an opaque FK constraint error.
@@ -496,16 +488,10 @@ app.get('/api/assets/:assetTag/custodian-history', async (req: Request<{ assetTa
     }
 });
 
-const VALID_CATEGORIES = [
-    'DEV_KIT', 'MONITOR', 'TV', 'CPU', 'KEYBOARD', 'MOUSE', 'CAMERA', 'MEMORY_CARD',
-    'PROJECTOR', 'RECORDER', 'ROUTER', 'SIMULATOR', 'TABLET', 'VR', 'PRINTER',
-    'SWITCH', 'HARD_DRIVE', 'AUDIO', 'VIDEO_CAMERA', 'SPEAKER'
-];
-
 function sanitizeCategory(cat: any): any {
     if (!cat) return 'DEV_KIT';
     const formatted = String(cat).trim().toUpperCase().replace(/[\s-]+/g, '_');
-    return VALID_CATEGORIES.includes(formatted) ? formatted : 'DEV_KIT';
+    return ASSET_CATEGORIES.includes(formatted) ? formatted : 'DEV_KIT';
 }
 
 // 3. Setup the endpoint the ITSDashboard intake wizard (handleSubmit) posts to

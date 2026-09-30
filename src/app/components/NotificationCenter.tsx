@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
-import { useApp, roleToSlug, type Role } from "../context";
+import { useApp, roleToSlug } from "../context";
+import type { Role } from "@shared/enums/role";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Bell,

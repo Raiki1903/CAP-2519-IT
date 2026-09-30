@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { prisma, type User, type InspectionSchedule, type MaintenanceQueueItem } from "./prismaClient";
+import type { Role } from "@shared/enums/role";
 
 // ── Cookie Helper Functions ────────────────────────────────────────────────
 export function setCookie(name: string, value: string, days?: number) {
@@ -26,8 +27,6 @@ export function getCookie(name: string): string | null {
 export function eraseCookie(name: string) {
   document.cookie = name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
 }
-
-export type Role = "ITS" | "TSG" | "LabHead" | "Custodian" | "AdRICDirector";
 
 export interface RepairRequest {
   id: string;

@@ -6,6 +6,7 @@ import {
   User, Calendar, ClipboardCheck, ToggleLeft, Hash, FileText, Wrench
 } from "lucide-react";
 import type { AssetDetail } from "./AssetDetailModal";
+import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -19,8 +20,6 @@ const BRAND = "#005A36";
 // server.ts listens on port 4000 with CORS enabled specifically so forms like
 // this one can call it directly by absolute URL. Same function RepairForm calls.
 const API_BASE = "http://localhost:4000";
-
-const CONDITIONS = ["PERFECT", "OPERATIONAL", "MINOR_DRIFT", "DEGRADED", "CRITICAL_DEFECT"];
 
 interface Props {
   asset: AssetDetail;
@@ -311,7 +310,7 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
                   Condition on Return
                 </Label>
                 <div className="grid grid-cols-3 gap-2">
-                  {CONDITIONS.map(c => (
+                  {ASSET_CONDITIONS.map(c => (
                     <motion.button
                       key={c}
                       type="button"

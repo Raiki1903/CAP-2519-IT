@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Shield, Lock } from "lucide-react";
-import { useApp, roleToSlug, type Role, setCookie } from "../context";
+import { useApp, roleToSlug, setCookie } from "../context";
+import type { Role } from "@shared/enums/role";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";

@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { DLSU_LABS } from "../constants/labs";
+import { DLSU_LABS } from "@shared/constants/labs";
 import { useApp } from "../context";
 
 const AVATAR_PRESETS = [
