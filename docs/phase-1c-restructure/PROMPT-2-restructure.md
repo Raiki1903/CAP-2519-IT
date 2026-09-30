@@ -7,9 +7,16 @@
 >
 > Run this in sessions. Each session does only the steps named in the first message.
 >
-> Suggested first messages:
-> - First session: `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and follow it. Do Part A, then Part B steps 0 to 2.`
-> - Later sessions: `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with steps 3 to 5.`
+> Before each session: `git switch main`, `git pull`, then create or switch to the branch named
+> under Constraints. Tell the team not to edit `src/` or `server.ts` while a session runs.
+>
+> Suggested first message (change the step numbers each session):
+> `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with steps 3 to 5.`
+>
+> Session plan: steps 3 to 5, then 6 to 7 (behavior changes), then 8 to 9, then Phase 2 tests
+> (separate prompt), then 10 to 12, then 13 to 14.
+>
+> History: Part A and steps 0 to 2 were done on `refactor/option-a-structure` and merged in PR #4.
 
 ---
 
@@ -25,7 +32,7 @@ You are a Senior Software Engineer carrying out a careful, incremental refactor 
 
 # Context (C)
 - **Read first:** `docs/phase-1b-deep-map/01D-restructure-plan.md` in full. Then `01A-system-trace.md` sections 3 and 4, `01B-findings-register.md` for finding IDs, and `01C-security-map.md` section 9 (Tier 1).
-- **Stack:** React + TypeScript (Vite, Tailwind, shadcn) frontend in `src/`, Express + TypeScript backend in one `server.ts` (about 4,760 lines), Prisma ORM, MariaDB/MySQL. One `package.json`. Scripts today: `dev`, `build`, `server`, `server:watch`, `dev:all`, `seed` (broken), `prisma:generate`, `prisma:pull`. There is no `tsconfig.json` and no typecheck script yet (H-13), and no tests (M-18).
+- **Stack:** React + TypeScript (Vite, Tailwind, shadcn) frontend in `src/`, Express + TypeScript backend in one `server.ts` (about 4,760 lines), Prisma ORM, MariaDB/MySQL. One `package.json`. Scripts: `dev`, `build`, `server`, `server:watch`, `dev:all`, `typecheck`, `seed` (broken), `prisma:generate`, `prisma:pull`. `tsconfig.json` exists since step 1 (`strict: false`, aliases `@server`, `@web`, `@shared`). Typecheck count after step 2: **98**. No tests yet (M-18). If `node_modules` is missing, run `npm install` then `npm run prisma:generate` before verifying anything.
 - **We are following 01D Option A as written. It is not a hybrid.** Option A has role-based `web/pages/` and process-based `features/` folders; that two-layer shape is part of the original design. The "hybrid" named below is a different layout (server and web subfolders inside each feature folder) that was considered and rejected. Do not build it.
 - **The target structure (Option A, as agreed):**
   - `shared/` holds enums, types, and constants used by both sides. It never imports from `server/` or `web/`.
@@ -45,11 +52,19 @@ You are a Senior Software Engineer carrying out a careful, incremental refactor 
   2. **TSDoc on every exported function, component, and type**: one-line summary; a short *why* for any rule that is not obvious; `@param`, `@returns`, `@throws` where they apply. React components list their key props and which api function they call.
   3. **Inline comments only for a non-obvious why**: a business rule, a workaround, an ordering that matters, a known defect. End with the finding ID in parentheses when one applies, for example `(H-11)`. Known defects that are not fixed in this step use `// TODO(<finding ID>): <what is wrong>. <which phase fixes it>.`
   Do not write: comments that restate the code; history comments ("moved from server.ts L934", "edited by"), because git and the log hold that; commented-out code; any comment that describes a fix as done when it is not. Comments describe what the code does **now**.
-- **Decisions already made:** ITS and TSG become one app role, `Staff`, at `/staff/*` (the database keeps both roles). Dead analytics code is quarantined in `legacy/analytics-v1/` with a README, not deleted.
-- **Open decisions that you must not make for us.** When a step reaches one of these, stop and ask:
-  - Whether `/analytics/dashboard` and its dead component are re-attached or quarantined (01D section 6).
-  - Whether the inspection scheduling tab is rebuilt or moved to `legacy/` (open question 15, H-18).
-  - Whether tests are co-located or in a root `tests/` folder.
+- **Decisions already made.** Apply each one in the step named. Do not reopen them.
+
+  | Decision | Applies in |
+  |---|---|
+  | ITS and TSG become one app role, `Staff`, at `/staff/*`. The database keeps both roles | Step 9 |
+  | Dead analytics code stays quarantined in `legacy/analytics-v1/` with a README, not deleted | Done (step 2) |
+  | **Inspection scheduling tab (H-18, question 15): move it to `legacy/`**, in its own folder with a README like `analytics-v1`. It is kept, not deleted, so the team can find it without digging through git history. Keep the real inspection reporting live (custodian report, and single-item finalize that posts to the API). The tab disappearing from the dashboard is a behavior change: its own commit, labelled as such | Step 8, when `ITSDashboard.tsx` is split |
+  | **Transfers (question 1): initiated by the Custodian, approved by the Lab Head of the lab the asset is leaving.** No recipient acceptance step. The approval check belongs in `server/features/transfers/transfers.service.ts`. If today's code routes approval differently, keep the move behavior-neutral and add the new rule as a separate, labelled behavior-change commit | Step 12 |
+  | **Tests live in a root `tests/` folder** (`tests/db/`, `tests/api/`, `tests/setup/`), not beside feature code | Phase 2 (and any test added earlier) |
+  | **Test database: local MariaDB on each developer's machine**, database `AdRIC_DB_test`, reached through `TEST_DATABASE_URL`. Never the shared CCS Cloud database | Step 14 and Phase 2 |
+
+- **Still open. Stop and ask when a step reaches one of these:**
+  - Whether `/analytics/dashboard` and its dead component are re-attached or deleted, which decides the fate of the 11 endpoints with no caller (01D section 6).
   - Whether git history must be rewritten to remove the committed backups (C-01). **Never rewrite history yourself.**
 
 # Examples (E)
@@ -112,14 +127,15 @@ Refs: M-06, 01D section 9 step 2
 (No file list, no checks, no undo path, and "cleaned up" hides behavior changes.)
 
 # Constraints (C)
-- **Branch:** work on `refactor/option-a-structure`, created from an up-to-date `main`. If it already exists, continue on it. Never commit to `main`. Never merge, rebase, force-push, or push. I will push and open the pull request myself.
+- **Branch:** work on `refactor/feature-based-structure`, created from an up-to-date `main`. If it already exists, continue on it. (Steps 0 to 2 used `refactor/option-a-structure`, now merged and deleted.) Update the branch line in the log to match. Never commit to `main`. Never merge, rebase, force-push, or push. I will push and open the pull request myself.
 - **Two commits per step: move, then comment.** First commit the step itself. Then commit the documentation comments for every file that step created or moved, with the message `docs(step N): add file headers and TSDoc`. Keeping them apart lets git detect the moves as clean renames and lets reviewers check each separately. Adding comments never changes behavior.
 - **Do not comment `server.ts` or files about to be split.** Comment code at its destination, when it lands. Files quarantined into `legacy/` get only their README, not per-file comments.
 - **One step, one purpose.** One commit either moves code or changes behavior, never both. Steps 6 and 7 change behavior on purpose; say so clearly in the commit message and the report.
 - **Stop after every step** and wait for me to say continue, even if I named several steps.
 - **Only do the steps I name.** Do not start the next step early. Do not fix findings that are not part of the current step. Log anything you notice as a note instead (01D section 11, "scope creep into Phase 3").
 - **Step 0 has human parts.** Do the code parts: stop the backup job from dumping `users` and writing into the repo, add `scratch/backups/` and `pending_registrations.json` to `.gitignore`, untrack them with `git rm --cached`, and add `.env.example` with variable names only. **List** the human parts for me instead of doing them: rotating passwords, deciding on history cleanup, and telling the team to pull.
-- **Do not change the Prisma schema, run migrations, or write to the database.** Step 14 (baseline migrations) needs my explicit go-ahead in the message, and even then must only run against a fresh test database whose name I give you.
+- **Do not change the Prisma schema, run migrations, or write to the database.** Step 14 (baseline migrations) needs my explicit go-ahead in the message, and even then must only run against the local `AdRIC_DB_test` database through `TEST_DATABASE_URL`. If that variable is not set, stop and ask.
+- **Do not add, remove, or upgrade dependencies.** No `npm install <package>`, no `npm audit fix`, no Prisma upgrades. `package.json` dependency versions and `package-lock.json` must not change in any step. Dependency work happens on a separate `chore/npm-audit` branch. If a step truly needs a new package, stop and ask.
 - **Never read or print `.env`.** Never reproduce credentials or personal data from `scratch/backups/`, `pending_registrations.json`, or anywhere else. Refer to them by path and record count only.
 - **Verify every step** with the commands available at that point: `npm run build` always, `npm run typecheck` once step 1 adds it, and starting the server once to confirm it listens. If a check fails, fix it within the same step or undo the step and report. Never commit a step that breaks the build.
 - **Keep the typecheck error count from growing.** Record it after step 1 and report it after every step.
@@ -141,6 +157,7 @@ Refs: M-06, 01D section 9 step 2
    - Why page-first was rejected: the reasons above, each backed by a file reference you verified.
    - Three traced transactions through the target structure (asset registration, repair request and progress, disposal filing and decision), each as an indented file path from `web/pages/` down to `server/features/<process>/*.repository.ts`, noting which findings each fix belongs to.
    - What stays open (the open decisions listed above).
+   (Part A is done. It was merged in PR #4. Do not redo it.)
 
 2. **Part B:** keep a running log at `docs/phase-1c-restructure/02-restructure-log.md` with:
    - a status table: step number, name, status (not started, done, blocked), move commit hash, comment commit hash, typecheck error count, date;
