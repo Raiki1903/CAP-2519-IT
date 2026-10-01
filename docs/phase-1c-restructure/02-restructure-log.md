@@ -15,8 +15,8 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 0 | Safety net first (01C tier 1, code parts) | Done | `324dfda` | n/a (see note 1) | n/a (step 1 adds it) | 2026-09-26 |
 | 1 | Add `tsconfig.json` and a `typecheck` script | Done | `e5a13ef1` | n/a (see note 2) | **114 (baseline)** | 2026-09-26 |
 | 2 | Quarantine dead code into `legacy/analytics-v1/` | Done | `5b68bb6b` | n/a (see note 3) | **98** (from 114) | 2026-09-26 |
-| 3 | Create `shared/`, move enums and the lab list | Done | `e88ae11b` | `docs(step 3)` commit (hash recorded next step) | **98** (unchanged) | 2026-09-30 |
-| 4 | Introduce `web/api/client.ts`, convert loans | Not started | | | | |
+| 3 | Create `shared/`, move enums and the lab list | Done | `e88ae11b` | `58840373` | **98** (unchanged) | 2026-09-30 |
+| 4 | Introduce `web/api/client.ts`, convert loans | Done, hand checks pending (database unreachable) | (this commit) | | **98** (unchanged) | 2026-10-01 |
 | 5 | Convert the remaining features to the API client | Not started | | | | |
 | 6 | Split `context.tsx`, delete localStorage-only actions | Not started | | | | |
 | 7 | Delete `prismaClient.ts` | Not started | | | | |
@@ -145,6 +145,44 @@ Every copy that was replaced held exactly the same values in the same order, che
 
 ---
 
+## Step 4 detail
+
+**What was added:**
+
+- `web/api/client.ts`: the one place that knows the backend address. It reads `VITE_API_URL` and falls back to `http://localhost:4000`, the address every screen used before. It exposes `apiGet`, `apiPost`, and `apiPut`.
+- `web/api/loans.api.ts`: the three loan calls, `requestLoan`, `listLoans`, and `decideLoan`.
+- `vite.config.ts`: the `@web` alias. `.env.example`: the `VITE_API_URL` name (optional).
+
+These two files are created directly at their final location in `web/`, so step 8 does not have to move them. The rest of the frontend is still in `src/` until then.
+
+**What was converted:** all six loan `fetch` calls, in four files.
+
+| File | Call | Now uses |
+|---|---|---|
+| `LoanForm.tsx` | `POST /api/assets/:tag/borrow` | `loansApi.requestLoan` |
+| `LabHeadDashboard.tsx` | `GET /api/asset_loans` | `loansApi.listLoans` |
+| `LabHeadDashboard.tsx` | `PUT /api/asset_loans/:id/decision` | `loansApi.decideLoan` |
+| `LabHeadAnalyticsView.tsx` | `PUT /api/asset_loans/:id/decision` | `loansApi.decideLoan` |
+| `context.tsx` (initial load) | `GET /api/asset_loans` | `loansApi.listLoans` |
+| `context.tsx` (`authorizeLoan`) | `PUT /api/asset_loans/:id/decision` | `loansApi.decideLoan` |
+
+After this step, a search for `asset_loans` or `/borrow` in `src/` and `web/` finds URLs only in `web/api/loans.api.ts`.
+
+**Behavior change:** none intended. The client sends the same method, the same `Content-Type` header, and the same JSON body as each old call, and returns the parsed JSON body whatever the HTTP status is. That matches the old code, where every call site read `success` from the body and none looked at the status. Making the client throw typed errors is deliberately left for step 13, when the server gets its `errorHandler`.
+
+**Verified (database unreachable on 2026-10-01, so no end-to-end run):** `npm run typecheck` reports 98. `npm run build` passes. `npx tsx server.ts` starts and listens on port 4000, and `PUT /api/asset_loans/abc/decision` answers with the expected "Invalid loan id" JSON.
+
+**Hand checks still owed, once the database is back:**
+
+1. As a Custodian, open an available asset and submit a borrow request. Expect the success screen, and a new `pending` row in `asset_loans`.
+2. Submit a borrow request with a field left empty or for a bad asset. Expect the error message under the form, not a blank screen.
+3. As a Lab Head, open the Custody tab. The loan requests list loads.
+4. Approve one loan and decline another from the Custody tab. Each row's status changes in `asset_loans`, and the list refreshes.
+5. As a Lab Head, approve a loan from the notification bell (the bell only offers approve for loans). The bell entry updates and the row changes in `asset_loans`.
+6. With the server stopped, open the Custody tab. Expect the "Failed to load loan requests" style error, not a crash.
+
+---
+
 ## Notes: noticed, deliberately not fixed
 
 Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3").
@@ -164,6 +202,9 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | `LAGUNA_LABS` in `server.ts` and `LAB_OPTIONS` in `TSGAnalyticsView.tsx` are two more lab lists, using short codes, which do not match the full names in `shared/constants/labs.ts`. 01D says campus should come from `research_centers.location` instead | M-03 | Phase 3, or step 12 (assets) |
 | The condition text and colour maps (`CONDITION_TEXT_CLASS` and similar) are repeated in `ITSDashboard`, `LabHeadDashboard`, `CustodianPortal`, and `ReturnForm`. They are UI styling, so they belong in `web/features/assets/`, not `shared/` | n/a | Step 8 |
 | `prismaClient.ts` has its own `RoleName` type, which is missing `ITS_STAFF` and `CUSTODIAN`. Left alone, since the file is deleted in step 7 | H-01 | Step 7 |
+| `LabHeadAnalyticsView.tsx` `handleLoanDecision` is defined but nothing calls it, so it is dead code. It would also fail if wired up: it sends `"reject"`, and the server only accepts `"approve"` or `"decline"` (400). Converted to the client anyway so no loan URL is left outside `web/api/`; `decideLoan` takes a plain string for that reason | n/a (new) | Small fix branch, or step 11 (loans validation) |
+| No call site checks the HTTP status, only `success` in the body. The API client keeps that for now so step 4 and 5 stay behavior-neutral | H-16 | Step 13 (`errorHandler`), then tighten `web/api/client.ts` |
+| `web/api/*.api.ts` return a loose `ApiResult` (any extra fields). The real request and response shapes belong in `shared/types/` | H-13 | Steps 11 and 12, as each backend feature is extracted |
 | `strict: false` is a deliberate starting point. Turning strict on is worth doing once the count is near zero, not during the move | H-13 | After step 9 |
 
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.

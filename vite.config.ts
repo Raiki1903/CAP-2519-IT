@@ -29,6 +29,7 @@ export default defineConfig({
       // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
       '@shared': path.resolve(__dirname, './shared'),
+      '@web': path.resolve(__dirname, './web'),
     },
   },
 

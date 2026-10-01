@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { prisma, type User, type InspectionSchedule, type MaintenanceQueueItem } from "./prismaClient";
 import type { Role } from "@shared/enums/role";
+import * as loansApi from "@web/api/loans.api";
 
 // ── Cookie Helper Functions ────────────────────────────────────────────────
 export function setCookie(name: string, value: string, days?: number) {
@@ -305,8 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {}
 
       try {
-        const resL = await fetch("http://localhost:4000/api/asset_loans");
-        const jsonL = await resL.json();
+        const jsonL = await loansApi.listLoans();
         if (jsonL.success && Array.isArray(jsonL.loans)) {
           setDbLoans(jsonL.loans);
         }
@@ -1121,12 +1121,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const authorizeLoan = async (loanId: string, decision: "approve" | "decline" = "approve") => {
     const numericId = loanId.replace("LOAN-", "");
     try {
-      const res = await fetch(`http://localhost:4000/api/asset_loans/${numericId}/decision`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision })
-      });
-      const data = await res.json();
+      const data = await loansApi.decideLoan(numericId, decision);
       if (data.success) {
         setDbLoans(prev => prev.map(l => {
           if (String(l.loanId) === String(numericId) || String(l.loan_id) === String(numericId) || l.id === loanId) {

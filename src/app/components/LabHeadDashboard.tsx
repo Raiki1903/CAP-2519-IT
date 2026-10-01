@@ -4,6 +4,7 @@ import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, P
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
 import { LabHeadAnalyticsView } from "./LabHeadAnalyticsView";
+import * as loansApi from "@web/api/loans.api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -217,8 +218,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     setLoansLoading(true);
     setLoanError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/asset_loans`);
-      const data = await res.json();
+      const data = await loansApi.listLoans();
       if (data.success) {
         setLoanRequests(data.loans);
       } else {
@@ -247,12 +247,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     setLoanActionId(loanId);
     setLoanError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/asset_loans/${loanId}/decision`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
-      });
-      const data = await res.json();
+      const data = await loansApi.decideLoan(loanId, decision);
       if (!data.success) {
         setLoanError(data.error || `Failed to ${decision} loan.`);
         return;

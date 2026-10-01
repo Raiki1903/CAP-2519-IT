@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useApp } from "../context";
+import * as loansApi from "@web/api/loans.api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Badge } from "./ui/badge";
@@ -78,12 +79,7 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
   const handleLoanDecision = async (loanId: number, decision: "approve" | "reject") => {
     setActingId(`loan-${loanId}`);
     try {
-      const res = await fetch(`http://localhost:4000/api/asset_loans/${loanId}/decision`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision })
-      });
-      const json = await res.json();
+      const json = await loansApi.decideLoan(loanId, decision);
       if (json.success) {
         await refetch();
       }
