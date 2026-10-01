@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../context";
+import * as returnsApi from "@web/api/returns.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, ArrowLeft, CheckCircle, CornerUpLeft,
@@ -90,16 +91,11 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
       // backend was missing; the custodian-submitted "pending" step above
       // stays local-only since asset_returns has no pending state to hold it.
       try {
-        const res = await fetch(`${API_BASE}/api/assets/${asset.id}/return`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            returnedBy: asset.custodian || "Active Custodian",
-            condition,
-            comments: inspection,
-          }),
+        const data = await returnsApi.finalizeReturn(asset.id, {
+          returnedBy: asset.custodian || "Active Custodian",
+          condition,
+          comments: inspection,
         });
-        const data = await res.json();
         if (data.success) {
           setDbReferenceNumber(data.return.reference_number);
         } else {
