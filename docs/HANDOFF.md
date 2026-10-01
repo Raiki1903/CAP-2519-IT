@@ -352,3 +352,30 @@ Unchanged: `/api/analytics/dashboard` (re-attach or quarantine), and git history
 
 **Step 5** (convert the remaining features to the API client, one feature per commit):
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 5.`
+
+---
+
+## Phase 1C, restructure step 5, 2026-10-02
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 5. Branch: `refactor/feature-based-structure`.
+
+### What was produced
+
+- **Step 5** (9 commits, `5389d51b` to `497d0c30`, then the `docs(step 5)` comments commit): the remaining 55 `fetch` calls now go through `web/api/`, one feature per commit. New files: `assets.api.ts`, `transfers.api.ts`, `returns.api.ts`, `repairs.api.ts`, `disposals.api.ts`, `inspections.api.ts`, `auth.api.ts`, `analytics.api.ts`. No `fetch(` call and no backend address is left in `src/`. No behavior change intended. **Typecheck stays at 98, same errors.** Detail in [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-5-detail).
+- Steps 3 and 4 passed their hand checks against the database (Raiki, 2026-10-02).
+
+### Worth knowing
+
+- **Plain and `Raw` calls.** Call sites that checked the HTTP status themselves, or never read the answer, use `Raw` functions that return the untouched `Response`, so their behavior is unchanged. 15 of 40 API functions are `Raw`. They are meant to go away in step 13.
+- **Step 5 is not verified in a browser.** Build, typecheck, server start, and a recorded-request check of all 40 API functions passed. Ten hand checks are listed in the log and must pass before this branch merges.
+- Two type mismatches in `context.tsx` surfaced once API results were typed (pending disposals, `approveRegistration`). Both are kept as `any` and logged for step 6.
+- `docs/reference/AdRIC_DB_Schema.sql` does not match the live database (accounts, seed passwords, Director role). **Step 14 should baseline from the live schema, not this file.** Logged in the notes.
+
+### Open questions
+
+Unchanged: `/api/analytics/dashboard` (re-attach or quarantine), and git history cleanup (C-01).
+
+### Exact next step
+
+**Step 6** (split `context.tsx`, delete the localStorage-only actions). This one changes behavior on purpose, so run it in its own session with the database reachable:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with steps 6 to 7.`

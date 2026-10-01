@@ -4,7 +4,7 @@
  * Used by: every workflow that talks to the server.
  */
 
-// Falls back to the address every screen hardcoded before the client existed,
+// Falls back to the local server's address (server.ts listens on port 4000),
 // so the app runs with no VITE_API_URL set.
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -19,6 +19,15 @@ export interface ApiResult {
   [key: string]: any;
 }
 
+/**
+ * Sends a request with a JSON body and returns the untouched Response.
+ *
+ * @param method HTTP method, for example "POST"
+ * @param path path starting with "/api/"
+ * @param body value sent as JSON
+ * @returns the raw Response, not yet parsed
+ * @throws if the server cannot be reached
+ */
 function sendRaw(method: string, path: string, body: unknown): Promise<Response> {
   return fetch(`${API_BASE_URL}${path}`, {
     method,
@@ -80,19 +89,55 @@ export function apiPut(path: string, body: unknown): Promise<ApiResult> {
   return sendJson("PUT", path, body);
 }
 
+/**
+ * Sends a DELETE with no body.
+ *
+ * @param path path starting with "/api/"
+ * @returns the parsed response body; check `success` before using it
+ * @throws if the server cannot be reached or the answer is not JSON
+ */
 export async function apiDelete(path: string): Promise<ApiResult> {
   const res = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" });
   return res.json();
 }
 
+// The three "Raw" calls below return the Response without parsing it. They
+// exist for call sites that check the HTTP status or content type themselves,
+// or that send a request and never read the answer. Parsing for them here
+// would change what those screens do when the server answers with an error.
+// TODO(H-16): remove the Raw calls once apiGet, apiPost, and apiPut throw typed errors. Step 13.
+
+/**
+ * Like `apiGet`, but returns the untouched Response.
+ *
+ * @param path path starting with "/api/", including any query string
+ * @returns the raw Response; the caller checks `ok` and parses it
+ * @throws if the server cannot be reached
+ */
 export function apiGetRaw(path: string): Promise<Response> {
   return fetch(`${API_BASE_URL}${path}`);
 }
 
+/**
+ * Like `apiPost`, but returns the untouched Response.
+ *
+ * @param path path starting with "/api/"
+ * @param body value sent as JSON
+ * @returns the raw Response
+ * @throws if the server cannot be reached
+ */
 export function apiPostRaw(path: string, body: unknown): Promise<Response> {
   return sendRaw("POST", path, body);
 }
 
+/**
+ * Like `apiPut`, but returns the untouched Response.
+ *
+ * @param path path starting with "/api/"
+ * @param body value sent as JSON
+ * @returns the raw Response
+ * @throws if the server cannot be reached
+ */
 export function apiPutRaw(path: string, body: unknown): Promise<Response> {
   return sendRaw("PUT", path, body);
 }
