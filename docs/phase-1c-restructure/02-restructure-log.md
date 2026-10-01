@@ -16,7 +16,7 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 1 | Add `tsconfig.json` and a `typecheck` script | Done | `e5a13ef1` | n/a (see note 2) | **114 (baseline)** | 2026-09-26 |
 | 2 | Quarantine dead code into `legacy/analytics-v1/` | Done | `5b68bb6b` | n/a (see note 3) | **98** (from 114) | 2026-09-26 |
 | 3 | Create `shared/`, move enums and the lab list | Done | `e88ae11b` | `58840373` | **98** (unchanged) | 2026-09-30 |
-| 4 | Introduce `web/api/client.ts`, convert loans | Done, hand checks pending (database unreachable) | (this commit) | | **98** (unchanged) | 2026-10-01 |
+| 4 | Introduce `web/api/client.ts`, convert loans | Done, hand checks pending (database unreachable) | `a4c1b417` | `docs(step 4)` commit (hash recorded next step) | **98** (unchanged) | 2026-10-01 |
 | 5 | Convert the remaining features to the API client | Not started | | | | |
 | 6 | Split `context.tsx`, delete localStorage-only actions | Not started | | | | |
 | 7 | Delete `prismaClient.ts` | Not started | | | | |

@@ -327,3 +327,28 @@ Unchanged from the previous entry, except that transfers, inspection scheduling,
 
 After review of step 3, continue with **step 4** (introduce `web/api/client.ts`, convert loans):
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with steps 4 to 5.`
+
+---
+
+## Phase 1C, restructure step 4, 2026-10-01
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 4. Branch: `refactor/feature-based-structure`.
+
+### What was produced
+
+- **Step 4** (`a4c1b417`, comments `docs(step 4)` commit): `web/api/client.ts` and `web/api/loans.api.ts`, created at their final location. All six loan `fetch` calls (in `LoanForm.tsx`, `LabHeadDashboard.tsx`, `LabHeadAnalyticsView.tsx`, `context.tsx`) now go through `loansApi`. `vite.config.ts` gained the `@web` alias; `.env.example` gained `VITE_API_URL` (optional, defaults to `http://localhost:4000`). No behavior change intended. **Typecheck stays at 98.** Detail in [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-4-detail).
+
+### Worth knowing
+
+- **Not verified end to end.** The CCS Cloud database was unreachable, so only build, typecheck, and server start were run. Six hand checks are listed in the log under step 4 and must be done before this branch merges.
+- The client returns the JSON body whatever the HTTP status is, because that is what every call site already expected. Tightening it waits for step 13.
+- `handleLoanDecision` in `LabHeadAnalyticsView.tsx` is dead code, and would send a value the server refuses. Logged, not fixed.
+
+### Open questions
+
+Unchanged: `/api/analytics/dashboard` (re-attach or quarantine), and git history cleanup (C-01).
+
+### Exact next step
+
+**Step 5** (convert the remaining features to the API client, one feature per commit):
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 5.`
