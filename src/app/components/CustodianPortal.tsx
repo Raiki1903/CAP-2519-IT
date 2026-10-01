@@ -5,6 +5,7 @@ import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
 import { useApp } from "../context";
 import * as assetsApi from "@web/api/assets.api";
+import * as inspectionsApi from "@web/api/inspections.api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -332,16 +333,12 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
     try {
       // 1. Post directly to MySQL database table asset_reports
-      await fetch(`http://localhost:4000/api/assets/${targetTag}/inspection`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reporterEmail: currentUser?.email,
-          reportedById: currentUser?.user_id,
-          reportCondition: reportConditionEnum,
-          reportRemarks: fullRemarks,
-          reportImg: firstImg,
-        }),
+      await inspectionsApi.submitInspectionRaw(targetTag, {
+        reporterEmail: currentUser?.email,
+        reportedById: currentUser?.user_id,
+        reportCondition: reportConditionEnum,
+        reportRemarks: fullRemarks,
+        reportImg: firstImg,
       });
 
       // 2. Mark asset as Inspected for ITS & TSG Compliance Engine

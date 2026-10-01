@@ -4,6 +4,7 @@ import { useApp, roleToSlug } from "../context";
 import * as assetsApi from "@web/api/assets.api";
 import * as repairsApi from "@web/api/repairs.api";
 import * as disposalsApi from "@web/api/disposals.api";
+import * as inspectionsApi from "@web/api/inspections.api";
 import type { RepairRequest } from "../context";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
@@ -327,8 +328,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
 
   const fetchDbReports = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/asset-reports");
-      const data = await res.json();
+      const data = await inspectionsApi.listInspectionReports();
       if (data.success) {
         setDbReports(data.reports || []);
       }
@@ -1948,16 +1948,12 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                           "Critical Defect": "CRITICAL_DEFECT",
                         };
                         const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
-                        await fetch(`http://localhost:4000/api/assets/${targetTag}/inspection`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            reporterEmail: currentUser?.email,
-                            reportedById: currentUser?.user_id,
-                            reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
-                            reportRemarks: fullNotes,
-                            reportImg: inspectionImgOption || null,
-                          }),
+                        await inspectionsApi.submitInspectionRaw(targetTag, {
+                          reporterEmail: currentUser?.email,
+                          reportedById: currentUser?.user_id,
+                          reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
+                          reportRemarks: fullNotes,
+                          reportImg: inspectionImgOption || null,
                         });
                         await fetchDbAssets();
                         await fetchDbReports();

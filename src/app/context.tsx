@@ -6,6 +6,7 @@ import * as assetsApi from "@web/api/assets.api";
 import * as transfersApi from "@web/api/transfers.api";
 import * as repairsApi from "@web/api/repairs.api";
 import * as disposalsApi from "@web/api/disposals.api";
+import * as inspectionsApi from "@web/api/inspections.api";
 
 // ── Cookie Helper Functions ────────────────────────────────────────────────
 export function setCookie(name: string, value: string, days?: number) {
@@ -300,8 +301,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {}
 
       try {
-        const resR = await fetch("http://localhost:4000/api/asset_reports");
-        const jsonR = await resR.json();
+        const jsonR = await inspectionsApi.listReportSummaries();
         if (jsonR.success && Array.isArray(jsonR.reports)) {
           setDbReports(jsonR.reports);
         }
