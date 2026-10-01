@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import DirectorAnalyticsView from "./DirectorAnalyticsView";
 import { useApp, type Asset, type RepairRequest, type InspectionReport, type PendingDisposal, type AffiliateClearance } from "../context";
+import * as assetsApi from "@web/api/assets.api";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
@@ -176,8 +177,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const fetchDbAssets = async () => {
     setLoadingDbAssets(true);
     try {
-      const res = await fetch("http://localhost:4000/api/assets");
-      const data = await res.json();
+      const data = await assetsApi.listAssets();
       if (data.success && Array.isArray(data.assets)) {
         setDbAssets(data.assets);
       }

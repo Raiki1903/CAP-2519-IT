@@ -5,6 +5,7 @@ import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
 import { LabHeadAnalyticsView } from "./LabHeadAnalyticsView";
 import * as loansApi from "@web/api/loans.api";
+import * as assetsApi from "@web/api/assets.api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -163,8 +164,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     setLoadingDbAssets(true);
     setDbAssetsError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/assets`);
-      const data = await res.json();
+      const data = await assetsApi.listAssets();
       if (data.success) {
         setDbAssets(data.assets);
       } else {

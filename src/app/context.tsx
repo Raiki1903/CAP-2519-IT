@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { prisma, type User, type InspectionSchedule, type MaintenanceQueueItem } from "./prismaClient";
 import type { Role } from "@shared/enums/role";
 import * as loansApi from "@web/api/loans.api";
+import * as assetsApi from "@web/api/assets.api";
 
 // ── Cookie Helper Functions ────────────────────────────────────────────────
 export function setCookie(name: string, value: string, days?: number) {
@@ -275,8 +276,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       // Fetch live assets, transfers, reports, loans, and disposals from MySQL server endpoints
       try {
-        const resAssets = await fetch("http://localhost:4000/api/assets");
-        const jsonAssets = await resAssets.json();
+        const jsonAssets = await assetsApi.listAssets();
         if (jsonAssets.success && Array.isArray(jsonAssets.assets)) {
           setAssets(jsonAssets.assets);
           liveAssetsFetched = true;

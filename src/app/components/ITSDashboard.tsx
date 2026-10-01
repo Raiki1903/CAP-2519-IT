@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useApp, roleToSlug } from "../context";
+import * as assetsApi from "@web/api/assets.api";
 import type { RepairRequest } from "../context";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
@@ -357,8 +358,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     setLoadingDbAssets(true);
     setDbAssetsError(null);
     try {
-      const res = await fetch("http://localhost:4000/api/assets");
-      const data = await res.json();
+      const data = await assetsApi.listAssets();
       if (data.success) {
         setDbAssets(data.assets);
       } else {
@@ -506,10 +506,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     setDeleting(true);
     setDeleteError(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/assets/${encodeURIComponent(assetToDelete)}`, {
-        method: "DELETE",
-      });
-      const result = await res.json();
+      const result = await assetsApi.deleteAsset(assetToDelete);
       if (!result.success) {
         throw new Error(result.error || "Delete failed");
       }
@@ -578,11 +575,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     setSubmitted(true);
     setRegistrationError(null);
     try {
-      const res = await fetch("http://localhost:4000/api/assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await assetsApi.createAssetRaw(form);
       const contentType = res.headers.get("content-type");
       if (!res.ok || !contentType || !contentType.includes("application/json")) {
         const errText = await res.text();
@@ -2504,11 +2497,7 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/assets/${encodeURIComponent(asset.id)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await assetsApi.updateAssetRaw(asset.id, form);
       const contentType = res.headers.get("content-type");
       if (!res.ok || !contentType || !contentType.includes("application/json")) {
         const errText = await res.text();

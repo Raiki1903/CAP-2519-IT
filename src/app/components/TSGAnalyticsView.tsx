@@ -2,6 +2,7 @@ import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useApp } from "../context";
+import * as assetsApi from "@web/api/assets.api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Badge } from "./ui/badge";
@@ -493,7 +494,7 @@ export const WarrantyCalendarWidget: React.FC = () => {
     queryKey: ["tsg-warranty-calendar"],
     queryFn: async () => {
       try {
-        const res = await fetch("http://localhost:4000/api/assets");
+        const res = await assetsApi.listAssetsRaw();
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.assets)) {

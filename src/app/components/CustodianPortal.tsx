@@ -4,6 +4,7 @@ import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send,
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
 import { useApp } from "../context";
+import * as assetsApi from "@web/api/assets.api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -84,8 +85,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     setLoadingDbAssets(true);
     setDbAssetsError(null);
     try {
-      const res = await fetch("http://localhost:4000/api/assets");
-      const data = await res.json();
+      const data = await assetsApi.listAssets();
       if (data.success) {
         setDbAssets(data.assets);
       } else {
@@ -154,8 +154,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     // 2. If not found in memory, re-fetch live database assets directly from server
     if (!matched) {
       try {
-        const res = await fetch("http://localhost:4000/api/assets");
-        const data = await res.json();
+        const data = await assetsApi.listAssets();
         if (data.success && Array.isArray(data.assets)) {
           setDbAssets(data.assets);
           matched = data.assets.find((a: any) => {
