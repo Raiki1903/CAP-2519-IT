@@ -19,6 +19,14 @@ export interface ApiResult {
   [key: string]: any;
 }
 
+function sendRaw(method: string, path: string, body: unknown): Promise<Response> {
+  return fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 /**
  * Sends a request with a JSON body and returns the parsed JSON answer.
  *
@@ -29,11 +37,7 @@ export interface ApiResult {
  * @throws if the server cannot be reached or the answer is not JSON
  */
 async function sendJson(method: string, path: string, body: unknown): Promise<ApiResult> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await sendRaw(method, path, body);
   // The HTTP status is not checked on purpose: callers read `success` from the
   // body, and a 400 or 404 from this server still carries a JSON `error` to show.
   // TODO(H-16): throw typed errors here once the server has its errorHandler. Step 13.
@@ -74,4 +78,21 @@ export function apiPost(path: string, body: unknown): Promise<ApiResult> {
  */
 export function apiPut(path: string, body: unknown): Promise<ApiResult> {
   return sendJson("PUT", path, body);
+}
+
+export async function apiDelete(path: string): Promise<ApiResult> {
+  const res = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" });
+  return res.json();
+}
+
+export function apiGetRaw(path: string): Promise<Response> {
+  return fetch(`${API_BASE_URL}${path}`);
+}
+
+export function apiPostRaw(path: string, body: unknown): Promise<Response> {
+  return sendRaw("POST", path, body);
+}
+
+export function apiPutRaw(path: string, body: unknown): Promise<Response> {
+  return sendRaw("PUT", path, body);
 }
