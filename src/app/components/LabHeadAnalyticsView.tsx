@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useApp } from "../context";
 import * as loansApi from "@web/api/loans.api";
 import * as transfersApi from "@web/api/transfers.api";
+import * as analyticsApi from "@web/api/analytics.api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Badge } from "./ui/badge";
@@ -64,7 +65,7 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
         }
         if (startDate) params.set("startDate", startDate);
         if (endDate) params.set("endDate", endDate);
-        const res = await fetch(`http://localhost:4000/api/analytics/lab-head?${params.toString()}`);
+        const res = await analyticsApi.getLabHeadAnalyticsRaw(params.toString());
         if (res.ok) {
           const json = await res.json();
           console.log("📊 [LabHead API Response]:", json);
@@ -312,7 +313,7 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
     queryKey: ["labhead-analytics-data", lab],
     queryFn: async () => {
       try {
-        const res = await fetch(`http://localhost:4000/api/analytics/lab-head?labPrefix=${encodeURIComponent(lab)}&lab=${encodeURIComponent(lab)}`);
+        const res = await analyticsApi.getLabHeadAnalyticsRaw(`labPrefix=${encodeURIComponent(lab)}&lab=${encodeURIComponent(lab)}`);
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json.data;
@@ -526,7 +527,7 @@ export const IdleTimeAnalyzer: React.FC<{ lab: string }> = ({ lab }) => {
     queryKey: ["labhead-idle-time", lab],
     queryFn: async () => {
       try {
-        const res = await fetch(`http://localhost:4000/api/analytics/advanced/idle-time?lab=${encodeURIComponent(lab)}`);
+        const res = await analyticsApi.getIdleTimeRaw(lab);
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json.data;
@@ -584,7 +585,7 @@ export const IdleTimeDurationFrequencyWidget: React.FC<{ lab: string }> = ({ lab
     queryKey: ["labhead-idle-duration-frequency", lab],
     queryFn: async () => {
       try {
-        const res = await fetch(`http://localhost:4000/api/analytics/advanced/idle-frequency?lab=${encodeURIComponent(lab)}`);
+        const res = await analyticsApi.getIdleFrequencyRaw(lab);
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json.data;
@@ -836,7 +837,7 @@ export const LoanRecommenderList: React.FC<{ lab: string }> = ({ lab }) => {
     queryKey: ["labhead-loan-recommender", lab],
     queryFn: async () => {
       try {
-        const res = await fetch("http://localhost:4000/api/analytics/advanced/loan-recommender");
+        const res = await analyticsApi.getLoanRecommenderRaw();
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json.data;
@@ -924,7 +925,7 @@ export const DelinquencyTable: React.FC<{ lab: string }> = ({ lab }) => {
     queryKey: ["labhead-delinquencies-data", lab],
     queryFn: async () => {
       try {
-        const res = await fetch(`http://localhost:4000/api/analytics/lab-head?labPrefix=${encodeURIComponent(lab)}&lab=${encodeURIComponent(lab)}`);
+        const res = await analyticsApi.getLabHeadAnalyticsRaw(`labPrefix=${encodeURIComponent(lab)}&lab=${encodeURIComponent(lab)}`);
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json.data;
@@ -1013,7 +1014,7 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
     queryKey: ["labhead-scatter-data", lab],
     queryFn: async () => {
       try {
-        const res = await fetch(`http://localhost:4000/api/analytics/lab-head?labPrefix=${encodeURIComponent(lab)}&lab=${encodeURIComponent(lab)}`);
+        const res = await analyticsApi.getLabHeadAnalyticsRaw(`labPrefix=${encodeURIComponent(lab)}&lab=${encodeURIComponent(lab)}`);
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json.data;
@@ -1173,7 +1174,7 @@ export const AccountabilityHeatmapWidget: React.FC<{ lab: string }> = ({ lab }) 
     queryKey: ["labhead-heatmap-data", lab],
     queryFn: async () => {
       try {
-        const res = await fetch(`http://localhost:4000/api/analytics/lab-head?labPrefix=${encodeURIComponent(lab)}&lab=${encodeURIComponent(lab)}`);
+        const res = await analyticsApi.getLabHeadAnalyticsRaw(`labPrefix=${encodeURIComponent(lab)}&lab=${encodeURIComponent(lab)}`);
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json.data;

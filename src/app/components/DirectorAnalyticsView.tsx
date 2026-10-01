@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useApp } from "../context";
+import * as analyticsApi from "@web/api/analytics.api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Badge } from "./ui/badge";
@@ -77,8 +78,7 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
     if (startDate) params.append("startDate", startDate);
     if (endDate) params.append("endDate", endDate);
 
-    fetch(`http://localhost:4000/api/analytics/director?${params.toString()}`)
-      .then(res => res.json())
+    analyticsApi.getDirectorAnalytics(params.toString())
       .then(json => {
         if (isMounted && json.success && json.data) {
           setApiData(json.data);
