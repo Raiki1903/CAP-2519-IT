@@ -7,6 +7,7 @@ import * as transfersApi from "@web/api/transfers.api";
 import * as repairsApi from "@web/api/repairs.api";
 import * as disposalsApi from "@web/api/disposals.api";
 import * as inspectionsApi from "@web/api/inspections.api";
+import * as authApi from "@web/api/auth.api";
 
 // ── Cookie Helper Functions ────────────────────────────────────────────────
 export function setCookie(name: string, value: string, days?: number) {
@@ -494,8 +495,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setCookie("session_last_activity", String(now), 1);
 
         // Session valid! Fetch live user from MySQL DB in Prisma Studio
-        fetch(`http://localhost:4000/api/auth/me?email=${encodeURIComponent(sessionEmail)}`)
-          .then(res => res.json())
+        authApi.getMe(sessionEmail)
           .then(data => {
             if (data.success && data.user) {
               setRoleState(data.user.role as Role);
@@ -557,8 +557,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCookie("session_last_activity", String(Date.now()), 1);
       const email = getCookie("session_user_email");
       if (email) {
-        fetch(`http://localhost:4000/api/auth/me?email=${encodeURIComponent(email)}`)
-          .then(res => res.json())
+        authApi.getMe(email)
           .then(data => {
             if (data.success && data.user) {
               const img = data.user.userImg || data.user.profilePicture || data.user.avatarUrl;
@@ -582,20 +581,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateProfile = async (firstName: string, lastName: string, profilePicture: string, labAffiliation?: string) => {
     if (!currentUser) return;
     try {
-      const res = await fetch("http://localhost:4000/api/auth/account", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: currentUser.email,
-          firstName,
-          lastName,
-          avatarUrl: profilePicture,
-          profilePicture,
-          userImg: profilePicture,
-          labAffiliation
-        })
+      const data = await authApi.updateAccount({
+        email: currentUser.email,
+        firstName,
+        lastName,
+        avatarUrl: profilePicture,
+        profilePicture,
+        userImg: profilePicture,
+        labAffiliation
       });
-      const data = await res.json();
       if (data.success && data.user) {
         const savedImg = data.user.userImg || data.user.profilePicture || data.user.avatarUrl || profilePicture;
         setCurrentUser({
@@ -1036,8 +1030,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pendingRegistrations, setPendingRegistrations] = useState<PendingRegistration[]>([]);
 
   useEffect(() => {
-    fetch("http://localhost:4000/api/auth/pending-registrations")
-      .then(res => res.json())
+    authApi.listPendingRegistrations()
       .then(data => {
         if (data.success && Array.isArray(data.pendingRegistrations)) {
           setPendingRegistrations(data.pendingRegistrations);
@@ -1056,12 +1049,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const payload = targetObj ? { requestId: targetObj.id, ...targetObj } : { requestId: id };
 
     try {
-      const res = await fetch("http://localhost:4000/api/auth/approve-registration", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
+      const data: any = await authApi.approveRegistration(payload);
       if (data.success) {
         setPendingRegistrations(prev => prev.filter(r => r.id !== id));
         await syncFromDb();
@@ -1079,11 +1067,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const rejectRegistration = async (requestId: string) => {
     try {
-      await fetch("http://localhost:4000/api/auth/reject-registration", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId })
-      });
+      await authApi.rejectRegistrationRaw(requestId);
     } catch (err) {
       console.error("Reject registration error:", err);
     } finally {

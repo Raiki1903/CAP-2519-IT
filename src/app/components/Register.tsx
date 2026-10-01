@@ -7,6 +7,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { DLSU_LABS } from "@shared/constants/labs";
 import { useApp } from "../context";
+import * as authApi from "@web/api/auth.api";
 
 const AVATAR_PRESETS = [
   "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150",
@@ -97,11 +98,7 @@ export function Register() {
       // Send to server endpoint
       let res: Response;
       try {
-        res = await fetch("http://localhost:4000/api/auth/register-request", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(regData),
-        });
+        res = await authApi.requestRegistrationRaw(regData);
       } catch (networkErr: any) {
         throw new Error("Unable to connect to registration server. Please check if the Express backend is running on port 4000.");
       }

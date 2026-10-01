@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Shield, Lock } from "lucide-react";
 import { useApp, roleToSlug, setCookie } from "../context";
+import * as authApi from "@web/api/auth.api";
 import type { Role } from "@shared/enums/role";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -44,12 +45,7 @@ export function Login() {
       let authUserEmail = email.trim();
 
       try {
-        const res = await fetch("http://localhost:4000/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim(), password })
-        });
-        const data = await res.json();
+        const data = await authApi.login(email.trim(), password);
         if (data.success && data.role) {
           determinedRole = data.role as Role;
           authUserEmail = data.user?.email || email.trim();
