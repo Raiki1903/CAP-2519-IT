@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { useApp, roleToSlug } from "../context";
 import * as assetsApi from "@web/api/assets.api";
 import * as repairsApi from "@web/api/repairs.api";
+import * as disposalsApi from "@web/api/disposals.api";
 import type { RepairRequest } from "../context";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
@@ -2692,18 +2693,13 @@ function DisposalFormDialog({ asset, onClose, requestedBy, onSubmitted }: { asse
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/assets/${encodeURIComponent(asset.id)}/disposal`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requestedBy,
-          lastCustodian: form.lastCustodian || "Unassigned",
-          breakdownReasons: form.breakdownReasons.trim() || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
-          disposalPathway: form.disposalPathway,
-          decommissionDate: form.decommissionDate,
-        }),
+      const data = await disposalsApi.requestDisposal(asset.id, {
+        requestedBy,
+        lastCustodian: form.lastCustodian || "Unassigned",
+        breakdownReasons: form.breakdownReasons.trim() || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
+        disposalPathway: form.disposalPathway,
+        decommissionDate: form.decommissionDate,
       });
-      const data = await res.json();
       if (!data.success) {
         setSubmitError(data.error || "Failed to log disposal request to the database.");
         return;

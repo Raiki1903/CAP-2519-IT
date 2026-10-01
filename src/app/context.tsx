@@ -5,6 +5,7 @@ import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
 import * as transfersApi from "@web/api/transfers.api";
 import * as repairsApi from "@web/api/repairs.api";
+import * as disposalsApi from "@web/api/disposals.api";
 
 // ── Cookie Helper Functions ────────────────────────────────────────────────
 export function setCookie(name: string, value: string, days?: number) {
@@ -314,8 +315,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {}
 
       try {
-        const resD = await fetch("http://localhost:4000/api/asset_disposals");
-        const jsonD = await resD.json();
+        const jsonD: any = await disposalsApi.listDisposals();
         if (jsonD.success && Array.isArray(jsonD.disposals)) {
           setPendingDisposals(jsonD.disposals.map((d: any) => ({
             id: String(d.id || d.disposalId),
