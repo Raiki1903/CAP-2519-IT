@@ -3,6 +3,7 @@ import { prisma, type User, type InspectionSchedule, type MaintenanceQueueItem }
 import type { Role } from "@shared/enums/role";
 import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
+import * as transfersApi from "@web/api/transfers.api";
 
 // ── Cookie Helper Functions ────────────────────────────────────────────────
 export function setCookie(name: string, value: string, days?: number) {
@@ -290,8 +291,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const resT = await fetch("http://localhost:4000/api/asset_transfers");
-        const jsonT = await resT.json();
+        const jsonT = await transfersApi.listTransfers();
         if (jsonT.success && Array.isArray(jsonT.transfers)) {
           setDbTransfers(jsonT.transfers);
         }

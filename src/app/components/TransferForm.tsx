@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../context";
+import * as transfersApi from "@web/api/transfers.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft, CheckCircle, ArrowRightLeft,
@@ -17,10 +18,6 @@ import {
 import { cn } from "./ui/utils";
 
 const BRAND = "#005A36";
-
-// server.ts listens on port 4000 with CORS enabled specifically so forms like
-// this one can call it directly by absolute URL.
-const API_BASE = "http://localhost:4000";
 
 const LABS = ["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"];
 
@@ -105,17 +102,12 @@ export function TransferForm({ asset, onBack, onClose }: Props) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/assets/${asset.id}/transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          toEmail,
-          reason,
-          lab: location,
-          effectiveDate,
-        }),
+      const data = await transfersApi.requestTransfer(asset.id, {
+        toEmail,
+        reason,
+        lab: location,
+        effectiveDate,
       });
-      const data = await res.json();
       if (!data.success) {
         setSubmitError(data.error || "Failed to log transfer request to the database.");
         setSubmitting(false);
