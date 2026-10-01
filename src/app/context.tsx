@@ -4,6 +4,7 @@ import type { Role } from "@shared/enums/role";
 import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
 import * as transfersApi from "@web/api/transfers.api";
+import * as repairsApi from "@web/api/repairs.api";
 
 // ── Cookie Helper Functions ────────────────────────────────────────────────
 export function setCookie(name: string, value: string, days?: number) {
@@ -424,8 +425,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Sync Repairs directly from MySQL database API
       try {
-        const res = await fetch("http://localhost:4000/api/asset_repairs");
-        const data = await res.json();
+        const data = await repairsApi.listRepairs();
         if (data.success && Array.isArray(data.repairs)) {
           setRepairRequests(data.repairs);
         }
@@ -640,14 +640,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addRepairRequest = async (req: RepairRequest) => {
     try {
-      await fetch(`http://localhost:4000/api/assets/${req.assetId}/repair`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reportedBy: req.custodian,
-          description: req.description,
-          isImmediate: req.priority === "Critical" || req.statusLabel === "Disposal Recommendation",
-        }),
+      await repairsApi.requestRepairRaw(req.assetId, {
+        reportedBy: req.custodian,
+        description: req.description,
+        isImmediate: req.priority === "Critical" || req.statusLabel === "Disposal Recommendation",
       });
     } catch (e) {
       console.error("Failed to post repair request to DB API:", e);
@@ -659,11 +655,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const numericId = parseInt(id.replace(/^MNT-/, ""), 10);
     if (!isNaN(numericId)) {
       try {
-        await fetch(`http://localhost:4000/api/asset_repairs/${numericId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ progressStatus: "Inspection Phase" }),
-        });
+        await repairsApi.updateRepairRaw(numericId, { progressStatus: "Inspection Phase" });
       } catch (e) {
         console.error("Failed to acknowledge repair in DB API:", e);
       }
@@ -675,11 +667,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const numericId = parseInt(id.replace(/^MNT-/, ""), 10);
     if (!isNaN(numericId)) {
       try {
-        await fetch(`http://localhost:4000/api/asset_repairs/${numericId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ progressStatus: statusLabel }),
-        });
+        await repairsApi.updateRepairRaw(numericId, { progressStatus: statusLabel });
       } catch (e) {
         console.error("Failed to update repair status in DB API:", e);
       }

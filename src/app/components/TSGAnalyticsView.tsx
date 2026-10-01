@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useApp } from "../context";
 import * as assetsApi from "@web/api/assets.api";
+import * as repairsApi from "@web/api/repairs.api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Badge } from "./ui/badge";
@@ -78,12 +79,7 @@ export const TSGTechnicalMaintenanceSection: React.FC<{
   const moveRepairStatus = async (repairId: number, newStatus: string) => {
     setUpdatingRepairId(repairId);
     try {
-      const res = await fetch(`http://localhost:4000/api/asset_repairs/${repairId}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progressStatus: newStatus })
-      });
-      const json = await res.json();
+      const json = await repairsApi.updateRepairStatus(repairId, newStatus);
       if (json.success) {
         await refetch();
       }

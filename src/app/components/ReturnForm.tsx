@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../context";
 import * as returnsApi from "@web/api/returns.api";
+import * as repairsApi from "@web/api/repairs.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, ArrowLeft, CheckCircle, CornerUpLeft,
@@ -17,10 +18,6 @@ import { Switch } from "./ui/switch";
 import { cn } from "./ui/utils";
 
 const BRAND = "#005A36";
-
-// server.ts listens on port 4000 with CORS enabled specifically so forms like
-// this one can call it directly by absolute URL. Same function RepairForm calls.
-const API_BASE = "http://localhost:4000";
 
 interface Props {
   asset: AssetDetail;
@@ -66,16 +63,11 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
       // the same repair queue RepairForm writes to, so it shows up on ITSDashboard.
       if (flagForRepair) {
         try {
-          const res = await fetch(`${API_BASE}/api/assets/${asset.id}/repair`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              reportedBy: asset.custodian || "Active Custodian",
-              description: inspection || "Flagged for repair assessment during asset return.",
-              isImmediate: false,
-            }),
+          const data = await repairsApi.requestRepair(asset.id, {
+            reportedBy: asset.custodian || "Active Custodian",
+            description: inspection || "Flagged for repair assessment during asset return.",
+            isImmediate: false,
           });
-          const data = await res.json();
           if (!data.success) {
             setSubmitError(data.error || "Failed to log repair request to the database.");
           }

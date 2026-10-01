@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useApp, roleToSlug } from "../context";
 import * as assetsApi from "@web/api/assets.api";
+import * as repairsApi from "@web/api/repairs.api";
 import type { RepairRequest } from "../context";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
@@ -388,8 +389,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     setLoadingDbRepairs(true);
     setDbRepairsError(null);
     try {
-      const res = await fetch("http://localhost:4000/api/asset_repairs");
-      const data = await res.json();
+      const data = await repairsApi.listRepairs();
       if (data.success) {
         setDbRepairs(data.repairs);
       } else {
@@ -444,12 +444,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
 
   const updateDbRepairStatus = async (repairId: number, status: string, condition?: string, remarks?: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/asset_repairs/${repairId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progressStatus: status, assetCondition: condition, assetRemarks: remarks }),
-      });
-      const data = await res.json();
+      const data = await repairsApi.updateRepair(repairId, { progressStatus: status, assetCondition: condition, assetRemarks: remarks });
       if (!data.success) {
         console.error("❌ Failed to update repair status:", data.error);
       }

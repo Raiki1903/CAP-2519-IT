@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useApp } from "../context";
+import * as repairsApi from "@web/api/repairs.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft, CheckCircle, Wrench, Trash2,
@@ -17,10 +18,6 @@ import {
 import { cn } from "./ui/utils";
 
 const BRAND = "#005A36";
-
-// server.ts listens on port 4000 with CORS enabled specifically so forms like
-// this one can call it directly by absolute URL.
-const API_BASE = "http://localhost:4000";
 
 type RequestType = "repair";
 type OutcomeType = "repaired" | "disposed" | null;
@@ -113,16 +110,11 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/assets/${asset.id}/repair`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reportedBy: asset.custodian || "Active Custodian",
-          description: justification,
-          isImmediate: false,
-        }),
+      const data = await repairsApi.requestRepair(asset.id, {
+        reportedBy: asset.custodian || "Active Custodian",
+        description: justification,
+        isImmediate: false,
       });
-      const data = await res.json();
       if (!data.success) {
         setSubmitError(data.error || "Failed to log repair request to the database.");
       }
