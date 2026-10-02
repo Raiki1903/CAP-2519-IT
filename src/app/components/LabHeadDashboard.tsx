@@ -4,6 +4,9 @@ import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, P
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
 import { LabHeadAnalyticsView } from "./LabHeadAnalyticsView";
+import * as loansApi from "@web/api/loans.api";
+import * as assetsApi from "@web/api/assets.api";
+import * as transfersApi from "@web/api/transfers.api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
@@ -13,13 +16,6 @@ import { cn } from "./ui/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 
 const MINT = "#10B981";
-
-// server.ts listens on port 4000 and has CORS enabled specifically so the
-// frontend can call it directly like this. A relative "/api/..." path would
-// instead hit whatever dev server is serving this page, not the Express
-// backend — adjust this if your project already exposes a shared API base
-// URL (e.g. from context.tsx or an env var) and use that instead.
-const API_BASE = "http://localhost:4000";
 
 const statusClass: Record<string, string> = {
   Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -162,8 +158,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     setLoadingDbAssets(true);
     setDbAssetsError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/assets`);
-      const data = await res.json();
+      const data = await assetsApi.listAssets();
       if (data.success) {
         setDbAssets(data.assets);
       } else {
@@ -217,8 +212,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     setLoansLoading(true);
     setLoanError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/asset_loans`);
-      const data = await res.json();
+      const data = await loansApi.listLoans();
       if (data.success) {
         setLoanRequests(data.loans);
       } else {
@@ -247,12 +241,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     setLoanActionId(loanId);
     setLoanError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/asset_loans/${loanId}/decision`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
-      });
-      const data = await res.json();
+      const data = await loansApi.decideLoan(loanId, decision);
       if (!data.success) {
         setLoanError(data.error || `Failed to ${decision} loan.`);
         return;
@@ -289,8 +278,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     setTransfersLoading(true);
     setTransferError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/asset_transfers`);
-      const data = await res.json();
+      const data = await transfersApi.listTransfers();
       if (data.success) {
         setDbTransfers(data.transfers);
       } else {
@@ -319,12 +307,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     setTransferActionId(transferId);
     setTransferError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/asset_transfers/${transferId}/decision`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
-      });
-      const data = await res.json();
+      const data = await transfersApi.decideTransfer(transferId, decision);
       if (!data.success) {
         setTransferError(data.error || `Failed to ${decision} transfer.`);
         return;

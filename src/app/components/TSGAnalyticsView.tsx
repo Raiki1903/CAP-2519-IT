@@ -2,6 +2,9 @@ import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useApp } from "../context";
+import * as assetsApi from "@web/api/assets.api";
+import * as repairsApi from "@web/api/repairs.api";
+import * as analyticsApi from "@web/api/analytics.api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Badge } from "./ui/badge";
@@ -61,7 +64,7 @@ export const TSGTechnicalMaintenanceSection: React.FC<{
         const params = new URLSearchParams();
         if (startDate) params.set("startDate", startDate);
         if (endDate) params.set("endDate", endDate);
-        const res = await fetch(`http://localhost:4000/api/analytics/tsg?${params.toString()}`);
+        const res = await analyticsApi.getTsgAnalyticsRaw(params.toString());
         if (res.ok) {
           const json = await res.json();
           console.log("📊 [TSG API Response]:", json);
@@ -77,12 +80,7 @@ export const TSGTechnicalMaintenanceSection: React.FC<{
   const moveRepairStatus = async (repairId: number, newStatus: string) => {
     setUpdatingRepairId(repairId);
     try {
-      const res = await fetch(`http://localhost:4000/api/asset_repairs/${repairId}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progressStatus: newStatus })
-      });
-      const json = await res.json();
+      const json = await repairsApi.updateRepairStatus(repairId, newStatus);
       if (json.success) {
         await refetch();
       }
@@ -333,7 +331,7 @@ export const LocationStatusWidget: React.FC<{
     queryKey: ["tsg-location-status"],
     queryFn: async () => {
       try {
-        const res = await fetch("http://localhost:4000/api/analytics/location-status");
+        const res = await analyticsApi.getLocationStatusRaw();
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json.data;
@@ -493,7 +491,7 @@ export const WarrantyCalendarWidget: React.FC = () => {
     queryKey: ["tsg-warranty-calendar"],
     queryFn: async () => {
       try {
-        const res = await fetch("http://localhost:4000/api/assets");
+        const res = await assetsApi.listAssetsRaw();
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.assets)) {
@@ -590,7 +588,7 @@ export const InspectionProgressTracker: React.FC = () => {
     queryKey: ["tsg-inspection-progress"],
     queryFn: async () => {
       try {
-        const res = await fetch("http://localhost:4000/api/analytics/advanced/inspection-progress");
+        const res = await analyticsApi.getInspectionProgressRaw();
         if (res.ok) {
           const json = await res.json();
           if (json.success) return json.data;

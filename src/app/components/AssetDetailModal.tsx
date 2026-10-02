@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useApp, type DisposalDetails } from "../context";
+import * as assetsApi from "@web/api/assets.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, ArrowRightLeft, Wrench, CornerUpLeft,
@@ -78,8 +79,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     setLoadingHistory(true);
     setHistoryError(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/assets/${assetTag}/custodian-history`);
-      const data = await res.json();
+      const data = await assetsApi.getCustodianHistory(assetTag);
       if (data.success) {
         setCustodianHistoryList(data.custodianHistory || []);
       } else {

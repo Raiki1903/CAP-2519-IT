@@ -5,6 +5,7 @@ import {
   ArrowLeft, CheckCircle, User, MapPin, Calendar, FileText, ChevronRight, Bookmark
 } from "lucide-react";
 import type { AssetDetail } from "./AssetDetailModal";
+import * as loansApi from "@web/api/loans.api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -100,12 +101,7 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/assets/${encodeURIComponent(asset.id)}/borrow`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ borrower, lab: selectedLab, purpose, dueDate }),
-      });
-      const result = await res.json();
+      const result = await loansApi.requestLoan(asset.id, { borrower, lab: selectedLab, purpose, dueDate });
       if (!result.success) {
         throw new Error(result.error || "Loan request failed");
       }

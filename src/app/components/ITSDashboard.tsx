@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useApp, roleToSlug } from "../context";
+import * as assetsApi from "@web/api/assets.api";
+import * as repairsApi from "@web/api/repairs.api";
+import * as disposalsApi from "@web/api/disposals.api";
+import * as inspectionsApi from "@web/api/inspections.api";
 import type { RepairRequest } from "../context";
+import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
+import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ReturnForm } from "./ReturnForm";
@@ -94,14 +100,6 @@ const emptyForm: IntakeForm = {
   funding: "DOST", acquisitionValue: 0, procured: new Date().toISOString().split("T")[0],
   warranty: "", location: "Manila", lab: "CITe4D", image: "", remarks: ""
 };
-
-// Mirrors the `assets.asset_type` ENUM in the MySQL schema
-const category = [
-  "DEV_KIT", "MONITOR", "TV", "CPU", "KEYBOARD", "MOUSE", "CAMERA",
-  "MEMORY_CARD", "PROJECTOR", "RECORDER", "ROUTER", "SIMULATOR",
-  "TABLET", "VR", "PRINTER", "SWITCH", "HARD_DRIVE", "AUDIO",
-  "VIDEO_CAMERA", "SPEAKER"
-];
 
 // Mirrors the `asset_records.asset_condition` ENUM in the MySQL schema —
 // same 5-state condition the ReturnForm and AssetDetailModal use, so the
@@ -330,8 +328,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
 
   const fetchDbReports = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/asset-reports");
-      const data = await res.json();
+      const data = await inspectionsApi.listInspectionReports();
       if (data.success) {
         setDbReports(data.reports || []);
       }
@@ -363,8 +360,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     setLoadingDbAssets(true);
     setDbAssetsError(null);
     try {
-      const res = await fetch("http://localhost:4000/api/assets");
-      const data = await res.json();
+      const data = await assetsApi.listAssets();
       if (data.success) {
         setDbAssets(data.assets);
       } else {
@@ -394,8 +390,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     setLoadingDbRepairs(true);
     setDbRepairsError(null);
     try {
-      const res = await fetch("http://localhost:4000/api/asset_repairs");
-      const data = await res.json();
+      const data = await repairsApi.listRepairs();
       if (data.success) {
         setDbRepairs(data.repairs);
       } else {
@@ -450,12 +445,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
 
   const updateDbRepairStatus = async (repairId: number, status: string, condition?: string, remarks?: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/asset_repairs/${repairId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progressStatus: status, assetCondition: condition, assetRemarks: remarks }),
-      });
-      const data = await res.json();
+      const data = await repairsApi.updateRepair(repairId, { progressStatus: status, assetCondition: condition, assetRemarks: remarks });
       if (!data.success) {
         console.error("❌ Failed to update repair status:", data.error);
       }
@@ -512,10 +502,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     setDeleting(true);
     setDeleteError(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/assets/${encodeURIComponent(assetToDelete)}`, {
-        method: "DELETE",
-      });
-      const result = await res.json();
+      const result = await assetsApi.deleteAsset(assetToDelete);
       if (!result.success) {
         throw new Error(result.error || "Delete failed");
       }
@@ -584,11 +571,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     setSubmitted(true);
     setRegistrationError(null);
     try {
-      const res = await fetch("http://localhost:4000/api/assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await assetsApi.createAssetRaw(form);
       const contentType = res.headers.get("content-type");
       if (!res.ok || !contentType || !contentType.includes("application/json")) {
         const errText = await res.text();
@@ -875,7 +858,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                     <Label className="text-xs font-bold text-foreground">Asset Category</Label>
                     <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {category.map(t => (
+                      {ASSET_CATEGORIES.map(t => (
                         <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
                       ))}
                     </select>
@@ -1965,16 +1948,12 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                           "Critical Defect": "CRITICAL_DEFECT",
                         };
                         const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
-                        await fetch(`http://localhost:4000/api/assets/${targetTag}/inspection`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            reporterEmail: currentUser?.email,
-                            reportedById: currentUser?.user_id,
-                            reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
-                            reportRemarks: fullNotes,
-                            reportImg: inspectionImgOption || null,
-                          }),
+                        await inspectionsApi.submitInspectionRaw(targetTag, {
+                          reporterEmail: currentUser?.email,
+                          reportedById: currentUser?.user_id,
+                          reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
+                          reportRemarks: fullNotes,
+                          reportImg: inspectionImgOption || null,
                         });
                         await fetchDbAssets();
                         await fetchDbReports();
@@ -2510,11 +2489,7 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/assets/${encodeURIComponent(asset.id)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await assetsApi.updateAssetRaw(asset.id, form);
       const contentType = res.headers.get("content-type");
       if (!res.ok || !contentType || !contentType.includes("application/json")) {
         const errText = await res.text();
@@ -2621,7 +2596,7 @@ function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () =
           <div className="flex flex-col gap-1.5 col-span-2">
             <Label className="text-xs font-bold text-foreground">Condition State</Label>
             <div className="grid grid-cols-3 gap-2">
-              {["PERFECT", "OPERATIONAL", "MINOR_DRIFT", "DEGRADED", "CRITICAL_DEFECT"].map(c => (
+              {ASSET_CONDITIONS.map(c => (
                 <button
                   key={c}
                   type="button"
@@ -2714,18 +2689,13 @@ function DisposalFormDialog({ asset, onClose, requestedBy, onSubmitted }: { asse
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/assets/${encodeURIComponent(asset.id)}/disposal`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requestedBy,
-          lastCustodian: form.lastCustodian || "Unassigned",
-          breakdownReasons: form.breakdownReasons.trim() || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
-          disposalPathway: form.disposalPathway,
-          decommissionDate: form.decommissionDate,
-        }),
+      const data = await disposalsApi.requestDisposal(asset.id, {
+        requestedBy,
+        lastCustodian: form.lastCustodian || "Unassigned",
+        breakdownReasons: form.breakdownReasons.trim() || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
+        disposalPathway: form.disposalPathway,
+        decommissionDate: form.decommissionDate,
       });
-      const data = await res.json();
       if (!data.success) {
         setSubmitError(data.error || "Failed to log disposal request to the database.");
         return;

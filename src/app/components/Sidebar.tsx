@@ -6,7 +6,8 @@ import {
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
   ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck
 } from "lucide-react";
-import { useApp, roleToSlug, type Role, getCookie } from "../context";
+import { useApp, roleToSlug, getCookie } from "../context";
+import type { Role } from "@shared/enums/role";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import {

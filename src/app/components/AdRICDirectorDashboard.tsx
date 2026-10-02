@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import DirectorAnalyticsView from "./DirectorAnalyticsView";
 import { useApp, type Asset, type RepairRequest, type InspectionReport, type PendingDisposal, type AffiliateClearance } from "../context";
+import * as assetsApi from "@web/api/assets.api";
+import * as disposalsApi from "@web/api/disposals.api";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
@@ -176,8 +178,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const fetchDbAssets = async () => {
     setLoadingDbAssets(true);
     try {
-      const res = await fetch("http://localhost:4000/api/assets");
-      const data = await res.json();
+      const data = await assetsApi.listAssets();
       if (data.success && Array.isArray(data.assets)) {
         setDbAssets(data.assets);
       }
@@ -192,8 +193,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     setLoadingDbDisposals(true);
     setDbDisposalsError(null);
     try {
-      const res = await fetch("http://localhost:4000/api/asset_disposals");
-      const data = await res.json();
+      const data = await disposalsApi.listDisposals();
       if (data.success) {
         setDbDisposals(data.disposals);
       } else {
@@ -222,12 +222,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const decideDisposal = async (disposalId: number, decision: "approve" | "reject") => {
     setDisposalActionId(disposalId);
     try {
-      const res = await fetch(`http://localhost:4000/api/asset_disposals/${disposalId}/decision`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
-      });
-      const data = await res.json();
+      const data = await disposalsApi.decideDisposal(disposalId, decision);
       if (!data.success) {
         setDbDisposalsError(data.error || `Failed to ${decision} disposal.`);
         return;

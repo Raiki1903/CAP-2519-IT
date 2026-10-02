@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useApp } from "../context";
+import * as authApi from "@web/api/auth.api";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
@@ -31,8 +32,7 @@ export function AccountDetailsPage() {
   // Fetch live user credentials directly from MySQL Database in Prisma Studio
   useEffect(() => {
     if (!currentUser?.email) return;
-    fetch(`http://localhost:4000/api/auth/me?email=${encodeURIComponent(currentUser.email)}`)
-      .then(res => res.json())
+    authApi.getMe(currentUser.email)
       .then(data => {
         if (data.success && data.user) {
           setDbUser(data.user);

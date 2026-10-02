@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useApp } from "../context";
+import * as returnsApi from "@web/api/returns.api";
+import * as repairsApi from "@web/api/repairs.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, ArrowLeft, CheckCircle, CornerUpLeft,
   User, Calendar, ClipboardCheck, ToggleLeft, Hash, FileText, Wrench
 } from "lucide-react";
 import type { AssetDetail } from "./AssetDetailModal";
+import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -15,12 +18,6 @@ import { Switch } from "./ui/switch";
 import { cn } from "./ui/utils";
 
 const BRAND = "#005A36";
-
-// server.ts listens on port 4000 with CORS enabled specifically so forms like
-// this one can call it directly by absolute URL. Same function RepairForm calls.
-const API_BASE = "http://localhost:4000";
-
-const CONDITIONS = ["PERFECT", "OPERATIONAL", "MINOR_DRIFT", "DEGRADED", "CRITICAL_DEFECT"];
 
 interface Props {
   asset: AssetDetail;
@@ -66,16 +63,11 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
       // the same repair queue RepairForm writes to, so it shows up on ITSDashboard.
       if (flagForRepair) {
         try {
-          const res = await fetch(`${API_BASE}/api/assets/${asset.id}/repair`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              reportedBy: asset.custodian || "Active Custodian",
-              description: inspection || "Flagged for repair assessment during asset return.",
-              isImmediate: false,
-            }),
+          const data = await repairsApi.requestRepair(asset.id, {
+            reportedBy: asset.custodian || "Active Custodian",
+            description: inspection || "Flagged for repair assessment during asset return.",
+            isImmediate: false,
           });
-          const data = await res.json();
           if (!data.success) {
             setSubmitError(data.error || "Failed to log repair request to the database.");
           }
@@ -91,16 +83,11 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
       // backend was missing; the custodian-submitted "pending" step above
       // stays local-only since asset_returns has no pending state to hold it.
       try {
-        const res = await fetch(`${API_BASE}/api/assets/${asset.id}/return`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            returnedBy: asset.custodian || "Active Custodian",
-            condition,
-            comments: inspection,
-          }),
+        const data = await returnsApi.finalizeReturn(asset.id, {
+          returnedBy: asset.custodian || "Active Custodian",
+          condition,
+          comments: inspection,
         });
-        const data = await res.json();
         if (data.success) {
           setDbReferenceNumber(data.return.reference_number);
         } else {
@@ -311,7 +298,7 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
                   Condition on Return
                 </Label>
                 <div className="grid grid-cols-3 gap-2">
-                  {CONDITIONS.map(c => (
+                  {ASSET_CONDITIONS.map(c => (
                     <motion.button
                       key={c}
                       type="button"
