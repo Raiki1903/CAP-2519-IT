@@ -51,7 +51,7 @@ const statusPills = [
 ];
 
 export function CustodianPortal({ activeTab }: { activeTab: string }) {
-  const { cycleMode, addRepairRequest: onRepairRequest, assets, addInspectionReport, currentUser } = useApp();
+  const { cycleMode, addRepairRequest: onRepairRequest, assets, addInspectionReport, currentUser, syncFromDb } = useApp();
   const currentUserName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Custodian User";
 
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
@@ -353,6 +353,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         submittedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         cycleType: cycleMode
       });
+      syncFromDb();
 
       // 3. Trigger repair request to TSG if critical fault or immediate inspection requested
       if (triggerRepair) {
@@ -388,6 +389,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         submittedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         cycleType: cycleMode
       });
+      syncFromDb();
       setSubmitResult("healthy");
     } finally {
       setSubmitting(false);

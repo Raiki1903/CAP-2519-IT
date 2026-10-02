@@ -489,19 +489,19 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
 
 // 2. Cross-Campus Transfer Flow (Dynamic Sankey Diagram built strictly from active dbTransfers)
 export const CampusTransferFlow: React.FC = () => {
-  const { transfers, dbTransfers, assets } = useApp();
+  const { dbTransfers, assets } = useApp();
   const [hoveredFlow, setHoveredFlow] = useState<string | null>(null);
   const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
 
   // 1. Filter valid transfers (approved or completed)
   const validTransfers = useMemo(() => {
-    const rawTransfers = (dbTransfers && dbTransfers.length > 0) ? dbTransfers : transfers;
+    const rawTransfers = dbTransfers || [];
     const filtered = rawTransfers.filter(t => {
       const st = (t.status || "").toLowerCase();
       return st === "approved" || st === "completed" || st === "approved & sent";
     });
     return filtered.length > 0 ? filtered : rawTransfers;
-  }, [dbTransfers, transfers]);
+  }, [dbTransfers]);
 
   // 2. Group transfers by [Source Lab, Target Lab] pair and build ONLY links where count > 0
   const sankeyData = useMemo(() => {

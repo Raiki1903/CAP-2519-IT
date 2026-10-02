@@ -78,12 +78,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const navigate = useNavigate();
   const {
     assets,
-    transfers = [],
     repairRequests = [],
     inspections = [],
     currentUser,
-    manualClearanceHolds,
-    toggleClearanceHold,
     isDbLoading: isGlobalDbLoading,
     syncFromDb
   } = useApp();
@@ -102,7 +99,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
     const assetTransfers = (asset.asset_transfers && asset.asset_transfers.length > 0)
       ? asset.asset_transfers
-      : (transfers || []).filter(t => t.assetId === asset.id);
+      : [];
 
     const assetRepairs = (repairRequests || []).filter(r => r.assetId === asset.id);
 
@@ -858,8 +855,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <User size={13} className="text-[#005A36]" />
                     Custodianship &amp; Transfer History
                   </h4>
-                  {((selectedAssetForAudit.asset_transfers && selectedAssetForAudit.asset_transfers.length > 0) ||
-                    (transfers || []).filter(t => t.assetId === selectedAssetForAudit.id).length > 0) ? (
+                  {(selectedAssetForAudit.asset_transfers && selectedAssetForAudit.asset_transfers.length > 0) ? (
                     <div className="space-y-2">
                       {/* Render asset_transfers relation */}
                       {(selectedAssetForAudit.asset_transfers || []).map((t: any) => (

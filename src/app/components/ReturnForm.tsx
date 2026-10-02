@@ -26,7 +26,7 @@ interface Props {
 }
 
 export function ReturnForm({ asset, onBack, onClose }: Props) {
-  const { role, addReturnRequest, finalizeReturn, returns } = useApp();
+  const { role, addReturnRequest, finalizeReturn, returns, syncFromDb } = useApp();
 
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
   const [condition, setCondition] = useState("");
@@ -99,12 +99,12 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
 
       finalizeReturn(
         reqId,
-        asset.id,
         condition,
         [],
         inspection,
         clearanceIssued
       );
+      syncFromDb();
     }
 
     setSubmitting(false);

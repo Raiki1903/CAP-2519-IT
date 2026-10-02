@@ -70,7 +70,7 @@ interface Props {
 }
 
 export function LoanForm({ asset, onBack, onClose }: Props) {
-  const { addTransferRequest, currentUser } = useApp();
+  const { syncFromDb, currentUser } = useApp();
   const [borrower, setBorrower] = useState(() => {
     return currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)";
   });
@@ -106,18 +106,7 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
         throw new Error(result.error || "Loan request failed");
       }
 
-      addTransferRequest({
-        id: refId,
-        asset: asset.name,
-        assetId: asset.id,
-        from: "Inventory Storage",
-        fromRole: "System Registry",
-        to: borrower,
-        toRole: "Active Custodian",
-        lab: selectedLab,
-        initiated: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        status: "Pending"
-      });
+      syncFromDb();
       setSubmitted(true);
     } catch (err: any) {
       console.error("❌ Loan request failed:", err);

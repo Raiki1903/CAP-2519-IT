@@ -29,7 +29,6 @@ export function NotificationCenter() {
     role,
     assets,
     repairRequests,
-    transfers,
     dbTransfers,
     dbLoans,
     returns,
@@ -37,7 +36,6 @@ export function NotificationCenter() {
     manualClearanceHolds,
     acknowledgeRepair,
     currentUser,
-    inspectionSchedules,
     authorizeLoan,
     syncFromDb
   } = useApp();
@@ -206,8 +204,8 @@ export function NotificationCenter() {
       }
     });
 
-    // B. Custody Transfers (Live DB Transfers + Context Transfers)
-    const rawTransfers = (dbTransfers && dbTransfers.length > 0) ? dbTransfers : transfers;
+    // B. Custody Transfers
+    const rawTransfers = dbTransfers || [];
     rawTransfers.forEach((txn: any) => {
       const status = (txn.status || "").toLowerCase();
       if (status === "pending") {
@@ -357,7 +355,7 @@ export function NotificationCenter() {
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
-    // 3. REMINDERS TAB (Inspection Schedules, Overdue Loans, Degraded Health)
+    // 3. REMINDERS TAB (Overdue Loans, Degraded Health)
     const reminders: {
       id: string;
       type: "overdue" | "duesoon" | "degraded";
@@ -368,36 +366,6 @@ export function NotificationCenter() {
       targetTab?: string;
       meta: any;
     }[] = [];
-
-    // Inspection Schedules
-    inspectionSchedules.forEach(sched => {
-      let isRelevant = false;
-      let desc = "";
-
-      if (role === "Custodian") {
-        isRelevant = true;
-        desc = `Group ${sched.labGroupId} inspection scheduled for ${sched.inspectionDate}. Please ensure equipment compliance.`;
-      } else if (role === "LabHead") {
-        isRelevant = true;
-        desc = `Group ${sched.labGroupId} inspection scheduled for ${sched.inspectionDate}. Please notify your custodians.`;
-      } else if (role === "ITS" || role === "TSG" || role === "AdRICDirector") {
-        isRelevant = true;
-        desc = `Inspection scheduled for Group ${sched.labGroupId} on ${sched.inspectionDate} (${sched.cycleType} cycle).`;
-      }
-
-      if (isRelevant) {
-        reminders.push({
-          id: `REM-SCHED-${sched.scheduleId}`,
-          type: "duesoon",
-          title: `Inspection Scheduled: Group ${sched.labGroupId}`,
-          description: desc,
-          date: sched.inspectionDate,
-          needsAction: false,
-          targetTab: "inspections",
-          meta: sched
-        });
-      }
-    });
 
     // Overdue, Due Soon, or Degraded Health Equipment
     assets.forEach(asset => {
@@ -555,7 +523,7 @@ export function NotificationCenter() {
       holdsBadge: hBadge,
       totalBadgeCount: totBadge
     };
-  }, [role, currentUser, currentUserName, currentUserEmail, currentUserId, assets, repairRequests, transfers, dbTransfers, dbLoans, returns, pendingDisposals, manualClearanceHolds, inspectionSchedules]);
+  }, [role, currentUser, currentUserName, currentUserEmail, currentUserId, assets, repairRequests, dbTransfers, dbLoans, returns, pendingDisposals, manualClearanceHolds]);
 
   if (!role) return null;
 
