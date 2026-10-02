@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Shield, Lock } from "lucide-react";
-import { useApp, roleToSlug, setCookie } from "../context";
+import { useSession, roleToSlug, setCookie } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
 import type { Role } from "@shared/enums/role";
 import { Button } from "./ui/button";
@@ -11,7 +11,7 @@ import { prisma } from "../prismaClient";
 
 export function Login() {
   const navigate = useNavigate();
-  const { setRole } = useApp();
+  const { setRole } = useSession();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

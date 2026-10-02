@@ -6,7 +6,8 @@ import {
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
   ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck
 } from "lucide-react";
-import { useApp, roleToSlug, getCookie } from "../context";
+import { useSession, roleToSlug, getCookie } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
 import type { Role } from "@shared/enums/role";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
@@ -87,7 +88,8 @@ const roleConfig: Record<Role, {
 };
 
 export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: () => void; isMobileOpen?: boolean; onCloseMobile?: () => void }) {
-  const { role, unacknowledgedCount, sidebarCollapsed, setSidebarCollapsed, cycleMode, setCycleMode, theme, setTheme, currentUser } = useApp();
+  const { role, sidebarCollapsed, setSidebarCollapsed, cycleMode, setCycleMode, theme, setTheme, currentUser } = useSession();
+  const { unacknowledgedCount } = useServerData();
   const [showSettings, setShowSettings] = useState(false);
   const navigate   = useNavigate();
   const location   = useLocation();

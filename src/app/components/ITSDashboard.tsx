@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { useApp, roleToSlug } from "../context";
+import { useSession, roleToSlug } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
+import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as repairsApi from "@web/api/repairs.api";
 import * as disposalsApi from "@web/api/disposals.api";
 import * as inspectionsApi from "@web/api/inspections.api";
-import type { RepairRequest } from "../context";
+import type { RepairRequest } from "@web/state/serverData";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
@@ -283,12 +285,12 @@ function RepairAlertCard({ req, onAcknowledge }: { req: RepairRequest; onAcknowl
 
 export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const navigate = useNavigate();
+  const { cycleMode, setCycleMode, role, currentUser } = useSession();
   const {
     assets, syncFromDb,
-    cycleMode, setCycleMode,
-    repairRequests, acknowledgeRepair, updateRepairStatus,
-    returns, role, inspections, addInspectionReport, currentUser
-  } = useApp();
+    repairRequests, acknowledgeRepair, updateRepairStatus
+  } = useServerData();
+  const { returns, inspections, addInspectionReport } = useBrowserOnly();
   const [isScheduled, setIsScheduled] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [groupDates, setGroupDates] = useState<Record<string, { start: string; end: string }>>({

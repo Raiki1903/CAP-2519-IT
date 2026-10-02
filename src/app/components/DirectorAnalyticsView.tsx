@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { useApp } from "../context";
+import { useServerData } from "@web/state/serverData";
 import * as analyticsApi from "@web/api/analytics.api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
@@ -64,7 +64,7 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
   setStartDate,
   setEndDate,
 }) => {
-  const { assets: dbAssetsList, dbReports, pendingDisposals } = useApp();
+  const { assets: dbAssetsList, dbReports, pendingDisposals } = useServerData();
   const [apiData, setApiData] = useState<any>(null);
   const [isLoadingApi, setIsLoadingApi] = useState(false);
 
@@ -345,7 +345,7 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
 
 // 1. Funding Capital & Valuation Breakdown (Nested PieChart + Values Breakdown Side Panel)
 export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selectedLabFilter = "All Labs" }) => {
-  const { assets: dbAssetsList } = useApp();
+  const { assets: dbAssetsList } = useServerData();
 
   const filteredAssets = useMemo(() => {
     if (selectedLabFilter === "All Labs" || selectedLabFilter === "All") return dbAssetsList;
@@ -489,7 +489,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
 
 // 2. Cross-Campus Transfer Flow (Dynamic Sankey Diagram built strictly from active dbTransfers)
 export const CampusTransferFlow: React.FC = () => {
-  const { dbTransfers, assets } = useApp();
+  const { dbTransfers, assets } = useServerData();
   const [hoveredFlow, setHoveredFlow] = useState<string | null>(null);
   const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
 
@@ -864,7 +864,7 @@ export const CampusTransferFlow: React.FC = () => {
 
 // 3. Grant Renewal Readiness Index (RadialBar + Dynamic Project Verification)
 export const GrantReadinessIndex: React.FC = () => {
-  const { assets: contextAssets } = useApp();
+  const { assets: contextAssets } = useServerData();
 
   const projectReadiness = useMemo(() => {
     const projectsMap: Record<string, { projectName: string; leader: string; totalAssets: number; verifiedAssets: number }> = {};
@@ -960,7 +960,7 @@ export const GrantReadinessIndex: React.FC = () => {
 
 // 4. Audit-Readiness & Compliance Analytics
 export const ComplianceWidget: React.FC = () => {
-  const { assets: contextAssets } = useApp();
+  const { assets: contextAssets } = useServerData();
 
   const fundingData = useMemo(() => {
     const fundingMap: Record<string, { total: number; documented: number }> = {};
@@ -1016,7 +1016,7 @@ export const ComplianceWidget: React.FC = () => {
 
 // 5. Diagnostic — Audit Discrepancy Analyzer
 export const AuditDiscrepancyWidget: React.FC = () => {
-  const { assets: contextAssets } = useApp();
+  const { assets: contextAssets } = useServerData();
 
   const discrepancies = useMemo(() => {
     const gapMap: Record<string, { fundingSource: string; gapCount: number; missingValue: number }> = {};
@@ -1075,7 +1075,7 @@ export const AuditDiscrepancyWidget: React.FC = () => {
 
 // 6. Prescriptive - Disposal & Clearance Engine
 export const DisposalActionList: React.FC = () => {
-  const { assets: contextAssets } = useApp();
+  const { assets: contextAssets } = useServerData();
 
   const prescriptions = useMemo(() => {
     return contextAssets
@@ -1154,7 +1154,7 @@ export const DisposalActionList: React.FC = () => {
 // 7. Descriptive - Asset Utilization & Procurement Justifier (Maximizable Preview)
 export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selectedLabFilter = "All Labs" }) => {
   const [isMaximized, setIsMaximized] = useState(false);
-  const { assets: dbAssetsList, dbTransfers, dbLoans } = useApp();
+  const { assets: dbAssetsList, dbTransfers, dbLoans } = useServerData();
 
   const filteredAssets = useMemo(() => {
     if (selectedLabFilter === "All Labs" || selectedLabFilter === "All") return dbAssetsList;

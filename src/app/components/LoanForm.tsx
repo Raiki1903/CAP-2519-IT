@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useApp } from "../context";
+import { useSession } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft, CheckCircle, User, MapPin, Calendar, FileText, ChevronRight, Bookmark
@@ -70,7 +71,8 @@ interface Props {
 }
 
 export function LoanForm({ asset, onBack, onClose }: Props) {
-  const { syncFromDb, currentUser } = useApp();
+  const { currentUser } = useSession();
+  const { syncFromDb } = useServerData();
   const [borrower, setBorrower] = useState(() => {
     return currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)";
   });

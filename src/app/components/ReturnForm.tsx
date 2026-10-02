@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { useApp } from "../context";
+import { useSession } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
+import { useBrowserOnly } from "@web/state/browserOnly";
 import * as returnsApi from "@web/api/returns.api";
 import * as repairsApi from "@web/api/repairs.api";
 import { motion, AnimatePresence } from "motion/react";
@@ -26,7 +28,9 @@ interface Props {
 }
 
 export function ReturnForm({ asset, onBack, onClose }: Props) {
-  const { role, addReturnRequest, finalizeReturn, returns, syncFromDb } = useApp();
+  const { role } = useSession();
+  const { syncFromDb } = useServerData();
+  const { addReturnRequest, finalizeReturn, returns } = useBrowserOnly();
 
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
   const [condition, setCondition] = useState("");

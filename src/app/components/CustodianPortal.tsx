@@ -3,7 +3,9 @@ import jsQR from "jsqr";
 import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
-import { useApp } from "../context";
+import { useSession } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
+import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as inspectionsApi from "@web/api/inspections.api";
 import { Button } from "./ui/button";
@@ -51,7 +53,9 @@ const statusPills = [
 ];
 
 export function CustodianPortal({ activeTab }: { activeTab: string }) {
-  const { cycleMode, addRepairRequest: onRepairRequest, assets, addInspectionReport, currentUser, syncFromDb } = useApp();
+  const { cycleMode, currentUser } = useSession();
+  const { addRepairRequest: onRepairRequest, assets, syncFromDb } = useServerData();
+  const { addInspectionReport } = useBrowserOnly();
   const currentUserName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Custodian User";
 
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);

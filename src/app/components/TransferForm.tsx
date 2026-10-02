@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useApp } from "../context";
+import { useServerData } from "@web/state/serverData";
 import * as transfersApi from "@web/api/transfers.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -78,7 +78,7 @@ interface Props {
 }
 
 export function TransferForm({ asset, onBack, onClose }: Props) {
-  const { syncFromDb } = useApp();
+  const { syncFromDb } = useServerData();
   const [toEmail, setToEmail] = useState("");
   const [location, setLocation] = useState("");
   const [reason, setReason] = useState("");

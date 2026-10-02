@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
-import { useApp, roleToSlug } from "../context";
+import { useSession, roleToSlug } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
+import { useBrowserOnly } from "@web/state/browserOnly";
 import * as transfersApi from "@web/api/transfers.api";
 import * as disposalsApi from "@web/api/disposals.api";
 import type { Role } from "@shared/enums/role";
@@ -25,20 +27,18 @@ import {
 } from "lucide-react";
 
 export function NotificationCenter() {
+  const { role, currentUser } = useSession();
   const {
-    role,
     assets,
     repairRequests,
     dbTransfers,
     dbLoans,
-    returns,
     pendingDisposals,
-    manualClearanceHolds,
     acknowledgeRepair,
-    currentUser,
     authorizeLoan,
     syncFromDb
-  } = useApp();
+  } = useServerData();
+  const { returns, manualClearanceHolds } = useBrowserOnly();
 
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);

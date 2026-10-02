@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { Outlet, Navigate, useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { useApp, roleToSlug, roleDefaultPath } from "../context";
+import { useSession, roleToSlug, roleDefaultPath } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
 import { Sidebar } from "../components/Sidebar";
 import { NotificationCenter } from "../components/NotificationCenter";
 import { Menu, Shield } from "lucide-react";
 
 export function RootLayout() {
-  const { role, setRole, currentUser, isDbLoading } = useApp();
+  const { role, setRole, currentUser } = useSession();
+  const { isDbLoading } = useServerData();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileOpen, setIsMobileOpen] = useState(false);

@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import DirectorAnalyticsView from "./DirectorAnalyticsView";
-import { useApp, type Asset, type RepairRequest, type InspectionReport, type PendingDisposal, type AffiliateClearance } from "../context";
+import { useSession } from "@web/state/session";
+import { useServerData, type Asset } from "@web/state/serverData";
+import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as disposalsApi from "@web/api/disposals.api";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -76,14 +78,14 @@ export function getLatestRecordConditionScore(asset: any): number {
 
 export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProps) {
   const navigate = useNavigate();
+  const { currentUser } = useSession();
   const {
     assets,
     repairRequests = [],
-    inspections = [],
-    currentUser,
     isDbLoading: isGlobalDbLoading,
     syncFromDb
-  } = useApp();
+  } = useServerData();
+  const { inspections = [] } = useBrowserOnly();
 
   const [dbAssets, setDbAssets] = useState<any[]>([]);
   const [loadingDbAssets, setLoadingDbAssets] = useState(false);
