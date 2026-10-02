@@ -45,7 +45,7 @@ interface SessionContextType {
   role: Role | null;
   setRole: (role: Role | null) => void;
   currentUser: SessionUser | null;
-  updateProfile: (firstName: string, lastName: string, profilePicture: string) => Promise<void>;
+  updateProfile: (firstName: string, lastName: string, profilePicture: string, labAffiliation?: string) => Promise<void>;
   cycleMode: "Annual" | "Trimestral";
   setCycleMode: (mode: "Annual" | "Trimestral") => void;
   theme: "classic-dark" | "light-slate";

@@ -6,6 +6,7 @@ import * as repairsApi from "../api/repairs.api";
 import * as disposalsApi from "../api/disposals.api";
 import * as inspectionsApi from "../api/inspections.api";
 import * as authApi from "../api/auth.api";
+import type { ApiResult } from "../api/client";
 import { useBrowserOnly } from "./browserOnly";
 
 export interface RepairRequest {
@@ -105,7 +106,7 @@ interface ServerDataContextType {
   pendingDisposals: PendingDisposal[];
   pendingRegistrations: PendingRegistration[];
   addPendingRegistration: (req: PendingRegistration) => void;
-  approveRegistration: (requestId: string) => Promise<void>;
+  approveRegistration: (reqOrId: string | PendingRegistration) => Promise<ApiResult>;
   rejectRegistration: (requestId: string) => Promise<void>;
   dbTransfers: any[];
   dbReports: any[];
@@ -264,7 +265,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     const payload = targetObj ? { requestId: targetObj.id, ...targetObj } : { requestId: id };
 
     try {
-      const data: any = await authApi.approveRegistration(payload);
+      const data = await authApi.approveRegistration(payload);
       if (data.success) {
         setPendingRegistrations(prev => prev.filter(r => r.id !== id));
         await syncFromDb();
