@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { useApp, roleToSlug } from "../context";
+import * as transfersApi from "@web/api/transfers.api";
+import * as disposalsApi from "@web/api/disposals.api";
 import type { Role } from "@shared/enums/role";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -34,9 +36,6 @@ export function NotificationCenter() {
     pendingDisposals,
     manualClearanceHolds,
     acknowledgeRepair,
-    updateTransferRequest,
-    approveDisposal,
-    rejectDisposal,
     currentUser,
     inspectionSchedules,
     authorizeLoan,
@@ -563,6 +562,35 @@ export function NotificationCenter() {
   const hasPersonalHold = holdsList.some(h => h.name === currentUserName);
   const personalHoldNotes = holdsList.find(h => h.name === currentUserName)?.notes;
 
+  const decideTransferFromBell = async (txn: any, decision: "approve" | "decline") => {
+    const transferId = txn?.transferId ?? txn?.transfer_id;
+    if (transferId === undefined) {
+      console.error("Transfer decision skipped: this row has no database id.", txn);
+      return;
+    }
+    try {
+      const data = await transfersApi.decideTransfer(transferId, decision);
+      if (!data.success) console.error("Failed to decide transfer:", data.error);
+    } catch (err) {
+      console.error("Failed to decide transfer:", err);
+    }
+    await syncFromDb();
+  };
+
+  const decideDisposalFromBell = async (disp: any, decision: "approve" | "reject") => {
+    if (disp?.disposalId === undefined) {
+      console.error("Disposal decision skipped: this row has no database id.", disp);
+      return;
+    }
+    try {
+      const data = await disposalsApi.decideDisposal(disp.disposalId, decision);
+      if (!data.success) console.error("Failed to decide disposal:", data.error);
+    } catch (err) {
+      console.error("Failed to decide disposal:", err);
+    }
+    await syncFromDb();
+  };
+
   const handleCardClick = (targetTab?: string) => {
     if (targetTab && role) {
       const slug = roleToSlug[role];
@@ -750,12 +778,12 @@ export function NotificationCenter() {
                           )}
 
                           {/* Authorize Custody Transfer Buttons */}
-                          {item.type === "transfer" && (
+                          {item.type === "transfer" && role === "LabHead" && (
                             <div className="flex gap-1">
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  await updateTransferRequest(item.id, "Approved");
+                                  await decideTransferFromBell(item.meta, "approve");
                                 }}
                                 className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
@@ -764,7 +792,7 @@ export function NotificationCenter() {
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  await updateTransferRequest(item.id, "Declined");
+                                  await decideTransferFromBell(item.meta, "decline");
                                 }}
                                 className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                               >
@@ -779,7 +807,7 @@ export function NotificationCenter() {
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  await approveDisposal(item.id);
+                                  await decideDisposalFromBell(item.meta, "approve");
                                 }}
                                 className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
@@ -788,7 +816,7 @@ export function NotificationCenter() {
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  await rejectDisposal(item.id);
+                                  await decideDisposalFromBell(item.meta, "reject");
                                 }}
                                 className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                               >

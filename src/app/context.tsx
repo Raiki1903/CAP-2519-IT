@@ -145,6 +145,7 @@ export interface InspectionReport {
 
 export interface PendingDisposal {
   id: string;
+  disposalId?: number;
   assetId: string;
   assetName: string;
   lastCustodian: string;
@@ -202,15 +203,12 @@ interface AppContextType {
   disposeAsset: (assetId: string, details: Omit<DisposalDetails, "decommissionedBy">, role: string) => void;
   transfers: TransferRequest[];
   addTransferRequest: (req: TransferRequest) => void;
-  updateTransferRequest: (id: string, status: "Approved" | "Declined") => void;
   returns: ReturnRequest[];
   addReturnRequest: (req: ReturnRequest) => void;
   finalizeReturn: (id: string, assetId: string, condition: string, checklist: string[], notes: string, clearanceIssued: boolean) => void;
   inspections: InspectionReport[];
   addInspectionReport: (report: InspectionReport) => void;
   pendingDisposals: PendingDisposal[];
-  approveDisposal: (id: string) => void;
-  rejectDisposal: (id: string) => void;
   pendingRegistrations: PendingRegistration[];
   addPendingRegistration: (req: PendingRegistration) => void;
   approveRegistration: (requestId: string) => Promise<void>;
@@ -318,8 +316,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const jsonD: any = await disposalsApi.listDisposals();
         if (jsonD.success && Array.isArray(jsonD.disposals)) {
-          setPendingDisposals(jsonD.disposals.map((d: any) => ({
+          setPendingDisposals(jsonD.disposals.filter((d: any) => d.status === "Pending").map((d: any) => ({
             id: String(d.id || d.disposalId),
+            disposalId: d.disposalId,
             assetId: d.assetId || `EQ-2024-${String(d.asset_id || 0).padStart(3, "0")}`,
             assetName: d.assetName || "Asset Scheduled for Decommissioning",
             requestedBy: d.requestedBy || "ITS/TSG Staff",
@@ -791,58 +790,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const approveDisposal = async (id: string) => {
-    const req = pendingDisposals.find(p => p.id === id);
-    if (!req) return;
-
-    const assetId = parseInt(req.assetId.split("-").pop() || "0", 10);
-    const sessionEmail = getCookie("session_user_email") || "";
-    const user = await prisma.user.findFirst({ where: { email: sessionEmail } });
-    const userId = user?.userId || 11;
-
-    await prisma.assetDisposal.create({
-      data: {
-        assetId,
-        disposedById: userId,
-        disposalDate: new Date().toISOString(),
-        disposalReason: req.breakdownReasons,
-        pathway: req.disposalPathway
-      }
-    });
-
-    await prisma.asset.update({
-      where: { assetId },
-      data: { status: "Disposed" }
-    });
-
-    setPendingDisposals(prev => {
-      const next = prev.filter(p => p.id !== id);
-      localStorage.setItem("ems_pending_disposals", JSON.stringify(next));
-      return next;
-    });
-
-    await syncFromDb();
-  };
-
-  const rejectDisposal = async (id: string) => {
-    const req = pendingDisposals.find(p => p.id === id);
-    if (!req) return;
-
-    const assetId = parseInt(req.assetId.split("-").pop() || "0", 10);
-    await prisma.asset.update({
-      where: { assetId },
-      data: { status: "Maintenance" }
-    });
-
-    setPendingDisposals(prev => {
-      const next = prev.filter(p => p.id !== id);
-      localStorage.setItem("ems_pending_disposals", JSON.stringify(next));
-      return next;
-    });
-
-    await syncFromDb();
-  };
-
   const toggleClearanceHold = (userId: number, holdStatus: "Hold Active" | "Cleared", notes?: string) => {
     setManualClearanceHolds(prev => {
       const existingIdx = prev.findIndex(h => h.userId === userId);
@@ -891,28 +838,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    await syncFromDb();
-  };
-
-  const updateTransferRequest = async (id: string, status: "Approved" | "Declined") => {
-    const dbTransfers = await prisma.custodianshipTransfer.findMany();
-    const tx = dbTransfers.find(t => t.uiId === id);
-    if (tx) {
-      await prisma.custodianshipTransfer.update({
-        where: { transferId: tx.transferId },
-        data: { approvalStatus: status === "Approved" ? "APPROVED" : "REJECTED" }
-      });
-
-      if (status === "Approved") {
-        await prisma.asset.update({
-          where: { assetId: tx.assetId },
-          data: {
-            custodianId: tx.newCustodianId,
-            status: "On Loan"
-          }
-        });
-      }
-    }
     await syncFromDb();
   };
 
@@ -1118,10 +1043,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sidebarCollapsed, setSidebarCollapsed,
 
         assets, addAsset, removeAsset, updateAsset, disposeAsset,
-        transfers, addTransferRequest, updateTransferRequest,
+        transfers, addTransferRequest,
         returns, addReturnRequest, finalizeReturn,
         inspections, addInspectionReport,
-        pendingDisposals, approveDisposal, rejectDisposal,
+        pendingDisposals,
         pendingRegistrations, addPendingRegistration, approveRegistration, rejectRegistration,
         manualClearanceHolds, toggleClearanceHold,
         currentUser, updateProfile,

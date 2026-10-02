@@ -141,7 +141,7 @@ interface LoanRequest {
 }
 
 export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
-  const { currentUser, assets, transfers, repairRequests, updateTransferRequest, pendingRegistrations = [], approveRegistration, rejectRegistration } = useApp();
+  const { currentUser, assets, transfers, repairRequests, pendingRegistrations = [], approveRegistration, rejectRegistration } = useApp();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "gallery">("gallery");
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
