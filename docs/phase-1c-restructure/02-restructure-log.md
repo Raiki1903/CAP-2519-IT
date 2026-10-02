@@ -3,7 +3,7 @@
 Running record of the migration in [01D section 9](../phase-1b-deep-map/01D-restructure-plan.md#9-ordered-migration-steps).
 Decision and comment standard: [01-restructure-decision.md](01-restructure-decision.md), [../guides/CODE-COMMENTS.md](../guides/CODE-COMMENTS.md).
 
-Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
+Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15, and the branch continues from that merge. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
 
 ---
 
@@ -17,7 +17,7 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 2 | Quarantine dead code into `legacy/analytics-v1/` | Done | `5b68bb6b` | n/a (see note 3) | **98** (from 114) | 2026-09-26 |
 | 3 | Create `shared/`, move enums and the lab list | Done | `e88ae11b` | `58840373` | **98** (unchanged) | 2026-09-30 |
 | 4 | Introduce `web/api/client.ts`, convert loans | Done | `a4c1b417` | `88eea586` | **98** (unchanged) | 2026-10-01 |
-| 5 | Convert the remaining features to the API client | Done, hand checks pending | `5389d51b` to `497d0c30` (9 commits, see detail) | `docs(step 5)` commit (hash recorded next step) | **98** (unchanged, same errors) | 2026-10-02 |
+| 5 | Convert the remaining features to the API client | Done | `5389d51b` to `497d0c30` (9 commits, see detail) | `6488407b` | **98** (unchanged, same errors) | 2026-10-02 |
 | 6 | Split `context.tsx`, delete localStorage-only actions | Not started | | | | |
 | 7 | Delete `prismaClient.ts` | Not started | | | | |
 | 8 | Move the frontend to `web/` with feature folders | Not started | | | | |
@@ -221,7 +221,7 @@ Query strings for the three dashboard endpoints are still built at the call site
 
 **Not verified:** nothing was clicked in a browser and no request reached the database in this session.
 
-**Hand checks owed** (each needs the server and the database):
+**Hand checks: passed.** Raiki ran the ten checks below against the database and all passed (reported 2026-10-03). Step 5 was merged into `main` in PR #15. The list is kept for the record:
 
 1. *Assets.* Log in as each role and open the inventory. The asset list loads. Open one asset and check the custodian history loads. As Staff, register a new asset, edit it, then delete it.
 2. *Assets, error path.* Stop the server and try to register an asset. The form shows an error message, not a blank screen.
