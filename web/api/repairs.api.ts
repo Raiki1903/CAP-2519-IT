@@ -1,6 +1,6 @@
 /**
  * Repairs API: repair tickets and their progress.
- * Layer: api. Called by RepairForm, ReturnForm, ITSDashboard, TSGAnalyticsView, and context.tsx. Calls client.ts.
+ * Layer: api. Called by RepairForm, ReturnForm, ITSDashboard, TSGAnalyticsView, and state/serverData.tsx. Calls client.ts.
  * Used by: Custodian repair request, Staff repair queue and progress updates.
  */
 import { apiGet, apiPost, apiPostRaw, apiPut, apiPutRaw, type ApiResult } from "./client";
@@ -37,7 +37,7 @@ export function requestRepair(assetTag: string, input: RepairRequestInput): Prom
 
 /**
  * Same request as `requestRepair`, but returns the untouched Response.
- * For context.tsx, which sends the request and never reads the answer.
+ * For state/serverData.tsx, which sends the request and never reads the answer.
  *
  * @returns the raw Response
  */
@@ -68,7 +68,7 @@ export function updateRepair(repairId: number | string, input: RepairUpdateInput
 
 /**
  * Same request as `updateRepair`, but returns the untouched Response.
- * For context.tsx, which sends the request and never reads the answer.
+ * For state/serverData.tsx, which sends the request and never reads the answer.
  *
  * @returns the raw Response
  */

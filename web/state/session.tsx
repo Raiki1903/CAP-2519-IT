@@ -1,8 +1,20 @@
+/**
+ * Session state: who is logged in, their role and profile, and their display preferences.
+ * Layer: shared (web state). Called by App.tsx (the provider) and by every screen through useSession().
+ * Calls api/auth.api.ts. Holds no asset, loan, or other workflow data: that is serverData.tsx.
+ * Used by: every role.
+ */
 import { createContext, useContext, useState, useEffect } from "react";
 import type { Role } from "@shared/enums/role";
 import * as authApi from "../api/auth.api";
 
-// ── Cookie Helper Functions ────────────────────────────────────────────────
+/**
+ * Writes a browser cookie for the whole site.
+ *
+ * @param name cookie name
+ * @param value stored URL-encoded
+ * @param days lifetime in days. Left out, the cookie lasts until the browser closes
+ */
 export function setCookie(name: string, value: string, days?: number) {
   let expires = "";
   if (days) {
@@ -13,6 +25,12 @@ export function setCookie(name: string, value: string, days?: number) {
   document.cookie = name + "=" + encodeURIComponent(value) + expires + "; path=/";
 }
 
+/**
+ * Reads a browser cookie.
+ *
+ * @param name cookie name
+ * @returns the decoded value, or null when the cookie is not set
+ */
 export function getCookie(name: string): string | null {
   const nameEQ = name + "=";
   const ca = document.cookie.split(";");
@@ -24,20 +42,33 @@ export function getCookie(name: string): string | null {
   return null;
 }
 
+/**
+ * Deletes a browser cookie by giving it an expiry date in the past.
+ *
+ * @param name cookie name
+ */
 export function eraseCookie(name: string) {
   document.cookie = name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
 }
 
+/**
+ * The logged-in person, as `GET /api/auth/me` returns them.
+ * The picture arrives under one name and is copied to all three
+ * (`profilePicture`, `userImg`, `avatarUrl`), because screens read different ones.
+ */
+// TODO(H-13): several screens read user_id, first_name, last_name, id, and center_id, which are not on this object, and get undefined. Own fix branch.
 export interface SessionUser {
   userId: number;
   firstName: string;
   lastName: string;
   email: string;
   idNumber: number;
+  /** The database user type, for example "STUDENT" or "FACULTY". */
   userType: string;
   profilePicture?: string;
   userImg?: string;
   avatarUrl?: string;
+  /** Short code of the person's first research center, for example "CITe4D". */
   labAffiliation?: string;
 }
 
@@ -56,11 +87,24 @@ interface SessionContextType {
 
 const SessionContext = createContext<SessionContextType | null>(null);
 
+/**
+ * Holds the session and the preferences, and shares them through useSession().
+ * On page load it restores the session from three cookies and asks
+ * authApi.getMe for the role and profile. Preferences are kept in cookies too.
+ *
+ * What it shares:
+ * - `role`, `currentUser`: null while logged out.
+ * - `setRole(role)`: logs in (loads the profile with authApi.getMe) or, with null, logs out and clears the session cookies.
+ * - `updateProfile(...)`: saves name, picture, and lab with authApi.updateAccount.
+ * - `cycleMode`, `theme`, `sidebarCollapsed` and their setters.
+ *
+ * @param children the rest of the app
+ */
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<Role | null>(null);
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
 
-  // Load preferences from cookies
+  // TODO(F-38): cycle mode is shown as a policy for the whole institution, but it is one cookie per browser. Phase 3.
   const [cycleMode, setCycleModeState] = useState<"Annual" | "Trimestral">(() => {
     const c = getCookie("pref_cycle_mode");
     return (c === "Annual" || c === "Trimestral") ? c : "Trimestral";
@@ -75,7 +119,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return getCookie("pref_sidebar_collapsed") === "true";
   });
 
-  // Set up preferences color schema in class list
+  // Tailwind's dark styles switch on a "dark" class on the <html> element.
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "classic-dark") {
@@ -85,7 +129,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [theme]);
 
-  // Session activity verification & decay checks
+  // Restores the session on page load.
+  // TODO(C-06): the session is an unsigned cookie holding an email, and the server returns whatever role that email has. Step 13 (requireAuth).
   useEffect(() => {
     const sessionEmail = getCookie("session_user_email");
     const lastActivityStr = getCookie("session_last_activity");
@@ -99,25 +144,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const oneDayMs = 24 * 60 * 60 * 1000;
       const thirtyDaysMs = 30 * oneDayMs;
 
+      // Two limits: 24 hours without a page load, and 30 days in total.
       if (now - lastActivity > oneDayMs) {
-        // Session expired due to 24h inactivity
         setRoleState(null);
         eraseCookie("session_user_email");
         eraseCookie("session_last_activity");
         eraseCookie("session_created");
         alert("Session expired due to 24 hours of inactivity. Please log in again.");
       } else if (now - sessionCreated > thirtyDaysMs) {
-        // Session expired due to 30 days max lifespan
         setRoleState(null);
         eraseCookie("session_user_email");
         eraseCookie("session_last_activity");
         eraseCookie("session_created");
         alert("Your session has reached its 30-day limit. Please log in again.");
       } else {
-        // Session valid! Reset activity timer to now + 24 hours
         setCookie("session_last_activity", String(now), 1);
 
-        // Session valid! Fetch live user from MySQL DB in Prisma Studio
         authApi.getMe(sessionEmail)
           .then(data => {
             if (data.success && data.user) {
@@ -130,6 +172,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
                 avatarUrl: img
               } as any);
             } else {
+              // The server does not know this email, so the person is logged out.
+              // The cookies are left in place and the same check runs on the next load.
               setRoleState(null);
               setCurrentUser(null);
             }
@@ -156,6 +200,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setCurrentUser(null);
     } else {
       setCookie("session_last_activity", String(Date.now()), 1);
+      // Login.tsx writes the email cookie before it calls setRole, so the profile can be loaded here.
       const email = getCookie("session_user_email");
       if (email) {
         authApi.getMe(email)
@@ -175,6 +220,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // A failed save is only written to the console, so the account page shows success either way.
   const updateProfile = async (firstName: string, lastName: string, profilePicture: string, labAffiliation?: string) => {
     if (!currentUser) return;
     try {
@@ -229,12 +275,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Gives a component the session and the preferences.
+ *
+ * @returns role, currentUser, setRole, updateProfile, and the three preferences with their setters
+ * @throws Error if the component is not inside SessionProvider
+ */
 export function useSession() {
   const ctx = useContext(SessionContext);
   if (!ctx) throw new Error("useSession must be used inside SessionProvider");
   return ctx;
 }
 
+/** The first URL segment of each role's pages, for example `/lab-head/...`. */
 export const roleToSlug: Record<Role, string> = {
   ITS: "its",
   TSG: "tsg",
@@ -243,6 +296,7 @@ export const roleToSlug: Record<Role, string> = {
   AdRICDirector: "adric-director",
 };
 
+/** Where each role lands after login, and when it opens a URL that belongs to another role. */
 export const roleDefaultPath: Record<Role, string> = {
   ITS: "/its/overview",
   TSG: "/tsg/repairs",

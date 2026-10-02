@@ -1,6 +1,6 @@
 /**
  * Loans API: every loan request the web app sends to the server.
- * Layer: api. Called by LoanForm, LabHeadDashboard, LabHeadAnalyticsView, and context.tsx. Calls client.ts.
+ * Layer: api. Called by LoanForm, LabHeadDashboard, LabHeadAnalyticsView, and state/serverData.tsx. Calls client.ts.
  * Used by: Custodian borrow request, Lab Head approval.
  */
 import { apiGet, apiPost, apiPut, type ApiResult } from "./client";

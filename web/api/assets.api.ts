@@ -1,6 +1,6 @@
 /**
  * Assets API: the asset registry calls (list, history, create, edit, delete).
- * Layer: api. Called by the four role dashboards, AssetDetailModal, TSGAnalyticsView, and context.tsx. Calls client.ts.
+ * Layer: api. Called by the four role dashboards, AssetDetailModal, TSGAnalyticsView, and state/serverData.tsx. Calls client.ts.
  * Used by: every role's inventory view, Staff asset registration and editing.
  */
 import { apiDelete, apiGet, apiGetRaw, apiPostRaw, apiPutRaw, type ApiResult } from "./client";
