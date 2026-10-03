@@ -3,7 +3,9 @@ import jsQR from "jsqr";
 import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
-import { useApp } from "../context";
+import { useSession } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
+import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as inspectionsApi from "@web/api/inspections.api";
 import { Button } from "./ui/button";
@@ -51,7 +53,9 @@ const statusPills = [
 ];
 
 export function CustodianPortal({ activeTab }: { activeTab: string }) {
-  const { cycleMode, addRepairRequest: onRepairRequest, assets, addInspectionReport, currentUser } = useApp();
+  const { cycleMode, currentUser } = useSession();
+  const { addRepairRequest: onRepairRequest, assets, syncFromDb } = useServerData();
+  const { addInspectionReport } = useBrowserOnly();
   const currentUserName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Custodian User";
 
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
@@ -353,6 +357,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         submittedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         cycleType: cycleMode
       });
+      syncFromDb();
 
       // 3. Trigger repair request to TSG if critical fault or immediate inspection requested
       if (triggerRepair) {
@@ -388,6 +393,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         submittedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         cycleType: cycleMode
       });
+      syncFromDb();
       setSubmitResult("healthy");
     } finally {
       setSubmitting(false);

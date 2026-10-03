@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useApp } from "../context";
+import { useSession } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Label } from "./ui/label";
@@ -18,7 +18,7 @@ const AVATAR_PRESETS = [
 ];
 
 export function AccountDetailsPage() {
-  const { currentUser, role, updateProfile } = useApp();
+  const { currentUser, role, updateProfile } = useSession();
   const navigate = useNavigate();
 
   const [firstName, setFirstName] = useState(currentUser?.firstName || "");

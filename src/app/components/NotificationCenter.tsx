@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
-import { useApp, roleToSlug } from "../context";
+import { useSession, roleToSlug } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
+import { useBrowserOnly } from "@web/state/browserOnly";
+import * as transfersApi from "@web/api/transfers.api";
+import * as disposalsApi from "@web/api/disposals.api";
 import type { Role } from "@shared/enums/role";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -23,25 +27,18 @@ import {
 } from "lucide-react";
 
 export function NotificationCenter() {
+  const { role, currentUser } = useSession();
   const {
-    role,
     assets,
     repairRequests,
-    transfers,
     dbTransfers,
     dbLoans,
-    returns,
     pendingDisposals,
-    manualClearanceHolds,
     acknowledgeRepair,
-    updateTransferRequest,
-    approveDisposal,
-    rejectDisposal,
-    currentUser,
-    inspectionSchedules,
     authorizeLoan,
     syncFromDb
-  } = useApp();
+  } = useServerData();
+  const { returns, manualClearanceHolds } = useBrowserOnly();
 
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -207,8 +204,8 @@ export function NotificationCenter() {
       }
     });
 
-    // B. Custody Transfers (Live DB Transfers + Context Transfers)
-    const rawTransfers = (dbTransfers && dbTransfers.length > 0) ? dbTransfers : transfers;
+    // B. Custody Transfers
+    const rawTransfers = dbTransfers || [];
     rawTransfers.forEach((txn: any) => {
       const status = (txn.status || "").toLowerCase();
       if (status === "pending") {
@@ -358,7 +355,7 @@ export function NotificationCenter() {
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
-    // 3. REMINDERS TAB (Inspection Schedules, Overdue Loans, Degraded Health)
+    // 3. REMINDERS TAB (Overdue Loans, Degraded Health)
     const reminders: {
       id: string;
       type: "overdue" | "duesoon" | "degraded";
@@ -369,36 +366,6 @@ export function NotificationCenter() {
       targetTab?: string;
       meta: any;
     }[] = [];
-
-    // Inspection Schedules
-    inspectionSchedules.forEach(sched => {
-      let isRelevant = false;
-      let desc = "";
-
-      if (role === "Custodian") {
-        isRelevant = true;
-        desc = `Group ${sched.labGroupId} inspection scheduled for ${sched.inspectionDate}. Please ensure equipment compliance.`;
-      } else if (role === "LabHead") {
-        isRelevant = true;
-        desc = `Group ${sched.labGroupId} inspection scheduled for ${sched.inspectionDate}. Please notify your custodians.`;
-      } else if (role === "ITS" || role === "TSG" || role === "AdRICDirector") {
-        isRelevant = true;
-        desc = `Inspection scheduled for Group ${sched.labGroupId} on ${sched.inspectionDate} (${sched.cycleType} cycle).`;
-      }
-
-      if (isRelevant) {
-        reminders.push({
-          id: `REM-SCHED-${sched.scheduleId}`,
-          type: "duesoon",
-          title: `Inspection Scheduled: Group ${sched.labGroupId}`,
-          description: desc,
-          date: sched.inspectionDate,
-          needsAction: false,
-          targetTab: "inspections",
-          meta: sched
-        });
-      }
-    });
 
     // Overdue, Due Soon, or Degraded Health Equipment
     assets.forEach(asset => {
@@ -556,12 +523,41 @@ export function NotificationCenter() {
       holdsBadge: hBadge,
       totalBadgeCount: totBadge
     };
-  }, [role, currentUser, currentUserName, currentUserEmail, currentUserId, assets, repairRequests, transfers, dbTransfers, dbLoans, returns, pendingDisposals, manualClearanceHolds, inspectionSchedules]);
+  }, [role, currentUser, currentUserName, currentUserEmail, currentUserId, assets, repairRequests, dbTransfers, dbLoans, returns, pendingDisposals, manualClearanceHolds]);
 
   if (!role) return null;
 
   const hasPersonalHold = holdsList.some(h => h.name === currentUserName);
   const personalHoldNotes = holdsList.find(h => h.name === currentUserName)?.notes;
+
+  const decideTransferFromBell = async (txn: any, decision: "approve" | "decline") => {
+    const transferId = txn?.transferId ?? txn?.transfer_id;
+    if (transferId === undefined) {
+      console.error("Transfer decision skipped: this row has no database id.", txn);
+      return;
+    }
+    try {
+      const data = await transfersApi.decideTransfer(transferId, decision);
+      if (!data.success) console.error("Failed to decide transfer:", data.error);
+    } catch (err) {
+      console.error("Failed to decide transfer:", err);
+    }
+    await syncFromDb();
+  };
+
+  const decideDisposalFromBell = async (disp: any, decision: "approve" | "reject") => {
+    if (disp?.disposalId === undefined) {
+      console.error("Disposal decision skipped: this row has no database id.", disp);
+      return;
+    }
+    try {
+      const data = await disposalsApi.decideDisposal(disp.disposalId, decision);
+      if (!data.success) console.error("Failed to decide disposal:", data.error);
+    } catch (err) {
+      console.error("Failed to decide disposal:", err);
+    }
+    await syncFromDb();
+  };
 
   const handleCardClick = (targetTab?: string) => {
     if (targetTab && role) {
@@ -750,12 +746,12 @@ export function NotificationCenter() {
                           )}
 
                           {/* Authorize Custody Transfer Buttons */}
-                          {item.type === "transfer" && (
+                          {item.type === "transfer" && role === "LabHead" && (
                             <div className="flex gap-1">
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  await updateTransferRequest(item.id, "Approved");
+                                  await decideTransferFromBell(item.meta, "approve");
                                 }}
                                 className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
@@ -764,7 +760,7 @@ export function NotificationCenter() {
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  await updateTransferRequest(item.id, "Declined");
+                                  await decideTransferFromBell(item.meta, "decline");
                                 }}
                                 className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                               >
@@ -779,7 +775,7 @@ export function NotificationCenter() {
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  await approveDisposal(item.id);
+                                  await decideDisposalFromBell(item.meta, "approve");
                                 }}
                                 className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
@@ -788,7 +784,7 @@ export function NotificationCenter() {
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  await rejectDisposal(item.id);
+                                  await decideDisposalFromBell(item.meta, "reject");
                                 }}
                                 className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                               >

@@ -1,6 +1,6 @@
 /**
  * Transfers API: custodianship transfer requests and decisions.
- * Layer: api. Called by TransferForm, LabHeadDashboard, LabHeadAnalyticsView, and context.tsx. Calls client.ts.
+ * Layer: api. Called by TransferForm, LabHeadDashboard, LabHeadAnalyticsView, NotificationCenter, and state/serverData.tsx. Calls client.ts.
  * Used by: Custodian transfer request, Lab Head approval.
  */
 import { apiGet, apiPost, apiPut, type ApiResult } from "./client";

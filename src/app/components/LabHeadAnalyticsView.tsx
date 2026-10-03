@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { useApp } from "../context";
+import { useServerData } from "@web/state/serverData";
 import * as loansApi from "@web/api/loans.api";
 import * as transfersApi from "@web/api/transfers.api";
 import * as analyticsApi from "@web/api/analytics.api";
@@ -604,7 +604,7 @@ export const IdleTimeDurationFrequencyWidget: React.FC<{ lab: string }> = ({ lab
     }
   });
 
-  const { assets } = useApp();
+  const { assets } = useServerData();
   const idleAssets = assets.map((a: any, idx: number) => ({
     id: idx + 1,
     tag: a.id,

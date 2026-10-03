@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { useApp } from "../context";
+import { useSession } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
 import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, Printer, Download, ArrowRight, ShieldCheck, CheckCircle, XCircle } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
@@ -141,7 +142,8 @@ interface LoanRequest {
 }
 
 export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
-  const { currentUser, assets, transfers, repairRequests, updateTransferRequest, pendingRegistrations = [], approveRegistration, rejectRegistration } = useApp();
+  const { currentUser } = useSession();
+  const { assets, repairRequests, pendingRegistrations = [], approveRegistration, rejectRegistration } = useServerData();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "gallery">("gallery");
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);

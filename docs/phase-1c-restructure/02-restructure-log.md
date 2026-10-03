@@ -3,7 +3,7 @@
 Running record of the migration in [01D section 9](../phase-1b-deep-map/01D-restructure-plan.md#9-ordered-migration-steps).
 Decision and comment standard: [01-restructure-decision.md](01-restructure-decision.md), [../guides/CODE-COMMENTS.md](../guides/CODE-COMMENTS.md).
 
-Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
+Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15, and the branch continues from that merge. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
 
 ---
 
@@ -17,8 +17,8 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 2 | Quarantine dead code into `legacy/analytics-v1/` | Done | `5b68bb6b` | n/a (see note 3) | **98** (from 114) | 2026-09-26 |
 | 3 | Create `shared/`, move enums and the lab list | Done | `e88ae11b` | `58840373` | **98** (unchanged) | 2026-09-30 |
 | 4 | Introduce `web/api/client.ts`, convert loans | Done | `a4c1b417` | `88eea586` | **98** (unchanged) | 2026-10-01 |
-| 5 | Convert the remaining features to the API client | Done, hand checks pending | `5389d51b` to `497d0c30` (9 commits, see detail) | `docs(step 5)` commit (hash recorded next step) | **98** (unchanged, same errors) | 2026-10-02 |
-| 6 | Split `context.tsx`, delete localStorage-only actions | Not started | | | | |
+| 5 | Convert the remaining features to the API client | Done | `5389d51b` to `497d0c30` (9 commits, see detail) | `6488407b` | **98** (unchanged, same errors) | 2026-10-02 |
+| 6 | Split `context.tsx`, delete localStorage-only actions | Done, hand checks pending | `9d1b62a9`, `b35a67e1` (behavior changes), `20cd4fdd` (move), `8dcd6120` (types) | `f8f43435` | **93** (from 98, see detail) | 2026-10-03 |
 | 7 | Delete `prismaClient.ts` | Not started | | | | |
 | 8 | Move the frontend to `web/` with feature folders | Not started | | | | |
 | 9 | Merge ITS and TSG into `/staff/*` | Not started | | | | |
@@ -221,7 +221,7 @@ Query strings for the three dashboard endpoints are still built at the call site
 
 **Not verified:** nothing was clicked in a browser and no request reached the database in this session.
 
-**Hand checks owed** (each needs the server and the database):
+**Hand checks: passed.** Raiki ran the ten checks below against the database and all passed (reported 2026-10-03). Step 5 was merged into `main` in PR #15. The list is kept for the record:
 
 1. *Assets.* Log in as each role and open the inventory. The asset list loads. Open one asset and check the custodian history loads. As Staff, register a new asset, edit it, then delete it.
 2. *Assets, error path.* Stop the server and try to register an asset. The form shows an error message, not a blank screen.
@@ -233,6 +233,101 @@ Query strings for the three dashboard endpoints are still built at the call site
 8. *Auth.* Log in and log out as each role. Reload the page while logged in and stay logged in. Change name and picture on the account page and reload.
 9. *Registrations.* Submit a sign-up. As a Lab Head, see it, approve one and reject another.
 10. *Analytics.* Open the Director, Lab Head, and Staff analytics views. Charts load with real data. Change the lab and date filters on each.
+
+---
+
+## Step 6 detail
+
+**This step changes behavior on purpose.** It is split into four commits so that each one has a single purpose, plus the comment commit.
+
+| Commit | Kind | What it does |
+|---|---|---|
+| `9d1b62a9` | Behavior change | The notification bell's transfer and disposal buttons call the real API (H-01) |
+| `b35a67e1` | Behavior change | The rest of the fake browser database is removed from `context.tsx` |
+| `20cd4fdd` | Move | `context.tsx` is split into three files under `web/state/` and deleted |
+| `8dcd6120` | Types only | Two declared types are corrected to match the code |
+| `f8f43435` | Comments | File headers, TSDoc, inline comments |
+
+**A decision was asked for first.** The session's instruction was to stop and ask before deleting any localStorage-only action whose feature has no database replacement. Three were found. Raiki's answer (2026-10-03): **keep all three, isolated, with no behavior change; the team decides the real fix later.** They are recorded as open team decisions in the notes below.
+
+### What changed in behavior
+
+1. **Bell approvals now save (H-01).** Approve and Decline on a transfer card call `transfersApi.decideTransfer`. Authorize and Reject on a disposal card call `disposalsApi.decideDisposal`. Both then reload from the server. Before, they changed only the browser's fake database.
+2. **The bell lists pending disposals only.** It used to list approved and rejected ones too, because the list was never filtered by status. Without this, a disposal decided from the bell would never leave it. The Director analytics "pending disposals" fallback count uses the same list, so it is now a count of pending ones as well.
+3. **Transfer buttons in the bell show for the Lab Head only.** Staff and the receiving custodian used to see them too. Those buttons did nothing real before; making them real for those roles would have let a recipient approve their own transfer, which no dashboard allows and which contradicts the recorded decision (Lab Head approval, no recipient step). Their cards still appear and still link to the transfers tab. This is a judgment call and is one line to reverse (`role === "LabHead"` in `NotificationCenter.tsx`).
+4. **No second copy of anything is written to the browser.** `addAsset`, `removeAsset`, `updateAsset`, and `addTransferRequest` are gone. Each used to run after the real API call and then reload from the server. The call site now does the reload itself (`syncFromDb()`), in the same place, so screens refresh as they did.
+5. **No fake fallback data.** If `GET /api/assets` fails, the asset list keeps what it showed before instead of switching to the browser's fake copy. The bell, the Director audit trail, and the Director transfer chart no longer fall back to the fake transfer list (which also held a fake "transfer" row for every loan request). Old `ems_pending_disposals` values are no longer read.
+6. **No fake user fallback in the session.** If `/api/auth/me` does not know the email in the session cookie, the person is logged out. Before, the fake user table was tried first. Saving a profile no longer writes a second copy to the fake user table. For a real account whose numeric id happened to match one of the 11 fake users, that second write also triggered a full data reload and overwrote the lab shown in memory with the form's value; neither happens now.
+7. **Dead actions removed:** `disposeAsset`, `addInspectionSchedule`, `resolveMaintenanceItem`, `resetInspectionCycle`, `toggleClearanceHold`, and the `inspectionSchedules` and `maintenanceQueue` lists. No screen called any of them (H-18, F-37). The bell's "Inspection Scheduled" reminders, which could only ever show schedules created by those uncalled actions, are removed with them.
+
+### What stayed the same, on purpose
+
+The three browser-only lists work exactly as before on screen. They now live in one clearly labelled file, `web/state/browserOnly.tsx`:
+
+| List | localStorage key | Still does |
+|---|---|---|
+| Custodian return requests | `ems_returns` | Custodian submits a request, Staff see it in Pending Returns (same browser only), Staff finalize it |
+| Staff inspection log | `ems_inspections` | Every submitted report is added to the log table on the Staff inspections tab |
+| Manual clearance holds | `ems_manual_clearance_holds` | Any hold already saved in a browser still shows in the bell |
+
+`finalizeReturn` and `addInspectionReport` keep their browser list and lose only their write to the fake database, which nothing reads any more. The one piece that could not be kept is `toggleClearanceHold`: it looked the person up in the fake user table that step 7 deletes, and no screen called it, so there is no way to create a hold today and there was none before.
+
+### The split, and how it differs from 01D
+
+`context.tsx` (1,161 lines) is gone. `useApp()` is replaced by three hooks, and all 19 files that used it were updated.
+
+| File | Hook | Holds |
+|---|---|---|
+| `web/state/session.tsx` | `useSession()` | Role, current user, profile save, theme, cycle mode, sidebar, cookie helpers, `roleToSlug`, `roleDefaultPath` |
+| `web/state/serverData.tsx` | `useServerData()` | The lists several screens share, loaded through `web/api`: assets, repairs, loans, transfers, reports, pending disposals, pending registrations, and their actions |
+| `web/state/browserOnly.tsx` | `useBrowserOnly()` | The three browser-only lists above |
+
+**Difference from 01D section 2,** which lists only `session.tsx` under `web/state/`:
+
+- `serverData.tsx` is not in 01D. 01D has every page load its own data through `web/api`. Today 16 files read the shared lists (the asset list alone is read by 9 of them, and the notification bell fetches nothing itself). Giving each of them its own loading is a rewrite of every dashboard, which is step 8's job (the dashboards are split into pages there) and the bell rewrite's job (01D section 8). So the shared lists get a temporary home that only calls `web/api` and never touches localStorage. It should shrink in step 8 and disappear when the bell is rewritten.
+- `browserOnly.tsx` is not in 01D either. It exists because of the decision above. 01D expected these lists to be deleted.
+
+The intent of 01D is kept: session state is alone in its file, no URL appears outside `web/api`, and the fake database is no longer mixed into shared state.
+
+`getDescriptiveCondition` moved into `AssetDetailModal.tsx`, its only user. One timing difference: the browser-only lists are read when the page loads, and again on every server reload as before, where they used to wait for the first reload to finish.
+
+### Typecheck: 98 to 93
+
+| Change | Errors | Why |
+|---|---|---|
+| `b35a67e1` | 98 to 97 | The error was inside the deleted `addAsset` call (`image_url` is not on `Asset`) |
+| `8dcd6120` | 97 to 93 | `updateProfile` is declared with its fourth argument (3 errors in `AccountDetailsPage`), and `approveRegistration` is declared to take a registration or an id (1 error in `LabHeadDashboard`) |
+
+No new error appeared. 14 messages now name the type `SessionUser` where they said `User`, because the session user type no longer comes from the fake database file. They are the same H-13 errors on the same lines.
+
+### Verified
+
+- `npm run typecheck` and `npm run build` after every commit: counts as above, build passes each time.
+- Server: a server was already running on port 4000 during the session, so no second one was started. `GET /api/auth/me` with no email answered with the expected "Email query param required" JSON. `server.ts` is unchanged in this step.
+- The three providers were rendered together outside a browser: each hook returns the expected members, preferences are read from cookies, the return list is read from localStorage, and using a hook outside its provider throws a clear error.
+- One reload was run with `fetch` replaced by a recorder: it requests the same six endpoints in the same order as before the step (`assets`, `asset_transfers`, `asset_reports`, `asset_loans`, `asset_disposals`, `asset_repairs`).
+- Comment commit: the compiled output of the three state files is identical before and after.
+- After `b35a67e1`, the only file that imports `prismaClient.ts` is `Login.tsx`.
+
+**Not verified:** nothing was clicked in a browser, and no approval was sent to the database in this session.
+
+**Known gap until step 7:** `Login.tsx` still falls back to the fake users. Someone who logs in that way now gets a Custodian screen with no profile, and is logged out on reload. Step 7 removes the fallback.
+
+### Hand checks owed
+
+Each needs the server and the database.
+
+1. *Bell, transfer.* As a Custodian, file a transfer for a **CITe4D** asset (the bell only shows a Lab Head transfers tagged CITe4D, see notes). As a Lab Head, open the bell and press Approve Transfer. Expect `asset_transfers.status` to become `approved`, a new `asset_records` row for the new custodian, and the card to leave the bell. Repeat with Decline on a second transfer: status `declined`, no new record row.
+2. *Bell, disposal.* As Staff, file a disposal. As Director, open the bell and press Authorize Disposal. Expect `asset_disposals.status` to become `approved`, the asset to show as Disposed, and the card to leave the bell. Repeat with Reject on a second one.
+3. *Bell, other roles.* As Staff, and as the receiving custodian, a pending transfer card shows with no Approve or Decline button. Clicking the card opens the transfers tab.
+4. *Bell, decided disposals.* A disposal approved or rejected earlier does not appear in anyone's bell.
+5. *Assets.* As Staff, register an asset, edit it, delete it. The inventory refreshes after each, as before.
+6. *Loans and transfers.* As a Custodian, submit a borrow request and a transfer request. Each shows its success screen, and the custodian's bell lists the new request.
+7. *Returns (must be unchanged).* As a Custodian, submit a return request. In the same browser, log in as Staff: Pending Returns lists it. Press Evaluate and Finalize and finish the form. A row lands in `asset_returns`, a reference number shows, and the request leaves the pending list.
+8. *Inspection log (must be unchanged).* As a Custodian, submit a condition report. In the same browser, as Staff, open Inspections: the log table lists it and View Report opens it. Finalize a single-item inspection as Staff: it joins the log and a row lands in `asset_reports`.
+9. *Session.* Log in as each role, reload, and stay logged in with the right dashboard. Log out and land on the login page. Change name and picture on the account page, reload, and see them kept.
+10. *Preferences.* Change the theme, collapse the sidebar, switch the cycle mode. Reload. All three are remembered.
+11. *Server stopped.* With the server stopped, reload while logged in. Expect the login page, not a crash.
 
 ---
 
@@ -260,10 +355,19 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | `web/api/*.api.ts` return a loose `ApiResult` (any extra fields). The real request and response shapes belong in `shared/types/` | H-13 | Steps 11 and 12, as each backend feature is extracted |
 | `docs/reference/AdRIC_DB_Schema.sql` does not match the live database. The live database has different Lab Head accounts (`labhead.bio`, `labhead.car`, and so on, with no `labhead.cite4d`) and different seed passwords, and the Director already holds `ADRIC_DIRECTOR`. Logging in with the credentials from the file fails and silently falls back to the mock login. Reported by Raiki on 2026-10-02. Not part of the restructure, not fixed. **Step 14 should baseline from the live schema, not from this file** | H-23, H-22 (H-22 is already fixed in the live data) | Step 14 |
 | Five endpoints put the asset tag into the URL without encoding it (`custodian-history`, `transfer`, `return`, `repair`, `inspection`), while five others encode it (`borrow`, `disposal`, and asset create, edit, delete). Harmless with tags like `EQ-2024-001`; a tag containing `/`, `?`, or `#` would break the unencoded ones. Each API function keeps what its call site did | n/a (new) | Step 12, with each feature's extraction |
-| `context.tsx` builds the pending disposals list from the API without `lastCustodian`, `breakdownReasons`, and `disposalPathway`, which the `PendingDisposal` type requires. The typed API result exposed this as a new type error, so that one variable is annotated `any`, as it effectively was before | H-13 | Step 6 (the block is rewritten when `context.tsx` is split) |
-| `approveRegistration` in `context.tsx` returns the server's answer and accepts an object, but its declared type says it takes a string and returns nothing. Same treatment: one variable annotated `any` | H-13 | Step 6 |
+| The pending disposals list (now in `web/state/serverData.tsx`) is built from the API without `lastCustodian`, `breakdownReasons`, and `disposalPathway`, which the `PendingDisposal` type requires, so the variable stays annotated `any`. Step 6 moved the block but did not fix it: making the type truthful means changing the bell, which reads two of those fields and so shows "undefined" in every disposal card | H-13, M-13 | The bell rewrite (01D section 8) |
+| `approveRegistration` returns the server's answer and accepts an object, but its declared type said it takes a string and returns nothing. **Fixed in step 6** (`8dcd6120`): the declared type now matches and the `any` is gone | H-13 | Done |
 | `handleTransferDecision` in `LabHeadAnalyticsView.tsx` is dead code like `handleLoanDecision`, and also sends `"reject"` where the server only accepts `"decline"`. Disposals are the opposite: the server wants `"reject"`. Three workflows, two words for the same decision | n/a (new) | Step 12; delete the two dead handlers in step 8 |
 | The lab-head analytics endpoint is fetched five separate times by five widgets on the same screen, four of them with an identical query | M-01 (same family) | Step 8, when the analytics view is split |
+| **Open team decision 1: custodian return requests.** A request is saved only in the browser that made it (`ems_returns`), so Staff on another machine never see it. Worse, the Pending Returns list is the only place Staff can open the finalize form, so on another machine a return cannot be finalized in the app at all. The database cannot hold a pending return today: `asset_returns` has no status column. Kept as is in `web/state/browserOnly.tsx` (Raiki, 2026-10-03). Options: add a status column or a requests table and an endpoint (Phase 3), or give Staff a finalize button on the asset detail screen | H-02 | Team decision, then Phase 3 |
+| **Open team decision 2: Staff inspection log.** The log table on the Staff inspections tab reads the browser's own copy (`ems_inspections`). The real reports are saved to `asset_reports`, and the dashboard already fetches them (`dbReports` in `ITSDashboard.tsx`) but never shows them. Kept as is (Raiki, 2026-10-03). Options: point the table at the fetched database list (the cycle type column would go, the database does not store it), or drop the table when the tab is split | F-28 in 01A | Team decision, then step 8 |
+| **Open team decision 3: manual clearance holds.** Holds are stored only in the browser (`ems_manual_clearance_holds`) and no screen can create one: the Director dashboard imported `toggleClearanceHold` but never called it. The list is kept readable for the bell (Raiki, 2026-10-03). The action was removed in step 6 because it looked people up in the fake user table. `AdRICDirectorDashboard.tsx` still has two unused state variables left from a holds screen (`selectedHoldAffiliate`, `overrideNotes`). A real hold feature is panel comment D2 | F-37 in 01A | Team decision, then Phase 3 |
+| `web/state/serverData.tsx` is a temporary home for the lists several screens share. 01D has no such file: each page should load its own data | n/a | Shrinks in step 8, goes with the bell rewrite |
+| The bell decides which transfers a Lab Head sees by the literal text "CITe4D", not by the Lab Head's own lab. Now that the bell's buttons are real, any Lab Head can approve a CITe4D transfer from the bell, and a Lab Head of another lab sees no transfers there. The Custody tab scopes by branch correctly (in the browser only, M-02). The server checks nothing either way (C-02) | F-31 in 01A, M-02 | The bell rewrite, and step 12 for the server rule |
+| A failed approve, decline, or reject from the bell is written to the browser console only. The card stays and nothing tells the user why. The loan button already behaved this way | H-16 family | Step 13, then the bell rewrite |
+| Custodian condition report: if the server cannot be reached, the form saves the browser copy and still shows "Report Archived". The request's answer is never read, so a server-side refusal looks like success too | n/a (new) | Step 13 (typed errors), or with open team decision 2 |
+| `updateProfile` swallows a failed save and the account page shows its success tick anyway | n/a (new) | Step 13 |
+| `addRepairRequest` is unchanged, so `RepairForm` still posts each ticket twice and relies on the server's 8-second guard. 01D section 7 removes each form's second write when the forms move | M-07 | Step 8 |
 | `strict: false` is a deliberate starting point. Turning strict on is worth doing once the count is near zero, not during the move | H-13 | After step 9 |
 
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.

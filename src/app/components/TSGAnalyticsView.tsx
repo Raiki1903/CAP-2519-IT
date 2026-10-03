@@ -1,7 +1,7 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { useApp } from "../context";
+import { useServerData } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import * as repairsApi from "@web/api/repairs.api";
 import * as analyticsApi from "@web/api/analytics.api";
@@ -325,7 +325,7 @@ export const LocationStatusWidget: React.FC<{
   selectedLab: string;
   selectedCategory: string;
 }> = ({ selectedLab, selectedCategory }) => {
-  const { assets: contextAssets } = useApp();
+  const { assets: contextAssets } = useServerData();
 
   const { data } = useQuery({
     queryKey: ["tsg-location-status"],

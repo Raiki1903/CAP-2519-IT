@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import DirectorAnalyticsView from "./DirectorAnalyticsView";
-import { useApp, type Asset, type RepairRequest, type InspectionReport, type PendingDisposal, type AffiliateClearance } from "../context";
+import { useSession } from "@web/state/session";
+import { useServerData, type Asset } from "@web/state/serverData";
+import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as disposalsApi from "@web/api/disposals.api";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -76,17 +78,14 @@ export function getLatestRecordConditionScore(asset: any): number {
 
 export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProps) {
   const navigate = useNavigate();
+  const { currentUser } = useSession();
   const {
     assets,
-    transfers = [],
     repairRequests = [],
-    inspections = [],
-    currentUser,
-    manualClearanceHolds,
-    toggleClearanceHold,
     isDbLoading: isGlobalDbLoading,
     syncFromDb
-  } = useApp();
+  } = useServerData();
+  const { inspections = [] } = useBrowserOnly();
 
   const [dbAssets, setDbAssets] = useState<any[]>([]);
   const [loadingDbAssets, setLoadingDbAssets] = useState(false);
@@ -102,7 +101,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
     const assetTransfers = (asset.asset_transfers && asset.asset_transfers.length > 0)
       ? asset.asset_transfers
-      : (transfers || []).filter(t => t.assetId === asset.id);
+      : [];
 
     const assetRepairs = (repairRequests || []).filter(r => r.assetId === asset.id);
 
@@ -858,8 +857,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <User size={13} className="text-[#005A36]" />
                     Custodianship &amp; Transfer History
                   </h4>
-                  {((selectedAssetForAudit.asset_transfers && selectedAssetForAudit.asset_transfers.length > 0) ||
-                    (transfers || []).filter(t => t.assetId === selectedAssetForAudit.id).length > 0) ? (
+                  {(selectedAssetForAudit.asset_transfers && selectedAssetForAudit.asset_transfers.length > 0) ? (
                     <div className="space-y-2">
                       {/* Render asset_transfers relation */}
                       {(selectedAssetForAudit.asset_transfers || []).map((t: any) => (

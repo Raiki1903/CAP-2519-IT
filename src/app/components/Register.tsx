@@ -6,7 +6,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { DLSU_LABS } from "@shared/constants/labs";
-import { useApp } from "../context";
+import { useServerData } from "@web/state/serverData";
 import * as authApi from "@web/api/auth.api";
 
 const AVATAR_PRESETS = [
@@ -20,7 +20,7 @@ const AVATAR_PRESETS = [
 
 export function Register() {
   const navigate = useNavigate();
-  const { addPendingRegistration } = useApp();
+  const { addPendingRegistration } = useServerData();
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");

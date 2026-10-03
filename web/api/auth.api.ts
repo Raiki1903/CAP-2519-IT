@@ -1,6 +1,6 @@
 /**
  * Auth API: login, the current user's profile, and sign-up requests.
- * Layer: api. Called by Login, Register, AccountDetailsPage, and context.tsx. Calls client.ts.
+ * Layer: api. Called by Login, Register, AccountDetailsPage, state/session.tsx, and state/serverData.tsx. Calls client.ts.
  * Used by: login for every role, self-registration, approval of sign-ups, account page.
  */
 import { apiGet, apiPost, apiPostRaw, apiPut, type ApiResult } from "./client";

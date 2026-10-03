@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useApp } from "../context";
+import { useSession } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft, CheckCircle, User, MapPin, Calendar, FileText, ChevronRight, Bookmark
@@ -70,7 +71,8 @@ interface Props {
 }
 
 export function LoanForm({ asset, onBack, onClose }: Props) {
-  const { addTransferRequest, currentUser } = useApp();
+  const { currentUser } = useSession();
+  const { syncFromDb } = useServerData();
   const [borrower, setBorrower] = useState(() => {
     return currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)";
   });
@@ -106,18 +108,7 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
         throw new Error(result.error || "Loan request failed");
       }
 
-      addTransferRequest({
-        id: refId,
-        asset: asset.name,
-        assetId: asset.id,
-        from: "Inventory Storage",
-        fromRole: "System Registry",
-        to: borrower,
-        toRole: "Active Custodian",
-        lab: selectedLab,
-        initiated: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        status: "Pending"
-      });
+      syncFromDb();
       setSubmitted(true);
     } catch (err: any) {
       console.error("❌ Loan request failed:", err);

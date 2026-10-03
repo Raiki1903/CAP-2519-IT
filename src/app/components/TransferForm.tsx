@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useApp } from "../context";
+import { useServerData } from "@web/state/serverData";
 import * as transfersApi from "@web/api/transfers.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -78,7 +78,7 @@ interface Props {
 }
 
 export function TransferForm({ asset, onBack, onClose }: Props) {
-  const { addTransferRequest } = useApp();
+  const { syncFromDb } = useServerData();
   const [toEmail, setToEmail] = useState("");
   const [location, setLocation] = useState("");
   const [reason, setReason] = useState("");
@@ -119,18 +119,7 @@ export function TransferForm({ asset, onBack, onClose }: Props) {
       return;
     }
 
-    addTransferRequest({
-      id: refId,
-      asset: asset.name,
-      assetId: asset.id,
-      from: asset.custodian || "Active Custodian",
-      fromRole: "Active Custodian",
-      to: toEmail,
-      toRole: "Researcher",
-      lab: location,
-      initiated: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      status: "Pending"
-    });
+    syncFromDb();
     setSubmitting(false);
     setSubmitted(true);
   };

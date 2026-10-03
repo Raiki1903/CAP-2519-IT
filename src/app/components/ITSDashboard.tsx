@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { useApp, roleToSlug } from "../context";
+import { useSession, roleToSlug } from "@web/state/session";
+import { useServerData } from "@web/state/serverData";
+import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as repairsApi from "@web/api/repairs.api";
 import * as disposalsApi from "@web/api/disposals.api";
 import * as inspectionsApi from "@web/api/inspections.api";
-import type { RepairRequest } from "../context";
+import type { RepairRequest } from "@web/state/serverData";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
@@ -283,12 +285,12 @@ function RepairAlertCard({ req, onAcknowledge }: { req: RepairRequest; onAcknowl
 
 export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const navigate = useNavigate();
+  const { cycleMode, setCycleMode, role, currentUser } = useSession();
   const {
-    assets, addAsset, removeAsset, updateAsset, disposeAsset,
-    cycleMode, setCycleMode,
-    repairRequests, acknowledgeRepair, updateRepairStatus,
-    returns, role, inspections, addInspectionReport, currentUser
-  } = useApp();
+    assets, syncFromDb,
+    repairRequests, acknowledgeRepair, updateRepairStatus
+  } = useServerData();
+  const { returns, inspections, addInspectionReport } = useBrowserOnly();
   const [isScheduled, setIsScheduled] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [groupDates, setGroupDates] = useState<Record<string, { start: string; end: string }>>({
@@ -506,7 +508,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
       if (!result.success) {
         throw new Error(result.error || "Delete failed");
       }
-      removeAsset(assetToDelete);
+      syncFromDb();
       setAssetToDelete(null);
       await fetchDbAssets();
     } catch (err: any) {
@@ -582,23 +584,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
         throw new Error(result.error || "Registration failed");
       }
 
-      addAsset({
-        id: result.asset.asset_tag,
-        name: form.name,
-        serial: form.serial,
-        manufacturer: form.manufacturer,
-        category: form.category,
-        funding: form.funding,
-        procured: form.procured,
-        warranty: form.warranty,
-        location: form.location,
-        lab: form.lab,
-        status: "Active",
-        condition: 100,
-        cost: Number(form.acquisitionValue) || 0,
-        image: result.asset?.image_url || form.image || undefined,
-        image_url: result.asset?.image_url || form.image || undefined
-      });
+      syncFromDb();
       await fetchDbAssets();
       setShowModal(false);
       setForm(emptyForm);
@@ -1159,8 +1145,8 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
             key={editingAsset.id}
             asset={editingAsset}
             onClose={() => setEditingAsset(null)}
-            onSave={(updated) => {
-              updateAsset(updated);
+            onSave={() => {
+              syncFromDb();
               fetchDbAssets();
             }}
           />
@@ -1925,7 +1911,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
 
                     const inspectorName = currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : `${inspectorRoleOption} Inspector`;
 
-                    await addInspectionReport({
+                    addInspectionReport({
                       id: reportId,
                       assetId: selectedQueueItem.rawAsset?.id || selectedQueueItem.id,
                       assetName: selectedQueueItem.asset,
@@ -1936,6 +1922,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                       submittedAt: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
                       cycleType: cycleMode
                     });
+                    await syncFromDb();
 
                     // Save report under asset_reports table in MySQL database
                     if (selectedQueueItem.rawAsset?.id || selectedQueueItem.id) {
@@ -1962,23 +1949,8 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                       }
                     }
 
-                    // Update asset object condition rating & remarks in UI context
                     if (selectedQueueItem.rawAsset) {
-                      const conditionScoreMap: Record<string, number> = {
-                        "Perfect": 100,
-                        "Operational": 90,
-                        "Minor Drift": 78,
-                        "Degraded Performance": 60,
-                        "Critical Defect": 35,
-                      };
-                      const score = conditionScoreMap[inspectionStatusOption] ?? 90;
-                      updateAsset({
-                        ...selectedQueueItem.rawAsset,
-                        condition: score,
-                        descriptiveCondition: inspectionStatusOption,
-                        tsgRemarks: tsgRemarksOption || selectedQueueItem.rawAsset.tsgRemarks,
-                        itsRemarks: itsRemarksOption || selectedQueueItem.rawAsset.itsRemarks,
-                      });
+                      syncFromDb();
                     }
 
                     setItemInspectedState(prev => ({ ...prev, [selectedQueueItem.rawAsset?.id || selectedQueueItem.id]: true }));

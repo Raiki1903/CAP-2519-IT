@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useApp, type DisposalDetails } from "../context";
+import { useSession } from "@web/state/session";
+import { useServerData, type DisposalDetails } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -59,7 +60,13 @@ const STATUS_CLASS: Record<string, string> = {
   Disposed: "bg-red-50    text-red-700    border-red-200",
 };
 
-import { getDescriptiveCondition } from "../context";
+function getDescriptiveCondition(score: number): string {
+  if (score >= 95) return "Brand New";
+  if (score >= 80) return "Used";
+  if (score >= 65) return "Functional";
+  if (score >= 50) return "Functional with Issues";
+  return "Non-Functional / Repair Needed";
+}
 
 interface Props {
   asset: AssetDetail | null;
@@ -67,7 +74,8 @@ interface Props {
 }
 
 export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
-  const { role, assets, addRepairRequest } = useApp();
+  const { role } = useSession();
+  const { assets, addRepairRequest } = useServerData();
   const asset = propAsset ? (assets.find(a => a.id === propAsset.id) || propAsset) : null;
   const [view, setView] = useState<FormView>("detail");
 

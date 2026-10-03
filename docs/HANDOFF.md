@@ -379,3 +379,35 @@ Unchanged: `/api/analytics/dashboard` (re-attach or quarantine), and git history
 
 **Step 6** (split `context.tsx`, delete the localStorage-only actions). This one changes behavior on purpose, so run it in its own session with the database reachable:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with steps 6 to 7.`
+
+---
+
+## Phase 1C, restructure step 6, 2026-10-03
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 6. Branch: `refactor/feature-based-structure`, continuing from the PR #15 merge.
+
+### What was produced
+
+- **Log update for step 5** (`04cf6f91`): hand checks passed against the database, merged in PR #15, comment commit `6488407b` recorded.
+- **Step 6** (behavior changes `9d1b62a9` and `b35a67e1`, move `20cd4fdd`, types `8dcd6120`, comments `f8f43435`): `src/app/context.tsx` is gone. It is replaced by `web/state/session.tsx` (session and preferences), `web/state/serverData.tsx` (lists shared by several screens, loaded through `web/api`), and `web/state/browserOnly.tsx` (three lists that still live only in the browser). `useApp()` became `useSession()`, `useServerData()`, and `useBrowserOnly()` in 19 files. **Typecheck went from 98 to 93.** Detail in [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-6-detail).
+
+### Decisions made this session
+
+- **Raiki, 2026-10-03:** custodian return requests (H-02), the Staff inspection log, and manual clearance holds (F-37) are **kept, isolated, with no behavior change**. Each has no full database replacement. The team decides the real fix later. All three are recorded as open team decisions in the log's notes.
+
+### Worth knowing
+
+- **The notification bell now saves.** Transfer and disposal buttons call the real API (H-01). The bell lists pending disposals only. Transfer buttons show for the Lab Head only: this is a judgment call by the agent, explained in the log and one line to reverse.
+- **The fake browser database is no longer used by shared state.** Only `Login.tsx` still imports `prismaClient.ts`. Until step 7 removes that, a login through the fake fallback gives a Custodian screen with no profile.
+- **`serverData.tsx` and `browserOnly.tsx` are not in 01D's target tree.** Both are temporary and the log explains why each exists.
+- **Step 6 is not verified in a browser.** Build, typecheck, a no-browser render of the three providers, and a recorded reload passed. Eleven hand checks are listed in the log and must pass before this branch merges. Check 1 needs a CITe4D asset, because of a hardcoded lab name in the bell (logged, not fixed).
+
+### Open questions
+
+- The three open team decisions above.
+- Unchanged: `/api/analytics/dashboard` (re-attach or quarantine), and git history cleanup (C-01).
+
+### Exact next step
+
+**Step 7** (delete `prismaClient.ts`, which removes the fake login fallback). Behavior change. Run the step 6 hand checks first:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 7.`
