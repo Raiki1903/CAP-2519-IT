@@ -444,3 +444,32 @@ Both are fixed on their own branch after step 7, not inside the restructure.
 
 - Manual clearance holds (F-37): waiting on the team.
 - Staff inspection log (open team decision 2): needed before step 8 splits the inspections tab.
+
+---
+
+## Phase 1C, restructure step 7, 2026-10-04
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 7. Branch: `refactor/feature-based-structure`, continuing from the PR #16 merge. Nothing pushed.
+
+### What was produced
+
+- **Decisions update** (`c3d94a0e`): the entry above.
+- **Step 7** (`6e08e469`, behavior change): `src/app/prismaClient.ts` deleted (583 lines). `Login.tsx` no longer falls back to the 11 demo accounts when the server refuses a login, fails, or cannot be reached. Real accounts log in as before, and every message on the form is unchanged. No comment commit: the step created and moved no files, and `Login.tsx` is commented when it moves in step 8. **Typecheck stays at 93, same errors.** Detail in [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-7-detail).
+
+### Worth knowing
+
+- The demo passwords no longer ship in the browser bundle, and loading the login page no longer writes them into localStorage. Browsers that opened older versions still hold the old key until site data is cleared.
+- Verified: typecheck, build, a search for leftover references, and server start, with the database reachable (a bad login answers 401 with the message the form shows). **Not verified in a browser.** Five hand checks are listed in the log and must pass before this branch merges.
+- Logged, not fixed: when the server is unreachable, the form says "Invalid ... password", which misleads. Same as before; step 13.
+
+### Open questions
+
+- Manual clearance holds (F-37): waiting on the team.
+- Staff inspection log (open team decision 2): needed before step 8.
+
+### Exact next step
+
+1. Run the five step 7 hand checks, push, and open the pull request.
+2. Fix issues #25 (duplicate custodian requests, H-05) and #26 (My Assets shows disposed assets) on their own branch.
+3. Then **step 8** (move the frontend to `web/` with feature folders; the inspection scheduling tab moves to `legacy/` in its own labelled commit):
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 8.`
