@@ -411,3 +411,36 @@ Unchanged: `/api/analytics/dashboard` (re-attach or quarantine), and git history
 
 **Step 7** (delete `prismaClient.ts`, which removes the fake login fallback). Behavior change. Run the step 6 hand checks first:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 7.`
+
+---
+
+## Phase 1C, step 6 closed and team decisions, 2026-10-04
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md). Recorded at the start of the step 7 session. Branch: `refactor/feature-based-structure`, continuing from the PR #16 merge.
+
+### What was produced
+
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md): step 6 marked done, hand checks passed, merged in PR #16. New and updated notes for every decision below.
+- [PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md): decisions table and "still open" list brought up to date.
+- [legacy/analytics-v1/README.md](../legacy/analytics-v1/README.md): "Open decision" replaced by the analytics decision.
+
+### Decisions recorded (team, 2026-10-04)
+
+- **Step 6 accepted as built**, including the three changes beyond the plan: bell transfer buttons for the Lab Head only, `toggleClearanceHold` removed, and the two temporary state files (`serverData.tsx`, `browserOnly.tsx`).
+- **Transfers (question 1) superseded.** Custodian-to-custodian transfers will become a custodianship queue (custodian releases to Staff, Staff assign the next custodian). Design not final, built after the restructure with the Phase 3 tables (issue #22). Transfer behavior stays as it is; step 12 moves the code without the Lab Head approval rule.
+- **Custodian return requests (H-02):** Phase 3 stores the request stage in the database, most likely as `status`, `requested_by`, `requested_at`, and `loan_id` columns on `asset_returns`. The loan link also addresses H-04.
+- **Inspection photos:** at most 3 per report, high resolution, deleted after 2 weeks (keeping one compressed audit copy is still being confirmed). Asset registry pictures are compressed and kept. Phase 3, with M-17.
+- **Old analytics:** the 11 endpoints with no caller are deleted in step 12; the screen code stays in `legacy/analytics-v1/`.
+- **Repository:** will be made private (issue #9). Git history stays as is. Account passwords are test data and will be rotated later.
+
+### Found during the step 6 hand checks (pre-existing, not caused by step 6)
+
+- Custodians can submit duplicate requests on the same asset (H-05, issue #25).
+- My Assets shows disposed assets: no status filter in `CustodianPortal.tsx` (issue #26).
+
+Both are fixed on their own branch after step 7, not inside the restructure.
+
+### Open questions
+
+- Manual clearance holds (F-37): waiting on the team.
+- Staff inspection log (open team decision 2): needed before step 8 splits the inspections tab.

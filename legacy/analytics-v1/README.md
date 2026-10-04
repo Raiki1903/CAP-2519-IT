@@ -54,10 +54,8 @@ These 11 endpoints in `server.ts` existed **only** for the files above. After th
 - `GET /api/analytics/dashboard` substitutes hardcoded demo series when the real data is empty, which is one of the sources of the invented charts (H-09).
 - `StudentAnalyticsView.tsx` requests `stewardship-score/1`, a hardcoded user, so it never showed the signed-in person's own record. That endpoint is also a direct object reference: changing the number in the URL reads someone else's borrowing history (01C section 4.4).
 
-## Open decision
+## Decision (2026-10-04)
 
-**Whether `/api/analytics/dashboard` and `AnalyticsDashboard.tsx` are re-attached or stay quarantined is not decided** (01D section 6, open question 5 in [01A section 10](../../docs/phase-1b-deep-map/01A-system-trace.md#10-open-questions-and-uncertainties)). This move does not settle it: quarantining keeps the option open in both directions.
+**The 11 endpoints above are deleted; the files in this folder stay here.** None of them is re-attached. The endpoints go when the analytics backend is extracted from `server.ts` (restructure step 12), so no unauthenticated reporting route outlives its only caller. The two live endpoints listed above are not touched. This answers 01D section 6, open question 5 in [01A section 10](../../docs/phase-1b-deep-map/01A-system-trace.md#10-open-questions-and-uncertainties).
 
-If the team decides to **re-attach** a file: move it back into the feature structure (`web/features/analytics/`), fix its imports, point it at `web/api/analytics.api.ts` instead of a raw `fetch`, and give it the file header and TSDoc required by [CODE-COMMENTS.md](../../docs/guides/CODE-COMMENTS.md).
-
-If the team decides to **delete**: delete the 11 endpoints above at the same time, in the same pull request, so no unauthenticated reporting route outlives its only caller.
+The screen code is kept so the team can read it without digging through git history. It is not maintained and stays out of the build and the typecheck. If someone later wants one of these screens back, it needs new endpoints: move the file into `web/features/analytics/`, point it at `web/api/analytics.api.ts`, and give it the file header and TSDoc required by [CODE-COMMENTS.md](../../docs/guides/CODE-COMMENTS.md).
