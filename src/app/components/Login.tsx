@@ -7,7 +7,6 @@ import type { Role } from "@shared/enums/role";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { prisma } from "../prismaClient";
 
 export function Login() {
   const navigate = useNavigate();
@@ -41,33 +40,22 @@ export function Login() {
 
     try {
       // 2. Query Express API to authenticate against MySQL Database in Prisma Studio
-      let determinedRole: Role = "Custodian";
-      let authUserEmail = email.trim();
+      let determinedRole: Role;
+      let authUserEmail: string;
 
       try {
         const data = await authApi.login(email.trim(), password);
-        if (data.success && data.role) {
-          determinedRole = data.role as Role;
-          authUserEmail = data.user?.email || email.trim();
-        } else {
-          const user = await prisma.user.findFirst({
-            where: { email: email.trim(), password }
-          });
-          if (!user) {
-            setLoading(false);
-            setError(data.error || "Invalid institutional email address or password.");
-            return;
-          }
-        }
-      } catch (e) {
-        const user = await prisma.user.findFirst({
-          where: { email: email.trim(), password }
-        });
-        if (!user) {
+        if (!data.success || !data.role) {
           setLoading(false);
-          setError("Invalid institutional email address or password.");
+          setError(data.error || "Invalid institutional email address or password.");
           return;
         }
+        determinedRole = data.role as Role;
+        authUserEmail = data.user?.email || email.trim();
+      } catch (e) {
+        setLoading(false);
+        setError("Invalid institutional email address or password.");
+        return;
       }
 
       // 3. Session Handling and Cookies
