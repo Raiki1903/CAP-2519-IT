@@ -5,7 +5,7 @@ Start here. This page tells you where every document lives, what phase the proje
 ## Where we are now
 
 **Current phase:** 1C, restructure and team conventions.
-**Next prompt to run:** `phase-1c-restructure/PROMPT-2-restructure.md`, continuing from **step 7** (a behavior-change step). Part A and steps 0 to 2 were merged in PR #4; steps 3 to 5 were merged in PR #15, with all hand checks passed. Step 6 is done on `refactor/feature-based-structure` and its hand checks are still owed. Three browser-only features were kept on purpose and wait for a team decision. See [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md) for where it stands.
+**Next prompt to run:** `phase-1c-restructure/PROMPT-2-restructure.md`, continuing from **step 8** (move the frontend to `web/`). Part A and steps 0 to 2 were merged in PR #4, steps 3 to 5 in PR #15, and step 6 in PR #16, all with hand checks passed. Step 7 (delete the fake browser database and its login fallback) is done on `refactor/feature-based-structure` and its hand checks passed. After step 7, issues #25 and #26 are fixed on their own branch. Step 8 needs the team's answer on the Staff inspection log. See [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md) for where it stands.
 
 ## Status board
 
@@ -18,7 +18,7 @@ Update this table whenever a prompt finishes (agents do this as part of every pr
 | 1B. Deep map | [PROMPT-deep-map.md](phase-1b-deep-map/PROMPT-deep-map.md) | 01A to 01E in [phase-1b-deep-map/](phase-1b-deep-map/) | Done | 2026-09-18 |
 | 1B. Team briefing | [PROMPT-team-briefing.md](phase-1b-deep-map/PROMPT-team-briefing.md) | [01F-team-briefing.md](phase-1b-deep-map/01F-team-briefing.md) | Done | 2026-09-26 |
 | 1C. Git workflow | [PROMPT-1-git-workflow.md](phase-1c-restructure/PROMPT-1-git-workflow.md) | [guides/GIT-WORKFLOW.md](guides/GIT-WORKFLOW.md), [.github/pull_request_template.md](../.github/pull_request_template.md) | Done | 2026-09-26 |
-| 1C. Restructure | [PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md) | [01-restructure-decision.md](phase-1c-restructure/01-restructure-decision.md), [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md), [guides/CODE-COMMENTS.md](guides/CODE-COMMENTS.md), the code moves | In progress (Part A and steps 0 to 6 done; next is step 7) | 2026-10-03 |
+| 1C. Restructure | [PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md) | [01-restructure-decision.md](phase-1c-restructure/01-restructure-decision.md), [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md), [guides/CODE-COMMENTS.md](guides/CODE-COMMENTS.md), the code moves | In progress (Part A and steps 0 to 7 done; next is step 8) | 2026-10-04 |
 | 1C. Structure guide | [PROMPT-3-structure-guide.md](phase-1c-restructure/PROMPT-3-structure-guide.md) | `guides/DEVELOPER-GUIDE.md` | Not started | |
 | 2. Tests | [PROMPT-db-revisions.md](phase-1-codebase-map/PROMPT-db-revisions.md) (Phase 2 part) | `phase-2-tests/02-test-spec.md` + test files | Paused | |
 | 3. Database plan | [PROMPT-db-revisions.md](phase-1-codebase-map/PROMPT-db-revisions.md) (Phase 3 part) | `phase-3-database/03-db-plan.md` | Paused | |

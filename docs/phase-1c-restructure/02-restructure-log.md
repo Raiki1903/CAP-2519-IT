@@ -3,7 +3,7 @@
 Running record of the migration in [01D section 9](../phase-1b-deep-map/01D-restructure-plan.md#9-ordered-migration-steps).
 Decision and comment standard: [01-restructure-decision.md](01-restructure-decision.md), [../guides/CODE-COMMENTS.md](../guides/CODE-COMMENTS.md).
 
-Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15, and the branch continues from that merge. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
+Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16; the branch continues from the PR #16 merge. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
 
 ---
 
@@ -18,8 +18,8 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 3 | Create `shared/`, move enums and the lab list | Done | `e88ae11b` | `58840373` | **98** (unchanged) | 2026-09-30 |
 | 4 | Introduce `web/api/client.ts`, convert loans | Done | `a4c1b417` | `88eea586` | **98** (unchanged) | 2026-10-01 |
 | 5 | Convert the remaining features to the API client | Done | `5389d51b` to `497d0c30` (9 commits, see detail) | `6488407b` | **98** (unchanged, same errors) | 2026-10-02 |
-| 6 | Split `context.tsx`, delete localStorage-only actions | Done, hand checks pending | `9d1b62a9`, `b35a67e1` (behavior changes), `20cd4fdd` (move), `8dcd6120` (types) | `f8f43435` | **93** (from 98, see detail) | 2026-10-03 |
-| 7 | Delete `prismaClient.ts` | Not started | | | | |
+| 6 | Split `context.tsx`, delete localStorage-only actions | Done (hand checks passed, PR #16) | `9d1b62a9`, `b35a67e1` (behavior changes), `20cd4fdd` (move), `8dcd6120` (types) | `f8f43435` | **93** (from 98, see detail) | 2026-10-03 |
+| 7 | Delete `prismaClient.ts` | Done (hand checks passed) | `6e08e469` (behavior change) | n/a (see note 4) | **93** (unchanged, same errors) | 2026-10-04 |
 | 8 | Move the frontend to `web/` with feature folders | Not started | | | | |
 | 9 | Merge ITS and TSG into `/staff/*` | Not started | | | | |
 | 10 | Create the `server/` skeleton | Not started | | | | |
@@ -117,6 +117,8 @@ Most common codes: 49 of TS2339 (property does not exist), 37 of TS2322 (type no
 **Verified:** `npm run typecheck` reports 98. `npm run build` passes.
 
 **Still open, and this step does not settle it:** whether `/api/analytics/dashboard` and `AnalyticsDashboard.tsx` are re-attached or stay quarantined (01D section 6, open question 5). Quarantining keeps both options available. The README says what to do in either direction.
+
+**Decided 2026-10-04:** the 11 endpoints are deleted when the analytics backend is extracted in step 12, and the screen code stays in `legacy/analytics-v1/`. The README's "Open decision" section was updated to match.
 
 ---
 
@@ -250,6 +252,8 @@ Query strings for the three dashboard endpoints are still built at the call site
 
 **A decision was asked for first.** The session's instruction was to stop and ask before deleting any localStorage-only action whose feature has no database replacement. Three were found. Raiki's answer (2026-10-03): **keep all three, isolated, with no behavior change; the team decides the real fix later.** They are recorded as open team decisions in the notes below.
 
+**The team accepted all three changes that went beyond the plan (2026-10-04):** bell transfer buttons for the Lab Head only (item 3 below), the removal of `toggleClearanceHold` (item 7), and the two temporary state files `serverData.tsx` and `browserOnly.tsx`.
+
 ### What changed in behavior
 
 1. **Bell approvals now save (H-01).** Approve and Decline on a transfer card call `transfersApi.decideTransfer`. Authorize and Reject on a disposal card call `disposalsApi.decideDisposal`. Both then reload from the server. Before, they changed only the browser's fake database.
@@ -311,11 +315,16 @@ No new error appeared. 14 messages now name the type `SessionUser` where they sa
 
 **Not verified:** nothing was clicked in a browser, and no approval was sent to the database in this session.
 
-**Known gap until step 7:** `Login.tsx` still falls back to the fake users. Someone who logs in that way now gets a Custodian screen with no profile, and is logged out on reload. Step 7 removes the fallback.
+**Known gap until step 7:** `Login.tsx` still falls back to the fake users. Someone who logs in that way now gets a Custodian screen with no profile, and is logged out on reload. Step 7 removes the fallback. (Closed by step 7, `6e08e469`.)
 
-### Hand checks owed
+### Hand checks: passed
 
-Each needs the server and the database.
+Raiki ran the eleven checks below against the database and all passed. Step 6 was merged into `main` in PR #16. The list is kept for the record.
+
+Two bugs were found while running them. Both exist on `main` before step 6 and are not caused by it, so they are fixed on their own branch after step 7, not in the restructure:
+
+- Custodians can submit duplicate requests on the same asset (H-05, issue #25).
+- My Assets shows disposed assets, because `CustodianPortal.tsx` does not filter the list by status (issue #26).
 
 1. *Bell, transfer.* As a Custodian, file a transfer for a **CITe4D** asset (the bell only shows a Lab Head transfers tagged CITe4D, see notes). As a Lab Head, open the bell and press Approve Transfer. Expect `asset_transfers.status` to become `approved`, a new `asset_records` row for the new custodian, and the card to leave the bell. Repeat with Decline on a second transfer: status `declined`, no new record row.
 2. *Bell, disposal.* As Staff, file a disposal. As Director, open the bell and press Authorize Disposal. Expect `asset_disposals.status` to become `approved`, the asset to show as Disposed, and the card to leave the bell. Repeat with Reject on a second one.
@@ -328,6 +337,52 @@ Each needs the server and the database.
 9. *Session.* Log in as each role, reload, and stay logged in with the right dashboard. Log out and land on the login page. Change name and picture on the account page, reload, and see them kept.
 10. *Preferences.* Change the theme, collapse the sidebar, switch the cycle mode. Reload. All three are remembered.
 11. *Server stopped.* With the server stopped, reload while logged in. Expect the login page, not a crash.
+
+---
+
+## Step 7 detail
+
+**This step changes behavior on purpose.** One commit, `6e08e469`.
+
+**What changed:**
+
+- `src/app/prismaClient.ts` is deleted (583 lines). It was the fake database in the browser: 11 demo accounts with their passwords, and imitation tables saved under the localStorage key `dlsu_equipment_ms_db_v2`.
+- `Login.tsx` no longer imports it. It was the last file that did (after step 6).
+
+**What changed in behavior:** before, when the server said no, `Login.tsx` looked the email and password up in the fake database. If a demo account matched, the person was let in as a Custodian. That happened in three cases: the server refused the login (401), the server failed (500, for example the database was down), or the server could not be reached at all. Now all three show the error and stop:
+
+| Case | Message shown (same text as before) |
+|---|---|
+| Wrong email or password (401) | The server's message: "Invalid institutional email address or password." |
+| Server error (500) | The server's message (H-16: this is the raw database error text) |
+| Server unreachable | "Invalid institutional email address or password." |
+
+Someone using a real account sees no difference. A demo account that also exists in the database with the same password still logs in, through the server, which is correct. One more effect: just loading the login page used to write the fake database, passwords included, into the browser's localStorage. That no longer happens, and the demo passwords are no longer in the code every visitor downloads (C-03, 01C section 2.2).
+
+**How the fallback was removed without changing anything else:** the server always sends a `role` when `success` is true, so the success path is exactly the old one. The two error paths keep their old messages word for word. They now return straight away instead of trying the fake lookup first.
+
+**Not changed, logged instead:** the "server unreachable" case says "Invalid ... password", which is misleading when the real problem is the network. That was the old message too, so it stays until step 13 gives the client typed errors (see notes).
+
+**Typecheck: 93, unchanged.** A line-by-line comparison shows the same 93 errors as before the step. Neither deleted nor edited file had any.
+
+### Verified
+
+- `npm run typecheck`: 93, the same list.
+- `npm run build` passes. The built bundle in `dist/` no longer contains `dlsu_equipment_ms_db_v2`.
+- A search of `src/`, `web/`, `shared/`, and `legacy/` finds no `prismaClient` import and no use of the fake database's storage key.
+- `npx tsx server.ts` starts and listens on port 4000. The database was reachable: `POST /api/auth/login` with an empty body answered 400 "Please enter your email and password.", and with an unknown account answered 401 "Invalid institutional email address or password.", which is the message the form now shows for that case.
+
+**Not verified in the agent session:** nothing was clicked in a browser, and no real account was logged in. The hand checks below cover that.
+
+### Hand checks: passed
+
+Raiki ran the five checks below against the database and all passed (reported 2026-10-05): real logins work for each role, the old demo accounts are refused, a wrong password is refused, a login with the server stopped stays on the login page with an error, and the `dlsu_equipment_ms_db_v2` key does not come back. The list is kept for the record.
+
+1. *Real accounts.* Log in as Staff (ITS and TSG), Lab Head, Custodian, and Director. Each lands on its own dashboard, and a reload keeps you logged in.
+2. *Old demo accounts.* Try two or three of the 11 accounts that were in the fake database (the list is in `git show fbfcccda:src/app/prismaClient.ts`, around line 200). Each is refused with "Invalid institutional email address or password." unless that same email and password also exist in the real database, in which case it logs in normally.
+3. *Wrong password.* A real email with a wrong password is refused with the same message.
+4. *Server stopped.* Stop the server and try to log in. The form shows the error and stays on the login page.
+5. *No fake database in the browser.* In the browser's developer tools (Application, then Local Storage), delete `dlsu_equipment_ms_db_v2` if it is there from an older version, reload the login page, and log in. The key does not come back.
 
 ---
 
@@ -349,7 +404,7 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | Database role names (`ADRIC_DIRECTOR`, `TSG_STAFF`, `LAB_HEAD`, and the rest of `roles_role_name`) are string literals inside the login, `/me`, and registration handlers in `server.ts`, alongside the mapping to app roles. That is logic, not a list, so it moves with `features/auth` | n/a | Steps 9 and 12 (auth) |
 | `LAGUNA_LABS` in `server.ts` and `LAB_OPTIONS` in `TSGAnalyticsView.tsx` are two more lab lists, using short codes, which do not match the full names in `shared/constants/labs.ts`. 01D says campus should come from `research_centers.location` instead | M-03 | Phase 3, or step 12 (assets) |
 | The condition text and colour maps (`CONDITION_TEXT_CLASS` and similar) are repeated in `ITSDashboard`, `LabHeadDashboard`, `CustodianPortal`, and `ReturnForm`. They are UI styling, so they belong in `web/features/assets/`, not `shared/` | n/a | Step 8 |
-| `prismaClient.ts` has its own `RoleName` type, which is missing `ITS_STAFF` and `CUSTODIAN`. Left alone, since the file is deleted in step 7 | H-01 | Step 7 |
+| `prismaClient.ts` has its own `RoleName` type, which is missing `ITS_STAFF` and `CUSTODIAN`. Left alone, since the file is deleted in step 7. **Gone with the file in step 7** (`6e08e469`) | H-01 | Done |
 | `LabHeadAnalyticsView.tsx` `handleLoanDecision` is defined but nothing calls it, so it is dead code. It would also fail if wired up: it sends `"reject"`, and the server only accepts `"approve"` or `"decline"` (400). Converted to the client anyway so no loan URL is left outside `web/api/`; `decideLoan` takes a plain string for that reason | n/a (new) | Small fix branch, or step 11 (loans validation) |
 | Most call sites check only `success` in the body, not the HTTP status. A minority check the status or content type, or never read the answer at all (corrected in step 5: the step 4 version of this note said no site checks the status, which was true for loans only). The client keeps both styles for now, through plain and `Raw` calls, so steps 4 and 5 stay behavior-neutral | H-16 | Step 13 (`errorHandler`), then remove the `Raw` calls from `web/api/client.ts` |
 | `web/api/*.api.ts` return a loose `ApiResult` (any extra fields). The real request and response shapes belong in `shared/types/` | H-13 | Steps 11 and 12, as each backend feature is extracted |
@@ -359,15 +414,22 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | `approveRegistration` returns the server's answer and accepts an object, but its declared type said it takes a string and returns nothing. **Fixed in step 6** (`8dcd6120`): the declared type now matches and the `any` is gone | H-13 | Done |
 | `handleTransferDecision` in `LabHeadAnalyticsView.tsx` is dead code like `handleLoanDecision`, and also sends `"reject"` where the server only accepts `"decline"`. Disposals are the opposite: the server wants `"reject"`. Three workflows, two words for the same decision | n/a (new) | Step 12; delete the two dead handlers in step 8 |
 | The lab-head analytics endpoint is fetched five separate times by five widgets on the same screen, four of them with an identical query | M-01 (same family) | Step 8, when the analytics view is split |
-| **Open team decision 1: custodian return requests.** A request is saved only in the browser that made it (`ems_returns`), so Staff on another machine never see it. Worse, the Pending Returns list is the only place Staff can open the finalize form, so on another machine a return cannot be finalized in the app at all. The database cannot hold a pending return today: `asset_returns` has no status column. Kept as is in `web/state/browserOnly.tsx` (Raiki, 2026-10-03). Options: add a status column or a requests table and an endpoint (Phase 3), or give Staff a finalize button on the asset detail screen | H-02 | Team decision, then Phase 3 |
+| **Open team decision 1: custodian return requests.** A request is saved only in the browser that made it (`ems_returns`), so Staff on another machine never see it. Worse, the Pending Returns list is the only place Staff can open the finalize form, so on another machine a return cannot be finalized in the app at all. The database cannot hold a pending return today: `asset_returns` has no status column. Kept as is in `web/state/browserOnly.tsx` (Raiki, 2026-10-03). **Direction agreed 2026-10-04:** `asset_returns` already stores finalized returns, so only the request stage is missing. Phase 3 most likely adds `status`, `requested_by`, `requested_at`, and `loan_id` columns to `asset_returns` instead of a new table; the loan link also addresses H-04 | H-02, H-04 | Phase 3 |
 | **Open team decision 2: Staff inspection log.** The log table on the Staff inspections tab reads the browser's own copy (`ems_inspections`). The real reports are saved to `asset_reports`, and the dashboard already fetches them (`dbReports` in `ITSDashboard.tsx`) but never shows them. Kept as is (Raiki, 2026-10-03). Options: point the table at the fetched database list (the cycle type column would go, the database does not store it), or drop the table when the tab is split | F-28 in 01A | Team decision, then step 8 |
-| **Open team decision 3: manual clearance holds.** Holds are stored only in the browser (`ems_manual_clearance_holds`) and no screen can create one: the Director dashboard imported `toggleClearanceHold` but never called it. The list is kept readable for the bell (Raiki, 2026-10-03). The action was removed in step 6 because it looked people up in the fake user table. `AdRICDirectorDashboard.tsx` still has two unused state variables left from a holds screen (`selectedHoldAffiliate`, `overrideNotes`). A real hold feature is panel comment D2 | F-37 in 01A | Team decision, then Phase 3 |
+| **Open team decision 3: manual clearance holds.** Holds are stored only in the browser (`ems_manual_clearance_holds`) and no screen can create one: the Director dashboard imported `toggleClearanceHold` but never called it. The list is kept readable for the bell (Raiki, 2026-10-03). The action was removed in step 6 because it looked people up in the fake user table. `AdRICDirectorDashboard.tsx` still has two unused state variables left from a holds screen (`selectedHoldAffiliate`, `overrideNotes`). A real hold feature is panel comment D2. **Still open on 2026-10-04, waiting on the team** | F-37 in 01A | Team decision, then Phase 3 |
 | `web/state/serverData.tsx` is a temporary home for the lists several screens share. 01D has no such file: each page should load its own data | n/a | Shrinks in step 8, goes with the bell rewrite |
-| The bell decides which transfers a Lab Head sees by the literal text "CITe4D", not by the Lab Head's own lab. Now that the bell's buttons are real, any Lab Head can approve a CITe4D transfer from the bell, and a Lab Head of another lab sees no transfers there. The Custody tab scopes by branch correctly (in the browser only, M-02). The server checks nothing either way (C-02) | F-31 in 01A, M-02 | The bell rewrite, and step 12 for the server rule |
+| The bell decides which transfers a Lab Head sees by the literal text "CITe4D", not by the Lab Head's own lab. Now that the bell's buttons are real, any Lab Head can approve a CITe4D transfer from the bell, and a Lab Head of another lab sees no transfers there. The Custody tab scopes by branch correctly (in the browser only, M-02). The server checks nothing either way (C-02). Since 2026-10-04 transfers are to be replaced by a custodianship queue (issue #22), so step 12 moves the transfer code without adding an approval rule | F-31 in 01A, M-02 | The bell rewrite, and the custodianship queue (issue #22) |
 | A failed approve, decline, or reject from the bell is written to the browser console only. The card stays and nothing tells the user why. The loan button already behaved this way | H-16 family | Step 13, then the bell rewrite |
 | Custodian condition report: if the server cannot be reached, the form saves the browser copy and still shows "Report Archived". The request's answer is never read, so a server-side refusal looks like success too | n/a (new) | Step 13 (typed errors), or with open team decision 2 |
 | `updateProfile` swallows a failed save and the account page shows its success tick anyway | n/a (new) | Step 13 |
 | `addRepairRequest` is unchanged, so `RepairForm` still posts each ticket twice and relies on the server's 8-second guard. 01D section 7 removes each form's second write when the forms move | M-07 | Step 8 |
+| Two pre-existing bugs found during the step 6 hand checks: duplicate custodian requests on one asset (issue #25), and My Assets listing disposed assets because `CustodianPortal.tsx` has no status filter (issue #26) | H-05 (#25), n/a (#26) | Own fix branch, after step 7 |
+| **Transfers superseded (2026-10-04).** Custodian-to-custodian transfers will become a custodianship queue: the custodian releases to Staff, Staff assign the next custodian. Design not final. Today's transfer behavior is kept, and step 12 moves the code without the Lab Head approval rule the earlier decision asked for | Question 1 | Issue #22, after the restructure with the Phase 3 tables |
+| **Inspection photos (2026-10-04):** at most 3 per report, stored high resolution and deleted after 2 weeks (whether to keep one compressed copy as audit evidence is still being confirmed). Asset registry pictures are compressed and kept | M-17 | Phase 3 |
+| **Repository visibility (2026-10-04):** the repo will be made private. Git history stays as is, no rewrite. The account passwords in it are test data and will be rotated later | C-01 | Issue #9, team action |
+| When the server cannot be reached, the login form says "Invalid institutional email address or password.", which sends the user looking for a typo when the real problem is the network. Same message as before step 7, so it was kept | H-16 family | Step 13 (typed errors), or a small fix with `Login.tsx` in step 8 |
+| Browsers that opened the app before step 7 still hold `dlsu_equipment_ms_db_v2` in localStorage, with the demo passwords inside. Nothing reads it any more and nothing writes it, but nothing clears it either. The same is true of `ems_pending_disposals` from step 6. Harmless to the app; worth a line in the team announcement ("clear site data once") | C-03 | Team announcement, no code |
+| The Phase 1 and 1B documents (01A, 01B, 01C, 01E, and others) still link to `src/app/prismaClient.ts`, which no longer exists. They are dated records of the code at the time and are not edited. The file can still be read with `git show fbfcccda:src/app/prismaClient.ts` | n/a | No action |
 | `strict: false` is a deliberate starting point. Turning strict on is worth doing once the count is near zero, not during the move | H-13 | After step 9 |
 
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.
@@ -375,3 +437,5 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 **Note 2 (step 1):** no comment commit. The step created only `tsconfig.json` and edited `package.json`, both JSON, where TSDoc and file headers do not apply. The reasoning lives in this log instead.
 
 **Note 3 (step 2):** no comment commit, by design. Per the prompt, files quarantined into `legacy/` get only their README, not per-file headers or TSDoc. Commenting dead code would imply it is maintained.
+
+**Note 4 (step 7):** no comment commit. The step created and moved no files: it deleted one and edited `Login.tsx`. `Login.tsx` moves to `web/` in step 8 and gets its file header and TSDoc there, per the rule "comment code at its destination, when it lands".
