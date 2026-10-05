@@ -117,7 +117,9 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   }, [activeTab]);
 
   const displayedAssets = dbAssets.length > 0 ? dbAssets : assets;
-  const custodianAssets = displayedAssets.filter(a => a.custodian === currentUserName);
+  // A disposal keeps the last custodian on the DISPOSED record, so the name match
+  // alone would keep listing assets that are no longer in service.
+  const custodianAssets = displayedAssets.filter(a => a.custodian === currentUserName && a.status !== "Disposed");
 
   useEffect(() => {
     if (activeTab === "report" && !reportAsset) {
