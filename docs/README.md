@@ -5,7 +5,7 @@ Start here. This page tells you where every document lives, what phase the proje
 ## Where we are now
 
 **Current phase:** 1C, restructure and team conventions.
-**Next prompt to run:** `phase-1c-restructure/PROMPT-2-restructure.md`, continuing from **step 8** (move the frontend to `web/`). Part A and steps 0 to 2 were merged in PR #4, steps 3 to 5 in PR #15, and step 6 in PR #16, all with hand checks passed. Step 7 (delete the fake browser database and its login fallback) is done on `refactor/feature-based-structure` and its hand checks are still owed. After step 7, issues #25 and #26 are fixed on their own branch. Step 8 needs the team's answer on the Staff inspection log. See [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md) for where it stands.
+**Next prompt to run:** `phase-1c-restructure/PROMPT-2-restructure.md`, continuing from **step 8** (move the frontend to `web/`). Part A and steps 0 to 2 were merged in PR #4, steps 3 to 5 in PR #15, and step 6 in PR #16, all with hand checks passed. Step 7 (delete the fake browser database and its login fallback) is done on `refactor/feature-based-structure` and its hand checks passed. After step 7, issues #25 and #26 are fixed on their own branch. Step 8 needs the team's answer on the Staff inspection log. See [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md) for where it stands.
 
 ## Status board
 
