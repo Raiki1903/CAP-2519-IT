@@ -5,7 +5,7 @@ import * as assetsApi from "@web/api/assets.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, ArrowRightLeft, Wrench, CornerUpLeft,
-  Tag, MapPin, Building2, Calendar, Activity, Bookmark, History, ArrowLeft
+  Tag, MapPin, Building2, Calendar, Activity, Bookmark, History, ArrowLeft, Clock
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { TransferForm } from "./TransferForm";
@@ -75,8 +75,14 @@ interface Props {
 
 export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const { role } = useSession();
-  const { assets, addRepairRequest } = useServerData();
+  const { assets, addRepairRequest, dbLoans, dbTransfers } = useServerData();
   const asset = propAsset ? (assets.find(a => a.id === propAsset.id) || propAsset) : null;
+
+  // The server refuses a second loan or transfer while either is pending, so the
+  // request buttons are swapped for a notice instead of leading to that refusal. (H-05)
+  const hasPendingRequest = !!asset && [...dbLoans, ...dbTransfers].some(
+    r => r.assetId === asset.id && String(r.status).toLowerCase() === "pending"
+  );
   const [view, setView] = useState<FormView>("detail");
 
   const [custodianHistoryList, setCustodianHistoryList] = useState<any[]>([]);
@@ -143,6 +149,23 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     });
     resetAndClose();
   };
+
+  const requestPendingTile = (
+    <Button
+      variant="outline"
+      disabled
+      title="This asset already has a pending loan or transfer request."
+      className="w-full h-auto flex-col py-4 px-2 gap-2 text-muted-foreground"
+    >
+      <Clock size={20} />
+      <span
+        className="text-[10px] font-extrabold leading-tight text-center"
+        style={{ fontFamily: "'Montserrat', sans-serif" }}
+      >
+        Request<br />Pending
+      </span>
+    </Button>
+  );
 
   const descriptiveCond = asset?.assetCondition
     ? asset.assetCondition.replace(/_/g, " ")
@@ -397,7 +420,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                             ) : asset.status === "Active" ? (
                               <div className="grid grid-cols-1 gap-2.5">
                                 {/* 0 — Request Loan */}
-                                {(role === "Custodian") && (
+                                {role === "Custodian" && hasPendingRequest && requestPendingTile}
+                                {role === "Custodian" && !hasPendingRequest && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       className="w-full h-auto flex-col py-4 px-2 gap-2 text-white shadow-sm"
@@ -447,7 +471,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                             ) : (
                               <div className={cn("grid gap-2.5", role === "Custodian" ? "grid-cols-3" : "grid-cols-1")}>
                                 {/* 1 — Custodianship Transfer */}
-                                {role === "Custodian" && (
+                                {role === "Custodian" && hasPendingRequest && requestPendingTile}
+                                {role === "Custodian" && !hasPendingRequest && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       variant="outline"

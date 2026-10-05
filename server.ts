@@ -911,6 +911,43 @@ app.delete('/api/assets/:assetTag', async (req: Request<{ assetTag: string }>, r
     }
 });
 
+/**
+ * Says why a new loan or transfer request on an asset must be refused, or null if it may go ahead.
+ * An asset may hold only one pending request of either kind, because approving
+ * two would hand one item to two custodians. (H-05)
+ *
+ * @param asset the asset row being requested
+ * @param allowedStatuses the asset_records statuses this kind of request accepts
+ * @returns a message for a 409 answer, or null
+ */
+async function findCustodyRequestConflict(
+    asset: { asset_id: number; asset_tag: string },
+    allowedStatuses: readonly string[],
+): Promise<string | null> {
+    // TODO(H-05): the check and the insert are not atomic, so two requests in the same instant can both pass. Phase 3 database triggers.
+    const [latestRecord, pendingLoan, pendingTransfer] = await Promise.all([
+        // Same ordering GET /api/assets uses, so this agrees with the status the screens show.
+        prisma.asset_records.findFirst({
+            where: { asset_id: asset.asset_id },
+            orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }],
+            select: { status: true },
+        }),
+        prisma.asset_loans.findFirst({ where: { asset_id: asset.asset_id, status: "pending" }, select: { loan_id: true } }),
+        prisma.asset_transfers.findFirst({ where: { asset_id: asset.asset_id, status: "pending" }, select: { transfer_id: true } }),
+    ]);
+
+    if (pendingLoan) return `${asset.asset_tag} already has a pending loan request (LOAN-${pendingLoan.loan_id}).`;
+    if (pendingTransfer) return `${asset.asset_tag} already has a pending transfer request (TRF-${pendingTransfer.transfer_id}).`;
+
+    // An asset with no record yet is listed as Active, so it is treated as ACTIVE here too.
+    const status = latestRecord?.status ?? "ACTIVE";
+    if (!allowedStatuses.includes(status)) {
+        const described: Record<string, string> = { ACTIVE: "active", ON_LOAN: "on loan", MAINTENANCE: "under maintenance", DISPOSED: "disposed" };
+        return `${asset.asset_tag} is ${described[status] ?? status} and cannot take this request.`;
+    }
+    return null;
+}
+
 // 6. Log an equipment loan request (AssetDetailModal -> LoanForm handleSubmit).
 //     Only the asset_loans row (the approval-pipeline record) is written
 //     here. Custody does NOT move to the borrower yet — asset_records stays
@@ -931,6 +968,12 @@ app.post('/api/assets/:assetTag/borrow', async (req: Request<{ assetTag: string 
         const existing = await prisma.assets.findUnique({ where: { asset_tag: assetTag } });
         if (!existing) {
             res.status(404).json({ success: false, error: `No asset found with tag ${assetTag}.` });
+            return;
+        }
+
+        const conflict = await findCustodyRequestConflict(existing, ["ACTIVE"]);
+        if (conflict) {
+            res.status(409).json({ success: false, error: conflict });
             return;
         }
 
@@ -1451,6 +1494,14 @@ app.post('/api/assets/:assetTag/transfer', async (req: Request<{ assetTag: strin
         const existing = await prisma.assets.findUnique({ where: { asset_tag: assetTag } });
         if (!existing) {
             res.status(404).json({ success: false, error: `No asset found with tag ${assetTag}.` });
+            return;
+        }
+
+        // ON_LOAN is accepted as well as ACTIVE: the detail modal offers a transfer
+        // only on an asset that is out on loan, and an approved transfer leaves it ON_LOAN.
+        const conflict = await findCustodyRequestConflict(existing, ["ACTIVE", "ON_LOAN"]);
+        if (conflict) {
+            res.status(409).json({ success: false, error: conflict });
             return;
         }
 
