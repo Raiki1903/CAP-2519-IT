@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router";
 import { RootLayout } from "./layouts/RootLayout";
-import { Login } from "./components/Login";
-import { Register } from "./components/Register";
+import { Login } from "@web/pages/auth/Login";
+import { Register } from "@web/pages/auth/Register";
 import { ITSDashboard } from "./components/ITSDashboard";
 import { LabHeadDashboard } from "./components/LabHeadDashboard";
 import { CustodianPortal } from "./components/CustodianPortal";
