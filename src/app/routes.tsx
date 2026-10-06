@@ -4,7 +4,7 @@ import { Login } from "@web/pages/auth/Login";
 import { Register } from "@web/pages/auth/Register";
 import { ITSDashboard } from "./components/ITSDashboard";
 import { LabHeadDashboard } from "./components/LabHeadDashboard";
-import { CustodianPortal } from "./components/CustodianPortal";
+import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "./components/AdRICDirectorDashboard";
 import { AccountDetailsPage } from "./components/AccountDetailsPage";
 import { NotFound } from "./components/NotFound";
