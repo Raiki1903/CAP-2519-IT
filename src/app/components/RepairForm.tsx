@@ -6,7 +6,7 @@ import {
   ArrowLeft, CheckCircle, Wrench, Trash2,
   FileText, Calendar, DollarSign, ChevronRight,
 } from "lucide-react";
-import type { AssetDetail } from "./AssetDetailModal";
+import type { AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";

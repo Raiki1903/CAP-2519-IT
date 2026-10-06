@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
 import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
-import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
-import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
+import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
+import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";

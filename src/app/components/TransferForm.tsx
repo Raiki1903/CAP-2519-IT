@@ -6,7 +6,7 @@ import {
   ArrowLeft, CheckCircle, ArrowRightLeft,
   User, MapPin, Calendar, FileText, ChevronRight,
 } from "lucide-react";
-import type { AssetDetail } from "./AssetDetailModal";
+import type { AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";

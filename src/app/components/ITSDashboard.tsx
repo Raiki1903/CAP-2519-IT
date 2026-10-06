@@ -24,8 +24,8 @@ import { Label } from "@web/components/ui/label";
 import { Separator } from "@web/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@web/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
-import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
-import { AssetDetailModal, type AssetDetail } from "./AssetDetailModal";
+import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
+import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { cn } from "@web/components/ui/utils";
 import { QRCodeSVG } from "qrcode.react";
 import {

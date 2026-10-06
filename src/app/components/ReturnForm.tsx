@@ -9,7 +9,7 @@ import {
   X, ArrowLeft, CheckCircle, CornerUpLeft,
   User, Calendar, ClipboardCheck, ToggleLeft, Hash, FileText, Wrench
 } from "lucide-react";
-import type { AssetDetail } from "./AssetDetailModal";
+import type { AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";

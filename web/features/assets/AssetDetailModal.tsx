@@ -8,10 +8,10 @@ import {
   Tag, MapPin, Building2, Calendar, Activity, Bookmark, History, ArrowLeft, Clock
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
-import { TransferForm } from "./TransferForm";
-import { ReturnForm } from "./ReturnForm";
-import { RepairForm } from "./RepairForm";
-import { LoanForm } from "./LoanForm";
+import { TransferForm } from "@/app/components/TransferForm";
+import { ReturnForm } from "@/app/components/ReturnForm";
+import { RepairForm } from "@/app/components/RepairForm";
+import { LoanForm } from "@/app/components/LoanForm";
 import { Button } from "@web/components/ui/button";
 import { Badge } from "@web/components/ui/badge";
 import { Separator } from "@web/components/ui/separator";

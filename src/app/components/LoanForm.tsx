@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft, CheckCircle, User, MapPin, Calendar, FileText, ChevronRight, Bookmark
 } from "lucide-react";
-import type { AssetDetail } from "./AssetDetailModal";
+import type { AssetDetail } from "@web/features/assets/AssetDetailModal";
 import * as loansApi from "@web/api/loans.api";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
