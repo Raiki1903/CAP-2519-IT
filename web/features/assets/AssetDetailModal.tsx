@@ -11,7 +11,7 @@ import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { TransferForm } from "@/app/components/TransferForm";
 import { ReturnForm } from "@/app/components/ReturnForm";
 import { RepairForm } from "@/app/components/RepairForm";
-import { LoanForm } from "@/app/components/LoanForm";
+import { LoanForm } from "@web/features/loans/LoanForm";
 import { Button } from "@web/components/ui/button";
 import { Badge } from "@web/components/ui/badge";
 import { Separator } from "@web/components/ui/separator";
