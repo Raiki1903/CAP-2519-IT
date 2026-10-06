@@ -473,3 +473,26 @@ Both are fixed on their own branch after step 7, not inside the restructure.
 2. Fix issues #25 (duplicate custodian requests, H-05) and #26 (My Assets shows disposed assets) on their own branch.
 3. Then **step 8** (move the frontend to `web/` with feature folders; the inspection scheduling tab moves to `legacy/` in its own labelled commit):
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 8.`
+
+---
+
+## Phase 1C, issues #25 and #26 merged, and team decisions, 2026-10-06
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md). Recorded at the start of the step 8 part 1 session. Branch: `refactor/feature-based-structure`, continuing from the PR #33 merge (`1bc85da4`).
+
+### What was produced
+
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md): the #25 and #26 fix section marked merged; team decision 2 marked decided; a note for issue #32; the clearance holds note brought up to date; step 8 marked as two parts.
+- [PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md): decisions table, "still open" list, and session plan brought up to date.
+
+### Decisions recorded (team, 2026-10-06)
+
+- **Issues #25 and #26 are fixed and merged in PR #33** (duplicate custodian requests, H-05; disposed assets in My Assets).
+- **Staff inspection log (F-28, team decision 2):** the log table will show the database reports (`asset_reports`, already fetched as `dbReports`) instead of the browser copy. Its own labelled behavior-change commit, when the inspections tab is split in step 8 part 2. The cycle type column (Annual or Trimestral) is dropped because the database does not store it. It may come back with a cycle type column on `asset_reports` and a shared cycle setting in place of the per-browser `pref_cycle_mode` cookie (F-38). Issue #34.
+- **Issue #32** (identify users by id, not display name) is tracked for steps 11 to 13.
+- **Manual clearance holds (F-37)** stay open. Step 8 moves that code as is.
+- **Step 8 runs in two sessions.** Part 1 moves everything except `ITSDashboard.tsx` into `web/`. Part 2 splits `ITSDashboard.tsx` into `web/pages/staff/`, moves inspection scheduling to `legacy/`, and switches the inspection log to the database.
+
+### Open questions
+
+- Manual clearance holds (F-37): waiting on the team. Does not block step 8.

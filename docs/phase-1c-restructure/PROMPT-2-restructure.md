@@ -13,11 +13,12 @@
 > Suggested first message (change the step numbers each session):
 > `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with steps 3 to 5.`
 >
-> Session plan: steps 3 to 5, then 6 to 7 (behavior changes), then 8 to 9, then Phase 2 tests
-> (separate prompt), then 10 to 12, then 13 to 14.
+> Session plan: steps 3 to 5, then 6 to 7 (behavior changes), then 8 part 1, then 8 part 2, then 9,
+> then Phase 2 tests (separate prompt), then 10 to 12, then 13 to 14.
 >
 > History: Part A and steps 0 to 2 were done on `refactor/option-a-structure` and merged in PR #4.
 > Steps 3 to 5 were merged in PR #15 and step 6 in PR #16, all on `refactor/feature-based-structure`.
+> The fixes for issues #25 and #26 were merged in PR #33 (branch `fix/issues-25-26`).
 
 ---
 
@@ -61,8 +62,12 @@ You are a Senior Software Engineer carrying out a careful, incremental refactor 
   | Dead analytics code stays quarantined in `legacy/analytics-v1/` with a README, not deleted | Done (step 2) |
   | **Old analytics (decided 2026-10-04):** the 11 endpoints with no caller are **deleted** when the analytics backend is extracted. The old screen code stays in `legacy/analytics-v1/` and is not re-attached. `GET /api/analytics/location-status` and `GET /api/assets` are live and stay | Step 12 |
   | **Step 6 changes beyond the plan, accepted by the team (2026-10-04):** bell transfer buttons show for the Lab Head only; `toggleClearanceHold` is removed; the two temporary state files `web/state/serverData.tsx` and `web/state/browserOnly.tsx` stay until their planned removal | Done (step 6) |
-  | **Two pre-existing bugs found during the step 6 checks** (not caused by step 6) are fixed on their own branch, not in the restructure: custodians can submit duplicate requests on the same asset (H-05, issue #25), and My Assets shows disposed assets because `CustodianPortal.tsx` does not filter by status (issue #26) | Own fix branch, after step 7 |
-  | **Inspection scheduling tab (H-18, question 15): move it to `legacy/`**, in its own folder with a README like `analytics-v1`. It is kept, not deleted, so the team can find it without digging through git history. Keep the real inspection reporting live (custodian report, and single-item finalize that posts to the API). The tab disappearing from the dashboard is a behavior change: its own commit, labelled as such | Step 8, when `ITSDashboard.tsx` is split |
+  | **Two pre-existing bugs found during the step 6 checks** (not caused by step 6) are fixed on their own branch, not in the restructure: custodians can submit duplicate requests on the same asset (H-05, issue #25), and My Assets shows disposed assets because `CustodianPortal.tsx` does not filter by status (issue #26) | Done (merged in PR #33) |
+  | **Step 8 runs in two sessions (2026-10-06).** Part 1: move everything except `ITSDashboard.tsx` into `web/` (app shell, routes, layouts, `components/ui`, feature components, and the Custodian, Lab Head, Director, auth, and account screens as pages), one feature per commit. Part 2: split `ITSDashboard.tsx` into `web/pages/staff/`, move inspection scheduling to `legacy/`, and switch the inspection log to the database | Step 8 |
+  | **Inspection scheduling tab (H-18, question 15): move it to `legacy/`**, in its own folder with a README like `analytics-v1`. It is kept, not deleted, so the team can find it without digging through git history. Keep the real inspection reporting live (custodian report, and single-item finalize that posts to the API). The tab disappearing from the dashboard is a behavior change: its own commit, labelled as such | Step 8 part 2, when `ITSDashboard.tsx` is split |
+  | **Staff inspection log (F-28, open team decision 2), decided 2026-10-06:** point the log table at the database reports (`asset_reports`, already fetched as `dbReports`) instead of the browser copy (`ems_inspections`). This is a behavior change: its own labelled commit. The cycle type column (Annual or Trimestral) is dropped, because the database does not store it. It may come back later: that needs a cycle type column on `asset_reports` and a shared cycle setting in place of the per-browser `pref_cycle_mode` cookie (F-38). Tracked in issue #34 | Step 8 part 2, when the inspections tab is split |
+  | **Identify users by id, not display name (issue #32).** Several handlers find a person by the name typed or shown on screen | Steps 11 to 13, as each backend feature is extracted |
+  | **Manual clearance holds (F-37) in step 8:** the decision itself is still open (below), but step 8 does not wait for it. The holds code moves as is: no behavior change, no new feature | Step 8 |
   | **Transfers (question 1): superseded on 2026-10-04.** The earlier decision (Custodian initiates, Lab Head of the leaving lab approves) is withdrawn. Custodian-to-custodian transfers will be replaced by a **custodianship queue**: the custodian releases the asset to Staff, and Staff assign it to the next custodian. The design is not final; it is built after the restructure, with the Phase 3 tables (issue #22). Until then, **keep transfer behavior exactly as it is today.** In step 12, move the transfer code behavior-neutral and **do not add the Lab Head approval rule** | Step 12 (move only); the queue after the restructure |
   | **Custodian return requests (H-02):** `asset_returns` already stores finalized returns; only the request stage lives in the browser (`web/state/browserOnly.tsx`). In Phase 3, store requests in the database, most likely by adding `status`, `requested_by`, `requested_at`, and `loan_id` columns to `asset_returns` rather than a new table. The loan link also addresses H-04. Keep the browser-only behavior until then | Phase 3 |
   | **Inspection photos:** at most 3 per report, stored high resolution and deleted automatically after 2 weeks (the team is still confirming whether to keep one compressed copy as audit evidence). Asset registry pictures are compressed and kept. Relates to M-17 (images stored as base64 in the database) | Phase 3 |
@@ -71,8 +76,7 @@ You are a Senior Software Engineer carrying out a careful, incremental refactor 
   | **Test database: local MariaDB on each developer's machine**, database `AdRIC_DB_test`, reached through `TEST_DATABASE_URL`. Never the shared CCS Cloud database | Step 14 and Phase 2 |
 
 - **Still open. Stop and ask when a step reaches one of these:**
-  - Manual clearance holds (F-37): what a real hold feature looks like, and what happens to the browser-only list in `web/state/browserOnly.tsx`. Waiting on the team.
-  - The Staff inspection log (F-28, open team decision 2 in the log): show the database reports or drop the table. Needed in step 8, when the inspections tab is split.
+  - Manual clearance holds (F-37): what a real hold feature looks like, and what happens to the browser-only list in `web/state/browserOnly.tsx`. Waiting on the team. Step 8 moves the code as is and does not stop for this (see the table above).
   - **Never rewrite git history yourself.** The team decided not to rewrite it (see the table above), and that is not an agent's call either way.
 
 # Examples (E)
