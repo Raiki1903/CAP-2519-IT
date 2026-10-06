@@ -496,3 +496,34 @@ Both are fixed on their own branch after step 7, not inside the restructure.
 ### Open questions
 
 - Manual clearance holds (F-37): waiting on the team. Does not block step 8.
+
+---
+
+## Phase 1C, restructure step 8 part 1, 2026-10-06
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 8 part 1. Branch: `refactor/feature-based-structure`, from the PR #33 merge. Nothing pushed.
+
+### What was produced
+
+- **Decisions record** (`26f0c2b9`): the entry above.
+- **Step 8 part 1, 14 move commits** (`edcb9162` to `6d9facc2`): everything in `src/` except `ITSDashboard.tsx` now lives in `web/`: the shadcn primitives in `web/components/ui/`, the feature components in `web/features/<process>/` (assets, loans, transfers, returns, repairs, notifications, analytics), the screens in `web/pages/` (auth, custodian, lab-head, director, plus the account and not-found pages), and the app shell, layouts, and styles in `web/app/` and `web/styles/`. Files are unchanged apart from import lines. No behavior change: the production build is byte-identical after every commit.
+- **Comment commit** (`ffa05a38`): file headers, TSDoc, and TODOs with finding IDs on all 45 moved files. Three older comments that were no longer true are corrected.
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-8-detail): step 8 detail, seven hand checks, and new notes. **Typecheck stays at 93, same errors.**
+
+### Key findings
+
+- The three role dashboards moved whole: each is one component per role, with the tab chosen by a prop. Splitting them into one page per tab (01D section 7) changes routes and state, so it is left for step 9 or later.
+- Seven exported analytics widgets are rendered nowhere, and three of them are the only callers of `/api/analytics/advanced/idle-time`, `idle-frequency`, and `loan-recommender`. Those are not in the 11 endpoints step 12 deletes.
+- The Staff analytics location widget shows invented figures when its endpoint fails (H-09 family). The request forms show reference numbers made up in the browser. The Director audit also reads the browser's inspection copies (F-28), which part 2 should settle together with the Staff log.
+- M-07 (RepairForm posts each ticket twice) was planned for "step 8". It is a behavior change, so it was not done in a files-only session; it is marked with a TODO.
+
+### Open questions
+
+- Manual clearance holds (F-37): waiting on the team.
+- Whether the three `/api/analytics/advanced/*` endpoints with only dead callers join the step 12 deletion.
+
+### Exact next step
+
+1. Run the seven step 8 part 1 hand checks (restart the dev server first).
+2. Then **step 8 part 2**:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 8, part 2.`
