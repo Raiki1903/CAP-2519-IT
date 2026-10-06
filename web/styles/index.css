@@ -1,0 +1,8 @@
+/*
+ * Global stylesheet entry: pulls in the fonts, Tailwind, and the theme, in that order.
+ * Layer: shared (styles). Imported by web/main.tsx.
+ * Used by: every screen.
+ */
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';

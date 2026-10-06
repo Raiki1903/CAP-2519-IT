@@ -473,3 +473,57 @@ Both are fixed on their own branch after step 7, not inside the restructure.
 2. Fix issues #25 (duplicate custodian requests, H-05) and #26 (My Assets shows disposed assets) on their own branch.
 3. Then **step 8** (move the frontend to `web/` with feature folders; the inspection scheduling tab moves to `legacy/` in its own labelled commit):
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 8.`
+
+---
+
+## Phase 1C, issues #25 and #26 merged, and team decisions, 2026-10-06
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md). Recorded at the start of the step 8 part 1 session. Branch: `refactor/feature-based-structure`, continuing from the PR #33 merge (`1bc85da4`).
+
+### What was produced
+
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md): the #25 and #26 fix section marked merged; team decision 2 marked decided; a note for issue #32; the clearance holds note brought up to date; step 8 marked as two parts.
+- [PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md): decisions table, "still open" list, and session plan brought up to date.
+
+### Decisions recorded (team, 2026-10-06)
+
+- **Issues #25 and #26 are fixed and merged in PR #33** (duplicate custodian requests, H-05; disposed assets in My Assets).
+- **Staff inspection log (F-28, team decision 2):** the log table will show the database reports (`asset_reports`, already fetched as `dbReports`) instead of the browser copy. Its own labelled behavior-change commit, when the inspections tab is split in step 8 part 2. The cycle type column (Annual or Trimestral) is dropped because the database does not store it. It may come back with a cycle type column on `asset_reports` and a shared cycle setting in place of the per-browser `pref_cycle_mode` cookie (F-38). Issue #34.
+- **Issue #32** (identify users by id, not display name) is tracked for steps 11 to 13.
+- **Manual clearance holds (F-37)** stay open. Step 8 moves that code as is.
+- **Step 8 runs in two sessions.** Part 1 moves everything except `ITSDashboard.tsx` into `web/`. Part 2 splits `ITSDashboard.tsx` into `web/pages/staff/`, moves inspection scheduling to `legacy/`, and switches the inspection log to the database.
+
+### Open questions
+
+- Manual clearance holds (F-37): waiting on the team. Does not block step 8.
+
+---
+
+## Phase 1C, restructure step 8 part 1, 2026-10-06
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 8 part 1. Branch: `refactor/feature-based-structure`, from the PR #33 merge. Nothing pushed.
+
+### What was produced
+
+- **Decisions record** (`26f0c2b9`): the entry above.
+- **Step 8 part 1, 14 move commits** (`edcb9162` to `6d9facc2`): everything in `src/` except `ITSDashboard.tsx` now lives in `web/`: the shadcn primitives in `web/components/ui/`, the feature components in `web/features/<process>/` (assets, loans, transfers, returns, repairs, notifications, analytics), the screens in `web/pages/` (auth, custodian, lab-head, director, plus the account and not-found pages), and the app shell, layouts, and styles in `web/app/` and `web/styles/`. Files are unchanged apart from import lines. No behavior change: the production build is byte-identical after every commit.
+- **Comment commit** (`ffa05a38`): file headers, TSDoc, and TODOs with finding IDs on all 45 moved files. Three older comments that were no longer true are corrected.
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-8-detail): step 8 detail, seven hand checks, and new notes. **Typecheck stays at 93, same errors.**
+
+### Key findings
+
+- The three role dashboards moved whole: each is one component per role, with the tab chosen by a prop. Splitting them into one page per tab (01D section 7) changes routes and state, so it is left for step 9 or later.
+- Seven exported analytics widgets are rendered nowhere, and three of them are the only callers of `/api/analytics/advanced/idle-time`, `idle-frequency`, and `loan-recommender`. Those are not in the 11 endpoints step 12 deletes.
+- The Staff analytics location widget shows invented figures when its endpoint fails (H-09 family). The request forms show reference numbers made up in the browser. The Director audit also reads the browser's inspection copies (F-28), which part 2 should settle together with the Staff log.
+- M-07 (RepairForm posts each ticket twice) was planned for "step 8". It is a behavior change, so it was not done in a files-only session; it is marked with a TODO.
+
+### Open questions
+
+- Manual clearance holds (F-37): waiting on the team.
+- Whether the three `/api/analytics/advanced/*` endpoints with only dead callers join the step 12 deletion.
+
+### Exact next step
+
+1. Run the seven step 8 part 1 hand checks (restart the dev server first).
+2. Then **step 8 part 2**:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 8, part 2.`

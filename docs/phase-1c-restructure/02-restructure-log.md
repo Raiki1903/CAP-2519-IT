@@ -3,7 +3,7 @@
 Running record of the migration in [01D section 9](../phase-1b-deep-map/01D-restructure-plan.md#9-ordered-migration-steps).
 Decision and comment standard: [01-restructure-decision.md](01-restructure-decision.md), [../guides/CODE-COMMENTS.md](../guides/CODE-COMMENTS.md).
 
-Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16; the branch continues from the PR #16 merge. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
+Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16. The fixes for issues #25 and #26 were merged in PR #33 (their own branch); step 8 continues from that merge. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
 
 ---
 
@@ -20,7 +20,7 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 5 | Convert the remaining features to the API client | Done | `5389d51b` to `497d0c30` (9 commits, see detail) | `6488407b` | **98** (unchanged, same errors) | 2026-10-02 |
 | 6 | Split `context.tsx`, delete localStorage-only actions | Done (hand checks passed, PR #16) | `9d1b62a9`, `b35a67e1` (behavior changes), `20cd4fdd` (move), `8dcd6120` (types) | `f8f43435` | **93** (from 98, see detail) | 2026-10-03 |
 | 7 | Delete `prismaClient.ts` | Done (hand checks passed) | `6e08e469` (behavior change) | n/a (see note 4) | **93** (unchanged, same errors) | 2026-10-04 |
-| 8 | Move the frontend to `web/` with feature folders | Not started | | | | |
+| 8 | Move the frontend to `web/` with feature folders (part 1: everything except `ITSDashboard.tsx`; part 2: split it) | Part 1 done (hand checks pending); part 2 not started | `edcb9162` to `6d9facc2` (14 commits, see detail) | `ffa05a38` | **93** (unchanged, same errors) | 2026-10-06 |
 | 9 | Merge ITS and TSG into `/staff/*` | Not started | | | | |
 | 10 | Create the `server/` skeleton | Not started | | | | |
 | 11 | Extract one backend feature end to end (loans) | Not started | | | | |
@@ -386,9 +386,83 @@ Raiki ran the five checks below against the database and all passed (reported 20
 
 ---
 
+## Step 8 detail
+
+Step 8 runs in two sessions (decided 2026-10-06). **Part 1, done here:** move everything except `ITSDashboard.tsx` into `web/`. **Part 2, next session:** split `ITSDashboard.tsx` into `web/pages/staff/`, move inspection scheduling to `legacy/`, and point the inspection log at the database.
+
+### Part 1: what moved
+
+14 move commits, one feature per commit. Every file moved unchanged except for its import lines. Git records all 45 as renames: 26 are identical (100%), and the rest differ only in import lines (the lowest, 62%, is the three-line `tailwind.css`).
+
+| Commit | Feature | From `src/app/` | To `web/` |
+|---|---|---|---|
+| `edcb9162` | UI primitives (18 files) | `components/ui/*` | `components/ui/*` |
+| `66602a09` | Assets | `components/AssetDetailModal.tsx`, `AssetImagePlaceholder.tsx` | `features/assets/` |
+| `bd145b39` | Loans | `components/LoanForm.tsx` | `features/loans/` |
+| `14e19c6d` | Transfers | `components/TransferForm.tsx` | `features/transfers/` |
+| `1dab9d32` | Returns | `components/ReturnForm.tsx` | `features/returns/` |
+| `308f01d2` | Repairs | `components/RepairForm.tsx` | `features/repairs/` |
+| `fb8c2ee7` | Notifications | `components/NotificationCenter.tsx` | `features/notifications/` |
+| `3da6ad01` | Analytics | `components/DirectorAnalyticsView.tsx`, `LabHeadAnalyticsView.tsx`, `TSGAnalyticsView.tsx` | `features/analytics/director/`, `labHead/`, `staff/` |
+| `9f457103` | Auth screens | `components/Login.tsx`, `Register.tsx` | `pages/auth/` |
+| `7ad78626` | Custodian screen | `components/CustodianPortal.tsx` | `pages/custodian/` |
+| `ce741d17` | Lab Head screen | `components/LabHeadDashboard.tsx` | `pages/lab-head/` |
+| `70ba9cea` | Director screen | `components/AdRICDirectorDashboard.tsx` | `pages/director/` |
+| `757c1c25` | Shared screens | `components/AccountDetailsPage.tsx`, `NotFound.tsx` | `pages/` |
+| `6d9facc2` | App shell | `src/main.tsx`, `App.tsx`, `routes.tsx`, `layouts/RootLayout.tsx`, `components/Sidebar.tsx`, `src/styles/*` | `main.tsx`, `app/`, `app/layouts/` (Sidebar too, per 01D), `styles/` |
+
+**What stays in `src/`:** only `src/app/components/ITSDashboard.tsx`. The router reaches it through the `@/` alias (`@/app/components/ITSDashboard`), and it imports everything else from `web/` through `@web`.
+
+**How imports were written.** A file importing something in another folder uses the `@web/...` alias, as the code already did for `web/api` and `web/state`. Files in the same folder keep `./`. An alias import does not change when the importing file moves, so each import line changed at most once in the step, and no relative `../../` paths were added.
+
+**Config changes, all in the commit of the move that needed them:**
+
+- `index.html` loads `/web/main.tsx` instead of `/src/main.tsx`.
+- `tailwind.css` lists the folders Tailwind scans for class names. It scanned only `src/` before; it now scans `web/` (where it lives) and `src/` (for `ITSDashboard.tsx`). Without this, the moved components would have lost their styles.
+- `vite.config.ts` and `tsconfig.json` did not change: the `@web` alias existed since step 4, and the `@` alias and `src` entry are still needed for `ITSDashboard.tsx`.
+
+**Behavior change:** none. The strongest evidence: the production build (`dist/assets/index-*.css` and `index-*.js`) is **byte-identical** after every one of the 14 move commits and after the comment commit, with the same SHA-256 hashes as before the step. The build does not contain file paths, so moving a file without changing its code produces the same output, and any accidental code change would have changed the hash.
+
+### Part 1: differences from 01D, and why
+
+- **The three role dashboards moved whole.** 01D section 7 has `LabHeadDashboard`, `CustodianPortal`, and `AdRICDirectorDashboard` become one page per tab. Each is one component today, with the tab picked by an `activeTab` prop from `routes.tsx`. Splitting them means rewriting their state and changing the routes, which is not "files only". They now sit in their role's `web/pages/` folder as one file each. The per-tab split can go with step 9 (the routes change) or later.
+- **Login and Register are pages, not `features/auth`.** 01D lists them under `web/features/auth/`. This session's instruction was to move the auth screens as pages, so they are in `web/pages/auth/`. `useSession` (also listed under `features/auth` in 01D) has lived in `web/state/session.tsx` since step 6.
+- **No `features/qr`, `features/registrations`, `features/inspections`, or `features/disposals` folder yet.** The code for those lives inside the dashboards (the QR scanner in `CustodianPortal`, sign-up approval in `LabHeadDashboard`, inspections and disposals in `ITSDashboard` and the Director screen). The folders appear when that code is pulled out.
+- **The analytics views kept their names**, including `TSGAnalyticsView` in `analytics/staff/`. Renaming TSG to Staff belongs with step 9.
+
+### Comment commit `ffa05a38`
+
+File headers and TSDoc on all 45 moved files (the four stylesheets get a header only). TODOs with finding IDs mark known defects at their lines. Three older comments were not true and are corrected: `ReturnForm` said finalizing a return closes the loan (it does not, H-04), and `LabHeadDashboard` referred to a mock context list that no longer exists and said the custody trail is scoped to CITe4D (it is scoped to the Lab Head's own branch). A history clause was trimmed from the condition colour map comment in two files. The F-28 TODO in `web/state/browserOnly.tsx` (not moved) now records the decision. The comment commit is comments only: the build output is byte-identical to before.
+
+### Typecheck: 93, unchanged
+
+Same 93 errors, compared by file name, position, and message after each commit. After the shell move, TypeScript prints two `server.ts` error messages with the fields of a type in a different order (`user_id` listed earlier or later), because files are now checked in a different order; same errors, same positions. After the comment commit the line numbers shift by the comment lines, and the messages are the same.
+
+### Verified
+
+- `npm run typecheck` and `npm run build` after every commit, with the results above.
+- A Vite dev server on a spare port (5199) served `index.html` pointing at `/web/main.tsx`, and every moved module plus `ITSDashboard.tsx` was requested from it: all answered 200, which means every import resolved. The dev log showed no errors.
+- The API server already running on port 4000 answered `GET /api/auth/me` with the expected "Email query param required." `server.ts` is not touched by this step.
+
+**Not verified in the agent session:** nothing was clicked in a browser. The hand checks below cover that.
+
+### Hand checks: part 1
+
+**Restart the dev server first** (`npm run dev` or `npm run dev:all`). A server started before this step was watching the old paths.
+
+1. *Every route loads.* As each role (ITS, TSG, Lab Head, Custodian, Director), open every sidebar tab once and the account page. Each screen looks and behaves as before. Also open `/login`, `/register`, and a made-up URL such as `/nope` (the not-found page).
+2. *Styling.* Buttons, badges, dialogs, dropdowns, tables, and the sidebar look as before, in both themes (Settings, Interface Theme). A missing style would show as unstyled grey or black elements.
+3. *Asset modal and forms.* As a Custodian, open an asset and open each request form it offers (loan, transfer, repair, return). As Staff, open an asset and the return form from Pending Returns. Each form opens; submitting one is enough.
+4. *Bell.* Open the notification bell as each role.
+5. *Analytics.* Open the Director analytics tab, the Lab Head health tab, and the Staff health tab. Charts load.
+6. *QR scan.* As a Custodian, open QR Scan. The camera prompt or the upload button works as before.
+7. *Build.* `npm run build` passes on your machine.
+
+---
+
 ## Bug fix: issues #25 and #26 (not a restructure step)
 
-Branch `fix/issues-25-26`, from `main` after PR #27. Both bugs were found during the step 6 hand checks and exist on `main` independently of the restructure. One commit per fix.
+Branch `fix/issues-25-26`, from `main` after PR #27. Both bugs were found during the step 6 hand checks and exist on `main` independently of the restructure. One commit per fix. **Merged into `main` in PR #33**, after both rounds of hand checks; the restructure branch continues from that merge (`1bc85da4`).
 
 | Commit | Issue | What it does |
 |---|---|---|
@@ -502,7 +576,7 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | `TSGAnalyticsView.tsx` `CATEGORY_OPTIONS` filters by `WORKSTATION`, `ROBOTICS`, `SENSOR`, `NETWORKING`, `ACCESSORY`, none of which exist in `assets_category`. Picking one of those can only ever match nothing. Not replaced with `ASSET_CATEGORIES` in step 3, because that would change what the filter offers | n/a (new) | Step 12 (analytics) or a small fix branch |
 | Database role names (`ADRIC_DIRECTOR`, `TSG_STAFF`, `LAB_HEAD`, and the rest of `roles_role_name`) are string literals inside the login, `/me`, and registration handlers in `server.ts`, alongside the mapping to app roles. That is logic, not a list, so it moves with `features/auth` | n/a | Steps 9 and 12 (auth) |
 | `LAGUNA_LABS` in `server.ts` and `LAB_OPTIONS` in `TSGAnalyticsView.tsx` are two more lab lists, using short codes, which do not match the full names in `shared/constants/labs.ts`. 01D says campus should come from `research_centers.location` instead | M-03 | Phase 3, or step 12 (assets) |
-| The condition text and colour maps (`CONDITION_TEXT_CLASS` and similar) are repeated in `ITSDashboard`, `LabHeadDashboard`, `CustodianPortal`, and `ReturnForm`. They are UI styling, so they belong in `web/features/assets/`, not `shared/` | n/a | Step 8 |
+| The condition text and colour maps (`CONDITION_TEXT_CLASS` and similar) are repeated in `ITSDashboard`, `LabHeadDashboard`, `CustodianPortal`, and `ReturnForm`. They are UI styling, so they belong in `web/features/assets/`, not `shared/`. **Not done in step 8 part 1**, which moved files without changing their code; merging four copies into one is a code change | n/a | Step 8 part 2, when `ITSDashboard` is split |
 | `prismaClient.ts` has its own `RoleName` type, which is missing `ITS_STAFF` and `CUSTODIAN`. Left alone, since the file is deleted in step 7. **Gone with the file in step 7** (`6e08e469`) | H-01 | Done |
 | `LabHeadAnalyticsView.tsx` `handleLoanDecision` is defined but nothing calls it, so it is dead code. It would also fail if wired up: it sends `"reject"`, and the server only accepts `"approve"` or `"decline"` (400). Converted to the client anyway so no loan URL is left outside `web/api/`; `decideLoan` takes a plain string for that reason | n/a (new) | Small fix branch, or step 11 (loans validation) |
 | Most call sites check only `success` in the body, not the HTTP status. A minority check the status or content type, or never read the answer at all (corrected in step 5: the step 4 version of this note said no site checks the status, which was true for loans only). The client keeps both styles for now, through plain and `Raw` calls, so steps 4 and 5 stay behavior-neutral | H-16 | Step 13 (`errorHandler`), then remove the `Raw` calls from `web/api/client.ts` |
@@ -511,17 +585,18 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | Five endpoints put the asset tag into the URL without encoding it (`custodian-history`, `transfer`, `return`, `repair`, `inspection`), while five others encode it (`borrow`, `disposal`, and asset create, edit, delete). Harmless with tags like `EQ-2024-001`; a tag containing `/`, `?`, or `#` would break the unencoded ones. Each API function keeps what its call site did | n/a (new) | Step 12, with each feature's extraction |
 | The pending disposals list (now in `web/state/serverData.tsx`) is built from the API without `lastCustodian`, `breakdownReasons`, and `disposalPathway`, which the `PendingDisposal` type requires, so the variable stays annotated `any`. Step 6 moved the block but did not fix it: making the type truthful means changing the bell, which reads two of those fields and so shows "undefined" in every disposal card | H-13, M-13 | The bell rewrite (01D section 8) |
 | `approveRegistration` returns the server's answer and accepts an object, but its declared type said it takes a string and returns nothing. **Fixed in step 6** (`8dcd6120`): the declared type now matches and the `any` is gone | H-13 | Done |
-| `handleTransferDecision` in `LabHeadAnalyticsView.tsx` is dead code like `handleLoanDecision`, and also sends `"reject"` where the server only accepts `"decline"`. Disposals are the opposite: the server wants `"reject"`. Three workflows, two words for the same decision | n/a (new) | Step 12; delete the two dead handlers in step 8 |
-| The lab-head analytics endpoint is fetched five separate times by five widgets on the same screen, four of them with an identical query | M-01 (same family) | Step 8, when the analytics view is split |
+| `handleTransferDecision` in `LabHeadAnalyticsView.tsx` is dead code like `handleLoanDecision`, and also sends `"reject"` where the server only accepts `"decline"`. Disposals are the opposite: the server wants `"reject"`. Three workflows, two words for the same decision. **Still there after step 8 part 1** (deleting code is not a move); an inline comment now marks them | n/a (new) | Step 12; delete the two dead handlers in step 8 part 2 or with analytics in step 12 |
+| The lab-head analytics endpoint is fetched five separate times by five widgets on the same screen, four of them with an identical query. `TODO(M-01)` on `LabHeadAnalyticsView` since step 8 part 1 | M-01 (same family) | Step 12 (analytics), or when the analytics view is split |
 | **Open team decision 1: custodian return requests.** A request is saved only in the browser that made it (`ems_returns`), so Staff on another machine never see it. Worse, the Pending Returns list is the only place Staff can open the finalize form, so on another machine a return cannot be finalized in the app at all. The database cannot hold a pending return today: `asset_returns` has no status column. Kept as is in `web/state/browserOnly.tsx` (Raiki, 2026-10-03). **Direction agreed 2026-10-04:** `asset_returns` already stores finalized returns, so only the request stage is missing. Phase 3 most likely adds `status`, `requested_by`, `requested_at`, and `loan_id` columns to `asset_returns` instead of a new table; the loan link also addresses H-04 | H-02, H-04 | Phase 3 |
-| **Open team decision 2: Staff inspection log.** The log table on the Staff inspections tab reads the browser's own copy (`ems_inspections`). The real reports are saved to `asset_reports`, and the dashboard already fetches them (`dbReports` in `ITSDashboard.tsx`) but never shows them. Kept as is (Raiki, 2026-10-03). Options: point the table at the fetched database list (the cycle type column would go, the database does not store it), or drop the table when the tab is split | F-28 in 01A | Team decision, then step 8 |
-| **Open team decision 3: manual clearance holds.** Holds are stored only in the browser (`ems_manual_clearance_holds`) and no screen can create one: the Director dashboard imported `toggleClearanceHold` but never called it. The list is kept readable for the bell (Raiki, 2026-10-03). The action was removed in step 6 because it looked people up in the fake user table. `AdRICDirectorDashboard.tsx` still has two unused state variables left from a holds screen (`selectedHoldAffiliate`, `overrideNotes`). A real hold feature is panel comment D2. **Still open on 2026-10-04, waiting on the team** | F-37 in 01A | Team decision, then Phase 3 |
-| `web/state/serverData.tsx` is a temporary home for the lists several screens share. 01D has no such file: each page should load its own data | n/a | Shrinks in step 8, goes with the bell rewrite |
+| **Team decision 2: Staff inspection log. Decided 2026-10-06.** The log table on the Staff inspections tab reads the browser's own copy (`ems_inspections`). The real reports are saved to `asset_reports`, and the dashboard already fetches them (`dbReports` in `ITSDashboard.tsx`) but never shows them. Kept as is until the decision (Raiki, 2026-10-03). **Decision:** point the table at the database reports (`dbReports`) instead of the browser copy, as its own labelled behavior-change commit when the inspections tab is split. The cycle type column (Annual or Trimestral) is dropped, because `asset_reports` does not store it. **It may come back:** that needs a cycle type column on `asset_reports`, and a cycle setting shared by everyone instead of the per-browser `pref_cycle_mode` cookie (F-38). Tracked in issue #34 | F-28, F-38 in 01A | Step 8 part 2; the cycle type column with issue #34 |
+| **Open team decision 3: manual clearance holds.** Holds are stored only in the browser (`ems_manual_clearance_holds`) and no screen can create one: the Director dashboard imported `toggleClearanceHold` but never called it. The list is kept readable for the bell (Raiki, 2026-10-03). The action was removed in step 6 because it looked people up in the fake user table. `AdRICDirectorDashboard.tsx` still has two unused state variables left from a holds screen (`selectedHoldAffiliate`, `overrideNotes`). A real hold feature is panel comment D2. **Still open on 2026-10-06, waiting on the team.** Step 8 moves this code as is, with no behavior change, and does not wait for the decision | F-37 in 01A | Team decision, then Phase 3 |
+| **Users are identified by display name in several places (issue #32).** For example the borrow form's typed name decides the loan's `borrower_id` (H-10, row below), and My Assets and the notification bell decide which assets are "mine" by comparing the asset's custodian name with the logged-in user's name (`CustodianPortal.tsx` `custodianAssets`, several checks in `NotificationCenter.tsx`). Two people can share a name. The fix is to use the user id from the session | H-10, issue #32 | Steps 11 to 13, as each backend feature is extracted and `requireAuth` gives the server the acting user |
+| `web/state/serverData.tsx` is a temporary home for the lists several screens share. 01D has no such file: each page should load its own data. Unchanged by step 8 part 1, which moved the screens without changing how they load data | n/a | Shrinks as pages are split (step 8 part 2 and later), goes with the bell rewrite |
 | The bell decides which transfers a Lab Head sees by the literal text "CITe4D", not by the Lab Head's own lab. Now that the bell's buttons are real, any Lab Head can approve a CITe4D transfer from the bell, and a Lab Head of another lab sees no transfers there. The Custody tab scopes by branch correctly (in the browser only, M-02). The server checks nothing either way (C-02). Since 2026-10-04 transfers are to be replaced by a custodianship queue (issue #22), so step 12 moves the transfer code without adding an approval rule | F-31 in 01A, M-02 | The bell rewrite, and the custodianship queue (issue #22) |
 | A failed approve, decline, or reject from the bell is written to the browser console only. The card stays and nothing tells the user why. The loan button already behaved this way | H-16 family | Step 13, then the bell rewrite |
 | Custodian condition report: if the server cannot be reached, the form saves the browser copy and still shows "Report Archived". The request's answer is never read, so a server-side refusal looks like success too | n/a (new) | Step 13 (typed errors), or with open team decision 2 |
 | `updateProfile` swallows a failed save and the account page shows its success tick anyway | n/a (new) | Step 13 |
-| `addRepairRequest` is unchanged, so `RepairForm` still posts each ticket twice and relies on the server's 8-second guard. 01D section 7 removes each form's second write when the forms move | M-07 | Step 8 |
+| `addRepairRequest` is unchanged, so `RepairForm` still posts each ticket twice and relies on the server's 8-second guard. 01D section 7 removes each form's second write when the forms move. **The forms moved in step 8 part 1 without this change**, because that session moved files only and removing the second post changes what reaches the server. `TODO(M-07)` marks the line | M-07 | Step 8 part 2, as its own labelled behavior-change commit (or later) |
 | Two pre-existing bugs found during the step 6 hand checks: duplicate custodian requests on one asset (issue #25), and My Assets listing disposed assets because `CustodianPortal.tsx` has no status filter (issue #26). **Fixed on `fix/issues-25-26`** (`bc041acb`, `95290115`), see "Bug fix: issues #25 and #26" above | H-05 (#25), n/a (#26) | Done |
 | H-05 is only partly closed by #25. `POST /disposal` still checks only that the asset exists, so an asset that is on loan or already has a pending disposal can be put up for disposal. The loan and transfer guard is also check-then-insert, so two requests in the same instant can both pass (`TODO(H-05)` in `server.ts`) | H-05 | Disposal guard: its own fix, or step 12 (disposals). The race: Phase 3 database triggers |
 | Hiding the requester's name from other custodians (D2) happens only on screen. `GET /api/asset_loans` and `GET /api/asset_transfers` still send every requester's name to anyone who calls them, logged in or not. Real privacy needs the server to filter by role | C-02, D2 | Step 13 (`requireAuth`), then a role check on the two list endpoints |
@@ -534,6 +609,14 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | Browsers that opened the app before step 7 still hold `dlsu_equipment_ms_db_v2` in localStorage, with the demo passwords inside. Nothing reads it any more and nothing writes it, but nothing clears it either. The same is true of `ems_pending_disposals` from step 6. Harmless to the app; worth a line in the team announcement ("clear site data once") | C-03 | Team announcement, no code |
 | The Phase 1 and 1B documents (01A, 01B, 01C, 01E, and others) still link to `src/app/prismaClient.ts`, which no longer exists. They are dated records of the code at the time and are not edited. The file can still be read with `git show fbfcccda:src/app/prismaClient.ts` | n/a | No action |
 | `strict: false` is a deliberate starting point. Turning strict on is worth doing once the count is near zero, not during the move | H-13 | After step 9 |
+| **Three analytics endpoints are reached only from widgets nothing renders.** Seven exported analytics widgets are not used by any view or page: `GrantReadinessIndex`, `ComplianceWidget`, `AuditDiscrepancyWidget`, `DisposalActionList` (Director), `IdleTimeAnalyzer`, `IdleTimeDurationFrequencyWidget`, `LoanRecommenderList` (Lab Head). The last three are the only callers of `GET /api/analytics/advanced/idle-time`, `idle-frequency`, and `loan-recommender`. Those three are **not** among the 11 no-caller endpoints the 2026-10-04 decision deletes, so they stay mounted unless the team extends the decision. Each widget's TSDoc says it is not rendered | 01C section 4.4 (same family) | Team decision, then step 12 (analytics) |
+| `AssetImagePlaceholder` picks its icon from display names ("Computing Array" and others) that the database categories (`DEV_KIT`, `MONITOR`, ...) never match, so every asset without a picture shows the computing icon and the label "ASSET" | n/a (new) | Small fix branch |
+| The success screens of the loan, transfer, and repair forms show a reference number made up in the browser (`LOAN-123456`, `TRF-...`, `MNT-...`), not the id the database gave the request (`LOAN-22`). The return form falls back to a made-up `CLR-` number when the server call fails. A user who quotes that number to Staff gives them a number nothing records | n/a (new) | Step 13 (typed responses), or a small fix branch |
+| `LocationStatusWidget` (Staff analytics) shows invented figures when its endpoint fails: fixed shares of the asset count (60% available, 30% on loan, and so on), with nothing on screen saying they are estimates. Same family as the server's invented series. `TODO(H-09)` marks it | H-09 | Step 12 (analytics) |
+| The Director's audit trail and CSV export use the database reports (`asset_reports`) for an asset, and fall back to this browser's own copies (`ems_inspections`) when the asset has none. Decision 2 covers the Staff log only; this second reader of the browser copy should be settled in the same commit | F-28 | Step 8 part 2, with the inspection log switch |
+| `avatar.tsx` and `checkbox.tsx` in `web/components/ui/` are imported by no file. Kept, since primitives are cheap and a later screen may use them | n/a | No action, or remove in a cleanup |
+| The sidebar sets a 150 ms tooltip delay (`TooltipProvider delayDuration={150}`), but the shadcn `Tooltip` wraps itself in its own provider with delay 0, and the nearest provider wins. So the 150 ms has no effect and tooltips show at once | n/a (new) | Cosmetic, small fix |
+| Left for step 8 part 2, once `ITSDashboard.tsx` leaves `src/`: remove the `@` alias (`vite.config.ts`, `tsconfig.json` `@/*`), the `src` entry in `tsconfig.json` `include`, the temporary `src/` line in `web/styles/tailwind.css`, and the `src/` line in the root `README.md`. The `figma:asset` resolver in `vite.config.ts` points at `src/assets/`, which does not exist, and nothing imports `figma:asset/...`; it can be removed or repointed then | n/a | Step 8 part 2 |
 
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.
 

@@ -10,7 +10,9 @@ install from one `package.json`.
 AdRIC_System/
   index.html            Frontend entry (Vite)
   vite.config.ts        Frontend build config
-  src/                  Frontend source (React)
+  web/                  Frontend source (React): app shell, pages, features, api, state
+  shared/               Enums and constants used by both frontend and backend
+  src/                  Only ITSDashboard.tsx, until restructure step 8 part 2 moves it
   server.ts             Backend API (Express, listens on http://localhost:4000)
   prisma.ts             Prisma client wired to the MariaDB adapter
   prisma.config.ts      Prisma CLI config
