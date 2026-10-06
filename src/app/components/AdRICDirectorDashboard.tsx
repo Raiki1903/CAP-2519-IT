@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import DirectorAnalyticsView from "./DirectorAnalyticsView";
+import DirectorAnalyticsView from "@web/features/analytics/director/DirectorAnalyticsView";
 import { useSession } from "@web/state/session";
 import { useServerData, type Asset } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";

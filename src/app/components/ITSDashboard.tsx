@@ -13,7 +13,7 @@ import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import { ReturnForm } from "@web/features/returns/ReturnForm";
-import TSGAnalyticsView from "./TSGAnalyticsView";
+import TSGAnalyticsView from "@web/features/analytics/staff/TSGAnalyticsView";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Textarea } from "@web/components/ui/textarea";

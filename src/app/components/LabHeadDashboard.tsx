@@ -4,7 +4,7 @@ import { useServerData } from "@web/state/serverData";
 import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, Printer, Download, ArrowRight, ShieldCheck, CheckCircle, XCircle } from "lucide-react";
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
-import { LabHeadAnalyticsView } from "./LabHeadAnalyticsView";
+import { LabHeadAnalyticsView } from "@web/features/analytics/labHead/LabHeadAnalyticsView";
 import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
 import * as transfersApi from "@web/api/transfers.api";
