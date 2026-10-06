@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { TransferForm } from "@web/features/transfers/TransferForm";
-import { ReturnForm } from "@/app/components/ReturnForm";
+import { ReturnForm } from "@web/features/returns/ReturnForm";
 import { RepairForm } from "@/app/components/RepairForm";
 import { LoanForm } from "@web/features/loans/LoanForm";
 import { Button } from "@web/components/ui/button";
