@@ -5,10 +5,10 @@ import { useServerData } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import * as repairsApi from "@web/api/repairs.api";
 import * as analyticsApi from "@web/api/analytics.api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Badge } from "./ui/badge";
-import { Progress } from "./ui/progress";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
+import { Badge } from "@web/components/ui/badge";
+import { Progress } from "@web/components/ui/progress";
 import {
   ResponsiveContainer,
   BarChart,
@@ -38,8 +38,8 @@ import {
   ChevronDown,
   ChevronUp
 } from "lucide-react";
-import { Button } from "./ui/button";
-import { cn } from "./ui/utils";
+import { Button } from "@web/components/ui/button";
+import { cn } from "@web/components/ui/utils";
 
 const cardAnimation = {
   hidden: { opacity: 0, y: 12 },

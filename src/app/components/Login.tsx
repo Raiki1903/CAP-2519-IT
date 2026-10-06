@@ -4,9 +4,9 @@ import { Eye, EyeOff, Shield, Lock } from "lucide-react";
 import { useSession, roleToSlug, setCookie } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
 import type { Role } from "@shared/enums/role";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
+import { Button } from "@web/components/ui/button";
+import { Input } from "@web/components/ui/input";
+import { Label } from "@web/components/ui/label";
 
 export function Login() {
   const navigate = useNavigate();

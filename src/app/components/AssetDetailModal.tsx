@@ -12,10 +12,10 @@ import { TransferForm } from "./TransferForm";
 import { ReturnForm } from "./ReturnForm";
 import { RepairForm } from "./RepairForm";
 import { LoanForm } from "./LoanForm";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Separator } from "./ui/separator";
-import { cn } from "./ui/utils";
+import { Button } from "@web/components/ui/button";
+import { Badge } from "@web/components/ui/badge";
+import { Separator } from "@web/components/ui/separator";
+import { cn } from "@web/components/ui/utils";
 import { QRCodeSVG } from "qrcode.react";
 
 // ── Shared asset shape used by all asset lists ────────────────────────────

@@ -11,13 +11,13 @@ import {
 } from "lucide-react";
 import type { AssetDetail } from "./AssetDetailModal";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Badge } from "./ui/badge";
-import { Separator } from "./ui/separator";
-import { Switch } from "./ui/switch";
-import { cn } from "./ui/utils";
+import { Button } from "@web/components/ui/button";
+import { Input } from "@web/components/ui/input";
+import { Label } from "@web/components/ui/label";
+import { Badge } from "@web/components/ui/badge";
+import { Separator } from "@web/components/ui/separator";
+import { Switch } from "@web/components/ui/switch";
+import { cn } from "@web/components/ui/utils";
 
 const BRAND = "#005A36";
 

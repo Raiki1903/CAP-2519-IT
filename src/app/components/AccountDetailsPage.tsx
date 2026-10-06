@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useSession } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Label } from "./ui/label";
-import { Input } from "./ui/input";
-import { Button } from "./ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
+import { Label } from "@web/components/ui/label";
+import { Input } from "@web/components/ui/input";
+import { Button } from "@web/components/ui/button";
 import { User, Shield, Lock, Camera, Upload, Check, ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router";
 

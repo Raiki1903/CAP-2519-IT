@@ -9,15 +9,15 @@ import {
 import { useSession, roleToSlug, getCookie } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import type { Role } from "@shared/enums/role";
-import { Button } from "./ui/button";
-import { Separator } from "./ui/separator";
+import { Button } from "@web/components/ui/button";
+import { Separator } from "@web/components/ui/separator";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "./ui/tooltip";
-import { cn } from "./ui/utils";
+} from "@web/components/ui/tooltip";
+import { cn } from "@web/components/ui/utils";
 
 const COLLAPSED_W = 64;
 const EXPANDED_W  = 240;

@@ -7,15 +7,15 @@ import {
   FileText, Calendar, DollarSign, ChevronRight,
 } from "lucide-react";
 import type { AssetDetail } from "./AssetDetailModal";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Badge } from "./ui/badge";
-import { Separator } from "./ui/separator";
+import { Button } from "@web/components/ui/button";
+import { Input } from "@web/components/ui/input";
+import { Label } from "@web/components/ui/label";
+import { Badge } from "@web/components/ui/badge";
+import { Separator } from "@web/components/ui/separator";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "./ui/select";
-import { cn } from "./ui/utils";
+} from "@web/components/ui/select";
+import { cn } from "@web/components/ui/utils";
 
 const BRAND = "#005A36";
 

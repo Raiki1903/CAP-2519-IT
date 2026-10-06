@@ -8,18 +8,18 @@ import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as inspectionsApi from "@web/api/inspections.api";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Badge } from "./ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Label } from "./ui/label";
-import { Textarea } from "./ui/textarea";
-import { Switch } from "./ui/switch";
+import { Button } from "@web/components/ui/button";
+import { Input } from "@web/components/ui/input";
+import { Badge } from "@web/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
+import { Label } from "@web/components/ui/label";
+import { Textarea } from "@web/components/ui/textarea";
+import { Switch } from "@web/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "./ui/select";
-import { Separator } from "./ui/separator";
-import { cn } from "./ui/utils";
+} from "@web/components/ui/select";
+import { Separator } from "@web/components/ui/separator";
+import { cn } from "@web/components/ui/utils";
 
 const MINT = "#10B981";
 

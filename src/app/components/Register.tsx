@@ -1,10 +1,10 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Shield, Lock, User, Upload, Camera, CheckCircle, ArrowLeft, Building2, CreditCard, Mail } from "lucide-react";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Button } from "@web/components/ui/button";
+import { Input } from "@web/components/ui/input";
+import { Label } from "@web/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import { DLSU_LABS } from "@shared/constants/labs";
 import { useServerData } from "@web/state/serverData";
 import * as authApi from "@web/api/auth.api";

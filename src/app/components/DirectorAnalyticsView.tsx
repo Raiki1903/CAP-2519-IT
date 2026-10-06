@@ -3,12 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useServerData } from "@web/state/serverData";
 import * as analyticsApi from "@web/api/analytics.api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
-import { Progress } from "./ui/progress";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
+import { Badge } from "@web/components/ui/badge";
+import { Button } from "@web/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
+import { Progress } from "@web/components/ui/progress";
 import {
   ResponsiveContainer,
   BarChart,

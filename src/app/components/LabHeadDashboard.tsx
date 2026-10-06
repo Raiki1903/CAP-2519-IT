@@ -8,13 +8,13 @@ import { LabHeadAnalyticsView } from "./LabHeadAnalyticsView";
 import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
 import * as transfersApi from "@web/api/transfers.api";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Badge } from "./ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { cn } from "./ui/utils";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
+import { Button } from "@web/components/ui/button";
+import { Input } from "@web/components/ui/input";
+import { Badge } from "@web/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
+import { cn } from "@web/components/ui/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 
 const MINT = "#10B981";
 

@@ -5,12 +5,12 @@ import { useServerData } from "@web/state/serverData";
 import * as loansApi from "@web/api/loans.api";
 import * as transfersApi from "@web/api/transfers.api";
 import * as analyticsApi from "@web/api/analytics.api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
+import { Badge } from "@web/components/ui/badge";
+import { Button } from "@web/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@web/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import {
   ResponsiveContainer,
   BarChart,
@@ -42,7 +42,7 @@ import {
   Loader2
 } from "lucide-react";
 
-import { cn } from "./ui/utils";
+import { cn } from "@web/components/ui/utils";
 
 const cardAnimation = {
   hidden: { opacity: 0, y: 12 },

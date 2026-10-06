@@ -6,15 +6,15 @@ import { useServerData, type Asset } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as disposalsApi from "@web/api/disposals.api";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Button } from "./ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { Badge } from "./ui/badge";
-import { Input } from "./ui/input";
-import { Separator } from "./ui/separator";
-import { Label } from "./ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
-import { cn } from "./ui/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
+import { Button } from "@web/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
+import { Badge } from "@web/components/ui/badge";
+import { Input } from "@web/components/ui/input";
+import { Separator } from "@web/components/ui/separator";
+import { Label } from "@web/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
+import { cn } from "@web/components/ui/utils";
 import {
   Monitor, BarChart3, ClipboardCheck, ClipboardList, TrendingUp, AlertTriangle,
   MapPin, CheckCircle2, XCircle, Search, Download, Printer, User, Wrench, Calendar, Tag, ShieldAlert
