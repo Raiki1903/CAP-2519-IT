@@ -1,3 +1,9 @@
+/**
+ * Staff analytics: repair board, condition heatmap, warranty timeline, location status, and inspection progress widgets.
+ * Layer: feature component. Called by src/app/components/ITSDashboard.tsx (health tab).
+ * Calls: api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), api/repairs.api.ts updateRepairStatus(), state/serverData.tsx.
+ * Used by: Staff (ITS and TSG).
+ */
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
@@ -49,6 +55,15 @@ const cardAnimation = {
 const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#EF4444"];
 
 // Maintenance & Lifecycle View (Task 3: Repairs Kanban Board, Condition Heatmap with Traffic Light Indicators, 90-day Warranty Expiry Timeline)
+/**
+ * Repair board, condition heatmap, and 90-day warranty timeline. Calls analyticsApi.getTsgAnalyticsRaw(),
+ * and repairsApi.updateRepairStatus() when a ticket is moved on the board.
+ *
+ * @param startDate start of the date range, or empty for no limit
+ * @param endDate end of the date range, or empty for no limit
+ * @param selectedLab lab to scope to, or "All Labs"
+ * @param selectedCategory category to scope to, or "All Categories"
+ */
 export const TSGTechnicalMaintenanceSection: React.FC<{
   startDate: string;
   endDate: string;
@@ -321,6 +336,13 @@ export const TSGTechnicalMaintenanceSection: React.FC<{
 };
 
 // 1. Real-Time Tracking & Location Analytics (Stacked Bar & Doughnut)
+/**
+ * Where assets are and in what state. Calls analyticsApi.getLocationStatusRaw(). If that fails it shows
+ * estimates instead: fixed shares (60% available, 30% on loan, and so on) of the shared asset count.
+ *
+ * @param selectedLab lab to scope to, or "All Labs"
+ * @param selectedCategory category to scope to, or "All Categories"
+ */
 export const LocationStatusWidget: React.FC<{
   selectedLab: string;
   selectedCategory: string;
@@ -338,6 +360,7 @@ export const LocationStatusWidget: React.FC<{
         }
       } catch (e) {}
 
+      // TODO(H-09): these are invented shares of the asset count, shown as if they were real figures. Step 12 (analytics).
       const locMap: Record<string, number> = {};
       contextAssets.forEach(a => {
         const loc = a.lab || "ITS Main Warehouse";
@@ -486,6 +509,7 @@ export const LocationStatusWidget: React.FC<{
 };
 
 // 2. Warranty Expiration Calendar Widget (Strict 90-Day Timeline)
+/** Assets whose warranty ends within 90 days. Calls assetsApi.listAssetsRaw(). Takes no props. */
 export const WarrantyCalendarWidget: React.FC = () => {
   const { data: expiringAssets = [] } = useQuery({
     queryKey: ["tsg-warranty-calendar"],
@@ -581,6 +605,7 @@ export const WarrantyCalendarWidget: React.FC = () => {
 };
 
 // 3. Staggered Routine Inspection Progress (Stepper Layout & Collapsible)
+/** How far the routine inspection round has got. Calls analyticsApi.getInspectionProgressRaw(). Takes no props. */
 export const InspectionProgressTracker: React.FC = () => {
   const [isTrackerOpen, setIsTrackerOpen] = React.useState<boolean>(true);
 
@@ -651,10 +676,13 @@ export const InspectionProgressTracker: React.FC = () => {
   );
 };
 
+// TODO(M-03): another hardcoded lab list in short codes. Phase 3.
+// Five of the categories below (WORKSTATION to ACCESSORY) are not in assets_category, so picking one always shows nothing.
 const LAB_OPTIONS = ["All Labs", "CITe4D", "CAR", "GAME", "CIVI", "CeHCI", "Bio", "TE3D", "CeLT", "HXIL", "CNIS"];
 const CATEGORY_OPTIONS = ["All Categories", "DEV_KIT", "MONITOR", "WORKSTATION", "ROBOTICS", "SENSOR", "NETWORKING", "ACCESSORY"];
 
 // Master TSG Dashboard Analytics View
+/** The Staff analytics screen: holds the date, lab, and category filters and lays out four widgets. Takes no props. */
 export const TSGAnalyticsView: React.FC = () => {
   const [startDate, setStartDate] = React.useState<string>("");
   const [endDate, setEndDate] = React.useState<string>("");

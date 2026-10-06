@@ -1,3 +1,8 @@
+/**
+ * Select: a styled dropdown, built on Radix Select.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Select.
+ * Used by: every role.
+ */
 "use client";
 
 import * as React from "react";
@@ -10,24 +15,28 @@ import {
 
 import { cn } from "./utils";
 
+/** Select root. Holds the value (`value`, `onValueChange`). */
 function Select({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   return <SelectPrimitive.Root data-slot="select" {...props} />;
 }
 
+/** Groups related options under one label. */
 function SelectGroup({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Group>) {
   return <SelectPrimitive.Group data-slot="select-group" {...props} />;
 }
 
+/** Shows the chosen option, or the placeholder, inside the trigger. */
 function SelectValue({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Value>) {
   return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
 
+/** The closed control the user clicks. `size`: default or sm. */
 function SelectTrigger({
   className,
   size = "default",
@@ -54,6 +63,7 @@ function SelectTrigger({
   );
 }
 
+/** The open list of options. */
 function SelectContent({
   className,
   children,
@@ -89,6 +99,7 @@ function SelectContent({
   );
 }
 
+/** Heading for a group of options. */
 function SelectLabel({
   className,
   ...props
@@ -102,6 +113,7 @@ function SelectLabel({
   );
 }
 
+/** One option, with a check mark when chosen. */
 function SelectItem({
   className,
   children,
@@ -126,6 +138,7 @@ function SelectItem({
   );
 }
 
+/** Line between groups of options. */
 function SelectSeparator({
   className,
   ...props
@@ -139,6 +152,7 @@ function SelectSeparator({
   );
 }
 
+/** Arrow at the top of a long list that scrolls it up. */
 function SelectScrollUpButton({
   className,
   ...props
@@ -157,6 +171,7 @@ function SelectScrollUpButton({
   );
 }
 
+/** Arrow at the bottom of a long list that scrolls it down. */
 function SelectScrollDownButton({
   className,
   ...props

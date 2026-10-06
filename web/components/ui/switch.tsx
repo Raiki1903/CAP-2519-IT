@@ -1,3 +1,8 @@
+/**
+ * Switch: an on and off toggle, built on Radix Switch.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Switch.
+ * Used by: every role.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,6 +10,7 @@ import * as SwitchPrimitive from "@radix-ui/react-switch";
 
 import { cn } from "./utils";
 
+/** Toggle. Takes the Radix Switch props (`checked`, `onCheckedChange`). */
 function Switch({
   className,
   ...props

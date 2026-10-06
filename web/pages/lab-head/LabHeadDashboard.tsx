@@ -1,3 +1,10 @@
+/**
+ * Lab Head screen: Custody Transitions, Branch Inventory, Health Benchmarking, and Account Approvals, one tab at a time.
+ * Layer: page. Called by app/routes.tsx at /lab-head/* (the tab comes from the URL).
+ * Calls: api/assets.api.ts, api/loans.api.ts, api/transfers.api.ts, features/assets/AssetDetailModal.tsx,
+ * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (repairs, sign-ups and their decisions).
+ * Used by: Lab Head (loan and transfer decisions, sign-up approval, branch audit).
+ */
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
@@ -38,11 +45,9 @@ const severityClass: Record<string, string> = {
   Critical: "bg-red-900   text-red-200    border-red-700",
 };
 
-// Mirrors the `asset_records.asset_condition` ENUM in the MySQL schema —
-// same 5-state condition used in ReturnForm/AssetDetailModal/ITSDashboard/
-// CustodianPortal, replacing the old (always-100, not DB-backed) numeric %.
-// NOTE: keys are the Prisma enum member names (underscore form), not the
-// space-separated DB storage strings — see schema.prisma's @map values.
+// Keys are the Prisma enum member names of `asset_records.asset_condition` (underscore
+// form), not the space-separated strings stored in the database; see the @map values
+// in schema.prisma.
 const CONDITION_TEXT_CLASS: Record<string, string> = {
   PERFECT: "text-emerald-700",
   OPERATIONAL: "text-blue-700",
@@ -141,6 +146,16 @@ interface LoanRequest {
   lab: string;
 }
 
+/**
+ * Shows one Lab Head tab, scoped to the Lab Head's own branch.
+ * - custody: the branch's loan and transfer requests, with approve and decline
+ *   (loansApi.listLoans, decideLoan; transfersApi.listTransfers, decideTransfer).
+ * - inventory: the branch's assets, decommissioned assets, repairs, custody trail, and a printable audit report.
+ * - health: the Lab Head analytics view for the branch.
+ * - approvals: pending sign-ups for the branch, approved or rejected through useServerData().
+ *
+ * @param activeTab "custody", "inventory", "health", or "approvals"
+ */
 export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const { currentUser } = useSession();
   const { assets, repairRequests, pendingRegistrations = [], approveRegistration, rejectRegistration } = useServerData();
@@ -150,8 +165,8 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const [showAuditModal, setShowAuditModal] = useState(false);
 
   // ── Live registry data (asset_records-backed, via /api/assets) ─────────────
-  // Branch Inventory needs this — the mock `assets` array from context never
-  // reflects real registrations/loans/transfers/repairs.
+  // Fetched again whenever Branch Inventory opens, so it shows changes made since the
+  // shared list last reloaded. The shared list is used until the first answer arrives.
   const [dbAssets, setDbAssets] = useState<any[]>([]);
   const [loadingDbAssets, setLoadingDbAssets] = useState(false);
   const [dbAssetsError, setDbAssetsError] = useState<string | null>(null);
@@ -450,8 +465,12 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     printWindow.document.close();
   };
 
+  // TODO(M-14): with no lab on the account this falls back to CITE4D's long name, which the analytics tab then uses as an asset tag prefix and matches nothing. Small fix branch.
   const userLab = (currentUser as any)?.labAffiliation || "Center for ICT for Development (CITE4D)";
 
+  // A lab may be stored as a full name, a short code, or "Name (CODE)", so this compares
+  // all three forms loosely.
+  // TODO(M-02): scoping to the Lab Head's branch happens only here, in the browser; the server sends every lab's rows. Moves to the server (01D section 7), steps 11 and 12.
   const matchesBranch = (lab: string | undefined | null) => {
     if (!lab) return false;
     const target = userLab.toLowerCase().trim();
@@ -912,8 +931,8 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                   <TableBody>
                     {(() => {
                       // Combines loans and transfers into one chronological
-                      // trail, same as the live Custody Transitions tab —
-                      // both already scoped to CITe4D and sourced from the DB.
+                      // trail, same as the live Custody Transitions tab. Both lists
+                      // come from the database and are already scoped to this Lab Head's branch.
                       const custodyTrail = [
                         ...branchLoanRequests.map(l => ({
                           id: l.id,

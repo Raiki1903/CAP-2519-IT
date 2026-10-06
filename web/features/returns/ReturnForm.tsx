@@ -1,3 +1,9 @@
+/**
+ * Return form: a Custodian asks to hand an asset back, and Staff finalize the return.
+ * Layer: feature component. Called by features/assets/AssetDetailModal.tsx (Custodian) and src/app/components/ITSDashboard.tsx (Staff pending returns).
+ * Calls: api/returns.api.ts finalizeReturn(), api/repairs.api.ts requestRepair(), state/browserOnly.tsx (the request list).
+ * Used by: Custodian return request, Staff return finalization.
+ */
 import { useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
@@ -27,6 +33,22 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Does one of two things, by role.
+ * - Custodian: saves a return request in this browser (useBrowserOnly().addReturnRequest)
+ *   and, if "flag for repair" is on, files a repair through repairsApi.requestRepair().
+ *   Nothing about the return itself reaches the server at this stage.
+ * - Staff: records the condition and calls returnsApi.finalizeReturn(), then marks the
+ *   browser request finalized and reloads the shared lists. The success screen shows the
+ *   server's reference number.
+ *
+ * If a server call fails, the success screen still appears, with a warning line, and
+ * the reference shown is a made-up `CLR-` number instead of a database one.
+ *
+ * @param asset the asset being returned
+ * @param onBack returns to the asset detail view
+ * @param onClose closes the modal from the success screen
+ */
 export function ReturnForm({ asset, onBack, onClose }: Props) {
   const { role } = useSession();
   const { syncFromDb } = useServerData();
@@ -82,10 +104,10 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
     } else {
       const reqId = pendingReturn ? pendingReturn.id : `RET-${Date.now().toString().slice(-6)}`;
 
-      // The actual DB write — closes the loan out and flips the asset back
-      // to Active/unassigned custody. This is the "return function" the
-      // backend was missing; the custodian-submitted "pending" step above
-      // stays local-only since asset_returns has no pending state to hold it.
+      // The database write: the server adds the asset_returns row and an ACTIVE
+      // record under the default custodian. The custodian's request above stays
+      // in the browser only, because asset_returns has no pending state to hold it. (H-02)
+      // TODO(H-04): the matching loan is not closed, it stays approved. Phase 3.
       try {
         const data = await returnsApi.finalizeReturn(asset.id, {
           returnedBy: asset.custodian || "Active Custodian",

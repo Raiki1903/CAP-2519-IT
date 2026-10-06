@@ -1,3 +1,9 @@
+/**
+ * Borrow request form shown to a Custodian from the asset detail modal.
+ * Layer: feature component. Called by features/assets/AssetDetailModal.tsx.
+ * Calls: api/loans.api.ts requestLoan(), then state/serverData.tsx syncFromDb().
+ * Used by: Custodian borrow request (a Lab Head decides it).
+ */
 import { useState, useEffect } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
@@ -15,6 +21,7 @@ import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
 
 const BRAND = "#005A36";
+// TODO(M-03): one more hardcoded lab list, in short codes, separate from shared/constants/labs.ts and research_centers. Phase 3.
 const LABS = ["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"];
 
 type PipelineStatus = "pending" | "active" | "done";
@@ -70,9 +77,20 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Collects borrower, destination lab, purpose, and due date, then submits a borrow request
+ * through loansApi.requestLoan(). A refusal (for example a pending request already on the
+ * asset, H-05) shows the server's message under the form. The reference shown on the
+ * success screen is made up in the browser; it is not the loan's id in asset_loans.
+ *
+ * @param asset the asset being requested, for the tag and the header
+ * @param onBack returns to the asset detail view
+ * @param onClose closes the modal from the success screen
+ */
 export function LoanForm({ asset, onBack, onClose }: Props) {
   const { currentUser } = useSession();
   const { syncFromDb } = useServerData();
+  // TODO(H-10): the server picks the borrower by matching this typed name, so editing it can file the loan under someone else. Phase 3 (borrower from the session, issue #32).
   const [borrower, setBorrower] = useState(() => {
     return currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)";
   });

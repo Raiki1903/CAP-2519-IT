@@ -1,3 +1,10 @@
+/**
+ * Custodian screen: My Assets, Available Equipment, QR Scan, and the condition report form, one tab at a time.
+ * Layer: page. Called by app/routes.tsx at /custodian/* (the tab comes from the URL).
+ * Calls: api/assets.api.ts listAssets(), api/inspections.api.ts submitInspectionRaw(), features/assets/AssetDetailModal.tsx,
+ * state/serverData.tsx (assets, addRepairRequest, syncFromDb), state/browserOnly.tsx addInspectionReport().
+ * Used by: Custodian.
+ */
 import { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
 import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
@@ -31,11 +38,9 @@ const statusBadgeClass: Record<string, string> = {
   "Overdue": "bg-red-50    text-red-700    border-red-200",
 };
 
-// Mirrors the `asset_records.asset_condition` ENUM in the MySQL schema —
-// same 5-state condition used in ReturnForm/AssetDetailModal/ITSDashboard,
-// replacing the old (always-100, not DB-backed) numeric % score.
-// NOTE: keys are the Prisma enum member names (underscore form), not the
-// space-separated DB storage strings — see schema.prisma's @map values.
+// Keys are the Prisma enum member names of `asset_records.asset_condition` (underscore
+// form), not the space-separated strings stored in the database; see the @map values
+// in schema.prisma.
 const CONDITION_TEXT_CLASS: Record<string, string> = {
   PERFECT: "text-emerald-700",
   OPERATIONAL: "text-blue-700",
@@ -52,6 +57,17 @@ const statusPills = [
   { label: "Critical Failure", severity: "critical", ring: "ring-red-500", bg: "bg-red-50", text: "text-red-700" },
 ];
 
+/**
+ * Shows one Custodian tab. Loads the asset list itself through assetsApi.listAssets() when it
+ * opens and on every tab change, and uses the shared list until that answer arrives.
+ * - myassets: assets whose custodian name matches the signed-in user, without Disposed ones.
+ * - available: Active assets, filtered by category, campus, lab, and search, with the detail modal for a loan request.
+ * - scan: reads a QR tag from the camera or an uploaded picture and opens that asset.
+ * - report: a condition report, posted to asset_reports, optionally filing a repair too.
+ *
+ * @param activeTab "myassets", "available", "scan", or "report"
+ */
+// "Mine" is decided by comparing names, so two custodians with the same name see each other's assets. (issue #32)
 export function CustodianPortal({ activeTab }: { activeTab: string }) {
   const { cycleMode, currentUser } = useSession();
   const { addRepairRequest: onRepairRequest, assets, syncFromDb } = useServerData();
@@ -341,6 +357,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
       // 1. Post directly to MySQL database table asset_reports
       await inspectionsApi.submitInspectionRaw(targetTag, {
         reporterEmail: currentUser?.email,
+        // TODO(H-13): the session user has userId, not user_id, so this is always undefined. Own fix branch.
         reportedById: currentUser?.user_id,
         reportCondition: reportConditionEnum,
         reportRemarks: fullRemarks,
@@ -383,7 +400,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
       await fetchDbAssets();
     } catch (err) {
       console.error("❌ Failed to save custodian inspection report in MySQL asset_reports:", err);
-      // Fallback local marking
+      // TODO(H-16): the report reached only this browser's log, yet the screen shows success. A refusal from the server is not seen at all, because the answer is never read. Step 13 (typed errors).
       addInspectionReport({
         id: ref,
         assetId: targetTag,
@@ -619,6 +636,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   }
 
   // ── QR Scan ───────────────────────────────────────────────────────────────
+  // TODO(M-15): camera or uploaded picture only; there is no manual tag entry (panel D1). The QR feature in 01D adds it.
   if (activeTab === "scan") {
     return (
       <div>

@@ -1,3 +1,10 @@
+/**
+ * Notification bell: a floating panel listing requests, reminders, and clearance holds for the signed-in role.
+ * Layer: feature component. Called by app/layouts/RootLayout.tsx, on every signed-in screen.
+ * Calls: api/transfers.api.ts decideTransfer(), api/disposals.api.ts decideDisposal(), and state/serverData.tsx
+ * (the shared lists, authorizeLoan, acknowledgeRepair). It fetches nothing itself.
+ * Used by: every role.
+ */
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { useSession, roleToSlug } from "@web/state/session";
@@ -26,6 +33,14 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 
+/**
+ * Builds the role's notifications from the shared lists and offers the decisions that role
+ * may make from the bell: Lab Heads approve or decline transfers, the Director authorizes or
+ * rejects disposals, Lab Heads and Staff authorize loans, Staff acknowledge repair tickets.
+ * Each decision calls the API and then reloads the shared lists. Clicking a card opens the
+ * matching tab. Takes no props.
+ */
+// TODO(H-16): a failed decision is written to the console only; the card stays and the user is not told why. Step 13, then the bell rewrite (01D section 8).
 export function NotificationCenter() {
   const { role, currentUser } = useSession();
   const {
@@ -45,6 +60,8 @@ export function NotificationCenter() {
   const [activeTab, setActiveTab] = useState<"requests" | "reminders" | "holds">("requests");
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // TODO(H-13): user_id, id, first_name, and last_name are not on the session user, so these fall back or stay undefined. Own fix branch.
+  // Which cards are "mine" is decided by comparing names, not ids. (issue #32)
   const currentUserId = currentUser?.user_id || currentUser?.id;
   const currentUserName = currentUser
     ? `${currentUser.firstName || currentUser.first_name || ""} ${currentUser.lastName || currentUser.last_name || ""}`.trim()
@@ -222,6 +239,7 @@ export function NotificationCenter() {
           isRelevant = true;
           actionRequired = true;
         } else if (role === "LabHead") {
+          // TODO(F-31): every Lab Head sees CITe4D transfers and no others, whatever their own lab. The bell rewrite (01D section 8).
           if (txn.from_lab?.includes("CITe4D") || txn.to_lab?.includes("CITe4D") || txn.lab === "CITe4D") {
             isRelevant = true;
             actionRequired = true;

@@ -1,3 +1,9 @@
+/**
+ * Lab Head analytics: utilization, category mix, project allocation, delinquencies, and accountability widgets for one lab.
+ * Layer: feature component. Called by pages/lab-head/LabHeadDashboard.tsx (health tab).
+ * Calls: api/analytics.api.ts (lab-head, idle-time, idle-frequency, loan-recommender), api/loans.api.ts, api/transfers.api.ts, state/serverData.tsx.
+ * Used by: Lab Head.
+ */
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
@@ -50,6 +56,12 @@ const cardAnimation = {
 };
 
 // Operational & Localized View (Task 2: Actionable Data Tables for loans & transfers with Approve/Reject buttons, Utilization Gauge, Category Breakdown Horizontal Bar Chart)
+/**
+ * Utilization gauge, category breakdown, and the lab's loan and transfer request lists.
+ * Calls analyticsApi.getLabHeadAnalyticsRaw().
+ *
+ * @param lab the lab to show, default "CITe4D"
+ */
 export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "CITe4D" }) => {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -78,6 +90,9 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
 
   const [actingId, setActingId] = useState<string | null>(null);
 
+  // Nothing calls handleLoanDecision or handleTransferDecision. Both send "reject", which the
+  // server refuses (it expects "decline" for loans and transfers). Decisions are made from the
+  // Custody tab and the bell instead.
   const handleLoanDecision = async (loanId: number, decision: "approve" | "reject") => {
     setActingId(`loan-${loanId}`);
     try {
@@ -306,6 +321,11 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
 };
 
 // 1. Project-to-Asset Allocation Matrix (Treemap + Detail Modal)
+/**
+ * Which projects hold which of the lab's assets. Calls analyticsApi.getLabHeadAnalyticsRaw().
+ *
+ * @param lab the lab to show
+ */
 export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -522,6 +542,11 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
 };
 
 // 2. Asset Idle Time Analyzer (BarChart Histogram)
+/**
+ * Histogram of how long the lab's assets sit unused. Calls analyticsApi.getIdleTimeRaw(). Not rendered anywhere today: no view or page includes it.
+ *
+ * @param lab the lab to show
+ */
 export const IdleTimeAnalyzer: React.FC<{ lab: string }> = ({ lab }) => {
   const { data: idleData = [] } = useQuery({
     queryKey: ["labhead-idle-time", lab],
@@ -577,6 +602,11 @@ export const IdleTimeAnalyzer: React.FC<{ lab: string }> = ({ lab }) => {
 };
 
 // 2b. Asset Idle Time Analyzer (Duration Frequency Chart - Lab Head Exclusive)
+/**
+ * Idle time by duration band. Calls analyticsApi.getIdleFrequencyRaw(). Not rendered anywhere today: no view or page includes it.
+ *
+ * @param lab the lab to show
+ */
 export const IdleTimeDurationFrequencyWidget: React.FC<{ lab: string }> = ({ lab }) => {
   const [isMaximized, setIsMaximized] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<"ALL" | "31-60" | "60+">("ALL");
@@ -830,6 +860,11 @@ export const IdleTimeDurationFrequencyWidget: React.FC<{ lab: string }> = ({ lab
 };
 
 // 3. Inter-Lab Loan Recommender
+/**
+ * Suggested loans from labs with idle assets to labs that need them. Calls analyticsApi.getLoanRecommenderRaw(). Not rendered anywhere today: no view or page includes it.
+ *
+ * @param lab the lab to show
+ */
 export const LoanRecommenderList: React.FC<{ lab: string }> = ({ lab }) => {
   const [requested, setRequested] = useState<Record<number, boolean>>({});
 
@@ -920,6 +955,11 @@ export const LoanRecommenderList: React.FC<{ lab: string }> = ({ lab }) => {
 };
 
 // 4. Custodianship & Delinquency Analytics (DataTable)
+/**
+ * Custodians with overdue assets in the lab. Calls analyticsApi.getLabHeadAnalyticsRaw().
+ *
+ * @param lab the lab to show
+ */
 export const DelinquencyTable: React.FC<{ lab: string }> = ({ lab }) => {
   const { data: analyticsData } = useQuery({
     queryKey: ["labhead-delinquencies-data", lab],
@@ -1007,6 +1047,11 @@ export const DelinquencyTable: React.FC<{ lab: string }> = ({ lab }) => {
 };
 
 // 3. Diagnostic — Accountability Scatter Plot (Maximizable)
+/**
+ * Scatter plot of custodians by overdue count and delay. Calls analyticsApi.getLabHeadAnalyticsRaw().
+ *
+ * @param lab the lab to show
+ */
 export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -1165,6 +1210,11 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
 };
 
 // 4. Authentic 2D Heatmap Matrix Widget
+/**
+ * Heatmap of accountability by custodian group. Calls analyticsApi.getLabHeadAnalyticsRaw().
+ *
+ * @param lab the lab to show
+ */
 export const AccountabilityHeatmapWidget: React.FC<{ lab: string }> = ({ lab }) => {
   const [hoveredCell, setHoveredCell] = useState<{ cohort: string; range: string; count: number } | null>(null);
 
@@ -1288,6 +1338,12 @@ export const AccountabilityHeatmapWidget: React.FC<{ lab: string }> = ({ lab }) 
 };
 
 // Master Lab Head Dashboard Analytics View
+/**
+ * The Lab Head's analytics screen: lays out five widgets for one lab.
+ *
+ * @param lab the lab to show, default "CITe4D"
+ */
+// TODO(M-01): all five widgets fetch GET /api/analytics/lab-head on their own, four with the same query, so one screen sends that request five times. Step 12 (analytics).
 export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "CITe4D" }) => {
   return (
     <div className="space-y-8 text-foreground font-sans">

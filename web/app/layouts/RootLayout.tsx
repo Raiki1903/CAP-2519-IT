@@ -1,3 +1,9 @@
+/**
+ * Signed-in frame: sidebar, mobile header, loading bar, page transition, and the notification bell.
+ * Layer: shared (app shell). Called by app/routes.tsx for every route except login, sign-up, and not found.
+ * Calls: state/session.tsx, state/serverData.tsx, layouts/Sidebar.tsx, features/notifications/NotificationCenter.tsx.
+ * Used by: every role.
+ */
 import { useState, useEffect } from "react";
 import { Outlet, Navigate, useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
@@ -7,6 +13,12 @@ import { Sidebar } from "./Sidebar";
 import { NotificationCenter } from "@web/features/notifications/NotificationCenter";
 import { Menu, Shield } from "lucide-react";
 
+/**
+ * Wraps every signed-in screen. Sends a visitor with no role to /login, and
+ * sends a signed-in user who opens another role's URL to their own default page.
+ */
+// TODO(C-02): this redirect is the only thing keeping a role out of another role's
+// screens. The server checks nothing, so it hides screens but protects no data. Step 13 (requireAuth).
 export function RootLayout() {
   const { role, setRole, currentUser } = useSession();
   const { isDbLoading } = useServerData();

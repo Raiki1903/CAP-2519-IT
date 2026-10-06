@@ -1,3 +1,9 @@
+/**
+ * Director analytics: portfolio value, location and status, funding, cross-campus transfers, and utilization widgets.
+ * Layer: feature component. Called by pages/director/AdRICDirectorDashboard.tsx (analytics tab).
+ * Calls: api/analytics.api.ts getDirectorAnalytics(), state/serverData.tsx (assets, reports, transfers, loans, pending disposals).
+ * Used by: AdRIC Director.
+ */
 import React, { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
@@ -48,6 +54,7 @@ const cardAnimation = {
 const PIE_COLORS_OUTER = ["#005A36", "#10B981", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899"];
 const PIE_COLORS_INNER = ["#047857", "#34D399", "#60A5FA", "#FBBF24", "#A7F3D0", "#93C5FD"];
 
+/** Filters the Director view passes down to its widgets. */
 export interface DirectorAnalyticsProps {
   selectedLabFilter?: string;
   startDate?: string;
@@ -57,6 +64,15 @@ export interface DirectorAnalyticsProps {
 }
 
 // Macro & Financial View (Task 1: Portfolio Value KPI, Pending Disposal Count, Location vs Status Stacked Column, Line Graph Audit Compliance)
+/**
+ * Portfolio value and pending disposal KPIs, the location by status chart, and audit compliance over time.
+ * Calls analyticsApi.getDirectorAnalytics() with the lab and date filters, and falls back to
+ * the shared asset, report, and disposal lists when that fails.
+ *
+ * @param selectedLabFilter lab to scope to, or "All Labs"
+ * @param startDate start of the date range, or empty for no limit
+ * @param endDate end of the date range, or empty for no limit
+ */
 export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
   selectedLabFilter = "All Labs",
   startDate = "",
@@ -344,6 +360,11 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
 };
 
 // 1. Funding Capital & Valuation Breakdown (Nested PieChart + Values Breakdown Side Panel)
+/**
+ * Asset value broken down by funding source, from the shared asset list.
+ *
+ * @param selectedLabFilter lab to scope to, or "All Labs"
+ */
 export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selectedLabFilter = "All Labs" }) => {
   const { assets: dbAssetsList } = useServerData();
 
@@ -488,6 +509,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
 };
 
 // 2. Cross-Campus Transfer Flow (Dynamic Sankey Diagram built strictly from active dbTransfers)
+/** Flow diagram of transfers between campuses, from the shared transfer and asset lists. Takes no props. */
 export const CampusTransferFlow: React.FC = () => {
   const { dbTransfers, assets } = useServerData();
   const [hoveredFlow, setHoveredFlow] = useState<string | null>(null);
@@ -863,6 +885,7 @@ export const CampusTransferFlow: React.FC = () => {
 };
 
 // 3. Grant Renewal Readiness Index (RadialBar + Dynamic Project Verification)
+/** Documentation status per research project, from the shared asset list. Not rendered anywhere today: no view or page includes it. */
 export const GrantReadinessIndex: React.FC = () => {
   const { assets: contextAssets } = useServerData();
 
@@ -959,6 +982,7 @@ export const GrantReadinessIndex: React.FC = () => {
 };
 
 // 4. Audit-Readiness & Compliance Analytics
+/** Audit readiness and grant documentation compliance, from the shared asset list. Not rendered anywhere today: no view or page includes it. */
 export const ComplianceWidget: React.FC = () => {
   const { assets: contextAssets } = useServerData();
 
@@ -1015,6 +1039,7 @@ export const ComplianceWidget: React.FC = () => {
 };
 
 // 5. Diagnostic — Audit Discrepancy Analyzer
+/** Assets whose records disagree, from the shared asset list. Not rendered anywhere today: no view or page includes it. */
 export const AuditDiscrepancyWidget: React.FC = () => {
   const { assets: contextAssets } = useServerData();
 
@@ -1074,6 +1099,7 @@ export const AuditDiscrepancyWidget: React.FC = () => {
 };
 
 // 6. Prescriptive - Disposal & Clearance Engine
+/** Suggested disposals and clearance actions, from the shared asset list. Not rendered anywhere today: no view or page includes it. */
 export const DisposalActionList: React.FC = () => {
   const { assets: contextAssets } = useServerData();
 
@@ -1152,6 +1178,11 @@ export const DisposalActionList: React.FC = () => {
 };
 
 // 7. Descriptive - Asset Utilization & Procurement Justifier (Maximizable Preview)
+/**
+ * Most and least used assets, from the shared asset, transfer, and loan lists.
+ *
+ * @param selectedLabFilter lab to scope to, or "All Labs"
+ */
 export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selectedLabFilter = "All Labs" }) => {
   const [isMaximized, setIsMaximized] = useState(false);
   const { assets: dbAssetsList, dbTransfers, dbLoans } = useServerData();
@@ -1310,6 +1341,10 @@ export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selecte
 };
 
 // Master AdRIC Director Dashboard Analytics View
+/**
+ * The Director's analytics screen: holds the lab and date filters and lays out four widgets
+ * (macro and financial, funding, transfer flow, utilization). Takes no props.
+ */
 export const DirectorAnalyticsView: React.FC = () => {
   const [selectedLabFilter, setSelectedLabFilter] = useState<string>("All Labs");
   const [selectedTerm, setSelectedTerm] = useState<string>("AY 2025-2026 Term 2");

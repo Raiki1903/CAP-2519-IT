@@ -1,3 +1,8 @@
+/**
+ * Checkbox: a styled Radix checkbox.
+ * Layer: shared (UI primitive, shadcn). Imported by no file today. Calls ui/utils.ts and Radix Checkbox.
+ * Used by: no screen today.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,6 +11,7 @@ import { CheckIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
+/** Checkbox with a check icon. Takes the Radix Checkbox props (`checked`, `onCheckedChange`). */
 function Checkbox({
   className,
   ...props

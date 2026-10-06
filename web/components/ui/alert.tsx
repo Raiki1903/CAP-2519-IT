@@ -1,3 +1,8 @@
+/**
+ * Alert box: a bordered message block with a title and description, in default and destructive styles.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts.
+ * Used by: every role.
+ */
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "./utils";
@@ -18,6 +23,7 @@ const alertVariants = cva(
   }
 );
 
+/** Alert container. `variant` is "default" or "destructive". */
 const Alert = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
@@ -31,6 +37,7 @@ const Alert = React.forwardRef<
 ));
 Alert.displayName = "Alert";
 
+/** Alert heading line. */
 const AlertTitle = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLHeadingElement>
@@ -43,6 +50,7 @@ const AlertTitle = React.forwardRef<
 ));
 AlertTitle.displayName = "AlertTitle";
 
+/** Alert body text. */
 const AlertDescription = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>

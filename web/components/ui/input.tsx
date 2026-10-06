@@ -1,7 +1,13 @@
+/**
+ * Input: the app's styled text input.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts.
+ * Used by: every role.
+ */
 import * as React from "react";
 
 import { cn } from "./utils";
 
+/** Text input. Takes every native input prop. */
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
     <input

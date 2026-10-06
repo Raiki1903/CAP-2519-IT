@@ -1,3 +1,9 @@
+/**
+ * Repair request form shown to a Custodian from the asset detail modal.
+ * Layer: feature component. Called by features/assets/AssetDetailModal.tsx.
+ * Calls: api/repairs.api.ts requestRepair(), then state/serverData.tsx addRepairRequest().
+ * Used by: Custodian repair request (Staff handle the ticket).
+ */
 import { useState, useRef } from "react";
 import { useServerData } from "@web/state/serverData";
 import * as repairsApi from "@web/api/repairs.api";
@@ -78,6 +84,15 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Collects a justification and files a repair ticket through repairsApi.requestRepair().
+ * The success screen appears even when the server refuses or cannot be reached, with a
+ * warning line, and its reference is made up in the browser.
+ *
+ * @param asset the asset needing repair; its custodian name is sent as the reporter
+ * @param onBack returns to the asset detail view
+ * @param onClose closes the modal from the success screen
+ */
 export function RepairForm({ asset, onBack, onClose }: Props) {
   const { addRepairRequest } = useServerData();
   const [justification, setJustification] = useState("");
@@ -124,6 +139,7 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
       submitLockRef.current = false;
     }
 
+    // TODO(M-07): addRepairRequest posts the same ticket again; the server's 8-second duplicate guard drops it. Step 8 part 2 or later, as its own behavior change.
     addRepairRequest({
       id: refId,
       assetId: asset.id,

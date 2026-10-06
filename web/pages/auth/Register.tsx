@@ -1,3 +1,9 @@
+/**
+ * Sign-up screen: a new Custodian asks for an account, which a Lab Head approves or rejects.
+ * Layer: page. Called by app/routes.tsx at /register.
+ * Calls: api/auth.api.ts requestRegistrationRaw(), state/serverData.tsx addPendingRegistration().
+ * Used by: new users (Custodian account request), Lab Head approval.
+ */
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Shield, Lock, User, Upload, Camera, CheckCircle, ArrowLeft, Building2, CreditCard, Mail } from "lucide-react";
@@ -18,6 +24,14 @@ const AVATAR_PRESETS = [
   "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&h=150",
 ];
 
+/**
+ * Collects name, email, ID number, user type, lab, password, and picture; checks them in the
+ * browser (a @dlsu.edu.ph email, an 8-digit ID, matching passwords of 6 or more characters);
+ * and sends the request through authApi.requestRegistrationRaw(). Every request asks for the
+ * Custodian role. On success the request is also added to this tab's in-memory pending list,
+ * until the next server reload replaces that list. Takes no props.
+ */
+// TODO(H-17): the server keeps this request, plaintext password included, in pending_registrations.json. Phase 3 makes it a table.
 export function Register() {
   const navigate = useNavigate();
   const { addPendingRegistration } = useServerData();

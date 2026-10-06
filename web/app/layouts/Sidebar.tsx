@@ -1,3 +1,9 @@
+/**
+ * Side navigation: the role's tab list, collapse toggle, logout, and the settings panel (theme, inspection cycle, session details).
+ * Layer: shared (app shell). Called by layouts/RootLayout.tsx.
+ * Calls: state/session.tsx (role, preferences, cookies), state/serverData.tsx (unacknowledged repair count). No api calls.
+ * Used by: every role.
+ */
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
@@ -87,6 +93,14 @@ const roleConfig: Record<Role, {
   },
 };
 
+/**
+ * Shows the signed-in role's navigation. Each entry links to `/<role slug>/<tab id>`;
+ * the Repair Manager entry carries the count of unacknowledged repair tickets.
+ *
+ * @param onLogout called by the logout button; RootLayout clears the role
+ * @param isMobileOpen whether the drawer is open on a narrow screen
+ * @param onCloseMobile closes the drawer after a link is followed on a narrow screen
+ */
 export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: () => void; isMobileOpen?: boolean; onCloseMobile?: () => void }) {
   const { role, sidebarCollapsed, setSidebarCollapsed, cycleMode, setCycleMode, theme, setTheme, currentUser } = useSession();
   const { unacknowledgedCount } = useServerData();
@@ -527,6 +541,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                     </select>
                   </div>
 
+                  {/* TODO(F-38): the cycle mode is a per-browser cookie (pref_cycle_mode), so two Staff can work to different cycles. A shared setting comes with issue #34. */}
                   {/* Cycle Mode Option */}
                   <div className="flex items-center justify-between p-3 bg-slate-950/40 rounded-xl border border-white/5">
                     <div>

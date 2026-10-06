@@ -1,3 +1,10 @@
+/**
+ * Director screen: Executive Overview, Descriptive Analytics, Approvals and Holds, and the Audit Generator, one tab at a time.
+ * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
+ * Calls: api/assets.api.ts listAssets(), api/disposals.api.ts listDisposals() and decideDisposal(),
+ * features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx, state/browserOnly.tsx (inspection copies).
+ * Used by: AdRIC Director (disposal decisions, audit reports).
+ */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import DirectorAnalyticsView from "@web/features/analytics/director/DirectorAnalyticsView";
@@ -24,6 +31,7 @@ interface AdRICDirectorDashboardProps {
   activeTab: "overview" | "analytics" | "clearance-disposal" | "reports";
 }
 
+// TODO(M-03): another hardcoded lab list, with campus, separate from research_centers. Phase 3.
 const ALL_10_LABS = [
   { id: "CITe4D", name: "CITe4D - Manila", location: "Manila" },
   { id: "CAR", name: "CAR - Laguna", location: "Laguna" },
@@ -58,6 +66,15 @@ const CONDITION_SCORE_MAP: Record<string, number> = {
   "Critical": 35
 };
 
+/**
+ * Turns an asset's condition into a 0 to 100 score for the health figures.
+ * Accepts a numeric score, a database enum name (PERFECT, CRITICAL_DEFECT), or a display
+ * label, because the asset lists this page reads do not agree on the field or its form.
+ * Only this file calls it.
+ *
+ * @param asset an asset from any of the page's lists
+ * @returns the score; 100 when the asset has no condition recorded
+ */
 export function getLatestRecordConditionScore(asset: any): number {
   if (asset.condition !== undefined && typeof asset.condition === "number" && asset.condition > 0 && asset.condition !== 100) {
     return asset.condition;
@@ -76,6 +93,16 @@ export function getLatestRecordConditionScore(asset: any): number {
   return 100; // Default if unlogged/no entry
 }
 
+/**
+ * Shows one Director tab.
+ * - overview: campus distribution and the status of every lab.
+ * - analytics: the Director analytics view.
+ * - clearance-disposal: the pending disposal queue, authorized or rejected through disposalsApi.decideDisposal().
+ * - reports: the audit report generator, with a per-asset lifecycle trail and CSV export.
+ * Loads its own asset and disposal lists (assetsApi.listAssets, disposalsApi.listDisposals).
+ *
+ * @param activeTab "overview", "analytics", "clearance-disposal", or "reports"
+ */
 export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProps) {
   const navigate = useNavigate();
   const { currentUser } = useSession();
@@ -105,6 +132,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
     const assetRepairs = (repairRequests || []).filter(r => r.assetId === asset.id);
 
+    // TODO(F-28): with no database report for the asset, the audit falls back to this browser's own copies. Decide with the Staff log switch (step 8 part 2).
     const assetReports = (asset.asset_reports && asset.asset_reports.length > 0)
       ? asset.asset_reports
       : (inspections || []).filter(i => i.assetId === asset.id);
@@ -255,6 +283,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const [selectedAssetForAudit, setSelectedAssetForAudit] = useState<Asset | null>(null);
 
   // Custom states for interactive features
+  // TODO(F-37): unused, left from a clearance holds screen that no longer exists. Holds are an open team decision.
   const [selectedHoldAffiliate, setSelectedHoldAffiliate] = useState<any | null>(null);
   const [overrideNotes, setOverrideNotes] = useState("");
 

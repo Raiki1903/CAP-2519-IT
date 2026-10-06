@@ -1,3 +1,9 @@
+/**
+ * Account screen: the signed-in user's name, lab, and profile picture, with a form to change them.
+ * Layer: page. Called by app/routes.tsx at /<role>/account, for every role.
+ * Calls: api/auth.api.ts getMe(), state/session.tsx updateProfile().
+ * Used by: every role.
+ */
 import { useState, useRef, useEffect } from "react";
 import { useSession } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
@@ -17,6 +23,12 @@ const AVATAR_PRESETS = [
   "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&h=150",
 ];
 
+/**
+ * Loads the user's record through authApi.getMe() and saves changes through updateProfile().
+ * Choosing a preset picture or uploading one saves at once; name and lab save with the form.
+ * Takes no props.
+ */
+// TODO(M-17): an uploaded picture is sent and stored as a base64 text string. Phase 3.
 export function AccountDetailsPage() {
   const { currentUser, role, updateProfile } = useSession();
   const navigate = useNavigate();

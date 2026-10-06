@@ -1,3 +1,9 @@
+/**
+ * Asset picture, or a drawn placeholder with a category icon when the asset has no picture.
+ * Layer: feature component. Called by features/assets/AssetDetailModal.tsx, the Custodian and Lab Head pages, and src/app/components/ITSDashboard.tsx.
+ * Calls nothing.
+ * Used by: every asset list and gallery.
+ */
 import { useId } from "react";
 
 type Category =
@@ -115,6 +121,16 @@ const categoryLabels: Record<string, string> = {
   "Peripheral":            "PERIPHERAL",
 };
 
+/**
+ * Shows `imageUrl` cropped to the box, or a grey placeholder with an icon and label for the category.
+ * The icons are keyed by display names ("Computing Array" and similar) that the
+ * database categories (DEV_KIT, MONITOR, and so on) never match, so today every
+ * asset without a picture gets the computing icon and the label "ASSET".
+ *
+ * @param category the asset's category, used to pick the placeholder icon
+ * @param aspectRatio "4/3" (default) or "16/9"
+ * @param imageUrl the asset's picture, if it has one
+ */
 export function AssetImagePlaceholder({
   category = "",
   aspectRatio = "4/3",

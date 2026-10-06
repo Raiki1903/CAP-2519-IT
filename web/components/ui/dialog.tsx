@@ -1,3 +1,8 @@
+/**
+ * Dialog: a modal window on a dimmed overlay, built on Radix Dialog.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Dialog.
+ * Used by: every role.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,30 +11,35 @@ import { XIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
+/** Dialog root. Controls whether it is open (`open`, `onOpenChange`). */
 function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
 
+/** Element that opens the dialog when clicked. */
 function DialogTrigger({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 }
 
+/** Renders the dialog at the end of the document so it sits above the page. */
 function DialogPortal({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 
+/** Element that closes the dialog when clicked. */
 function DialogClose({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Close>) {
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
 
+/** Dimmed backdrop behind the dialog. */
 function DialogOverlay({
   className,
   ...props
@@ -46,6 +56,7 @@ function DialogOverlay({
   );
 }
 
+/** The dialog window, with its overlay and a close button. */
 function DialogContent({
   className,
   children,
@@ -72,6 +83,7 @@ function DialogContent({
   );
 }
 
+/** Area for the title and description. */
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -82,6 +94,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Row of action buttons at the bottom. */
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -95,6 +108,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Dialog heading. Screen readers announce it when the dialog opens. */
 function DialogTitle({
   className,
   ...props
@@ -108,6 +122,7 @@ function DialogTitle({
   );
 }
 
+/** Muted text under the title, also read by screen readers. */
 function DialogDescription({
   className,
   ...props

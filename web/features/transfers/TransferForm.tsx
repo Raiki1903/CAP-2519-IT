@@ -1,3 +1,9 @@
+/**
+ * Custodianship transfer form shown to a Custodian from the asset detail modal.
+ * Layer: feature component. Called by features/assets/AssetDetailModal.tsx.
+ * Calls: api/transfers.api.ts requestTransfer(), then state/serverData.tsx syncFromDb().
+ * Used by: Custodian transfer request (a Lab Head decides it).
+ */
 import { useState } from "react";
 import { useServerData } from "@web/state/serverData";
 import * as transfersApi from "@web/api/transfers.api";
@@ -19,6 +25,7 @@ import { cn } from "@web/components/ui/utils";
 
 const BRAND = "#005A36";
 
+// TODO(M-03): one more hardcoded lab list, in short codes, separate from shared/constants/labs.ts and research_centers. Phase 3.
 const LABS = ["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"];
 
 type PipelineStatus = "pending" | "active" | "done";
@@ -77,6 +84,19 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Collects the recipient's email, destination lab, reason, and effective date, then files a
+ * transfer through transfersApi.requestTransfer(). A refusal (unknown recipient, or a pending
+ * request already on the asset, H-05) shows the server's message under the form. The reference
+ * shown on the success screen is made up in the browser.
+ *
+ * @param asset the asset being transferred
+ * @param onBack returns to the asset detail view
+ * @param onClose closes the modal from the success screen
+ */
+// The pipeline drawn here (Lab Head approval, then TSG) is not enforced anywhere: the
+// server lets any caller decide a transfer. Transfers are to be replaced by a
+// custodianship queue, so no approval rule is added in the meantime. (C-02, issue #22)
 export function TransferForm({ asset, onBack, onClose }: Props) {
   const { syncFromDb } = useServerData();
   const [toEmail, setToEmail] = useState("");

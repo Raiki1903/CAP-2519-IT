@@ -1,9 +1,15 @@
+/**
+ * Button: the app's button in its variants and sizes.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Slot.
+ * Used by: every role.
+ */
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "./utils";
 
+/** Class names for each button variant and size, for links that should look like buttons. */
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all active:scale-[0.96] active:brightness-95 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
@@ -34,6 +40,7 @@ const buttonVariants = cva(
   },
 );
 
+/** Button. `variant`: default, destructive, outline, secondary, ghost, link. `size`: default, sm, lg, icon. `asChild` renders the child element instead. */
 function Button({
   className,
   variant,

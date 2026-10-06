@@ -1,3 +1,8 @@
+/**
+ * Tabs: a tab strip and its panels, built on Radix Tabs.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Tabs.
+ * Used by: every role.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,6 +10,7 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "./utils";
 
+/** Tabs root. Holds the active tab (`value`, `onValueChange`, or `defaultValue`). */
 function Tabs({
   className,
   ...props
@@ -18,6 +24,7 @@ function Tabs({
   );
 }
 
+/** The strip that holds the tab buttons. */
 function TabsList({
   className,
   ...props
@@ -34,6 +41,7 @@ function TabsList({
   );
 }
 
+/** One tab button. Its `value` picks the panel it shows. */
 function TabsTrigger({
   className,
   ...props
@@ -50,6 +58,7 @@ function TabsTrigger({
   );
 }
 
+/** The panel shown when its `value` is the active tab. */
 function TabsContent({
   className,
   ...props

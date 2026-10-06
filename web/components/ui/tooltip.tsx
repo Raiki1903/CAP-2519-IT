@@ -1,3 +1,8 @@
+/**
+ * Tooltip: a small label shown on hover or focus, built on Radix Tooltip.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Tooltip.
+ * Used by: every role.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,6 +10,7 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "./utils";
 
+/** Sets the hover delay (`delayDuration`, default 0) for the tooltips inside it. */
 function TooltipProvider({
   delayDuration = 0,
   ...props
@@ -18,6 +24,10 @@ function TooltipProvider({
   );
 }
 
+/**
+ * Tooltip root. Wraps itself in its own TooltipProvider with the default delay, and the
+ * nearest provider wins, so an outer provider's `delayDuration` does not reach it.
+ */
 function Tooltip({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
@@ -28,12 +38,14 @@ function Tooltip({
   );
 }
 
+/** Element that shows the tooltip on hover or focus. */
 function TooltipTrigger({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
+/** The tooltip box with its arrow. `sideOffset` sets the gap from the trigger. */
 function TooltipContent({
   className,
   sideOffset = 0,

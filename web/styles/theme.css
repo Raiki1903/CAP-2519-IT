@@ -1,3 +1,8 @@
+/*
+ * Theme tokens (colors, fonts, radii), the dark variant, and the animated dashboard background.
+ * Layer: shared (styles). Imported by styles/index.css.
+ * Used by: every screen.
+ */
 @custom-variant dark (&:is(.dark *));
 
 :root {

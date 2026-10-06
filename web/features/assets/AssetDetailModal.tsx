@@ -1,3 +1,9 @@
+/**
+ * Asset detail modal: one asset's facts, QR tag, custodian history, and the request forms each role may open from it.
+ * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and src/app/components/ITSDashboard.tsx.
+ * Calls: api/assets.api.ts getCustodianHistory(), state/serverData.tsx addRepairRequest(), and the loan, transfer, return, and repair forms.
+ * Used by: Custodian requests, Lab Head custody review, Staff maintenance flagging.
+ */
 import { useState, useEffect } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData, type DisposalDetails } from "@web/state/serverData";
@@ -18,7 +24,10 @@ import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
 import { QRCodeSVG } from "qrcode.react";
 
-// ── Shared asset shape used by all asset lists ────────────────────────────
+/**
+ * The asset shape every asset list hands to this modal and to the four request forms.
+ * `id` is the asset tag (for example CITe4D-0004), not the database id.
+ */
 export interface AssetDetail {
   id: string;
   name: string;
@@ -73,6 +82,16 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Shows one asset and switches between its detail view, custodian history, and the request forms.
+ * The buttons depend on role and status: a Custodian can request a loan (Active),
+ * a transfer, repair, or return (On Loan); Staff can send it to maintenance; a Lab Head
+ * can open the full custodian history. Calls assetsApi.getCustodianHistory() when it opens.
+ *
+ * @param asset the asset to show, or null for a closed modal. The live copy from
+ *   useServerData() is preferred when one exists, so the modal reflects a reload.
+ * @param onClose called when the modal closes, including after a form succeeds
+ */
 export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const { role, currentUser } = useSession();
   const { assets, addRepairRequest, dbLoans, dbTransfers } = useServerData();

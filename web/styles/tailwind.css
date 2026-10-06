@@ -1,3 +1,9 @@
+/*
+ * Tailwind setup: which files Tailwind scans for class names. A class used only in a file it does not scan gets no CSS.
+ * Layer: shared (styles). Imported by styles/index.css.
+ * Used by: every screen.
+ */
 @import 'tailwindcss' source(none);
 @source '../**/*.{js,ts,jsx,tsx}';
+/* src/ still holds ITSDashboard.tsx until step 8 part 2 moves it. */
 @source '../../src/**/*.{js,ts,jsx,tsx}';

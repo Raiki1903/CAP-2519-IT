@@ -29,7 +29,7 @@ export interface ReturnRequest {
 }
 
 /** The browser's own copy of an inspection report, shown in the Staff inspection log. */
-// TODO(F-28): the real report is saved to asset_reports through the API, but the Staff log table reads this copy instead. Team decision pending.
+// TODO(F-28): the real report is saved to asset_reports through the API, but the Staff log table reads this copy instead. Step 8 part 2 points the table at the database reports (decided 2026-10-06); the cycle type returns only with issue #34.
 export interface InspectionReport {
   id: string;
   /** The asset tag. */

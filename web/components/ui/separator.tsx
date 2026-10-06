@@ -1,3 +1,8 @@
+/**
+ * Separator: a thin horizontal or vertical line, built on Radix Separator.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Separator.
+ * Used by: every role.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,6 +10,7 @@ import * as SeparatorPrimitive from "@radix-ui/react-separator";
 
 import { cn } from "./utils";
 
+/** Divider line. `orientation`: horizontal (default) or vertical. */
 function Separator({
   className,
   orientation = "horizontal",

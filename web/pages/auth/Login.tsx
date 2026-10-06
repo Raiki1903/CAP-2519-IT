@@ -1,3 +1,9 @@
+/**
+ * Login screen: email and password sign-in for every role.
+ * Layer: page. Called by app/routes.tsx at /login.
+ * Calls: api/auth.api.ts login(), state/session.tsx setRole() and setCookie().
+ * Used by: every role.
+ */
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Shield, Lock } from "lucide-react";
@@ -8,6 +14,11 @@ import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 
+/**
+ * Checks the email is a @dlsu.edu.ph address, signs in through authApi.login(), stores the
+ * session cookies, and opens the role's dashboard. Any refusal, server error, or network
+ * failure shows a message and stays on this page. Takes no props.
+ */
 export function Login() {
   const navigate = useNavigate();
   const { setRole } = useSession();
@@ -53,12 +64,14 @@ export function Login() {
         determinedRole = data.role as Role;
         authUserEmail = data.user?.email || email.trim();
       } catch (e) {
+        // TODO(H-16): the server could not be reached, but the message blames the password. Step 13 (typed errors).
         setLoading(false);
         setError("Invalid institutional email address or password.");
         return;
       }
 
       // 3. Session Handling and Cookies
+      // TODO(C-06): the session is this unsigned email cookie; anyone can set it to any address. Step 13 (requireAuth).
       setCookie("session_user_email", authUserEmail, 30);
       const now = String(Date.now());
       setCookie("session_last_activity", now, 1);

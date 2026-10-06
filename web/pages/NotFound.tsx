@@ -1,8 +1,14 @@
+/**
+ * Not-found screen for any URL the router does not know.
+ * Layer: page. Called by app/routes.tsx (the "*" route). Calls nothing.
+ * Used by: every role, and visitors who are not signed in.
+ */
 import { useNavigate } from "react-router";
 import { Shield, AlertTriangle } from "lucide-react";
 
 const BRAND = "#005A36";
 
+/** Says the page does not exist and offers Go Back and the login page. Takes no props. */
 export function NotFound() {
   const navigate = useNavigate();
   return (

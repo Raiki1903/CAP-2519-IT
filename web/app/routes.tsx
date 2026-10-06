@@ -1,3 +1,9 @@
+/**
+ * Route table: which URL shows which screen, one tree per role under RootLayout.
+ * Layer: shared (app shell). Called by app/App.tsx.
+ * Calls: the screens in web/pages/, and src/app/components/ITSDashboard.tsx for ITS and TSG.
+ * Used by: every role.
+ */
 import { createBrowserRouter, Navigate } from "react-router";
 import { RootLayout } from "./layouts/RootLayout";
 import { Login } from "@web/pages/auth/Login";
@@ -9,6 +15,11 @@ import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboa
 import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
 import { NotFound } from "@web/pages/NotFound";
 
+/**
+ * The app's router. Login and sign-up sit outside RootLayout because they need no session.
+ * Each dashboard is one component, and the URL's last segment picks its tab through `activeTab`.
+ * Which role may open which tree is decided in RootLayout, not here.
+ */
 export const router = createBrowserRouter([
   {
     path: "/login",
