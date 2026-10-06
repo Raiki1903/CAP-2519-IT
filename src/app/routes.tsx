@@ -6,8 +6,8 @@ import { ITSDashboard } from "./components/ITSDashboard";
 import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";
-import { AccountDetailsPage } from "./components/AccountDetailsPage";
-import { NotFound } from "./components/NotFound";
+import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
+import { NotFound } from "@web/pages/NotFound";
 
 export const router = createBrowserRouter([
   {
