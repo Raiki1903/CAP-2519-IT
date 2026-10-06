@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useSession, roleToSlug, roleDefaultPath } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { Sidebar } from "../components/Sidebar";
-import { NotificationCenter } from "../components/NotificationCenter";
+import { NotificationCenter } from "@web/features/notifications/NotificationCenter";
 import { Menu, Shield } from "lucide-react";
 
 export function RootLayout() {
