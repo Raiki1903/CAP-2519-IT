@@ -1609,6 +1609,7 @@ app.get('/api/asset_transfers', async (req: Request, res: Response): Promise<voi
                 assetId: asset?.asset_tag || "",
                 asset: asset?.name || "Unknown Asset",
                 from: fromUser ? `${fromUser.first_name} ${fromUser.last_name}` : "Unknown",
+                fromCustodianId: t.from_custodian_id,
                 to: toUser ? `${toUser.first_name} ${toUser.last_name}` : "Unknown",
                 toEmail: toUser?.email || "",
                 justification: cleanJustification,

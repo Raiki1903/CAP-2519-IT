@@ -74,15 +74,21 @@ interface Props {
 }
 
 export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
-  const { role } = useSession();
+  const { role, currentUser } = useSession();
   const { assets, addRepairRequest, dbLoans, dbTransfers } = useServerData();
   const asset = propAsset ? (assets.find(a => a.id === propAsset.id) || propAsset) : null;
 
   // The server refuses a second loan or transfer while either is pending, so the
   // request buttons are swapped for a notice instead of leading to that refusal. (H-05)
-  const hasPendingRequest = !!asset && [...dbLoans, ...dbTransfers].some(
-    r => r.assetId === asset.id && String(r.status).toLowerCase() === "pending"
-  );
+  const isPendingFor = (r: any) => !!asset && r.assetId === asset.id && String(r.status).toLowerCase() === "pending";
+  const pendingLoan = dbLoans.find(isPendingFor);
+  const pendingTransfer = dbTransfers.find(isPendingFor);
+  const pendingRequest = pendingLoan
+    ? { kind: "loan", requesterId: pendingLoan.borrower_id, requesterName: pendingLoan.borrower }
+    : pendingTransfer
+      ? { kind: "transfer", requesterId: pendingTransfer.fromCustodianId, requesterName: pendingTransfer.from }
+      : null;
+  const isOwnPendingRequest = !!pendingRequest && currentUser?.userId === pendingRequest.requesterId;
   const [view, setView] = useState<FormView>("detail");
 
   const [custodianHistoryList, setCustodianHistoryList] = useState<any[]>([]);
@@ -150,11 +156,14 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     resetAndClose();
   };
 
+  // A custodian never sees who filed someone else's request, only that one exists. (D2)
   const requestPendingTile = (
     <Button
       variant="outline"
       disabled
-      title="This asset already has a pending loan or transfer request."
+      title={isOwnPendingRequest
+        ? `Your ${pendingRequest?.kind} request for this asset is waiting for a decision.`
+        : "Another user already has a pending request for this asset."}
       className="w-full h-auto flex-col py-4 px-2 gap-2 text-muted-foreground"
     >
       <Clock size={20} />
@@ -162,7 +171,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
         className="text-[10px] font-extrabold leading-tight text-center"
         style={{ fontFamily: "'Montserrat', sans-serif" }}
       >
-        Request<br />Pending
+        {isOwnPendingRequest ? <>Your request<br />is pending</> : <>Requested by<br />another user</>}
       </span>
     </Button>
   );
@@ -395,6 +404,12 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           <p className="text-[10px] font-extrabold text-muted-foreground tracking-[2px] uppercase mb-3">
                             Asset Actions
                           </p>
+                          {pendingRequest && role !== "Custodian" && (
+                            <p className="text-[11px] text-muted-foreground mb-3 flex items-center gap-1.5">
+                              <Clock size={12} />
+                              Pending {pendingRequest.kind} request from <strong className="text-foreground">{pendingRequest.requesterName}</strong>
+                            </p>
+                          )}
                           <div className="w-full">
                             {role === "LabHead" ? (
                               <div className="grid grid-cols-1 gap-2.5">
@@ -420,8 +435,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                             ) : asset.status === "Active" ? (
                               <div className="grid grid-cols-1 gap-2.5">
                                 {/* 0 — Request Loan */}
-                                {role === "Custodian" && hasPendingRequest && requestPendingTile}
-                                {role === "Custodian" && !hasPendingRequest && (
+                                {role === "Custodian" && pendingRequest && requestPendingTile}
+                                {role === "Custodian" && !pendingRequest && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       className="w-full h-auto flex-col py-4 px-2 gap-2 text-white shadow-sm"
@@ -471,8 +486,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                             ) : (
                               <div className={cn("grid gap-2.5", role === "Custodian" ? "grid-cols-3" : "grid-cols-1")}>
                                 {/* 1 — Custodianship Transfer */}
-                                {role === "Custodian" && hasPendingRequest && requestPendingTile}
-                                {role === "Custodian" && !hasPendingRequest && (
+                                {role === "Custodian" && pendingRequest && requestPendingTile}
+                                {role === "Custodian" && !pendingRequest && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       variant="outline"
