@@ -3,7 +3,7 @@ import { RootLayout } from "./layouts/RootLayout";
 import { Login } from "@web/pages/auth/Login";
 import { Register } from "@web/pages/auth/Register";
 import { ITSDashboard } from "./components/ITSDashboard";
-import { LabHeadDashboard } from "./components/LabHeadDashboard";
+import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "./components/AdRICDirectorDashboard";
 import { AccountDetailsPage } from "./components/AccountDetailsPage";
