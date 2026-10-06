@@ -2,7 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router";
 import { RootLayout } from "./layouts/RootLayout";
 import { Login } from "@web/pages/auth/Login";
 import { Register } from "@web/pages/auth/Register";
-import { ITSDashboard } from "./components/ITSDashboard";
+import { ITSDashboard } from "@/app/components/ITSDashboard";
 import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";

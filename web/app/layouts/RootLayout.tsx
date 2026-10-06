@@ -3,7 +3,7 @@ import { Outlet, Navigate, useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { useSession, roleToSlug, roleDefaultPath } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
-import { Sidebar } from "../components/Sidebar";
+import { Sidebar } from "./Sidebar";
 import { NotificationCenter } from "@web/features/notifications/NotificationCenter";
 import { Menu, Shield } from "lucide-react";
 
