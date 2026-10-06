@@ -386,6 +386,105 @@ Raiki ran the five checks below against the database and all passed (reported 20
 
 ---
 
+## Bug fix: issues #25 and #26 (not a restructure step)
+
+Branch `fix/issues-25-26`, from `main` after PR #27. Both bugs were found during the step 6 hand checks and exist on `main` independently of the restructure. One commit per fix.
+
+| Commit | Issue | What it does |
+|---|---|---|
+| `bc041acb` | #25 (H-05) | `POST /api/assets/:tag/borrow` and `POST /api/assets/:tag/transfer` refuse a new request with 409 when the asset already has a pending loan or transfer, or when its status does not allow it. The custodian's detail modal shows a disabled "Request Pending" tile in place of the request button |
+| `95290115` | #26 | The custodian's My Assets list leaves out Disposed assets |
+| D2 follow-up (after the first hand checks) | #25 | The pending tile says whose request it is: "Your request is pending" for the requester, "Requested by another user" for any other custodian, with no name (panel comment D2). Staff and Lab Heads see the requester's name. `GET /api/asset_transfers` now also sends `fromCustodianId` |
+
+### #25: what the server now checks
+
+Both endpoints call one helper in `server.ts`, `findCustodyRequestConflict`, after the "asset exists" check and before anything is written. It refuses the request if:
+
+1. the asset has a pending loan (either endpoint), or
+2. the asset has a pending transfer (either endpoint), or
+3. the asset's latest `asset_records` status is not allowed: a **loan needs `ACTIVE`**; a **transfer accepts `ACTIVE` or `ON_LOAN`**.
+
+A pending request of either kind blocks both kinds, because approving a loan and a transfer on the same item gives it two custodians, the same as two loans.
+
+**Why transfers accept `ON_LOAN`, which differs from the issue text.** The issue asked for "not Active" to be refused for both. The detail modal only offers Custodianship Transfer on an asset that is *not* Active (the On Loan branch), and an approved transfer itself sets the status to `ON_LOAN`. Refusing `ON_LOAN` would have made every transfer impossible. Maintenance and Disposed are still refused, which is what H-05 asks for. If the team wants Active-only transfers, that is the `["ACTIVE", "ON_LOAN"]` argument in the transfer handler, and the modal would need to offer the button on Active assets.
+
+Status is read with the same ordering `GET /api/assets` uses (`date_logged`, then `asset_record_id`), so the guard agrees with the badge on screen. An asset with no record yet shows as Active, so it is treated as `ACTIVE`.
+
+### #25: what the custodian sees
+
+`AssetDetailModal.tsx` reads `dbLoans` and `dbTransfers` from `useServerData()`. If either holds a pending row for the asset's tag, the Custodian sees a greyed tile where Request Loan (Active asset) or Custodianship Transfer (On Loan asset) would be. Request Repair and Return Asset are unchanged. The forms already show the server's `error` text, so a request that slips past a stale list (another custodian filed one after this page loaded) shows the 409 message under the form.
+
+**Who sees what (D2 follow-up).** The first version showed every custodian the same "Request Pending" tile, which hand check 3 found confusing for a custodian who had filed nothing. The tile now depends on who filed the request:
+
+| Viewer | Sees |
+|---|---|
+| The custodian who filed it | "Your request is pending" |
+| Any other custodian | "Requested by another user", no name (panel comment D2) |
+| Staff (ITS, TSG) and Lab Heads | A line under "Asset Actions": "Pending loan request from <name>" (or transfer). Their buttons are unchanged |
+
+"Who filed it" is the loan's `borrower_id`, or the transfer's `from_custodian_id`, compared with the logged-in user's id. Transfers did not send that id to the browser, so `GET /api/asset_transfers` gained one field, `fromCustodianId`. Ids are compared rather than names because two people can share a name.
+
+### #26
+
+`CustodianPortal.tsx` `custodianAssets` now also requires `status !== "Disposed"`. A disposal writes a `DISPOSED` record that keeps the last custodian, which is why the name match alone listed them. The same list feeds the condition report's asset picker, which no longer offers disposed assets either.
+
+### Typecheck: 93, unchanged
+
+A line-by-line comparison shows the same 93 errors after each commit. `npm run build` passes after each commit.
+
+### Verified
+
+- `npx tsx server.ts` starts, and the database was reachable. The guard was exercised through `POST /transfer` with a recipient email that does not exist, so a request that passes the guard stops at the recipient lookup (404) and nothing is written. One asset per case, found with a read-only query:
+
+  | Asset | State | Answer |
+  |---|---|---|
+  | `CITe4D-0008` | pending loan `LOAN-22` | 409 "already has a pending loan request (LOAN-22)" |
+  | `CITe4D-0012` | pending transfer `TRF-19` | 409 "already has a pending transfer request (TRF-19)" |
+  | `CITe4D-0009` | `MAINTENANCE` | 409 "is under maintenance" |
+  | `CIVI-0001` | `DISPOSED` | 409 "is disposed" |
+  | `CeLT-0001` | `ON_LOAN`, nothing pending | passes the guard (404 on the made-up recipient) |
+  | `Bio-0001` | `ACTIVE`, nothing pending | passes the guard (404 on the made-up recipient) |
+
+- `POST /borrow` on `CITe4D-0008` and `CITe4D-0009` (both already shown to be blocked) answered the same 409 messages.
+- The read-only query also found no asset holding more than one pending request today, so no existing data is left in a state the guard would have refused.
+
+**Not verified in the agent session:** nothing was clicked in a browser, and no request was allowed through to create a row. The hand checks below cover that.
+
+**D2 follow-up, verified:** typecheck 93 with the same errors, build passes. A copy of the server on port 4001 (port 4000 was taken by a server started before the change) answered `GET /api/asset_transfers` with `fromCustodianId` on all 21 rows. The two pending requests at the time, `TRF-21` (`CITe4D-0013`) and `LOAN-24` (`CITe4D-0008`), both belong to user 4, A. Dela Cruz. Nothing was clicked in a browser.
+
+### Hand checks: first round
+
+Raiki ran the first round on 2026-10-06:
+
+- 1, 2, 4, 5, 6, 8, 9: passed.
+- 7: skipped. A Custodian cannot reach a Maintenance or Disposed asset's request buttons in the UI, and the server test above already covers the refusal.
+- 3: worked as built, but a custodian who had filed nothing saw "Request Pending" with no context. That led to the D2 follow-up.
+
+The list is kept for the record:
+
+1. *Loan, happy path.* As a Custodian, open an Active asset with nothing pending and submit a borrow request. Expect the success screen and a new `pending` row in `asset_loans`.
+2. *Loan, second request.* Close the modal and open the same asset again. Expect a greyed "Request Pending" tile instead of Request Loan.
+3. *Loan, another custodian.* Log in as a different Custodian, open the same asset. Expect "Request Pending" there too.
+4. *Server refusal.* Open an Active asset in two browser tabs as a Custodian. Submit a borrow request in the first. In the second (not reloaded), submit another. Expect the 409 message under the form ("... already has a pending loan request (LOAN-n)."), and no second row in `asset_loans`.
+5. *Transfer.* As a Custodian holding an On Loan asset, file a transfer. Reopen the asset: "Request Pending" replaces Custodianship Transfer, while Request Repair and Return Asset are still there.
+6. *Decision clears it.* As a Lab Head, approve or decline the pending loan from step 1. As the Custodian, reload and open the asset: the request button is back (Request Loan if declined; if approved the asset is On Loan and shows the On Loan buttons).
+7. *Blocked statuses.* Open an asset under Maintenance and one that is Disposed. No request button is offered (unchanged), and the server would refuse one anyway.
+8. *My Assets (#26).* As a Custodian who was the last custodian of a disposed asset, open My Assets in list and grid views. The disposed asset is not listed. Their other assets still are, with due dates and overdue banners as before.
+9. *Condition report (#26 side effect).* On the report tab, the asset picker does not offer the disposed asset.
+
+### Hand checks: D2 follow-up
+
+**Restart the server first.** A server started before this change does not send `fromCustodianId`. Without it, the requester's own transfer shows "Requested by another user".
+
+1. *Own loan.* As the Custodian who filed a pending loan (today: A. Dela Cruz, `LOAN-24` on `CITe4D-0008`), open the asset. The tile reads "Your request is pending".
+2. *Own transfer.* As the Custodian who filed a pending transfer (today: A. Dela Cruz, `TRF-21` on `CITe4D-0013`), open the asset. The tile reads "Your request is pending" where Custodianship Transfer would be.
+3. *Another custodian.* As a different Custodian, open both assets. Each tile reads "Requested by another user", and no name appears anywhere in the modal, including the hover text.
+4. *Staff.* As ITS and as TSG, open both assets. A line under "Asset Actions" reads "Pending loan request from A. Dela Cruz" (or "transfer"). The QR tag and Send to Maintenance are unchanged.
+5. *Lab Head.* As a Lab Head, open both assets. The same line shows above Custodian History.
+6. *Nothing pending.* Open an asset with no pending request, in each role. No line and no tile: the normal buttons show as before.
+
+---
+
 ## Notes: noticed, deliberately not fixed
 
 Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3").
@@ -423,7 +522,11 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | Custodian condition report: if the server cannot be reached, the form saves the browser copy and still shows "Report Archived". The request's answer is never read, so a server-side refusal looks like success too | n/a (new) | Step 13 (typed errors), or with open team decision 2 |
 | `updateProfile` swallows a failed save and the account page shows its success tick anyway | n/a (new) | Step 13 |
 | `addRepairRequest` is unchanged, so `RepairForm` still posts each ticket twice and relies on the server's 8-second guard. 01D section 7 removes each form's second write when the forms move | M-07 | Step 8 |
-| Two pre-existing bugs found during the step 6 hand checks: duplicate custodian requests on one asset (issue #25), and My Assets listing disposed assets because `CustodianPortal.tsx` has no status filter (issue #26) | H-05 (#25), n/a (#26) | Own fix branch, after step 7 |
+| Two pre-existing bugs found during the step 6 hand checks: duplicate custodian requests on one asset (issue #25), and My Assets listing disposed assets because `CustodianPortal.tsx` has no status filter (issue #26). **Fixed on `fix/issues-25-26`** (`bc041acb`, `95290115`), see "Bug fix: issues #25 and #26" above | H-05 (#25), n/a (#26) | Done |
+| H-05 is only partly closed by #25. `POST /disposal` still checks only that the asset exists, so an asset that is on loan or already has a pending disposal can be put up for disposal. The loan and transfer guard is also check-then-insert, so two requests in the same instant can both pass (`TODO(H-05)` in `server.ts`) | H-05 | Disposal guard: its own fix, or step 12 (disposals). The race: Phase 3 database triggers |
+| Hiding the requester's name from other custodians (D2) happens only on screen. `GET /api/asset_loans` and `GET /api/asset_transfers` still send every requester's name to anyone who calls them, logged in or not. Real privacy needs the server to filter by role | C-02, D2 | Step 13 (`requireAuth`), then a role check on the two list endpoints |
+| A loan's requester is the `borrower_id`, which the server resolves from the name typed in the borrow form and otherwise sets to `DEFAULT_CUSTODIAN_ID` (user 1, ITS Admin). The form fills in the custodian's own name, so this normally matches. If they type a different name, their own request shows them "Requested by another user", and Staff see that other name | H-10 | Phase 3 (borrower from the session) |
+| `GET /api/asset_loans` seeds a pending loan with id 9 on the first asset whenever no pending loan exists (H-08). With the #25 guard, that seeded row now also blocks new requests on that asset until someone decides it. On the current database loan 9 already exists, so the seed's insert fails silently and nothing changes; it matters only on a fresh database | H-08 | Delete the seed block (H-08), its own fix |
 | **Transfers superseded (2026-10-04).** Custodian-to-custodian transfers will become a custodianship queue: the custodian releases to Staff, Staff assign the next custodian. Design not final. Today's transfer behavior is kept, and step 12 moves the code without the Lab Head approval rule the earlier decision asked for | Question 1 | Issue #22, after the restructure with the Phase 3 tables |
 | **Inspection photos (2026-10-04):** at most 3 per report, stored high resolution and deleted after 2 weeks (whether to keep one compressed copy as audit evidence is still being confirmed). Asset registry pictures are compressed and kept | M-17 | Phase 3 |
 | **Repository visibility (2026-10-04):** the repo will be made private. Git history stays as is, no rewrite. The account passwords in it are test data and will be rotated later | C-01 | Issue #9, team action |
