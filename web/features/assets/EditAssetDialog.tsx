@@ -1,3 +1,9 @@
+/**
+ * Edit asset dialog: Staff correct an asset's registry details, status, condition, custodian, and photo.
+ * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
+ * Calls: api/assets.api.ts updateAssetRaw().
+ * Used by: Staff (ITS and TSG) asset editing.
+ */
 import { useState } from "react";
 import * as assetsApi from "@web/api/assets.api";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
@@ -9,6 +15,14 @@ import { cn } from "@web/components/ui/utils";
 import { Trash2 } from "lucide-react";
 import { CONDITION_PILL_CLASS } from "./assetBadges";
 
+/**
+ * Edits one asset and saves it through assetsApi.updateAssetRaw(). Shows the server's error text
+ * under the form when the save fails, and stays open.
+ *
+ * @param asset the asset row as the inventory shows it
+ * @param onClose closes the dialog
+ * @param onSave called after a successful save with the merged asset, so the caller can reload its lists
+ */
 export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () => void; onSave: (updated: any) => void }) {
   const [form, setForm] = useState({
     name: asset?.name || "",
@@ -34,6 +48,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
     setSaving(true);
     setError(null);
     try {
+      // TODO(H-14): the server rewrites the newest asset_records row in place instead of adding one, so an edit erases the last recorded state. Phase 3.
       const res = await assetsApi.updateAssetRaw(asset.id, form);
       const contentType = res.headers.get("content-type");
       if (!res.ok || !contentType || !contentType.includes("application/json")) {
@@ -189,6 +204,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
                     e.target.value = "";
                     return;
                   }
+                  // TODO(M-17): the photo is sent and stored as a base64 string inside the asset row. Phase 3.
                   const reader = new FileReader();
                   reader.onload = ev => {
                     setForm({ ...form, image: ev.target?.result as string });

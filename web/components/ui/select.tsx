@@ -1,6 +1,6 @@
 /**
  * Select: a styled dropdown, built on Radix Select.
- * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Select.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/. Calls ui/utils.ts and Radix Select.
  * Used by: every role.
  */
 "use client";

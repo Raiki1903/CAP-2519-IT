@@ -1,6 +1,6 @@
 /**
  * Class name helper for the UI primitives and every component that styles with Tailwind.
- * Layer: shared (UI utility, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls clsx and tailwind-merge.
+ * Layer: shared (UI utility, shadcn). Called by feature components and pages across web/. Calls clsx and tailwind-merge.
  * Used by: every role.
  */
 import { clsx, type ClassValue } from "clsx";

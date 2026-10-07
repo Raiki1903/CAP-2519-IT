@@ -1,3 +1,9 @@
+/**
+ * Asset gallery card: one asset as a picture card in the Staff inventory's gallery view.
+ * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
+ * Calls: features/assets/AssetImagePlaceholder.tsx and assetBadges.tsx. No API.
+ * Used by: Staff (ITS and TSG) inventory.
+ */
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { statusBadgeClass, CONDITION_DOT_CLASS, ConditionState } from "./assetBadges";
 import { Button } from "@web/components/ui/button";
@@ -6,6 +12,15 @@ import { Card, CardContent } from "@web/components/ui/card";
 import { cn } from "@web/components/ui/utils";
 import { Pencil, Archive, Trash2 } from "lucide-react";
 
+/**
+ * Shows an asset's picture, status, id, name, custodian, and condition. A disposed asset is
+ * drawn dashed and red with its disposal id, and gets no action buttons. Each button stops the
+ * click from also opening the asset.
+ *
+ * @param eq the asset row from the inventory list
+ * @param onSelect opens the asset's detail modal
+ * @param onDelete, onEdit, onDecommission optional; each shows its button only when given
+ */
 export function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommission }: { eq: any; onSelect: () => void; onDelete?: () => void; onEdit?: () => void; onDecommission?: () => void }) {
   const isDisposed = eq.status === "Disposed";
   return (

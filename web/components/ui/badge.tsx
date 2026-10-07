@@ -1,6 +1,6 @@
 /**
  * Badge: a small rounded label for statuses and counts.
- * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Slot.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/. Calls ui/utils.ts and Radix Slot.
  * Used by: every role.
  */
 import * as React from "react";

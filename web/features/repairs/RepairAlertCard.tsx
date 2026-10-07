@@ -1,3 +1,9 @@
+/**
+ * Repair alert card: a large, pulsing card for one high-priority repair ticket.
+ * Layer: feature component. Called by nothing: no page renders it today.
+ * Calls nothing itself: acknowledging goes through the onAcknowledge prop.
+ * Used by: no one yet (it would serve Staff repair handling).
+ */
 import { useState } from "react";
 import type { RepairRequest } from "@web/state/serverData";
 import { Button } from "@web/components/ui/button";
@@ -5,6 +11,13 @@ import { Badge } from "@web/components/ui/badge";
 import { cn } from "@web/components/ui/utils";
 import { CheckCircle, Eye, Image as ImageIcon, Zap } from "lucide-react";
 
+/**
+ * Shows a ticket's asset, reporter, status, and description, with Acknowledge and a toggle for the
+ * full report. Not rendered anywhere today: no page includes it.
+ *
+ * @param req the repair ticket
+ * @param onAcknowledge called with the ticket id when Staff acknowledge it
+ */
 export function RepairAlertCard({ req, onAcknowledge }: { req: RepairRequest; onAcknowledge: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const isCritical = req.priority === "Critical";

@@ -1,3 +1,9 @@
+/**
+ * Disposal request dialog: Staff ask the Director to decommission an asset.
+ * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
+ * Calls: api/disposals.api.ts requestDisposal().
+ * Used by: disposal filing (Staff); the Director decides it on the Director screen.
+ */
 import { useState } from "react";
 import * as disposalsApi from "@web/api/disposals.api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
@@ -6,6 +12,18 @@ import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Archive } from "lucide-react";
 
+/**
+ * Collects the last custodian, the breakdown reasons, the disposal pathway, and the decommission
+ * date, and files a pending disposal through disposalsApi.requestDisposal(). The asset stays
+ * active until the Director approves. The success screen shows the database id (`DISP-<n>`).
+ *
+ * @param asset the asset to dispose of
+ * @param onClose closes the dialog
+ * @param requestedBy the signed-in Staff member's display name, sent as the requester
+ * @param onSubmitted optional, called after the request is saved
+ */
+// TODO(H-05): the server accepts a disposal for an asset that is on loan or already has a pending one. Step 12 (disposals).
+// TODO(M-13): pathway, last custodian, and date are packed into one text column and parsed back with regex. Phase 3.
 export function DisposalFormDialog({ asset, onClose, requestedBy, onSubmitted }: { asset: any; onClose: () => void; requestedBy: string; onSubmitted?: () => void }) {
   const [form, setForm] = useState({
     lastCustodian: asset?.custodian || "",

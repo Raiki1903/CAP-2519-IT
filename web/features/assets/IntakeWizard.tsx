@@ -1,3 +1,9 @@
+/**
+ * Intake wizard: the three-step form Staff use to register a newly acquired asset.
+ * Layer: feature component. Called by pages/staff/RegisterPage.tsx.
+ * Calls: api/assets.api.ts createAssetRaw(), state/serverData.tsx syncFromDb().
+ * Used by: Staff (ITS and TSG) asset registration.
+ */
 import { useState, useEffect } from "react";
 import { useServerData } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
@@ -31,12 +37,21 @@ const generateAdricSerial = () => {
   return `ADRIC-${year}-${hex}`;
 };
 
+// Known defect: this serial is generated once, when the module first loads. Every reset to
+// emptyForm (after a successful registration, or on reopening the tab) offers the same serial
+// again until the page is reloaded. Logged in 02-restructure-log.md, notes.
 const emptyForm: IntakeForm = {
   name: "", serial: generateAdricSerial(), manufacturer: "", category: "CPU",
   funding: "DOST", acquisitionValue: 0, procured: new Date().toISOString().split("T")[0],
   warranty: "", location: "Manila", lab: "CITe4D", image: "", remarks: ""
 };
 
+/**
+ * Collects the asset's details over three steps (identity and photo, procurement and funding,
+ * location and remarks) and registers it through assetsApi.createAssetRaw(). On success it
+ * reloads the shared lists and starts over at step 1; on failure it shows the server's error
+ * text under the buttons. Takes no props.
+ */
 export function IntakeWizard() {
   const { syncFromDb } = useServerData();
   const [form, setForm] = useState<IntakeForm>(emptyForm);
@@ -139,6 +154,7 @@ export function IntakeWizard() {
                       e.target.value = "";
                       return;
                     }
+                    // TODO(M-17): the photo is sent and stored as a base64 string inside the asset row. Phase 3.
                     const reader = new FileReader();
                     reader.onload = ev => {
                       setForm({ ...form, image: ev.target?.result as string });
@@ -201,6 +217,7 @@ export function IntakeWizard() {
                 <Label className="text-xs font-bold text-foreground">Responsible Laboratory Group</Label>
                 <select value={form.lab} onChange={e => setForm({ ...form, lab: e.target.value })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {/* TODO(M-03): another hardcoded lab list, separate from research_centers. Phase 3. */}
                   {["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"].map(l => (
                     <option key={l} value={l}>{l}</option>
                   ))}

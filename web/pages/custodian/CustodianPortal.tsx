@@ -95,7 +95,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   const [filterLab, setFilterLab] = useState("All");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 
-  // Live equipment data pulled from the MySQL-backed API, same approach as ITSDashboard
+  // Live equipment data pulled from the MySQL-backed API, same approach as the Staff pages
   const [dbAssets, setDbAssets] = useState<any[]>([]);
   const [loadingDbAssets, setLoadingDbAssets] = useState(false);
   const [dbAssetsError, setDbAssetsError] = useState<string | null>(null);

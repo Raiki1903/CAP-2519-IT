@@ -1,3 +1,9 @@
+/**
+ * Staff Overview: asset, repair, and return counts, quick links to the other tabs, campus totals, alerts, and recent registrations.
+ * Layer: page. Called by app/routes.tsx at /its/overview and /tsg/overview.
+ * Calls: features/assets/useStaffAssets.ts, features/repairs/useRepairTickets.ts, state/browserOnly.tsx (pending returns), state/session.tsx.
+ * Used by: Staff (ITS and TSG).
+ */
 import { useNavigate } from "react-router";
 import { useSession, roleToSlug } from "@web/state/session";
 import { useBrowserOnly } from "@web/state/browserOnly";
@@ -10,6 +16,7 @@ import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
 import { CheckCircle, Clock, Package, ChevronRight, Bell, AlertTriangle, Shield } from "lucide-react";
 
+/** The Staff landing tab. Reads only; every action is a link to another tab. Takes no props. */
 export function OverviewPage() {
   const navigate = useNavigate();
   const { role } = useSession();
@@ -20,8 +27,10 @@ export function OverviewPage() {
   const unacknowledged = combinedRepairs.filter(r => !r.acknowledged);
   const pendingReturns = returns.filter(r => r.status === "Pending");
 
+  // Links stay inside the tree the user is in (/its or /tsg) until step 9 merges them.
   const overviewSlug = roleToSlug[role] || ((typeof window !== "undefined" && window.location.pathname.startsWith("/tsg")) || role === "TSG" ? "tsg" : "its");
 
+  // TODO(M-03): campus is guessed from location and lab text, and anything not clearly Laguna counts as Manila. Phase 3 (research_centers.location).
   const manilaAssetsCount = displayedAssets.filter(a => {
     const loc = (a.location || "").toLowerCase();
     const labName = (a.lab || "").toLowerCase();
@@ -74,6 +83,7 @@ export function OverviewPage() {
         </Card>
         <Card className="border border-border bg-card shadow-sm rounded-xl">
           <CardContent className="pt-4 pb-4">
+            {/* TODO(H-09): the operational index is a fixed number, not computed from anything. */}
             <p className="text-3xl font-extrabold text-emerald-700 font-mono">97.8%</p>
             <p className="text-xs text-muted-foreground mt-0.5 font-medium">System Operational Index</p>
           </CardContent>

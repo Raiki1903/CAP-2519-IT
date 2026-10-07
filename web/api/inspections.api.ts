@@ -1,6 +1,6 @@
 /**
  * Inspections API: condition reports on assets.
- * Layer: api. Called by CustodianPortal, ITSDashboard, and state/serverData.tsx. Calls client.ts.
+ * Layer: api. Called by CustodianPortal, features/inspections (InspectionQueue, useInspectionReports), and state/serverData.tsx. Calls client.ts.
  * Used by: Custodian condition report, Staff inspection finalize and report list.
  */
 import { apiGet, apiPostRaw, type ApiResult } from "./client";
@@ -30,7 +30,7 @@ export function submitInspectionRaw(assetTag: string, input: InspectionReportInp
 
 /**
  * Lists inspection reports in the detailed shape (reporter email, image),
- * from `/api/asset-reports`. Used by the Staff dashboard.
+ * from `/api/asset-reports`. Used by the Staff inspection log (useInspectionReports).
  *
  * @returns `success` and `reports`
  */

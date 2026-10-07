@@ -1,6 +1,6 @@
 /**
  * Switch: an on and off toggle, built on Radix Switch.
- * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Switch.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/. Calls ui/utils.ts and Radix Switch.
  * Used by: every role.
  */
 "use client";

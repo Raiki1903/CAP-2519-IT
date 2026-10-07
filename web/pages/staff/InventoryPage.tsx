@@ -1,3 +1,9 @@
+/**
+ * Staff Inventory: every asset, in gallery or table view, with search, filters, sorting, and the active and decommissioned sub-tabs.
+ * Layer: page. Called by app/routes.tsx at /its/inventory and /tsg/inventory.
+ * Calls: features/assets (useStaffAssets, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx, state/serverData.tsx syncFromDb(), state/session.tsx.
+ * Used by: Staff (ITS and TSG) asset editing, deletion, and disposal requests.
+ */
 import { useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
@@ -18,6 +24,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@web/components/ui/utils";
 import { Search, LayoutGrid, Table2, Pencil, Archive, Trash2 } from "lucide-react";
 
+/**
+ * Lists the assets and opens the edit, decommission, and delete dialogs for an active one.
+ * Each dialog saves through its own feature component; this page reloads its list afterwards.
+ * Takes no props.
+ */
 export function InventoryPage() {
   const { currentUser } = useSession();
   const { syncFromDb } = useServerData();

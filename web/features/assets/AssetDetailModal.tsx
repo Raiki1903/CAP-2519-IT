@@ -1,6 +1,6 @@
 /**
  * Asset detail modal: one asset's facts, QR tag, custodian history, and the request forms each role may open from it.
- * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and src/app/components/ITSDashboard.tsx.
+ * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and pages/staff/InventoryPage.tsx.
  * Calls: api/assets.api.ts getCustodianHistory(), state/serverData.tsx addRepairRequest(), and the loan, transfer, return, and repair forms.
  * Used by: Custodian requests, Lab Head custody review, Staff maintenance flagging.
  */

@@ -1,6 +1,6 @@
 /**
  * Dialog: a modal window on a dimmed overlay, built on Radix Dialog.
- * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Dialog.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/. Calls ui/utils.ts and Radix Dialog.
  * Used by: every role.
  */
 "use client";

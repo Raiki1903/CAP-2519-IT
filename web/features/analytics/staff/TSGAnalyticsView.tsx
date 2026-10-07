@@ -1,6 +1,6 @@
 /**
  * Staff analytics: repair board, condition heatmap, warranty timeline, location status, and inspection progress widgets.
- * Layer: feature component. Called by src/app/components/ITSDashboard.tsx (health tab).
+ * Layer: feature component. Called by pages/staff/HealthPage.tsx.
  * Calls: api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), api/repairs.api.ts updateRepairStatus(), state/serverData.tsx.
  * Used by: Staff (ITS and TSG).
  */

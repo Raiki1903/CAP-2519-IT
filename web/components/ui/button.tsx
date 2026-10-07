@@ -1,6 +1,6 @@
 /**
  * Button: the app's button in its variants and sizes.
- * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Slot.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/. Calls ui/utils.ts and Radix Slot.
  * Used by: every role.
  */
 import * as React from "react";

@@ -1,3 +1,9 @@
+/**
+ * Staff Health: the Staff analytics view, and a benchmark grid for component health.
+ * Layer: page. Called by app/routes.tsx at /its/health and /tsg/health.
+ * Calls: features/analytics/staff/TSGAnalyticsView.tsx. The benchmark grid calls nothing.
+ * Used by: Staff (ITS and TSG).
+ */
 import { useState } from "react";
 import TSGAnalyticsView from "@web/features/analytics/staff/TSGAnalyticsView";
 import { Button } from "@web/components/ui/button";
@@ -8,12 +14,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@web/components/ui/utils";
 import { Wrench } from "lucide-react";
 
+// TODO(H-09): the benchmark grid has no data source, so its table is always empty and its four summary figures are fixed text.
 const healthData: any[] = [];
 
 function MetricBar({ value, color }: { value: number; color: string }) {
   return <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-1 w-12"><div className={cn("h-full rounded-full", color)} style={{ width: `${Math.min(100, value)}%` }} /></div>;
 }
 
+/** Switches between Advanced Analytics (the default, TSGAnalyticsView) and the benchmark grid. Takes no props. */
 export function HealthPage() {
   const [healthEdits, setHealthEdits] = useState<Record<string, Record<string, string>>>({});
   const [showAdvancedAnalytics, setShowAdvancedAnalytics] = useState(true);

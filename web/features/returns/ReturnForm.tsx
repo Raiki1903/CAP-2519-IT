@@ -1,6 +1,6 @@
 /**
  * Return form: a Custodian asks to hand an asset back, and Staff finalize the return.
- * Layer: feature component. Called by features/assets/AssetDetailModal.tsx (Custodian) and src/app/components/ITSDashboard.tsx (Staff pending returns).
+ * Layer: feature component. Called by features/assets/AssetDetailModal.tsx (Custodian) and pages/staff/ReturnsPage.tsx (Staff pending returns).
  * Calls: api/returns.api.ts finalizeReturn(), api/repairs.api.ts requestRepair(), state/browserOnly.tsx (the request list).
  * Used by: Custodian return request, Staff return finalization.
  */
@@ -86,7 +86,7 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
       });
 
       // Custodian flagged the device as needing repair on turn-in — log it to
-      // the same repair queue RepairForm writes to, so it shows up on ITSDashboard.
+      // the same repair queue RepairForm writes to, so it shows up on the Staff Repairs page.
       if (flagForRepair) {
         try {
           const data = await repairsApi.requestRepair(asset.id, {

@@ -1,3 +1,9 @@
+/**
+ * Staff Repairs: the active repair tickets by priority, and the completed ones.
+ * Layer: page. Called by app/routes.tsx at /its/repairs and /tsg/repairs.
+ * Calls: features/repairs/useRepairTickets.ts and RepairProgressDialog.tsx.
+ * Used by: Staff (ITS and TSG) repair handling.
+ */
 import { useState } from "react";
 import { useRepairTickets } from "@web/features/repairs/useRepairTickets";
 import { RepairProgressDialog } from "@web/features/repairs/RepairProgressDialog";
@@ -8,6 +14,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@web/components/ui/utils";
 import { CheckCircle, Clock, Wrench, AlertTriangle } from "lucide-react";
 
+/**
+ * Shows unacknowledged tickets first, then by priority, then newest. Acknowledge and Manage Request
+ * save through useRepairTickets. Takes no props.
+ */
 export function RepairsPage() {
   const {
     dbRepairs, loadingDbRepairs, dbRepairsError,

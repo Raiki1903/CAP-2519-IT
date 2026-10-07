@@ -1,3 +1,9 @@
+/**
+ * Repair progress dialog: Staff move a repair ticket through its stages and, when it is fixed, record the asset's condition.
+ * Layer: feature component. Called by pages/staff/RepairsPage.tsx.
+ * Calls nothing itself: the save goes through the onSave prop (useRepairTickets' handleUpdateRepairStatus).
+ * Used by: Staff (ITS and TSG) repair handling.
+ */
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Button } from "@web/components/ui/button";
@@ -5,6 +11,15 @@ import { Textarea } from "@web/components/ui/textarea";
 import { Label } from "@web/components/ui/label";
 import { cn } from "@web/components/ui/utils";
 
+/**
+ * Shows the ticket and lets Staff pick its next progress status. Choosing "Fixed & Completed"
+ * opens a second step for the post-repair condition and technician remarks before saving.
+ * A completed ticket is shown read-only.
+ *
+ * @param ticket the ticket as useRepairTickets maps it
+ * @param onClose closes the dialog
+ * @param onSave saves the new status, with condition and remarks on completion
+ */
 export function RepairProgressDialog({ ticket, onClose, onSave }: { ticket: any; onClose: () => void; onSave: (id: string, status: string, condition?: string, remarks?: string) => void }) {
   const [status, setStatus] = useState(ticket?.statusLabel || "Inspection Phase");
   const [showConditionForm, setShowConditionForm] = useState(false);

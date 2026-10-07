@@ -1,6 +1,6 @@
 /**
  * The asset category values.
- * Layer: shared. Imported by server.ts (category sanitizing) and web/ (ITSDashboard intake form). Imports nothing.
+ * Layer: shared. Imported by server.ts (category sanitizing) and web/ (features/assets/IntakeWizard.tsx). Imports nothing.
  * Used by: asset registration and edit.
  */
 

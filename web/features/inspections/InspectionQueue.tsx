@@ -1,3 +1,9 @@
+/**
+ * Inspection queue: assets grouped by lab group (A to D), each with a button to inspect it and file a condition report.
+ * Layer: feature component. Called by pages/staff/InspectionsPage.tsx.
+ * Calls: api/inspections.api.ts submitInspectionRaw(), state/serverData.tsx syncFromDb(), state/session.tsx (the signed-in user).
+ * Used by: Staff (ITS and TSG) single-item inspection.
+ */
 import { useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
@@ -13,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@web/components/ui/utils";
 import { CheckCircle, ClipboardCheck, Camera, Upload } from "lucide-react";
 
+// TODO(M-03): the lab groups are another hardcoded lab list, separate from research_centers. Phase 3.
 // TSG Specific Constants - 10 DB Research Centers evenly distributed across 4 groups
 const labGroups = [
   { id: "A", name: "Group A", labs: ["CITe4D", "CAR", "CNIS"], color: "text-blue-600" },
@@ -35,6 +42,14 @@ const urgencyBadge: Record<string, string> = {
   Critical: "bg-red-50    text-red-700    border-red-200",
 };
 
+/**
+ * Shows one tab per lab group with its assets, and the dialog that finalizes one asset's inspection.
+ * Submitting posts the report through inspectionsApi.submitInspectionRaw(), then calls onReportSaved.
+ * The row then shows "Inspected" until the page is left: that badge is not stored anywhere (H-18).
+ *
+ * @param displayedAssets the Staff asset list (useStaffAssets)
+ * @param onReportSaved reloads the page's assets and reports after a successful post
+ */
 export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedAssets: any[]; onReportSaved: () => Promise<void> }) {
   const { currentUser } = useSession();
   const { syncFromDb } = useServerData();
@@ -66,6 +81,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
         const getGroupAssets = (groupId: string, labs: string[]) => {
           return displayedAssets.filter(a => {
             if (matchesLab(a.lab, labs)) return true;
+            // An asset whose lab matches no known lab, or has none, is listed under Group A so it is not lost.
             if (groupId === "A" && (!a.lab || !allKnownLabs.some(kl => matchesLab(a.lab, [kl])))) {
               return true;
             }
@@ -96,6 +112,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
               const queueItems = groupAssets.map(a => {
                 const isInspected = itemInspectedState[a.id] === true;
                 const status = isInspected ? "Inspected" : "For Inspection";
+                // `condition` is the server's 0 to 100 score derived from the condition enum.
                 const urgency = a.status === "Maintenance" || a.status === "Overdue" ? "Critical" : (a.condition !== undefined && a.condition < 80 ? "High" : "Normal");
 
                 return {
@@ -103,6 +120,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                   asset: a.name,
                   serial: a.serial || a.id,
                   lab: a.lab || g.labs[0] || "CITe4D",
+                  // TODO(F-28): "Last Inspected" shows the procurement date, or a made-up date, not the newest report. Phase 3.
                   lastInspected: a.procured || "Jan 15, 2024",
                   status,
                   urgency,
@@ -191,6 +209,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
             <div className="space-y-3.5 my-2">
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  {/* The role picked here is not sent to the server: the report records the signed-in account. Logged in 02-restructure-log.md, notes. */}
                   <Label className="text-xs font-bold text-foreground">Inspector Role</Label>
                   <Select value={inspectorRoleOption} onValueChange={setInspectorRoleOption}>
                     <SelectTrigger className="mt-1 h-9 text-xs">
@@ -313,6 +332,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                       const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
                       await inspectionsApi.submitInspectionRaw(targetTag, {
                         reporterEmail: currentUser?.email,
+                        // TODO(H-13): the session user has userId, not user_id, so this is always undefined. The server uses the email first, so it matters only without one. Own fix branch.
                         reportedById: currentUser?.user_id,
                         reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
                         reportRemarks: fullNotes,
@@ -333,6 +353,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                   setInspectionImgOption("");
                   setTsgRemarksOption("");
                   setItsRemarksOption("");
+                  // TODO(H-16): this success message shows even when the post failed, because the answer is never read. Step 13 (typed errors).
                   alert(`Inspection Report logged & saved under asset_reports table in MySQL for ${selectedQueueItem.asset}!`);
                 }}
               >

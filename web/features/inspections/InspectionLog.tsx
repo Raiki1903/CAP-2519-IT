@@ -1,3 +1,9 @@
+/**
+ * Inspection log: the table of saved condition reports, with a dialog to read one.
+ * Layer: feature component. Called by pages/staff/InspectionsPage.tsx.
+ * Calls nothing: the reports come in as a prop (useInspectionReports on the page).
+ * Used by: Staff (ITS and TSG) inspection review.
+ */
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Button } from "@web/components/ui/button";
@@ -17,6 +23,12 @@ const REPORT_CONDITION_LABEL: Record<string, string> = {
   CRITICAL_DEFECT: "Critical Defect",
 };
 
+/**
+ * Lists every report from asset_reports, newest first, whoever filed it (custodian or Staff) and
+ * from whichever machine. View Report opens the remarks and photo. (F-28)
+ *
+ * @param dbReports the reports from GET /api/asset-reports
+ */
 export function InspectionLog({ dbReports }: { dbReports: any[] }) {
   const [selectedInspection, setSelectedInspection] = useState<any | null>(null);
 

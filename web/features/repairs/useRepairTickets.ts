@@ -1,14 +1,28 @@
+/**
+ * Repair tickets for Staff: loads them, shapes them for the Staff screens, and saves progress.
+ * Layer: feature component (data hook). Called by pages/staff/OverviewPage.tsx and RepairsPage.tsx.
+ * Calls: api/repairs.api.ts listRepairs() and updateRepair(), state/serverData.tsx (fallback actions).
+ * Used by: Staff (ITS and TSG) repair handling.
+ */
 import { useState, useEffect } from "react";
 import { useServerData } from "@web/state/serverData";
 import * as repairsApi from "@web/api/repairs.api";
 
+// The two statuses a new ticket starts in. A ticket in either is "not acknowledged yet".
 const DB_PENDING_STATUSES = ["Pending TSG Review", "Awaiting Immediate Dispatch"];
 
+/**
+ * Loads GET /api/asset_repairs once when the calling page mounts and maps each ticket to the
+ * shape the Staff screens use. Saving a status goes through repairsApi.updateRepair(), which also
+ * moves the asset into or out of maintenance, then reloads the tickets.
+ *
+ * @param onAssetsChanged optional; called after a status save so a page that shows assets can reload them
+ * @returns the raw `dbRepairs` with `loadingDbRepairs` and `dbRepairsError`, the mapped
+ *   `combinedRepairs`, and `handleAcknowledgeRepair(id)` and `handleUpdateRepairStatus(id, status, condition?, remarks?)`
+ */
 export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
   const { acknowledgeRepair, updateRepairStatus } = useServerData();
 
-  // Live repair/maintenance tickets from the MySQL-backed API (RepairForm and
-  // ReturnForm's "flag for repair" both write here via POST /api/assets/:tag/repair).
   const [dbRepairs, setDbRepairs] = useState<any[]>([]);
   const [loadingDbRepairs, setLoadingDbRepairs] = useState(false);
   const [dbRepairsError, setDbRepairsError] = useState<string | null>(null);
@@ -35,10 +49,10 @@ export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
     fetchDbRepairs();
   }, []);
 
-  // Shape DB-sourced tickets to match the RepairRequest interface the existing
-  // UI (RepairAlertCard, the priority table, RepairProgressDialog) expects.
-  // _source/_repairId let the acknowledge/update handlers below route the
-  // action to the real backend instead of the local mock context.
+  // Shaped like RepairRequest for the priority table and RepairProgressDialog. _repairId is the
+  // number the update endpoint needs; the shown id is "MNT-<number>".
+  // Known gaps: forwardedTo is always undefined, so "Dispatched To" always shows a dash, and
+  // priority is only ever Critical or Medium, so the High styling never appears.
   const mappedDbRepairs = dbRepairs.map(r => ({
     id: r.id,
     _source: "db" as const,
@@ -54,14 +68,13 @@ export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
     forwardedTo: undefined as string | undefined,
   }));
 
-  // Repair Operations Manager reads only from the database now — no mock/demo
-  // tickets mixed in. (acknowledgeRepair/updateRepairStatus from context are
-  // kept as a fallback in the handlers below but should never fire in
-  // practice, since every ticket here is DB-sourced.)
+  // Every ticket here comes from the database, so _source is always "db".
   const combinedRepairs = mappedDbRepairs;
 
   const updateDbRepairStatus = async (repairId: number, status: string, condition?: string, remarks?: string) => {
     try {
+      // TODO(H-06): the Staff analytics board moves tickets through a second endpoint that does not touch the asset's status. Step 12 (repairs).
+      // TODO(H-07): the server stores any status text it is sent. Phase 3.
       const data = await repairsApi.updateRepair(repairId, { progressStatus: status, assetCondition: condition, assetRemarks: remarks });
       if (!data.success) {
         console.error("❌ Failed to update repair status:", data.error);
@@ -69,14 +82,13 @@ export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
     } catch (err: any) {
       console.error("❌ Failed to reach the server:", err.message);
     }
-    // The endpoint also flips the underlying asset's status (e.g. into
-    // MAINTENANCE on acknowledge, back to ON_LOAN on Fixed & Completed), so
-    // both lists need to refresh — not just the repair ticket.
+    // The endpoint also changes the asset's status (into MAINTENANCE on acknowledge, back
+    // out on Fixed & Completed), so a page that shows assets reloads them too.
     await Promise.all([fetchDbRepairs(), onAssetsChanged?.()]);
   };
 
-  // Unified handlers — route to the real API for DB-sourced tickets, and to
-  // the existing mock context functions for the legacy demo tickets.
+  // The else branches call serverData's acknowledgeRepair and updateRepairStatus. They never run,
+  // because every ticket is from the database (see combinedRepairs).
   const handleAcknowledgeRepair = (id: string) => {
     const target = combinedRepairs.find(r => r.id === id) as any;
     if (target?._source === "db") {

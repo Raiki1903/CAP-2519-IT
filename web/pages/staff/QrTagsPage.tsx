@@ -1,3 +1,9 @@
+/**
+ * Staff QR Tags: pick assets, preview their tags, and print a tag sheet.
+ * Layer: page. Called by app/routes.tsx at /its/qrtags and /tsg/qrtags.
+ * Calls: features/assets/useStaffAssets.ts. No API: the sheet is built in the browser.
+ * Used by: Staff (ITS and TSG) asset labelling.
+ */
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
@@ -6,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { cn } from "@web/components/ui/utils";
 import { CheckCircle, QrCode, Printer } from "lucide-react";
 
+/** Lists the non-disposed assets for selection and prints the selected tags in a new window. Takes no props. */
 export function QrTagsPage() {
   const { displayedAssets } = useStaffAssets();
   const [selectedQR, setSelectedQR] = useState<string[]>([]);
@@ -18,6 +25,8 @@ export function QrTagsPage() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
+    // The print window copies each QR code from the preview's rendered SVG (id qr-svg-<tag>), so the preview must stay mounted.
+    // TODO(H-20): asset names and labs are pasted into this HTML unescaped. Step 13 (shared html escaping).
     const tagsHtml = selectedQR.map(id => {
       const a = qrAssets.find(x => x.id === id);
       if (!a) return "";

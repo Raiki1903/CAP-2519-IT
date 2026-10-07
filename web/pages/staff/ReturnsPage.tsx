@@ -1,3 +1,9 @@
+/**
+ * Staff Pending Returns: custodian return requests waiting to be checked and finalized.
+ * Layer: page. Called by app/routes.tsx at /its/returns and /tsg/returns.
+ * Calls: state/browserOnly.tsx (the requests), features/assets/useStaffAssets.ts, features/returns/ReturnForm.tsx.
+ * Used by: Staff (ITS and TSG) return finalization.
+ */
 import { useState } from "react";
 import { useBrowserOnly } from "@web/state/browserOnly";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
@@ -7,6 +13,11 @@ import { Button } from "@web/components/ui/button";
 import { Card } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 
+/**
+ * Lists pending requests and opens ReturnForm to finalize one, which saves the return to the
+ * database. Takes no props.
+ */
+// TODO(H-02): the requests live in this browser only, so Staff on another machine never see them. Phase 3.
 export function ReturnsPage() {
   const { returns } = useBrowserOnly();
   const { displayedAssets } = useStaffAssets();
@@ -62,6 +73,7 @@ export function ReturnsPage() {
                               name: req.assetName,
                               custodian: req.custodian,
                               status: "Pending Return",
+                              // Used only when the asset is not in the list (for example, deleted since the request).
                               category: "Computing Array"
                             });
                           }
