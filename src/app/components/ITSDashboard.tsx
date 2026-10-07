@@ -6,7 +6,6 @@ import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as repairsApi from "@web/api/repairs.api";
 import * as inspectionsApi from "@web/api/inspections.api";
-import type { RepairRequest } from "@web/state/serverData";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
@@ -14,7 +13,6 @@ import { ReturnForm } from "@web/features/returns/ReturnForm";
 import TSGAnalyticsView from "@web/features/analytics/staff/TSGAnalyticsView";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
-import { Textarea } from "@web/components/ui/textarea";
 import { Badge } from "@web/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Switch } from "@web/components/ui/switch";
@@ -26,6 +24,7 @@ import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholde
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { EditAssetDialog } from "@web/features/assets/EditAssetDialog";
 import { DisposalFormDialog } from "@web/features/disposals/DisposalFormDialog";
+import { RepairProgressDialog } from "@web/features/repairs/RepairProgressDialog";
 import { statusBadgeClass, CONDITION_DOT_CLASS, ConditionState } from "@web/features/assets/assetBadges";
 import { cn } from "@web/components/ui/utils";
 import { QRCodeSVG } from "qrcode.react";
@@ -186,60 +185,6 @@ function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommission }: { 
         )}
       </CardContent>
     </Card >
-  );
-}
-
-function RepairAlertCard({ req, onAcknowledge }: { req: RepairRequest; onAcknowledge: (id: string) => void }) {
-  const [expanded, setExpanded] = useState(false);
-  const isCritical = req.priority === "Critical";
-  return (
-    <div className={cn("rounded-xl overflow-hidden border-2", isCritical ? "border-red-400" : "border-orange-400")}
-      style={{ animation: !req.acknowledged ? "pulseAlert 2s ease-in-out infinite" : "none" }}>
-      <div className={cn("px-4 py-1.5 flex items-center gap-2", isCritical ? "bg-red-500" : "bg-orange-500")}>
-        <Zap size={11} className="text-white" />
-        <span className="text-[10px] font-extrabold text-white tracking-widest flex-1">
-          {isCritical ? "CRITICAL" : "HIGH PRIORITY"} REPAIR REQUEST · {req.id}
-        </span>
-        {!req.acknowledged && <Badge className="text-[9px] bg-white/20 text-white border-white/20">NEW</Badge>}
-      </div>
-      <div className={cn("p-4", isCritical ? "bg-red-50" : "bg-orange-50")}>
-        <div className="flex gap-3 items-start">
-          <div className="w-16 h-14 rounded-lg border-2 border-border bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
-            {req.imageUrl ? <img src={req.imageUrl} alt="asset" className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-muted-foreground" />}
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-bold text-foreground mb-0.5">{req.assetName}</p>
-            <p className="text-xs text-muted-foreground mb-1">{req.assetId} · {req.submittedAt} · <strong className={isCritical ? "text-red-700" : "text-orange-700"}>{req.statusLabel}</strong></p>
-            <p className="text-xs text-foreground italic leading-relaxed">"{req.description.slice(0, 100)}{req.description.length > 100 ? "…" : ""}"</p>
-            <div className="flex flex-wrap items-center justify-between mt-1 gap-2 border-t pt-1.5 border-dashed border-muted-foreground/20">
-              <span className="text-[11px] text-muted-foreground">Submitted by: {req.custodian}</span>
-              {req.forwardedTo && (
-                <div className="flex items-center gap-1">
-                  <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Dispatched To:</span>
-                  <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0 font-bold", req.forwardedTo === "ITS" ? "bg-blue-50 text-blue-700 border-blue-200" : req.forwardedTo === "TSG" ? "bg-indigo-50 text-indigo-700 border-indigo-200" : "bg-purple-50 text-purple-700 border-purple-200")}>
-                    {req.forwardedTo === "ITS" ? "ITS" : req.forwardedTo === "TSG" ? "TSG" : "TSG & ITS"}
-                  </Badge>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-2 mt-3">
-          {!req.acknowledged
-            ? <Button size="sm" className="flex-1 text-xs" onClick={() => onAcknowledge(req.id)}><CheckCircle size={11} />Acknowledge & Assign Technician</Button>
-            : <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700 font-semibold"><CheckCircle size={11} />Acknowledged</div>
-          }
-          <Button size="sm" variant="outline" onClick={() => setExpanded(!expanded)} className="text-xs"><Eye size={11} />{expanded ? "Collapse" : "Full Report"}</Button>
-        </div>
-        {expanded && (
-          <div className="mt-3 rounded-lg border border-border bg-white p-3">
-            <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-2">FULL CUSTODIAN DESCRIPTION</p>
-            <p className="text-xs text-foreground leading-relaxed">{req.description || "No description provided."}</p>
-            {req.imageUrl && <img src={req.imageUrl} alt="condition" className="mt-2 rounded-lg max-w-full border border-border" />}
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -2233,136 +2178,5 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
         </>
       )}
     </div>
-  );
-}
-
-function RepairProgressDialog({ ticket, onClose, onSave }: { ticket: any; onClose: () => void; onSave: (id: string, status: string, condition?: string, remarks?: string) => void }) {
-  const [status, setStatus] = useState(ticket?.statusLabel || "Inspection Phase");
-  const [showConditionForm, setShowConditionForm] = useState(false);
-  const [postRepairCondition, setPostRepairCondition] = useState("PERFECT");
-  const [postRepairRemarks, setPostRepairRemarks] = useState("");
-  const isCompleted = ticket?.statusLabel === "Fixed & Completed";
-
-  const handleNextOrSave = () => {
-    if (status === "Fixed & Completed" && !showConditionForm) {
-      setShowConditionForm(true);
-      return;
-    }
-    if (showConditionForm) {
-      onSave(ticket.id, "Fixed & Completed", postRepairCondition, postRepairRemarks);
-    } else {
-      onSave(ticket.id, status);
-    }
-    onClose();
-  };
-
-  return (
-    <Dialog open={!!ticket} onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-sm font-bold text-foreground">
-            {showConditionForm ? "Final Post-Repair Verification & Asset Condition" : "Manage Maintenance Ticket"}
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            {showConditionForm
-              ? "Select the updated operational condition of the asset and enter technician remarks before completing repair."
-              : "Review diagnostics details and update repair progress status."}
-          </DialogDescription>
-        </DialogHeader>
-
-        {showConditionForm ? (
-          <div className="flex flex-col gap-4 py-3">
-            <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-200 text-xs space-y-1">
-              <p><strong className="text-emerald-900">Target Asset:</strong> {ticket.assetName} ({ticket.assetId})</p>
-              <p className="text-[11px] text-emerald-700">Status transition: <strong>MAINTENANCE ➔ RE-ASSIGNED TO CUSTODIAN</strong></p>
-            </div>
-
-            {/* Condition Selection */}
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-bold text-foreground">Select Post-Repair Asset Condition</Label>
-              <select
-                value={postRepairCondition}
-                onChange={e => setPostRepairCondition(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-bold"
-              >
-                <option value="PERFECT">PERFECT — Fully Restored &amp; Verified</option>
-                <option value="OPERATIONAL">OPERATIONAL — Minor Cosmetic Wear</option>
-                <option value="MINOR_DRIFT">MINOR DRIFT — Functional with Secondary Anomaly</option>
-                <option value="DEGRADED">DEGRADED — Requires Monitoring</option>
-                <option value="CRITICAL_DEFECT">CRITICAL DEFECT — Partial Repair / Defective</option>
-              </select>
-            </div>
-
-            {/* Technician Asset Remarks */}
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-bold text-foreground">Technician Asset Maintenance Remarks</Label>
-              <Textarea
-                value={postRepairRemarks}
-                onChange={e => setPostRepairRemarks(e.target.value)}
-                placeholder="Enter detailed maintenance remarks (e.g. Replaced faulty PSU, updated firmware, stress tested for 2 hours OK)..."
-                rows={4}
-                className="text-xs resize-y"
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4 py-3">
-            {/* Ticket metadata */}
-            <div className="bg-muted/40 rounded-xl p-3 border text-xs space-y-1.5">
-              <p><strong className="text-foreground">Ticket Ref:</strong> {ticket.id}</p>
-              <p><strong className="text-foreground">Asset:</strong> {ticket.assetName} ({ticket.assetId})</p>
-              <p><strong className="text-foreground">Submitted By:</strong> {ticket.custodian} on {ticket.submittedAt}</p>
-              <p><strong className="text-foreground">Dispatched To:</strong> {ticket.forwardedTo || "ITS/TSG"}</p>
-              <p><strong className="text-foreground">Urgency Priority:</strong> <span className={cn("font-bold", ticket.priority === "Critical" ? "text-red-700" : "text-amber-700")}>{ticket.priority}</span></p>
-            </div>
-
-            {/* Diagnostic Description */}
-            <div className="space-y-1">
-              <Label className="text-xs font-bold text-foreground">Incident Diagnostic Description</Label>
-              <p className="text-xs text-foreground bg-muted/20 p-3 rounded-lg border border-dashed border-border leading-relaxed italic font-serif">
-                "{ticket.description || "No specific details logged by the custodian."}"
-              </p>
-            </div>
-
-            {/* Custodian Uploaded Media */}
-            {ticket.imageUrl && (
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-foreground">Custodian Uploaded Media</Label>
-                <div className="rounded-lg overflow-hidden border border-border max-h-48 flex justify-center bg-black/5">
-                  <img src={ticket.imageUrl} alt="troubleshooting screenshot" className="max-h-48 object-contain w-full" />
-                </div>
-              </div>
-            )}
-
-            {/* Progress Selector */}
-            {!isCompleted && (
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs font-bold text-foreground">Select Current Repair Progress</Label>
-                <select value={status} onChange={e => setStatus(e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <option value="Inspection Phase">Inspection Phase (Ongoing Diagnostic checks)</option>
-                  <option value="Warranty Holder Possession">Warranty Holder's Possession (Under Warranty Service)</option>
-                  <option value="Third-Party Repairer Possession">Third-Party Repairer's Possession (Out-of-Warranty / Expired)</option>
-                  <option value="Fixed & Completed">Fixed &amp; Completed (Re-assign to Custodian)</option>
-                </select>
-              </div>
-            )}
-          </div>
-        )}
-
-        <DialogFooter className="gap-2">
-          {showConditionForm ? (
-            <Button variant="outline" size="sm" onClick={() => setShowConditionForm(false)}>Back</Button>
-          ) : (
-            <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
-          )}
-          {!isCompleted && (
-            <Button onClick={handleNextOrSave} className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-9">
-              {showConditionForm ? "Finalize & Update Asset Condition" : status === "Fixed & Completed" ? "Next: Set Asset Condition ➔" : "Update Progress"}
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
