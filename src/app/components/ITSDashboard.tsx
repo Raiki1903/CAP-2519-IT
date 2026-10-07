@@ -4,7 +4,6 @@ import { useSession, roleToSlug } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
-import * as repairsApi from "@web/api/repairs.api";
 import * as inspectionsApi from "@web/api/inspections.api";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
@@ -25,6 +24,9 @@ import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDe
 import { EditAssetDialog } from "@web/features/assets/EditAssetDialog";
 import { DisposalFormDialog } from "@web/features/disposals/DisposalFormDialog";
 import { RepairProgressDialog } from "@web/features/repairs/RepairProgressDialog";
+import { useRepairTickets } from "@web/features/repairs/useRepairTickets";
+import { useStaffAssets } from "@web/features/assets/useStaffAssets";
+import { useInspectionReports } from "@web/features/inspections/useInspectionReports";
 import { statusBadgeClass, CONDITION_DOT_CLASS, ConditionState } from "@web/features/assets/assetBadges";
 import { cn } from "@web/components/ui/utils";
 import { QRCodeSVG } from "qrcode.react";
@@ -191,11 +193,14 @@ function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommission }: { 
 export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const navigate = useNavigate();
   const { role, currentUser } = useSession();
-  const {
-    assets, syncFromDb,
-    repairRequests, acknowledgeRepair, updateRepairStatus
-  } = useServerData();
+  const { syncFromDb } = useServerData();
   const { returns } = useBrowserOnly();
+  const { displayedAssets, fetchDbAssets } = useStaffAssets();
+  const { dbReports, fetchDbReports } = useInspectionReports();
+  const {
+    dbRepairs, loadingDbRepairs, dbRepairsError,
+    combinedRepairs, handleAcknowledgeRepair, handleUpdateRepairStatus,
+  } = useRepairTickets(fetchDbAssets);
   const [itemInspectedState, setItemInspectedState] = useState<Record<string, boolean>>({});
   const [selectedQueueItem, setSelectedQueueItem] = useState<any | null>(null);
   const [inspectionStatusOption, setInspectionStatusOption] = useState<string>("Operational");
@@ -204,10 +209,6 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const [tsgRemarksOption, setTsgRemarksOption] = useState<string>("");
   const [itsRemarksOption, setItsRemarksOption] = useState<string>("");
   const [inspectionImgOption, setInspectionImgOption] = useState<string>("");
-
-  const [dbAssets, setDbAssets] = useState<any[]>([]);
-  const [loadingDbAssets, setLoadingDbAssets] = useState(false);
-  const [dbAssetsError, setDbAssetsError] = useState<string | null>(null);
 
   // ITS specific states
   const [showModal, setShowModal] = useState(false);
@@ -220,26 +221,8 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const [viewMode, setViewMode] = useState<"table" | "gallery">("gallery");
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
 
-  const [dbReports, setDbReports] = useState<any[]>([]);
-
-  const fetchDbReports = async () => {
-    try {
-      const data = await inspectionsApi.listInspectionReports();
-      if (data.success) {
-        setDbReports(data.reports || []);
-      }
-    } catch (err) {
-      console.error("Failed to fetch asset reports from DB:", err);
-    }
-  };
-
   const [sortBy, setSortBy] = useState<"name" | "category" | "procured">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-
-  useEffect(() => {
-    fetchDbAssets();
-    fetchDbReports();
-  }, []);
 
   useEffect(() => {
     if (activeTab === "register" || showModal) {
@@ -251,128 +234,6 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
       }
     }
   }, [activeTab, showModal]);
-
-  const fetchDbAssets = async () => {
-    setLoadingDbAssets(true);
-    setDbAssetsError(null);
-    try {
-      const data = await assetsApi.listAssets();
-      if (data.success) {
-        setDbAssets(data.assets);
-      } else {
-        throw new Error(data.error || "Failed to fetch assets from server");
-      }
-    } catch (err: any) {
-      console.error("❌ Failed to fetch database assets:", err);
-      setDbAssetsError(err.message || "Could not load assets from DB.");
-    } finally {
-      setLoadingDbAssets(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDbAssets();
-  }, []);
-
-  const displayedAssets = dbAssets.length > 0 ? dbAssets : assets;
-
-  // Live repair/maintenance tickets from the MySQL-backed API (RepairForm and
-  // ReturnForm's "flag for repair" both write here via POST /api/assets/:tag/repair).
-  const [dbRepairs, setDbRepairs] = useState<any[]>([]);
-  const [loadingDbRepairs, setLoadingDbRepairs] = useState(false);
-  const [dbRepairsError, setDbRepairsError] = useState<string | null>(null);
-
-  const fetchDbRepairs = async () => {
-    setLoadingDbRepairs(true);
-    setDbRepairsError(null);
-    try {
-      const data = await repairsApi.listRepairs();
-      if (data.success) {
-        setDbRepairs(data.repairs);
-      } else {
-        throw new Error(data.error || "Failed to fetch repairs from server");
-      }
-    } catch (err: any) {
-      console.error("❌ Failed to fetch database repairs:", err);
-      setDbRepairsError(err.message || "Could not load repair tickets from DB.");
-    } finally {
-      setLoadingDbRepairs(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDbRepairs();
-  }, []);
-
-  // Refresh whenever ITS looks at a repair-related tab, so a new ticket from
-  // RepairForm/ReturnForm shows up without a full page reload.
-  useEffect(() => {
-    if (activeTab === "repairs" || activeTab === "overview" || activeTab === "inventory") {
-      fetchDbRepairs();
-    }
-  }, [activeTab]);
-
-  const DB_PENDING_STATUSES = ["Pending TSG Review", "Awaiting Immediate Dispatch"];
-
-  // Shape DB-sourced tickets to match the RepairRequest interface the existing
-  // UI (RepairAlertCard, the priority table, RepairProgressDialog) expects.
-  // _source/_repairId let the acknowledge/update handlers below route the
-  // action to the real backend instead of the local mock context.
-  const mappedDbRepairs = dbRepairs.map(r => ({
-    id: r.id,
-    _source: "db" as const,
-    _repairId: r.repairId,
-    assetId: r.assetId,
-    assetName: r.asset,
-    custodian: r.reportedBy,
-    statusLabel: r.progressStatus,
-    description: r.description,
-    submittedAt: new Date(r.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-    priority: r.isImmediate ? "Critical" : "Medium",
-    acknowledged: !DB_PENDING_STATUSES.includes(r.progressStatus),
-    forwardedTo: undefined as string | undefined,
-  }));
-
-  // Repair Operations Manager reads only from the database now — no mock/demo
-  // tickets mixed in. (acknowledgeRepair/updateRepairStatus from context are
-  // kept as a fallback in the handlers below but should never fire in
-  // practice, since every ticket here is DB-sourced.)
-  const combinedRepairs = mappedDbRepairs;
-
-  const updateDbRepairStatus = async (repairId: number, status: string, condition?: string, remarks?: string) => {
-    try {
-      const data = await repairsApi.updateRepair(repairId, { progressStatus: status, assetCondition: condition, assetRemarks: remarks });
-      if (!data.success) {
-        console.error("❌ Failed to update repair status:", data.error);
-      }
-    } catch (err: any) {
-      console.error("❌ Failed to reach the server:", err.message);
-    }
-    // The endpoint also flips the underlying asset's status (e.g. into
-    // MAINTENANCE on acknowledge, back to ON_LOAN on Fixed & Completed), so
-    // both lists need to refresh — not just the repair ticket.
-    await Promise.all([fetchDbRepairs(), fetchDbAssets()]);
-  };
-
-  // Unified handlers — route to the real API for DB-sourced tickets, and to
-  // the existing mock context functions for the legacy demo tickets.
-  const handleAcknowledgeRepair = (id: string) => {
-    const target = combinedRepairs.find(r => r.id === id) as any;
-    if (target?._source === "db") {
-      updateDbRepairStatus(target._repairId, "Inspection Phase");
-    } else {
-      acknowledgeRepair(id);
-    }
-  };
-
-  const handleUpdateRepairStatus = (id: string, status: string, condition?: string, remarks?: string) => {
-    const target = combinedRepairs.find(r => r.id === id) as any;
-    if (target?._source === "db") {
-      updateDbRepairStatus(target._repairId, status, condition, remarks);
-    } else {
-      updateRepairStatus(id, status);
-    }
-  };
 
   // Edit, Delete confirmation & Disposal states
   const [editingAsset, setEditingAsset] = useState<any | null>(null);
