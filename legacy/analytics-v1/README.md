@@ -54,6 +54,10 @@ These 11 endpoints in `server.ts` existed **only** for the files above. After th
 - `GET /api/analytics/dashboard` substitutes hardcoded demo series when the real data is empty, which is one of the sources of the invented charts (H-09).
 - `StudentAnalyticsView.tsx` requests `stewardship-score/1`, a hardcoded user, so it never showed the signed-in person's own record. That endpoint is also a direct object reference: changing the number in the URL reads someone else's borrowing history (01C section 4.4).
 
+## Sibling folder: `legacy/analytics-widgets/` (2026-10-07)
+
+Seven widgets that the **live** analytics views exported but never rendered now sit in [`../analytics-widgets/`](../analytics-widgets/README.md). Three of them were the only callers of `/api/analytics/advanced/idle-time`, `idle-frequency`, and `loan-recommender`. The team decided to keep those three endpoints for now: they are **not** part of the step 12 deletion below.
+
 ## Decision (2026-10-04)
 
 **The 11 endpoints above are deleted; the files in this folder stay here.** None of them is re-attached. The endpoints go when the analytics backend is extracted from `server.ts` (restructure step 12), so no unauthenticated reporting route outlives its only caller. The two live endpoints listed above are not touched. This answers 01D section 6, open question 5 in [01A section 10](../../docs/phase-1b-deep-map/01A-system-trace.md#10-open-questions-and-uncertainties).
