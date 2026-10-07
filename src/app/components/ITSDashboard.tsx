@@ -69,6 +69,16 @@ const urgencyBadge: Record<string, string> = {
   Critical: "bg-red-50    text-red-700    border-red-200",
 };
 
+// Database condition names to the labels the finalize dialog offers, so a report
+// reads the same in the log as when it was filed.
+const REPORT_CONDITION_LABEL: Record<string, string> = {
+  PERFECT: "Perfect",
+  OPERATIONAL: "Operational",
+  MINOR_DRIFT: "Minor Drift",
+  DEGRADED: "Degraded Performance",
+  CRITICAL_DEFECT: "Critical Defect",
+};
+
 interface IntakeForm {
   name: string;
   serial: string;
@@ -283,7 +293,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
     assets, syncFromDb,
     repairRequests, acknowledgeRepair, updateRepairStatus
   } = useServerData();
-  const { returns, inspections, addInspectionReport } = useBrowserOnly();
+  const { returns, addInspectionReport } = useBrowserOnly();
   const [itemInspectedState, setItemInspectedState] = useState<Record<string, boolean>>({});
   const [selectedQueueItem, setSelectedQueueItem] = useState<any | null>(null);
   const [inspectionStatusOption, setInspectionStatusOption] = useState<string>("Operational");
@@ -1415,6 +1425,20 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
 
   // ── Inspections ────────────────────────────────────────────────────────────
   if (activeTab === "inspections") {
+    // The log shows the reports saved in asset_reports, newest first, whoever filed
+    // them and from whichever browser. The database stores no cycle type, so the
+    // log has no cycle column. (F-28, issue #34)
+    const reportLog = dbReports.map(r => ({
+      id: `RPT-${r.reportId}`,
+      assetId: r.assetId,
+      assetName: r.assetName,
+      reportedBy: r.reportedBy,
+      status: REPORT_CONDITION_LABEL[r.reportCondition] || r.reportCondition,
+      description: r.reportRemarks || "",
+      images: r.reportImg ? [r.reportImg] : [],
+      submittedAt: r.reportDate,
+    }));
+
     return (
       <div>
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1549,14 +1573,14 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
           );
         })()}
 
-        {/* Termly & Annual Inspections Log Section */}
-        {inspections.length > 0 ? (
+        {/* Inspection Report Log Section */}
+        {reportLog.length > 0 ? (
           <div className="mt-6 mb-8">
             <div className="flex items-center gap-3 mb-4">
               <ClipboardCheck size={18} className="text-[#005A36]" />
-              <h3 className="text-foreground font-bold text-sm tracking-wide uppercase">Termly &amp; Annual Inspection Logs</h3>
+              <h3 className="text-foreground font-bold text-sm tracking-wide uppercase">Inspection Report Log</h3>
               <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 font-extrabold text-[9px] px-2 py-0.5 tracking-wider border-emerald-200">
-                {inspections.length} REPORTS SUBMITTED
+                {reportLog.length} REPORTS SUBMITTED
               </Badge>
             </div>
 
@@ -1564,13 +1588,13 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30">
-                    {["Cycle Type", "Report ID", "Asset", "Custodian", "Preset Status", "Date Submitted", "Actions"].map(h => (
+                    {["Report ID", "Asset", "Reported By", "Preset Status", "Date Submitted", "Actions"].map(h => (
                       <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>
                     ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {inspections.map(rep => {
+                  {reportLog.map(rep => {
                     const isPerfect = rep.status === "Perfect";
                     const isOperational = rep.status === "Operational";
                     const isDrift = rep.status === "Minor Drift";
@@ -1588,11 +1612,6 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
 
                     return (
                       <TableRow key={rep.id} className="transition-colors hover:bg-muted/10">
-                        <TableCell>
-                          <Badge className={cn("text-[9px] font-extrabold px-1.5 py-0.5", rep.cycleType === "Trimestral" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-blue-50 text-blue-700 border-blue-200")}>
-                            {rep.cycleType}
-                          </Badge>
-                        </TableCell>
                         <TableCell className="font-bold text-xs font-mono">{rep.id}</TableCell>
                         <TableCell>
                           <div>
@@ -1600,7 +1619,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                             <p className="text-[10px] text-muted-foreground font-mono">{rep.assetId}</p>
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground font-medium">{rep.custodian}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-medium">{rep.reportedBy}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={cn("text-[9px] font-extrabold px-1.5 py-0", statusBadge)}>
                             {rep.status}
@@ -1625,7 +1644,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
           </div>
         ) : (
           <div className="p-6 text-center text-xs text-muted-foreground bg-muted/20 border border-dashed border-border rounded-xl mb-6">
-            No custodian health check-in reports have been submitted for this cycle.
+            No inspection reports have been saved yet.
           </div>
         )}
 
@@ -1818,7 +1837,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
             <DialogContent className="max-w-xl">
               <DialogHeader>
                 <DialogTitle className="text-sm font-bold text-foreground">Inspection Report Details</DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground">Detailed health check-in logged by custodian.</DialogDescription>
+                <DialogDescription className="text-xs text-muted-foreground">Condition report saved in the inspection records.</DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 my-2">
@@ -1826,12 +1845,6 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                   <div>
                     <p className="text-[9px] font-extrabold text-muted-foreground tracking-widest uppercase">Report reference</p>
                     <p className="text-sm font-bold text-primary font-mono mt-0.5">{selectedInspection.id}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[9px] font-extrabold text-muted-foreground tracking-widest uppercase">Cycle Type</p>
-                    <Badge className={cn("text-[9px] font-extrabold px-1.5 py-0.5 mt-0.5", selectedInspection.cycleType === "Trimestral" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-blue-50 text-blue-700 border-blue-200")}>
-                      {selectedInspection.cycleType} Inspection
-                    </Badge>
                   </div>
                 </div>
 
@@ -1842,8 +1855,8 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                     <p className="font-mono text-muted-foreground mt-0.5">{selectedInspection.assetId}</p>
                   </div>
                   <div className="border border-border rounded-lg p-2.5 bg-background">
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase">Custodian Reporter</p>
-                    <p className="font-semibold mt-1 text-foreground">{selectedInspection.custodian}</p>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase">Reported By</p>
+                    <p className="font-semibold mt-1 text-foreground">{selectedInspection.reportedBy}</p>
                     <p className="text-muted-foreground mt-0.5">{selectedInspection.submittedAt}</p>
                   </div>
                 </div>
