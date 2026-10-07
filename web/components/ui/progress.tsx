@@ -1,6 +1,6 @@
 /**
  * Progress bar: a horizontal bar filled to a percentage. Not built on Radix, unlike most files here.
- * Layer: shared (UI primitive). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts.
+ * Layer: shared (UI primitive). Called by feature components and pages across web/. Calls ui/utils.ts.
  * Used by: every role.
  */
 import * as React from "react";

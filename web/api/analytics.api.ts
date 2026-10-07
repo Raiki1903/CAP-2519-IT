@@ -28,6 +28,9 @@ export function getLabHeadAnalyticsRaw(query: string): Promise<Response> {
   return apiGetRaw(`/api/analytics/lab-head?${query}`);
 }
 
+// The next three have no live caller: their widgets are in legacy/analytics-widgets/.
+// The team keeps the functions and the endpoints for now, outside the step 12 deletion.
+
 /**
  * Loads the idle-time histogram for a lab's assets.
  *

@@ -2,7 +2,7 @@
  * Director screen: Executive Overview, Descriptive Analytics, Approvals and Holds, and the Audit Generator, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
  * Calls: api/assets.api.ts listAssets(), api/disposals.api.ts listDisposals() and decideDisposal(),
- * features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx, state/browserOnly.tsx (inspection copies).
+ * features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
  * Used by: AdRIC Director (disposal decisions, audit reports).
  */
 import { useState, useEffect } from "react";
@@ -10,7 +10,6 @@ import { useNavigate } from "react-router";
 import DirectorAnalyticsView from "@web/features/analytics/director/DirectorAnalyticsView";
 import { useSession } from "@web/state/session";
 import { useServerData, type Asset } from "@web/state/serverData";
-import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as disposalsApi from "@web/api/disposals.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
@@ -112,7 +111,6 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     isDbLoading: isGlobalDbLoading,
     syncFromDb
   } = useServerData();
-  const { inspections = [] } = useBrowserOnly();
 
   const [dbAssets, setDbAssets] = useState<any[]>([]);
   const [loadingDbAssets, setLoadingDbAssets] = useState(false);
@@ -132,10 +130,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
     const assetRepairs = (repairRequests || []).filter(r => r.assetId === asset.id);
 
-    // TODO(F-28): with no database report for the asset, the audit falls back to this browser's own copies. Decide with the Staff log switch (step 8 part 2).
-    const assetReports = (asset.asset_reports && asset.asset_reports.length > 0)
-      ? asset.asset_reports
-      : (inspections || []).filter(i => i.assetId === asset.id);
+    // Only the reports saved in asset_reports, the same ones the Staff inspection log shows. (F-28)
+    const assetReports = asset.asset_reports || [];
 
     let csvContent = `Asset Lifecycle Audit Trail Report\n`;
     csvContent += `Generated On,"${new Date().toLocaleString()}"\n\n`;
@@ -942,13 +938,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <ClipboardCheck size={13} className="text-[#005A36]" />
                     Routine Inspection Reports
                   </h4>
-                  {((selectedAssetForAudit.asset_reports && selectedAssetForAudit.asset_reports.length > 0) ||
-                    (inspections || []).filter(i => i.assetId === selectedAssetForAudit.id).length > 0) ? (
+                  {(selectedAssetForAudit.asset_reports && selectedAssetForAudit.asset_reports.length > 0) ? (
                     <div className="space-y-2">
-                      {((selectedAssetForAudit.asset_reports && selectedAssetForAudit.asset_reports.length > 0)
-                        ? selectedAssetForAudit.asset_reports
-                        : (inspections || []).filter(i => i.assetId === selectedAssetForAudit.id)
-                      ).map((rpt: any, idx: number) => (
+                      {selectedAssetForAudit.asset_reports.map((rpt: any, idx: number) => (
                         <div key={rpt.id || rpt.reportId || idx} className="p-3 bg-muted/30 border border-border rounded-lg text-xs flex justify-between items-center shadow-2xs">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">

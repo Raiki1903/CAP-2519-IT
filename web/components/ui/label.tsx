@@ -1,6 +1,6 @@
 /**
  * Label: a form field label, built on Radix Label.
- * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts and Radix Label.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/. Calls ui/utils.ts and Radix Label.
  * Used by: every role.
  */
 "use client";

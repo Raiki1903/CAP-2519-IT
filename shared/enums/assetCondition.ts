@@ -1,6 +1,6 @@
 /**
  * The five asset condition values, best to worst.
- * Layer: shared. Imported by server.ts and web/ (ITSDashboard, ReturnForm). Imports nothing.
+ * Layer: shared. Imported by server.ts and web/ (EditAssetDialog, ReturnForm). Imports nothing.
  * Used by: asset edit, repair progress, return, and inspection workflows.
  */
 

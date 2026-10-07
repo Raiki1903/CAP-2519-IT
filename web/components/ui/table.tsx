@@ -1,6 +1,6 @@
 /**
  * Table: styled table elements in a horizontally scrolling wrapper.
- * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/ (and src/app/components/ITSDashboard.tsx). Calls ui/utils.ts.
+ * Layer: shared (UI primitive, shadcn). Called by feature components and pages across web/. Calls ui/utils.ts.
  * Used by: every role.
  */
 "use client";

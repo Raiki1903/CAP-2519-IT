@@ -1,6 +1,6 @@
 /**
  * Asset picture, or a drawn placeholder with a category icon when the asset has no picture.
- * Layer: feature component. Called by features/assets/AssetDetailModal.tsx, the Custodian and Lab Head pages, and src/app/components/ITSDashboard.tsx.
+ * Layer: feature component. Called by features/assets/AssetDetailModal.tsx, the Custodian and Lab Head pages, features/assets/AssetGalleryCard.tsx, and pages/staff/InventoryPage.tsx.
  * Calls nothing.
  * Used by: every asset list and gallery.
  */

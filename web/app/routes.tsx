@@ -1,14 +1,21 @@
 /**
  * Route table: which URL shows which screen, one tree per role under RootLayout.
  * Layer: shared (app shell). Called by app/App.tsx.
- * Calls: the screens in web/pages/, and src/app/components/ITSDashboard.tsx for ITS and TSG.
+ * Calls: the screens in web/pages/.
  * Used by: every role.
  */
 import { createBrowserRouter, Navigate } from "react-router";
 import { RootLayout } from "./layouts/RootLayout";
 import { Login } from "@web/pages/auth/Login";
 import { Register } from "@web/pages/auth/Register";
-import { ITSDashboard } from "@/app/components/ITSDashboard";
+import { OverviewPage } from "@web/pages/staff/OverviewPage";
+import { RegisterPage } from "@web/pages/staff/RegisterPage";
+import { InventoryPage } from "@web/pages/staff/InventoryPage";
+import { RepairsPage } from "@web/pages/staff/RepairsPage";
+import { InspectionsPage } from "@web/pages/staff/InspectionsPage";
+import { ReturnsPage } from "@web/pages/staff/ReturnsPage";
+import { QrTagsPage } from "@web/pages/staff/QrTagsPage";
+import { HealthPage } from "@web/pages/staff/HealthPage";
 import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";
@@ -17,7 +24,8 @@ import { NotFound } from "@web/pages/NotFound";
 
 /**
  * The app's router. Login and sign-up sit outside RootLayout because they need no session.
- * Each dashboard is one component, and the URL's last segment picks its tab through `activeTab`.
+ * Staff (ITS and TSG) have one page per tab. The Lab Head, Custodian, and Director dashboards
+ * are still one component each, and the URL's last segment picks the tab through `activeTab`.
  * Which role may open which tree is decided in RootLayout, not here.
  */
 export const router = createBrowserRouter([
@@ -40,14 +48,14 @@ export const router = createBrowserRouter([
         path: "its",
         children: [
           { index: true, element: <Navigate to="overview" replace /> },
-          { path: "overview",    element: <ITSDashboard activeTab="overview" /> },
-          { path: "register",    element: <ITSDashboard activeTab="register" /> },
-          { path: "inventory",   element: <ITSDashboard activeTab="inventory" /> },
-          { path: "repairs",     element: <ITSDashboard activeTab="repairs" /> },
-          { path: "inspections", element: <ITSDashboard activeTab="inspections" /> },
-          { path: "returns",     element: <ITSDashboard activeTab="returns" /> },
-          { path: "qrtags",      element: <ITSDashboard activeTab="qrtags" /> },
-          { path: "health",      element: <ITSDashboard activeTab="health" /> },
+          { path: "overview",    element: <OverviewPage /> },
+          { path: "register",    element: <RegisterPage /> },
+          { path: "inventory",   element: <InventoryPage /> },
+          { path: "repairs",     element: <RepairsPage /> },
+          { path: "inspections", element: <InspectionsPage /> },
+          { path: "returns",     element: <ReturnsPage /> },
+          { path: "qrtags",      element: <QrTagsPage /> },
+          { path: "health",      element: <HealthPage /> },
           { path: "account",     element: <AccountDetailsPage /> },
         ],
       },
@@ -57,14 +65,14 @@ export const router = createBrowserRouter([
         path: "tsg",
         children: [
           { index: true, element: <Navigate to="overview" replace /> },
-          { path: "overview",    element: <ITSDashboard activeTab="overview" /> },
-          { path: "register",    element: <ITSDashboard activeTab="register" /> },
-          { path: "inventory",   element: <ITSDashboard activeTab="inventory" /> },
-          { path: "repairs",     element: <ITSDashboard activeTab="repairs" /> },
-          { path: "inspections", element: <ITSDashboard activeTab="inspections" /> },
-          { path: "returns",     element: <ITSDashboard activeTab="returns" /> },
-          { path: "qrtags",      element: <ITSDashboard activeTab="qrtags" /> },
-          { path: "health",      element: <ITSDashboard activeTab="health" /> },
+          { path: "overview",    element: <OverviewPage /> },
+          { path: "register",    element: <RegisterPage /> },
+          { path: "inventory",   element: <InventoryPage /> },
+          { path: "repairs",     element: <RepairsPage /> },
+          { path: "inspections", element: <InspectionsPage /> },
+          { path: "returns",     element: <ReturnsPage /> },
+          { path: "qrtags",      element: <QrTagsPage /> },
+          { path: "health",      element: <HealthPage /> },
           { path: "account",     element: <AccountDetailsPage /> },
         ],
       },

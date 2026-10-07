@@ -248,7 +248,8 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     syncFromDb();
   }, []);
 
-  // TODO(M-07): RepairForm posts the ticket itself and then calls this, so the request is sent twice and the server's 8-second guard drops the second. Step 8 (each form loses its second write).
+  // The only post for the callers that use it (the asset modal's "Send to Maintenance"
+  // and the custodian condition report). RepairForm posts its ticket itself. (M-07)
   const addRepairRequest = async (req: RepairRequest) => {
     try {
       await repairsApi.requestRepairRaw(req.assetId, {

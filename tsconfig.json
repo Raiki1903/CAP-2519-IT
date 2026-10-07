@@ -19,14 +19,12 @@
     "types": ["node", "vite/client"],
 
     "paths": {
-      "@/*": ["./src/*"],
       "@server/*": ["./server/*"],
       "@web/*": ["./web/*"],
       "@shared/*": ["./shared/*"]
     }
   },
   "include": [
-    "src",
     "server",
     "web",
     "shared",

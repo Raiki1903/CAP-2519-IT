@@ -5,5 +5,3 @@
  */
 @import 'tailwindcss' source(none);
 @source '../**/*.{js,ts,jsx,tsx}';
-/* src/ still holds ITSDashboard.tsx until step 8 part 2 moves it. */
-@source '../../src/**/*.{js,ts,jsx,tsx}';

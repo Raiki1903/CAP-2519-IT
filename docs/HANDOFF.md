@@ -527,3 +527,40 @@ Both are fixed on their own branch after step 7, not inside the restructure.
 1. Run the seven step 8 part 1 hand checks (restart the dev server first).
 2. Then **step 8 part 2**:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 8, part 2.`
+
+---
+
+## Phase 1C, restructure step 8 part 2, 2026-10-07
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 8 part 2. Branch: `refactor/feature-based-structure`, from the PR #45 merge (`9db4a4d7`). Nothing pushed.
+
+### What was produced
+
+- **Log record** (`2c3532d8`): step 8 part 1 hand checks passed and merged in PR #45; two pre-existing bugs found during them (Classic Dark only partly dark; no Decline button for loans in the bell) tracked as issues #43 and #44.
+- **Five labelled behavior changes:** RepairForm posts each ticket once (`5d26ed8e`, M-07); inspection scheduling moved to `legacy/inspection-scheduling/` with a README (`993f48e3`, H-18); the Staff inspection log and the Director audit read the database reports (`82bc2e8e`, F-28); the unread browser copy of reports is no longer written (`c5936be0`); each Staff tab starts fresh instead of reusing the previous tab's component (`0bb2e95c`).
+- **Moves:** seven unrendered analytics widgets to `legacy/analytics-widgets/` (`99eb7191`); `ITSDashboard.tsx` split into eight pages in `web/pages/staff/` and fourteen files in `web/features/` (assets, disposals, repairs, inspections), one tab per commit, ending with the file's removal (`92305257` to `14d44320`); the leftover `src/` config removed (`7ca707c5`).
+- **Comment commit** (`caca57a9`): headers, TSDoc, and TODOs on every new file; stale references to `ITSDashboard.tsx` in 24 other headers corrected.
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#part-2-commits): part 2 detail, 13 hand checks, updated and new notes. [PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md): decisions table and history. **Typecheck: 93 to 71**, every removed error accounted for, none added.
+
+### Decisions recorded (team, 2026-10-07)
+
+- **Unused analytics widgets:** kept, not deleted, in `legacy/analytics-widgets/`. `/api/analytics/advanced/idle-time`, `idle-frequency`, and `loan-recommender` are kept for now and are **not** part of the step 12 deletion.
+- Inspection scheduling (H-18) and the inspection log (F-28) were applied as decided earlier.
+
+### Key findings
+
+- Every Staff tab used to share one live component, so its state survived tab switches. Splitting into pages ends that; it was made its own labelled commit.
+- The intake wizard offers the same serial again after a registration (generated once per page load). The finalize dialog's Inspector Role now reaches nowhere. "Last Inspected" shows the procurement date. `RepairAlertCard` is rendered nowhere. All logged as notes.
+- "Move the scheduling tab to legacy" was read as "move the scheduling controls and keep the tab", because the same decision keeps single-item finalize live on that tab. One route and one sidebar entry if the team meant otherwise.
+
+### Open questions
+
+- Manual clearance holds (F-37): still waiting on the team.
+- Inspector Role in the finalize dialog: remove it, or store it with the report?
+- `RepairAlertCard`: keep, quarantine, or delete?
+
+### Exact next step
+
+1. Run the 13 step 8 part 2 hand checks (restart `npm run dev:all` first), then push and open the pull request.
+2. Then **step 9**:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 9.`
