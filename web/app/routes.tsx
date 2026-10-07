@@ -9,6 +9,7 @@ import { RootLayout } from "./layouts/RootLayout";
 import { Login } from "@web/pages/auth/Login";
 import { Register } from "@web/pages/auth/Register";
 import { ITSDashboard } from "@/app/components/ITSDashboard";
+import { OverviewPage } from "@web/pages/staff/OverviewPage";
 import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";
@@ -41,7 +42,7 @@ export const router = createBrowserRouter([
         path: "its",
         children: [
           { index: true, element: <Navigate to="overview" replace /> },
-          { path: "overview",    element: <ITSDashboard key="overview" activeTab="overview" /> },
+          { path: "overview",    element: <OverviewPage /> },
           { path: "register",    element: <ITSDashboard key="register" activeTab="register" /> },
           { path: "inventory",   element: <ITSDashboard key="inventory" activeTab="inventory" /> },
           { path: "repairs",     element: <ITSDashboard key="repairs" activeTab="repairs" /> },
@@ -58,7 +59,7 @@ export const router = createBrowserRouter([
         path: "tsg",
         children: [
           { index: true, element: <Navigate to="overview" replace /> },
-          { path: "overview",    element: <ITSDashboard key="overview" activeTab="overview" /> },
+          { path: "overview",    element: <OverviewPage /> },
           { path: "register",    element: <ITSDashboard key="register" activeTab="register" /> },
           { path: "inventory",   element: <ITSDashboard key="inventory" activeTab="inventory" /> },
           { path: "repairs",     element: <ITSDashboard key="repairs" activeTab="repairs" /> },
