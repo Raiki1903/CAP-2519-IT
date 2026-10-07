@@ -1,8 +1,4 @@
 import { useState } from "react";
-import { useBrowserOnly } from "@web/state/browserOnly";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
-import { ReturnForm } from "@web/features/returns/ReturnForm";
 import TSGAnalyticsView from "@web/features/analytics/staff/TSGAnalyticsView";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -32,104 +28,15 @@ function MetricBar({ value, color }: { value: number; color: string }) {
 }
 
 export function ITSDashboard({ activeTab }: { activeTab: string }) {
-  const { returns } = useBrowserOnly();
   const { displayedAssets } = useStaffAssets();
 
   // TSG specific states
   const [selectedQR, setSelectedQR] = useState<string[]>([]);
   const [healthEdits, setHealthEdits] = useState<Record<string, Record<string, string>>>({});
   const [showAdvancedAnalytics, setShowAdvancedAnalytics] = useState(true);
-  const [selectedReturnAsset, setSelectedReturnAsset] = useState<any | null>(null);
   const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
 
-  const pendingReturns = returns.filter(r => r.status === "Pending");
-
   const qrAssets = displayedAssets.filter(a => a.status !== "Disposed");
-
-  // ── Pending Returns ───────────────────────────────────────────────────────
-  if (activeTab === "returns") {
-    return (
-      <div>
-        <div className="mb-6">
-          <h1 className="text-foreground mb-1">Pending Returns Ledger</h1>
-          <p className="text-muted-foreground text-sm">Verify physical equipment presence, condition check, and close borrow records.</p>
-        </div>
-
-        <Card className="overflow-hidden p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30">
-                {["Asset ID", "Asset Name", "Custodian", "Proposed Return Date", "Custodian Comments", "Action"].map(h => (
-                  <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pendingReturns.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No pending return requests in queue.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pendingReturns.map(req => {
-                  const matchingAsset = displayedAssets.find(a => a.id === req.assetId);
-                  return (
-                    <TableRow key={req.id}>
-                      <TableCell className="font-bold text-primary text-xs">{req.assetId}</TableCell>
-                      <TableCell className="text-xs font-semibold text-foreground">{req.assetName}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{req.custodian}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{req.returnDate}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground italic max-w-[200px] truncate" title={req.comments}>
-                        "{req.comments || "—"}"
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          className="text-xs h-7"
-                          onClick={() => {
-                            if (matchingAsset) {
-                              setSelectedReturnAsset(matchingAsset);
-                            } else {
-                              setSelectedReturnAsset({
-                                id: req.assetId,
-                                name: req.assetName,
-                                custodian: req.custodian,
-                                status: "Pending Return",
-                                category: "Computing Array"
-                              });
-                            }
-                          }}
-                        >
-                          Evaluate &amp; Finalize
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </Card>
-
-        {/* Dialog for Finalizing Returns */}
-        <Dialog open={selectedReturnAsset !== null} onOpenChange={open => { if (!open) setSelectedReturnAsset(null); }}>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-sm font-bold text-foreground">Evaluate &amp; Finalize Return</DialogTitle>
-            </DialogHeader>
-            {selectedReturnAsset && (
-              <ReturnForm
-                asset={selectedReturnAsset}
-                onBack={() => setSelectedReturnAsset(null)}
-                onClose={() => setSelectedReturnAsset(null)}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
-      </div>
-    );
-  }
 
   // ── QR Tags ───────────────────────────────────────────────────────────────
   if (activeTab === "qrtags") {

@@ -14,6 +14,7 @@ import { RegisterPage } from "@web/pages/staff/RegisterPage";
 import { InventoryPage } from "@web/pages/staff/InventoryPage";
 import { RepairsPage } from "@web/pages/staff/RepairsPage";
 import { InspectionsPage } from "@web/pages/staff/InspectionsPage";
+import { ReturnsPage } from "@web/pages/staff/ReturnsPage";
 import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";
@@ -51,7 +52,7 @@ export const router = createBrowserRouter([
           { path: "inventory",   element: <InventoryPage /> },
           { path: "repairs",     element: <RepairsPage /> },
           { path: "inspections", element: <InspectionsPage /> },
-          { path: "returns",     element: <ITSDashboard key="returns" activeTab="returns" /> },
+          { path: "returns",     element: <ReturnsPage /> },
           { path: "qrtags",      element: <ITSDashboard key="qrtags" activeTab="qrtags" /> },
           { path: "health",      element: <ITSDashboard key="health" activeTab="health" /> },
           { path: "account",     element: <AccountDetailsPage /> },
@@ -68,7 +69,7 @@ export const router = createBrowserRouter([
           { path: "inventory",   element: <InventoryPage /> },
           { path: "repairs",     element: <RepairsPage /> },
           { path: "inspections", element: <InspectionsPage /> },
-          { path: "returns",     element: <ITSDashboard key="returns" activeTab="returns" /> },
+          { path: "returns",     element: <ReturnsPage /> },
           { path: "qrtags",      element: <ITSDashboard key="qrtags" activeTab="qrtags" /> },
           { path: "health",      element: <ITSDashboard key="health" activeTab="health" /> },
           { path: "account",     element: <AccountDetailsPage /> },
