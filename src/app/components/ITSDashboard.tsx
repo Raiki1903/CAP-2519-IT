@@ -288,12 +288,12 @@ function RepairAlertCard({ req, onAcknowledge }: { req: RepairRequest; onAcknowl
 
 export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const navigate = useNavigate();
-  const { cycleMode, role, currentUser } = useSession();
+  const { role, currentUser } = useSession();
   const {
     assets, syncFromDb,
     repairRequests, acknowledgeRepair, updateRepairStatus
   } = useServerData();
-  const { returns, addInspectionReport } = useBrowserOnly();
+  const { returns } = useBrowserOnly();
   const [itemInspectedState, setItemInspectedState] = useState<Record<string, boolean>>({});
   const [selectedQueueItem, setSelectedQueueItem] = useState<any | null>(null);
   const [inspectionStatusOption, setInspectionStatusOption] = useState<string>("Operational");
@@ -1765,26 +1765,12 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
                   size="sm"
                   className="bg-[#005A36] hover:bg-[#004225] text-white font-bold text-xs"
                   onClick={async () => {
-                    const reportId = `RPT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
                     const fullNotes = [
                       tsgRemarksOption ? `[TSG Remarks]: ${tsgRemarksOption}` : "",
                       itsRemarksOption ? `[ITS Remarks]: ${itsRemarksOption}` : "",
                       inspectionNotesOption ? `[Notes]: ${inspectionNotesOption}` : ""
                     ].filter(Boolean).join(" | ") || "Routine periodic physical inspection verified.";
 
-                    const inspectorName = currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : `${inspectorRoleOption} Inspector`;
-
-                    addInspectionReport({
-                      id: reportId,
-                      assetId: selectedQueueItem.rawAsset?.id || selectedQueueItem.id,
-                      assetName: selectedQueueItem.asset,
-                      custodian: `${inspectorName} (${inspectorRoleOption})`,
-                      status: inspectionStatusOption,
-                      description: fullNotes,
-                      images: inspectionImgOption ? [inspectionImgOption] : [],
-                      submittedAt: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
-                      cycleType: cycleMode
-                    });
                     await syncFromDb();
 
                     // Save report under asset_reports table in MySQL database

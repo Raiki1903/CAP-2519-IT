@@ -2,7 +2,7 @@
  * Custodian screen: My Assets, Available Equipment, QR Scan, and the condition report form, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /custodian/* (the tab comes from the URL).
  * Calls: api/assets.api.ts listAssets(), api/inspections.api.ts submitInspectionRaw(), features/assets/AssetDetailModal.tsx,
- * state/serverData.tsx (assets, addRepairRequest, syncFromDb), state/browserOnly.tsx addInspectionReport().
+ * state/serverData.tsx (assets, addRepairRequest, syncFromDb).
  * Used by: Custodian.
  */
 import { useState, useRef, useEffect } from "react";
@@ -12,7 +12,6 @@ import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholde
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
-import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as inspectionsApi from "@web/api/inspections.api";
 import { Button } from "@web/components/ui/button";
@@ -71,7 +70,6 @@ const statusPills = [
 export function CustodianPortal({ activeTab }: { activeTab: string }) {
   const { cycleMode, currentUser } = useSession();
   const { addRepairRequest: onRepairRequest, assets, syncFromDb } = useServerData();
-  const { addInspectionReport } = useBrowserOnly();
   const currentUserName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Custodian User";
 
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
@@ -364,21 +362,9 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         reportImg: firstImg,
       });
 
-      // 2. Mark asset as Inspected for ITS & TSG Compliance Engine
-      addInspectionReport({
-        id: ref,
-        assetId: targetTag,
-        assetName: assetName,
-        custodian: `${currentUserName} (Custodian)`,
-        status: "Inspected",
-        description: fullRemarks,
-        images: reportImages,
-        submittedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        cycleType: cycleMode
-      });
       syncFromDb();
 
-      // 3. Trigger repair request to TSG if critical fault or immediate inspection requested
+      // 2. Trigger repair request to TSG if critical fault or immediate inspection requested
       if (triggerRepair) {
         onRepairRequest({
           id: ref,
@@ -400,18 +386,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
       await fetchDbAssets();
     } catch (err) {
       console.error("❌ Failed to save custodian inspection report in MySQL asset_reports:", err);
-      // TODO(H-16): the report reached only this browser's log, yet the screen shows success. A refusal from the server is not seen at all, because the answer is never read. Step 13 (typed errors).
-      addInspectionReport({
-        id: ref,
-        assetId: targetTag,
-        assetName: assetName,
-        custodian: currentUserName,
-        status: "Inspected",
-        description: fullRemarks,
-        images: reportImages,
-        submittedAt: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        cycleType: cycleMode
-      });
+      // TODO(H-16): the report was not saved anywhere, yet the screen shows success. A refusal from the server is not seen at all, because the answer is never read. Step 13 (typed errors).
       syncFromDb();
       setSubmitResult("healthy");
     } finally {
