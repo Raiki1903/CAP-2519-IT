@@ -1,7 +1,7 @@
 /**
  * Repair request form shown to a Custodian from the asset detail modal.
  * Layer: feature component. Called by features/assets/AssetDetailModal.tsx.
- * Calls: api/repairs.api.ts requestRepair(), then state/serverData.tsx addRepairRequest().
+ * Calls: api/repairs.api.ts requestRepair(), then state/serverData.tsx syncFromDb().
  * Used by: Custodian repair request (Staff handle the ticket).
  */
 import { useState, useRef } from "react";
@@ -94,7 +94,7 @@ interface Props {
  * @param onClose closes the modal from the success screen
  */
 export function RepairForm({ asset, onBack, onClose }: Props) {
-  const { addRepairRequest } = useServerData();
+  const { syncFromDb } = useServerData();
   const [justification, setJustification] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -139,19 +139,9 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
       submitLockRef.current = false;
     }
 
-    // TODO(M-07): addRepairRequest posts the same ticket again; the server's 8-second duplicate guard drops it. Step 8 part 2 or later, as its own behavior change.
-    addRepairRequest({
-      id: refId,
-      assetId: asset.id,
-      assetName: asset.name,
-      custodian: asset.custodian || "Active Custodian",
-      statusLabel: "Under Evaluation",
-      description: justification,
-      submittedAt: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-      priority: "Medium",
-      acknowledged: false,
-      forwardedTo: forwardTarget
-    });
+    // Reload the shared lists so the bell and the Staff screens see the new ticket.
+    // The ticket is posted once, above. (M-07)
+    syncFromDb();
     setSubmitting(false);
     setSubmitted(true);
   };
