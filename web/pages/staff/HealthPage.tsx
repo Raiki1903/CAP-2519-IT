@@ -4,20 +4,9 @@ import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
-import { Switch } from "@web/components/ui/switch";
-import { Label } from "@web/components/ui/label";
-import { Separator } from "@web/components/ui/separator";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@web/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { cn } from "@web/components/ui/utils";
-import {
-  Plus, Search, Download, CheckCircle, Clock, Package, DollarSign,
-  ChevronRight, LayoutGrid, Table2, MapPin, Calendar, Tag, Wrench,
-  BarChart3, Bell, AlertTriangle, Shield, QrCode, Printer, Zap, Eye,
-  Image as ImageIcon, XCircle, Trash2, Pencil, Archive, ClipboardCheck, RefreshCw, Camera, Upload
-} from "lucide-react";
-
-const MINT = "#10B981";
+import { Wrench } from "lucide-react";
 
 const healthData: any[] = [];
 
@@ -25,13 +14,10 @@ function MetricBar({ value, color }: { value: number; color: string }) {
   return <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-1 w-12"><div className={cn("h-full rounded-full", color)} style={{ width: `${Math.min(100, value)}%` }} /></div>;
 }
 
-export function ITSDashboard({ activeTab }: { activeTab: string }) {
-  // TSG specific states
+export function HealthPage() {
   const [healthEdits, setHealthEdits] = useState<Record<string, Record<string, string>>>({});
   const [showAdvancedAnalytics, setShowAdvancedAnalytics] = useState(true);
-  const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
 
-  // ── Health Benchmarking ───────────────────────────────────────────────────
   return (
     <div>
       <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-4">
