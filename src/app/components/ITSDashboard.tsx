@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";
-import * as assetsApi from "@web/api/assets.api";
 import * as inspectionsApi from "@web/api/inspections.api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
@@ -17,16 +16,10 @@ import { Label } from "@web/components/ui/label";
 import { Separator } from "@web/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@web/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
-import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
-import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
-import { EditAssetDialog } from "@web/features/assets/EditAssetDialog";
-import { fundingSources } from "@web/features/assets/assetFields";
-import { DisposalFormDialog } from "@web/features/disposals/DisposalFormDialog";
 import { RepairProgressDialog } from "@web/features/repairs/RepairProgressDialog";
 import { useRepairTickets } from "@web/features/repairs/useRepairTickets";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { useInspectionReports } from "@web/features/inspections/useInspectionReports";
-import { statusBadgeClass, CONDITION_DOT_CLASS, ConditionState } from "@web/features/assets/assetBadges";
 import { cn } from "@web/components/ui/utils";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -76,91 +69,6 @@ function MetricBar({ value, color }: { value: number; color: string }) {
   return <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-1 w-12"><div className={cn("h-full rounded-full", color)} style={{ width: `${Math.min(100, value)}%` }} /></div>;
 }
 
-function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommission }: { eq: any; onSelect: () => void; onDelete?: () => void; onEdit?: () => void; onDecommission?: () => void }) {
-  const isDisposed = eq.status === "Disposed";
-  return (
-    <Card onClick={onSelect} className={cn("overflow-hidden p-0 gap-0 transition-all relative cursor-pointer", isDisposed ? "opacity-85 bg-red-50/20 border-dashed border-red-200 shadow-none hover:opacity-100" : "hover:shadow-md")}>
-      <div className="relative">
-        <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image || eq.image_url} />
-        <Badge className={cn("absolute top-2.5 right-2.5 text-[9px] border font-bold uppercase tracking-wider", statusBadgeClass[eq.status])}>{eq.status}</Badge>
-        {
-          isDisposed && eq.disposalId && (
-            <Badge className="absolute top-2.5 left-2.5 text-[9px] font-mono font-extrabold bg-red-100 text-red-800 border-red-300 shadow-sm">
-              {eq.disposalId}
-            </Badge>
-          )
-        }
-        {
-          !isDisposed && (
-            <div className="absolute top-2.5 left-2.5 flex gap-1 z-10">
-              {onEdit && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-6 w-6 rounded-md bg-white hover:bg-blue-50 text-blue-600 border-blue-200 opacity-90 shadow-sm"
-                  onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                  title="Edit Asset"
-                >
-                  <Pencil size={11} />
-                </Button>
-              )}
-              {onDecommission && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-6 w-6 rounded-md bg-white hover:bg-amber-50 text-amber-600 border-amber-200 opacity-90 shadow-sm"
-                  onClick={(e) => { e.stopPropagation(); onDecommission(); }}
-                  title="Decommission Asset"
-                >
-                  <Archive size={11} />
-                </Button>
-              )}
-              {onDelete && (
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="h-6 w-6 rounded-md hover:bg-red-600 opacity-90 shadow-sm"
-                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  title="Remove Asset"
-                >
-                  <Trash2 size={11} />
-                </Button>
-              )}
-            </div>
-          )
-        }
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-border">
-          <div className={cn("h-full w-full", CONDITION_DOT_CLASS[eq.assetCondition] ?? "bg-emerald-400")} />
-        </div>
-      </div >
-      <CardContent className="px-4 py-3.5 flex flex-col justify-between h-[115px]">
-        <div>
-          <div className="flex items-center justify-between gap-1 mb-0.5">
-            <p className="text-[10px] font-bold text-primary tracking-wide uppercase">{eq.id}</p>
-            {isDisposed && eq.disposalId && (
-              <span className="text-[10px] font-mono font-extrabold text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">
-                {eq.disposalId}
-              </span>
-            )}
-          </div>
-          <p className="text-sm font-bold text-foreground leading-snug line-clamp-1">{eq.name}</p>
-        </div>
-        {isDisposed ? (
-          <div className="flex items-center justify-between text-[10px] text-red-700 pt-2 border-t border-red-100 font-mono mt-1">
-            <span>By: {eq.disposalDetails?.decommissionedBy || "AdRIC Director"}</span>
-            <span className="font-bold">{eq.disposalDetails?.decommissionDate || "Disposed"}</span>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border mt-1">
-            <span>{eq.custodian || "No custodian"}</span>
-            <ConditionState value={eq.assetCondition} />
-          </div>
-        )}
-      </CardContent>
-    </Card >
-  );
-}
-
 export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const { currentUser } = useSession();
   const { syncFromDb } = useServerData();
@@ -180,22 +88,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const [itsRemarksOption, setItsRemarksOption] = useState<string>("");
   const [inspectionImgOption, setInspectionImgOption] = useState<string>("");
 
-  // ITS specific states
-  const [search, setSearch] = useState("");
-  const [filterFunding, setFilterFunding] = useState("All");
-  const [filterLoc, setFilterLoc] = useState("All");
-  const [viewMode, setViewMode] = useState<"table" | "gallery">("gallery");
-  const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
-
-  const [sortBy, setSortBy] = useState<"name" | "category" | "procured">("name");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-
-  // Edit, Delete confirmation & Disposal states
-  const [editingAsset, setEditingAsset] = useState<any | null>(null);
-  const [assetToDelete, setAssetToDelete] = useState<string | null>(null);
-  const [disposalAsset, setDisposalAsset] = useState<any | null>(null);
   const [updatingTicket, setUpdatingTicket] = useState<any | null>(null);
-  const [inventorySubTab, setInventorySubTab] = useState<"active" | "disposed">("active");
   const [selectedInspection, setSelectedInspection] = useState<any | null>(null);
 
   // TSG specific states
@@ -205,29 +98,6 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const [showAdvancedAnalytics, setShowAdvancedAnalytics] = useState(true);
   const [selectedReturnAsset, setSelectedReturnAsset] = useState<any | null>(null);
   const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
-
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const handleDeleteConfirm = async () => {
-    if (!assetToDelete) return;
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      const result = await assetsApi.deleteAsset(assetToDelete);
-      if (!result.success) {
-        throw new Error(result.error || "Delete failed");
-      }
-      syncFromDb();
-      setAssetToDelete(null);
-      await fetchDbAssets();
-    } catch (err: any) {
-      console.error("❌ Asset delete failed:", err);
-      setDeleteError(err.message || "Could not reach the server. Please try again.");
-    } finally {
-      setDeleting(false);
-    }
-  };
 
   const unacknowledged = combinedRepairs.filter(r => !r.acknowledged);
   const pendingReturns = returns.filter(r => r.status === "Pending");
@@ -251,241 +121,7 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const activeRepairs = sortedRepairs.filter(r => r.statusLabel !== "Fixed & Completed");
   const completedRepairs = sortedRepairs.filter(r => r.statusLabel === "Fixed & Completed");
 
-  const openAsset = (eq: any): AssetDetail => ({
-    id: eq.id, name: eq.name, serial: eq.serial, manufacturer: eq.manufacturer,
-    category: eq.category, funding: eq.funding, procured: eq.procured,
-    warranty: eq.warranty, location: eq.location, currentLocation: eq.currentLocation, lab: eq.lab,
-    status: eq.status, condition: eq.condition, assetCondition: eq.assetCondition, custodian: eq.custodian,
-    description: eq.description || eq.remarks || "No additional TSG/ITS remarks recorded.",
-    image: eq.image || eq.image_url,
-    disposalId: eq.disposalId,
-    disposalDetails: eq.disposalDetails
-  });
-
-  const filtered = displayedAssets.filter(eq => {
-    const matchSearch = eq.name.toLowerCase().includes(search.toLowerCase()) || eq.serial.toLowerCase().includes(search.toLowerCase());
-    const matchFunding = filterFunding === "All" || eq.funding === filterFunding;
-    const matchLoc = filterLoc === "All" || eq.location === filterLoc;
-
-    // Decommissioned subtab filtering
-    const matchSubTab = inventorySubTab === "disposed"
-      ? eq.status === "Disposed"
-      : eq.status !== "Disposed";
-
-    return matchSearch && matchFunding && matchLoc && matchSubTab;
-  });
-
   const qrAssets = displayedAssets.filter(a => a.status !== "Disposed");
-
-  // ── Inventory ─────────────────────────────────────────────────────────────
-  if (activeTab === "inventory") {
-    return (
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-foreground mb-1">Asset Inventory</h1>
-            <p className="text-muted-foreground text-sm">Complete hardware registry · {displayedAssets.filter(a => a.status !== "Disposed").length} active assets across 2 campuses</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg overflow-hidden border border-border">
-              <Button variant={viewMode === "gallery" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("gallery")} className="rounded-none text-xs gap-1.5"><LayoutGrid size={13} />Gallery</Button>
-              <Button variant={viewMode === "table" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="rounded-none text-xs gap-1.5"><Table2 size={13} />Table</Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Sub-tab selection bar */}
-        <div className="flex border-b border-border mb-5 gap-4">
-          <button
-            onClick={() => setInventorySubTab("active")}
-            className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "active" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
-          >
-            Active Registry ({displayedAssets.filter(a => a.status !== "Disposed").length})
-          </button>
-          <button
-            onClick={() => setInventorySubTab("disposed")}
-            className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "disposed" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
-          >
-            Decommissioned Archive ({displayedAssets.filter(a => a.status === "Disposed").length})
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-5">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={13} />
-            <Input className="pl-8" placeholder="Search by name or serial..." value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
-          <select value={filterFunding} onChange={e => setFilterFunding(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <option value="All">All Funding Origins</option>
-            {fundingSources.map(f => <option key={f} value={f}>{f}</option>)}
-          </select>
-          <select value={filterLoc} onChange={e => setFilterLoc(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <option value="All">All Campuses</option>
-            <option value="Manila">Manila</option>
-            <option value="Laguna">Laguna</option>
-          </select>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <option value="name">Sort by Name</option>
-            <option value="category">Sort by Category</option>
-            <option value="procured">Sort by Procurement Date</option>
-          </select>
-          <Button variant="outline" onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")} className="h-10 text-xs font-bold">
-            {sortOrder === "asc" ? "↑ Ascending" : "↓ Descending"}
-          </Button>
-        </div>
-
-        {(() => {
-          const sortedAssets = [...filtered].sort((a, b) => {
-            let comp = 0;
-            if (sortBy === "category") {
-              comp = (a.category || "").localeCompare(b.category || "");
-            } else if (sortBy === "procured") {
-              const dateA = a.procured ? new Date(a.procured).getTime() : 0;
-              const dateB = b.procured ? new Date(b.procured).getTime() : 0;
-              comp = dateA - dateB;
-            } else {
-              comp = (a.name || "").localeCompare(b.name || "");
-            }
-            return sortOrder === "asc" ? comp : -comp;
-          });
-
-          return sortedAssets.length === 0 ? (
-            <Card className="text-center py-10 text-muted-foreground">No assets matched your active filters</Card>
-          ) : viewMode === "gallery" ? (
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-              {sortedAssets.map(eq => (
-                <AssetGalleryCard
-                  key={eq.id}
-                  eq={eq}
-                  onSelect={() => setSelectedAsset(openAsset(eq))}
-                  onDelete={inventorySubTab === "active" ? () => setAssetToDelete(eq.id) : undefined}
-                  onEdit={inventorySubTab === "active" ? () => setEditingAsset(eq) : undefined}
-                  onDecommission={inventorySubTab === "active" ? () => setDisposalAsset(eq) : undefined}
-                />
-              ))}
-            </div>
-          ) : (
-            <Card className="overflow-hidden p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30">
-                    {["", "Asset ID", "Name", "Category", "Status", "Custodian", "Location", "Cond.", "Funding", "Action"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedAssets.map(eq => (
-                    <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "Disposed" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset(openAsset(eq))}>
-                      <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image || eq.image_url} /></div></TableCell>
-                      <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
-                      <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{eq.category}</TableCell>
-                      <TableCell><Badge className={cn("text-[10px]", statusBadgeClass[eq.status])}>{eq.status}</Badge></TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{eq.custodian || "—"}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{eq.currentLocation || eq.location}</TableCell>
-                      <TableCell><ConditionState value={eq.assetCondition} /></TableCell>
-                      <TableCell><Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">{eq.funding}</Badge></TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {inventorySubTab === "active" ? (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                              onClick={() => setEditingAsset(eq)}
-                              title="Edit Asset"
-                            >
-                              <Pencil size={13} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-amber-600 hover:text-amber-800 hover:bg-amber-50"
-                              onClick={() => setDisposalAsset(eq)}
-                              title="Decommission Asset"
-                            >
-                              <Archive size={13} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => setAssetToDelete(eq.id)}
-                              title="Remove Asset"
-                            >
-                              <Trash2 size={13} />
-                            </Button>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] uppercase font-bold text-red-500 tracking-wider">Decommissioned</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          );
-        })()}
-
-        <AssetDetailModal asset={selectedAsset} onClose={() => setSelectedAsset(null)} />
-
-        {/* Edit Asset Dialog */}
-        {editingAsset && (
-          <EditAssetDialog
-            key={editingAsset.id}
-            asset={editingAsset}
-            onClose={() => setEditingAsset(null)}
-            onSave={() => {
-              syncFromDb();
-              fetchDbAssets();
-            }}
-          />
-        )}
-
-        {/* Disposal Form Dialog */}
-        {disposalAsset && (
-          <DisposalFormDialog
-            key={disposalAsset.id}
-            asset={disposalAsset}
-            onClose={() => setDisposalAsset(null)}
-            requestedBy={currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "ITS Staff"}
-            onSubmitted={() => fetchDbAssets()}
-          />
-        )}
-
-        {/* Delete Confirmation Dialog */}
-        <Dialog open={assetToDelete !== null} onOpenChange={open => { if (!open) { setAssetToDelete(null); setDeleteError(null); } }}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-sm font-bold text-foreground">Confirm Asset Deletion</DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
-                Are you sure you want to permanently delete asset <strong className="text-primary">{assetToDelete}</strong> from the AdRIC registry? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            {deleteError && <p className="text-xs text-red-600 font-semibold">⚠️ {deleteError}</p>}
-            <DialogFooter className="gap-2 mt-4">
-              <Button variant="outline" size="sm" onClick={() => { setAssetToDelete(null); setDeleteError(null); }}>Cancel</Button>
-              <Button variant="destructive" size="sm" disabled={deleting} onClick={handleDeleteConfirm}>
-                {deleting ? "Deleting..." : "Permanently Delete"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Repair Progress Dialog */}
-        {updatingTicket && (
-          <RepairProgressDialog
-            ticket={updatingTicket}
-            onClose={() => setUpdatingTicket(null)}
-            onSave={handleUpdateRepairStatus}
-          />
-        )}
-      </div>
-    );
-  }
 
   // ── Repairs ───────────────────────────────────────────────────────────────
   if (activeTab === "repairs") {

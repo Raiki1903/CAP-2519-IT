@@ -11,6 +11,7 @@ import { Register } from "@web/pages/auth/Register";
 import { ITSDashboard } from "@/app/components/ITSDashboard";
 import { OverviewPage } from "@web/pages/staff/OverviewPage";
 import { RegisterPage } from "@web/pages/staff/RegisterPage";
+import { InventoryPage } from "@web/pages/staff/InventoryPage";
 import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";
@@ -45,7 +46,7 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="overview" replace /> },
           { path: "overview",    element: <OverviewPage /> },
           { path: "register",    element: <RegisterPage /> },
-          { path: "inventory",   element: <ITSDashboard key="inventory" activeTab="inventory" /> },
+          { path: "inventory",   element: <InventoryPage /> },
           { path: "repairs",     element: <ITSDashboard key="repairs" activeTab="repairs" /> },
           { path: "inspections", element: <ITSDashboard key="inspections" activeTab="inspections" /> },
           { path: "returns",     element: <ITSDashboard key="returns" activeTab="returns" /> },
@@ -62,7 +63,7 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="overview" replace /> },
           { path: "overview",    element: <OverviewPage /> },
           { path: "register",    element: <RegisterPage /> },
-          { path: "inventory",   element: <ITSDashboard key="inventory" activeTab="inventory" /> },
+          { path: "inventory",   element: <InventoryPage /> },
           { path: "repairs",     element: <ITSDashboard key="repairs" activeTab="repairs" /> },
           { path: "inspections", element: <ITSDashboard key="inspections" activeTab="inspections" /> },
           { path: "returns",     element: <ITSDashboard key="returns" activeTab="returns" /> },
