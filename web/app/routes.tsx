@@ -35,19 +35,20 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/login" replace /> },
 
-      // ITS routes
+      // ITS routes. Each tab has its own key, so switching tabs starts that tab
+      // fresh instead of reusing the previous tab's component and its state.
       {
         path: "its",
         children: [
           { index: true, element: <Navigate to="overview" replace /> },
-          { path: "overview",    element: <ITSDashboard activeTab="overview" /> },
-          { path: "register",    element: <ITSDashboard activeTab="register" /> },
-          { path: "inventory",   element: <ITSDashboard activeTab="inventory" /> },
-          { path: "repairs",     element: <ITSDashboard activeTab="repairs" /> },
-          { path: "inspections", element: <ITSDashboard activeTab="inspections" /> },
-          { path: "returns",     element: <ITSDashboard activeTab="returns" /> },
-          { path: "qrtags",      element: <ITSDashboard activeTab="qrtags" /> },
-          { path: "health",      element: <ITSDashboard activeTab="health" /> },
+          { path: "overview",    element: <ITSDashboard key="overview" activeTab="overview" /> },
+          { path: "register",    element: <ITSDashboard key="register" activeTab="register" /> },
+          { path: "inventory",   element: <ITSDashboard key="inventory" activeTab="inventory" /> },
+          { path: "repairs",     element: <ITSDashboard key="repairs" activeTab="repairs" /> },
+          { path: "inspections", element: <ITSDashboard key="inspections" activeTab="inspections" /> },
+          { path: "returns",     element: <ITSDashboard key="returns" activeTab="returns" /> },
+          { path: "qrtags",      element: <ITSDashboard key="qrtags" activeTab="qrtags" /> },
+          { path: "health",      element: <ITSDashboard key="health" activeTab="health" /> },
           { path: "account",     element: <AccountDetailsPage /> },
         ],
       },
@@ -57,14 +58,14 @@ export const router = createBrowserRouter([
         path: "tsg",
         children: [
           { index: true, element: <Navigate to="overview" replace /> },
-          { path: "overview",    element: <ITSDashboard activeTab="overview" /> },
-          { path: "register",    element: <ITSDashboard activeTab="register" /> },
-          { path: "inventory",   element: <ITSDashboard activeTab="inventory" /> },
-          { path: "repairs",     element: <ITSDashboard activeTab="repairs" /> },
-          { path: "inspections", element: <ITSDashboard activeTab="inspections" /> },
-          { path: "returns",     element: <ITSDashboard activeTab="returns" /> },
-          { path: "qrtags",      element: <ITSDashboard activeTab="qrtags" /> },
-          { path: "health",      element: <ITSDashboard activeTab="health" /> },
+          { path: "overview",    element: <ITSDashboard key="overview" activeTab="overview" /> },
+          { path: "register",    element: <ITSDashboard key="register" activeTab="register" /> },
+          { path: "inventory",   element: <ITSDashboard key="inventory" activeTab="inventory" /> },
+          { path: "repairs",     element: <ITSDashboard key="repairs" activeTab="repairs" /> },
+          { path: "inspections", element: <ITSDashboard key="inspections" activeTab="inspections" /> },
+          { path: "returns",     element: <ITSDashboard key="returns" activeTab="returns" /> },
+          { path: "qrtags",      element: <ITSDashboard key="qrtags" activeTab="qrtags" /> },
+          { path: "health",      element: <ITSDashboard key="health" activeTab="health" /> },
           { path: "account",     element: <AccountDetailsPage /> },
         ],
       },
