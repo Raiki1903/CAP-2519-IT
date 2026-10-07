@@ -3,7 +3,7 @@
 Running record of the migration in [01D section 9](../phase-1b-deep-map/01D-restructure-plan.md#9-ordered-migration-steps).
 Decision and comment standard: [01-restructure-decision.md](01-restructure-decision.md), [../guides/CODE-COMMENTS.md](../guides/CODE-COMMENTS.md).
 
-Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16. The fixes for issues #25 and #26 were merged in PR #33 (their own branch); step 8 continues from that merge. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
+Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16. The fixes for issues #25 and #26 were merged in PR #33 (their own branch); step 8 continues from that merge. Step 8 part 1 was merged in PR #45, and part 2 continues from that merge (`9db4a4d7`). Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
 
 ---
 
@@ -20,7 +20,7 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 5 | Convert the remaining features to the API client | Done | `5389d51b` to `497d0c30` (9 commits, see detail) | `6488407b` | **98** (unchanged, same errors) | 2026-10-02 |
 | 6 | Split `context.tsx`, delete localStorage-only actions | Done (hand checks passed, PR #16) | `9d1b62a9`, `b35a67e1` (behavior changes), `20cd4fdd` (move), `8dcd6120` (types) | `f8f43435` | **93** (from 98, see detail) | 2026-10-03 |
 | 7 | Delete `prismaClient.ts` | Done (hand checks passed) | `6e08e469` (behavior change) | n/a (see note 4) | **93** (unchanged, same errors) | 2026-10-04 |
-| 8 | Move the frontend to `web/` with feature folders (part 1: everything except `ITSDashboard.tsx`; part 2: split it) | Part 1 done (hand checks pending); part 2 not started | `edcb9162` to `6d9facc2` (14 commits, see detail) | `ffa05a38` | **93** (unchanged, same errors) | 2026-10-06 |
+| 8 | Move the frontend to `web/` with feature folders (part 1: everything except `ITSDashboard.tsx`; part 2: split it) | Part 1 done (hand checks passed, PR #45); part 2 in progress | `edcb9162` to `6d9facc2` (14 commits, see detail) | `ffa05a38` | **93** (unchanged, same errors) | 2026-10-06 |
 | 9 | Merge ITS and TSG into `/staff/*` | Not started | | | | |
 | 10 | Create the `server/` skeleton | Not started | | | | |
 | 11 | Extract one backend feature end to end (loans) | Not started | | | | |
@@ -446,7 +446,14 @@ Same 93 errors, compared by file name, position, and message after each commit. 
 
 **Not verified in the agent session:** nothing was clicked in a browser. The hand checks below cover that.
 
-### Hand checks: part 1
+### Hand checks: part 1, passed
+
+Raiki ran the seven checks below and all passed (reported 2026-10-07). Step 8 part 1 was merged into `main` in PR #45. The list is kept for the record.
+
+Two bugs were found while running them. Both exist before step 8 and are not caused by the move, so they are tracked as GitHub issues #43 and #44 and are not fixed in the restructure:
+
+- The Classic Dark theme darkens only a few components. Many screens use hardcoded light colours (`bg-white`, `bg-emerald-50`, and similar) instead of the theme's colour variables, so they stay light.
+- The notification bell offers Approve for a loan request but no Decline button. A Lab Head can decline a loan only from the Custody tab.
 
 **Restart the dev server first** (`npm run dev` or `npm run dev:all`). A server started before this step was watching the old paths.
 
@@ -598,6 +605,7 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | `updateProfile` swallows a failed save and the account page shows its success tick anyway | n/a (new) | Step 13 |
 | `addRepairRequest` is unchanged, so `RepairForm` still posts each ticket twice and relies on the server's 8-second guard. 01D section 7 removes each form's second write when the forms move. **The forms moved in step 8 part 1 without this change**, because that session moved files only and removing the second post changes what reaches the server. `TODO(M-07)` marks the line | M-07 | Step 8 part 2, as its own labelled behavior-change commit (or later) |
 | Two pre-existing bugs found during the step 6 hand checks: duplicate custodian requests on one asset (issue #25), and My Assets listing disposed assets because `CustodianPortal.tsx` has no status filter (issue #26). **Fixed on `fix/issues-25-26`** (`bc041acb`, `95290115`), see "Bug fix: issues #25 and #26" above | H-05 (#25), n/a (#26) | Done |
+| Two pre-existing bugs found during the step 8 part 1 hand checks, not caused by the move: Classic Dark darkens only a few components because many screens hardcode light colours, and the bell has no Decline button for loan requests | n/a | GitHub issues #43 and #44, their own fix branch |
 | H-05 is only partly closed by #25. `POST /disposal` still checks only that the asset exists, so an asset that is on loan or already has a pending disposal can be put up for disposal. The loan and transfer guard is also check-then-insert, so two requests in the same instant can both pass (`TODO(H-05)` in `server.ts`) | H-05 | Disposal guard: its own fix, or step 12 (disposals). The race: Phase 3 database triggers |
 | Hiding the requester's name from other custodians (D2) happens only on screen. `GET /api/asset_loans` and `GET /api/asset_transfers` still send every requester's name to anyone who calls them, logged in or not. Real privacy needs the server to filter by role | C-02, D2 | Step 13 (`requireAuth`), then a role check on the two list endpoints |
 | A loan's requester is the `borrower_id`, which the server resolves from the name typed in the borrow form and otherwise sets to `DEFAULT_CUSTODIAN_ID` (user 1, ITS Admin). The form fills in the custodian's own name, so this normally matches. If they type a different name, their own request shows them "Requested by another user", and Staff see that other name | H-10 | Phase 3 (borrower from the session) |
