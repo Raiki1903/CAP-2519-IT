@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";
 import * as assetsApi from "@web/api/assets.api";
 import * as inspectionsApi from "@web/api/inspections.api";
-import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import { ReturnForm } from "@web/features/returns/ReturnForm";
@@ -21,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { EditAssetDialog } from "@web/features/assets/EditAssetDialog";
+import { fundingSources } from "@web/features/assets/assetFields";
 import { DisposalFormDialog } from "@web/features/disposals/DisposalFormDialog";
 import { RepairProgressDialog } from "@web/features/repairs/RepairProgressDialog";
 import { useRepairTickets } from "@web/features/repairs/useRepairTickets";
@@ -37,7 +37,6 @@ import {
 } from "lucide-react";
 
 const MINT = "#10B981";
-const fundingSources = ["DOST", "USAID", "CHED", "Internal Grants"];
 
 // TSG Specific Constants - 10 DB Research Centers evenly distributed across 4 groups
 const labGroups = [
@@ -71,33 +70,6 @@ const REPORT_CONDITION_LABEL: Record<string, string> = {
   MINOR_DRIFT: "Minor Drift",
   DEGRADED: "Degraded Performance",
   CRITICAL_DEFECT: "Critical Defect",
-};
-
-interface IntakeForm {
-  name: string;
-  serial: string;
-  manufacturer: string;
-  category: string;
-  funding: string;
-  acquisitionValue: number;
-  procured: string;
-  warranty: string;
-  location: string;
-  lab: string;
-  image?: string;
-  remarks?: string;
-}
-
-const generateAdricSerial = () => {
-  const year = new Date().getFullYear();
-  const hex = Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(6, "0").toUpperCase();
-  return `ADRIC-${year}-${hex}`;
-};
-
-const emptyForm: IntakeForm = {
-  name: "", serial: generateAdricSerial(), manufacturer: "", category: "CPU",
-  funding: "DOST", acquisitionValue: 0, procured: new Date().toISOString().split("T")[0],
-  warranty: "", location: "Manila", lab: "CITe4D", image: "", remarks: ""
 };
 
 function MetricBar({ value, color }: { value: number; color: string }) {
@@ -209,29 +181,14 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
   const [inspectionImgOption, setInspectionImgOption] = useState<string>("");
 
   // ITS specific states
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState<IntakeForm>(emptyForm);
-  const [step, setStep] = useState(1);
   const [search, setSearch] = useState("");
   const [filterFunding, setFilterFunding] = useState("All");
   const [filterLoc, setFilterLoc] = useState("All");
-  const [submitted, setSubmitted] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "gallery">("gallery");
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
 
   const [sortBy, setSortBy] = useState<"name" | "category" | "procured">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-
-  useEffect(() => {
-    if (activeTab === "register" || showModal) {
-      if (!form.serial || form.serial.trim() === "") {
-        setForm(prev => ({
-          ...prev,
-          serial: generateAdricSerial()
-        }));
-      }
-    }
-  }, [activeTab, showModal]);
 
   // Edit, Delete confirmation & Disposal states
   const [editingAsset, setEditingAsset] = useState<any | null>(null);
@@ -319,215 +276,6 @@ export function ITSDashboard({ activeTab }: { activeTab: string }) {
   });
 
   const qrAssets = displayedAssets.filter(a => a.status !== "Disposed");
-
-  const [registrationError, setRegistrationError] = useState<string | null>(null);
-
-  const handleSubmit = async () => {
-    setSubmitted(true);
-    setRegistrationError(null);
-    try {
-      const res = await assetsApi.createAssetRaw(form);
-      const contentType = res.headers.get("content-type");
-      if (!res.ok || !contentType || !contentType.includes("application/json")) {
-        const errText = await res.text();
-        throw new Error(`Server returned error (${res.status}): ${errText.slice(0, 120)}`);
-      }
-      const result = await res.json();
-      if (!result.success) {
-        throw new Error(result.error || "Registration failed");
-      }
-
-      syncFromDb();
-      await fetchDbAssets();
-      setShowModal(false);
-      setForm(emptyForm);
-      setStep(1);
-    } catch (err: any) {
-      console.error("❌ Asset registration failed:", err);
-      setRegistrationError(err.message || "Could not reach the server. Please try again.");
-    } finally {
-      setSubmitted(false);
-    }
-  };
-
-  // ── Register ──────────────────────────────────────────────────────────────
-  if (activeTab === "register") {
-    return (
-      <div>
-        <div className="mb-6">
-          <h1 className="text-foreground mb-1">Equipment Procurement Registration</h1>
-          <p className="text-muted-foreground text-sm">Register newly acquired computing assets, sensors, and network devices.</p>
-        </div>
-
-        <Card className="max-w-xl mx-auto">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border pb-4 px-5">
-            <div>
-              <CardTitle className="text-sm">Procurement Intake Wizard</CardTitle>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Complete all fields to compile hardware records</p>
-            </div>
-            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-extrabold">STEP {step} OF 3</Badge>
-          </CardHeader>
-          <CardContent className="p-5 space-y-4">
-            {step === 1 && (
-              <div className="space-y-4">
-                <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs font-bold text-foreground">Asset Name</Label>
-                  <Input placeholder="e.g. MacBook Pro M3 Max" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs font-bold text-foreground">Manufacturer</Label>
-                    <Input placeholder="Apple Inc." value={form.manufacturer} onChange={e => setForm({ ...form, manufacturer: e.target.value })} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs font-bold text-foreground">Serial Number</Label>
-                    <Input placeholder="SN-C02Z4..." value={form.serial} onChange={e => setForm({ ...form, serial: e.target.value })} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs font-bold text-foreground">Asset Category</Label>
-                    <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {ASSET_CATEGORIES.map(t => (
-                        <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold text-foreground">Upload Asset Photo (.jpg or .png)</Label>
-                      {form.image && (
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, image: "" })}
-                          className="text-[10px] text-red-600 hover:underline font-semibold"
-                        >
-                          Remove Photo
-                        </button>
-                      )}
-                    </div>
-                    <Input
-                      type="file"
-                      accept=".jpg,.jpeg,.png"
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        if (!/\.(jpg|jpeg|png)$/i.test(file.name)) {
-                          alert("Security Error: Only valid .jpg and .png image files are permitted!");
-                          e.target.value = "";
-                          return;
-                        }
-                        const reader = new FileReader();
-                        reader.onload = ev => {
-                          setForm({ ...form, image: ev.target?.result as string });
-                        };
-                        reader.readAsDataURL(file);
-                      }}
-                      className="text-xs text-slate-500 cursor-pointer"
-                    />
-                    {form.image && (
-                      <div className="mt-1 flex items-center gap-2 bg-muted/30 p-1.5 rounded border border-border">
-                        <img src={form.image} alt="Preview" className="w-8 h-8 object-cover rounded border" />
-                        <span className="text-[10px] text-emerald-700 font-bold">Image loaded successfully</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {step === 2 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs font-bold text-foreground">Procurement Date</Label>
-                    <Input type="date" value={form.procured} onChange={e => setForm({ ...form, procured: e.target.value })} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs font-bold text-foreground">Warranty Expiration</Label>
-                    <Input type="date" value={form.warranty} onChange={e => setForm({ ...form, warranty: e.target.value })} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs font-bold text-foreground">Funding Origin</Label>
-                    <select value={form.funding} onChange={e => setForm({ ...form, funding: e.target.value })}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {fundingSources.map(f => <option key={f} value={f}>{f}</option>)}
-                    </select>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs font-bold text-foreground">Acquisition Value (₱)</Label>
-                    <Input type="number" min={0} placeholder="e.g. 50000" value={form.acquisitionValue || ""} onChange={e => setForm({ ...form, acquisitionValue: parseFloat(e.target.value) || 0 })} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs font-bold text-foreground">Campus Location</Label>
-                    <select value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      <option value="Manila">Manila Campus</option>
-                      <option value="Laguna">Laguna Campus</option>
-                    </select>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs font-bold text-foreground">Responsible Laboratory Group</Label>
-                    <select value={form.lab} onChange={e => setForm({ ...form, lab: e.target.value })}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"].map(l => (
-                        <option key={l} value={l}>{l}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs font-bold text-foreground">TSG / ITS Comments &amp; Remarks</Label>
-                  <textarea
-                    value={form.remarks || ""}
-                    onChange={e => setForm({ ...form, remarks: e.target.value })}
-                    placeholder="Freely input any comments, technical notes, or initial remarks on this specific asset..."
-                    rows={3}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
-                  />
-                </div>
-                <div className="p-4 bg-muted/40 rounded-xl border border-border text-xs space-y-1.5 text-muted-foreground">
-                  <p className="font-bold text-foreground">Procurement Compliance Checklist:</p>
-                  <p>✓ Registry tagging matches barcode guidelines</p>
-                  <p>✓ Campus location matches real-time room assignments</p>
-                  <p>✓ Funding boundaries bound to academic allocations</p>
-                </div>
-              </div>
-            )}
-
-            <Separator className="my-4" />
-
-            <div className="flex justify-between">
-              {step > 1 ? (
-                <Button variant="outline" onClick={() => setStep(step - 1)}>Back</Button>
-              ) : <div />}
-
-              {step < 3 ? (
-                <Button onClick={() => setStep(step + 1)} disabled={!form.name || !form.serial}>Continue Step {step + 1}</Button>
-              ) : (
-                <Button onClick={handleSubmit} disabled={submitted}>
-                  {submitted ? "Compiling registry..." : "Commit Intake Registry"}
-                </Button>
-              )}
-            </div>
-            {registrationError && (
-              <p className="text-xs text-red-600 font-semibold mt-2">⚠️ {registrationError}</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   // ── Inventory ─────────────────────────────────────────────────────────────
   if (activeTab === "inventory") {
