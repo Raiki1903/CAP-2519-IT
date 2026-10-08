@@ -84,6 +84,7 @@ You are a Senior Software Engineer carrying out a careful, incremental refactor 
   | **Repository visibility (C-01):** the repo will be made private (issue #9). **Git history stays as is, it is not rewritten.** Account passwords in the history are test data and will be rotated later | Team action, not an agent step |
   | **Tests live in a root `tests/` folder** (`tests/db/`, `tests/api/`, `tests/setup/`), not beside feature code | Phase 2 (and any test added earlier) |
   | **Test database: local MySQL 8.0 (CCS Cloud runs MySQL 8.0.46) on each developer's machine**, database `AdRIC_DB_test`, reached through `TEST_DATABASE_URL`. Never the shared CCS Cloud database | Step 14 and Phase 2 |
+  | **Backup job (F-39), decided 2026-10-09: delete it.** `server/jobs/backup.ts` copies 4 of 15 tables (not `asset_records`) and cannot restore anything. Delete the job, its timer and startup call in `server/main.ts`, and `BACKUP_DIR` (`env.ts`, `.env.example`, the test harness), in its own labelled behavior-change commit. Not in step 10, which moved it unchanged | Step 12 or later |
 
 - **Still open. Stop and ask when a step reaches one of these:**
   - Manual clearance holds (F-37): what a real hold feature looks like, and what happens to the browser-only list in `web/state/browserOnly.tsx`. Waiting on the team. Step 8 moves the code as is and does not stop for this (see the table above).

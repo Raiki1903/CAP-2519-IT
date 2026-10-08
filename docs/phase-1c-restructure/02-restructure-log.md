@@ -21,8 +21,8 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 6 | Split `context.tsx`, delete localStorage-only actions | Done (hand checks passed, PR #16) | `9d1b62a9`, `b35a67e1` (behavior changes), `20cd4fdd` (move), `8dcd6120` (types) | `f8f43435` | **93** (from 98, see detail) | 2026-10-03 |
 | 7 | Delete `prismaClient.ts` | Done (hand checks passed) | `6e08e469` (behavior change) | n/a (see note 4) | **93** (unchanged, same errors) | 2026-10-04 |
 | 8 | Move the frontend to `web/` with feature folders (part 1: everything except `ITSDashboard.tsx`; part 2: split it) | Part 1 done (hand checks passed, PR #45). Part 2 done (hand checks passed, PR #46) | Part 1: `edcb9162` to `6d9facc2` (14 commits). Part 2: `5d26ed8e` to `7ca707c5` (19 commits, 5 of them labelled behavior changes, see detail) | Part 1: `ffa05a38`. Part 2: `caca57a9` | Part 1: **93**. Part 2: **71** (from 93; every removed error is accounted for, none added) | 2026-10-06, 2026-10-07 |
-| 9 | Merge ITS and TSG into `/staff/*` | Done (hand checks pending) | `d37d2233`, `44d9d729`, `d9d95f18` (behavior changes), `af1c641c`, `5e1a0f80` (renames); `89d2212c` (step 8 follow-up move) | `223e2060`, `4101aa1b` | **71** (unchanged, same errors) | 2026-10-08 |
-| 10 | Create the `server/` skeleton | Done (hand checks pending) | `584d0c5f`, `7a40911b`, `5fd47ff0` (moves); `bd242d15` (behavior change, C-07) | `77f68fa7` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
+| 9 | Merge ITS and TSG into `/staff/*` | Done, merged in PR #50 (hand checks partly run, see detail) | `d37d2233`, `44d9d729`, `d9d95f18` (behavior changes), `af1c641c`, `5e1a0f80` (renames); `89d2212c` (step 8 follow-up move) | `223e2060`, `4101aa1b` | **71** (unchanged, same errors) | 2026-10-08 |
+| 10 | Create the `server/` skeleton | Done (hand checks passed, 4 skipped) | `584d0c5f`, `7a40911b`, `5fd47ff0` (moves); `bd242d15` (behavior change, C-07) | `77f68fa7` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 11 | Extract one backend feature end to end (loans) | Not started | | | | |
 | 12 | Extract the remaining backend features | Not started | | | | |
 | 13 | Add `errorHandler` and `requireAuth` | Not started | | | | |
@@ -616,7 +616,15 @@ Compared error by error after every commit, by file and message. No error was ad
 
 **Not verified in the agent session:** nothing was clicked in a browser, and no login was made (that needs a password). **The database has no `ITS_STAFF` account and no `ADRIC_SECRETARY` account**, so the M-11 branch was checked by reading and by the typecheck only; testing it needs an account with that role, which is a database write and the team's call (hand check 8).
 
-### Hand checks
+### Hand checks: partly run
+
+Step 9 was merged into `main` in PR #50. Raiki reported the results on 2026-10-09, **numbered as reported**:
+
+- **Passed:** 1, 2, 6, 7, 9, 10, and the build.
+- **Blocked:** 3, 4, 8, by issue #49 (a reload or a typed URL logs you out; pre-existing). So the `/its` and `/tsg` redirects were **not checked by hand**. The evidence for them is the agent's check with React Router's own matcher (`matchRoutes`), under Verified above.
+- **Not confirmed:** 5. `issue_description` was not checked.
+
+**The reported numbers do not all match the list below.** In this list, the redirects are checks 4 and 5, the `issue_description` check (Send to Maintenance) is 7, and 8 was dropped by team decision 7. The report may follow another numbering, for example the PR #50 description, which the agent could not read (`gh` is not installed). Read by content: the redirects and the `issue_description` check were **not** confirmed by hand, the logins, the bell, and the wording were. Raiki to confirm which numbering was meant.
 
 **Restart both servers first** (`npm run dev:all`). A server started before this step still answers `ITS` or `TSG` as the role, and the new web app does not know those names: the sidebar would be empty.
 
@@ -710,7 +718,9 @@ Compared after every commit, by file and message. The eight `server.ts` errors a
 
 **Not verified in the agent session:** nothing was clicked in a browser, and no email was sent (the tests run with mail off, and the `.env` check above did not trigger one).
 
-### Hand checks
+### Hand checks: passed, one skipped
+
+Raiki ran them on 2026-10-09: **1, 2, 3, 5, 6 passed. 4 skipped**: Mailgun is not set up yet, so no email path was exercised by hand (the tests run with mail off too). 7 (`npm test` on Raiki's machine) was not reported. During check 2 a pre-existing bug was found: bell cards open a not-found page for most roles (see notes). It is in the original code, not caused by step 10, and is filed as its own issue. The list is kept for the record.
 
 **Stop any running server and restart** (`npm run dev:all`). A server started before this step is still the old `server.ts` process.
 
@@ -829,7 +839,7 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 
 | Note | Finding | Where it belongs |
 |---|---|---|
-| The backup still covers only 4 of 15 tables (no `asset_records`, the table that holds custody state), so it could not actually restore the system. It is a partial export, not a backup. Deciding whether to keep it at all belongs with `server/jobs/backup.ts`. **Step 10 moved it there unchanged** (`7a40911b`); `TODO(F-39)` marks it. Keep, extend, or delete is still a team decision | F-39 in 01A | Team decision |
+| The backup still covers only 4 of 15 tables (no `asset_records`, the table that holds custody state), so it could not actually restore the system. It is a partial export, not a backup. Deciding whether to keep it at all belongs with `server/jobs/backup.ts`. **Step 10 moved it there unchanged** (`7a40911b`); `TODO(F-39)` marks it. Keep, extend, or delete is still a team decision. **Decided 2026-10-09: delete it**, because it copies 4 of 15 tables and cannot restore anything. In its own labelled behavior-change commit, in step 12 or later, not in step 10 | F-39 in 01A | Step 12 or later (delete, own commit) |
 | `pending_registrations.json` is now untracked but still the live store for pending sign-ups, holding a plaintext password per record | H-17 | Phase 3 (becomes a table) |
 | `prisma.ts` still carries hardcoded connection fallbacks including a password. Step 0 did not touch them, because removing them without `server/config/env.ts` would break every teammate's setup with no replacement. **Done in step 10** (`bd242d15`): `env.ts` requires the five variables and the fallbacks are gone. The values stay in git history (no rewrite, C-01), so rotating that password is still the team action from step 0 | C-07 | Done (password rotation: team action) |
 | `npm ci` reports 11 vulnerabilities (3 moderate, 8 high) and 2 packages have install scripts not covered by `allowScripts` (`@prisma/engines`, `prisma`) | 01C section 7, tier 3 item 22 | Separate dependency pass |
@@ -897,7 +907,8 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | **Step 9, new:** `roleConfig` in `Sidebar.tsx` gives each role a `label` and `subtitle` that nothing renders (only `nav` is used). Step 9 gave Staff plain values. Cosmetic | n/a | Cleanup, no hurry |
 | **Step 10, new:** 17 one-off scripts in `scratch/` import `../prisma` or `../mailer`, which no longer exist at the root, so they fail with "module not found". They are not part of the app, excluded from the typecheck, and 01D moves `scratch/` to `scripts/` later. Fixing an import is one line (`../server/config/prisma`), and with step 10 they also need the five `DATABASE_*` variables | n/a | When `scratch/` becomes `scripts/` (01D section 7) |
 | **Step 10, new:** `server/app.ts` keeps `cors()` open to every origin and the 50 MB body limit. 01D section 6 lists an origin allowlist and a lower limit for `app.ts`; both change behavior. `TODO(C-02)` and `TODO(M-17)` mark the lines | C-02, M-17 | 01C tier 2 with step 13 (CORS); Phase 3 with the image storage (limit) |
-| **Step 10, new:** the backup job's "inside the repository" guard takes the working folder as the repository, so it holds only when the server is started from the repository root (which every npm script does). Started from elsewhere, a `BACKUP_DIR` inside the repository would pass. Pre-existing since step 0; a comment says so | C-01 | With the F-39 decision |
+| **Step 10, new:** the backup job's "inside the repository" guard takes the working folder as the repository, so it holds only when the server is started from the repository root (which every npm script does). Started from elsewhere, a `BACKUP_DIR` inside the repository would pass. Pre-existing since step 0; a comment says so | C-01 | Goes with the job (F-39: delete, step 12 or later) |
+| **Step 10 hand checks, new (2026-10-09):** bell cards open a not-found page (404) for most roles, because a card links to a tab that does not exist under the viewer's own route tree. For example, a Lab Head's Return Request card goes to `/lab-head/returns`. Pre-existing in the original code, not caused by step 10. Filed as its own GitHub issue (number not given here) | n/a (new) | Its own issue; the bell rewrite (01D section 8) |
 | **Old analytics changed (2026-10-08).** The 2026-10-04 decision to delete the 11 no-caller analytics endpoints in step 12 is replaced: none of the 22 untested analytics endpoints is deleted (the 11 from `legacy/analytics-v1/` and the 11 that never had a caller). In step 12 their handler code moves to `legacy/analytics-endpoints/` with a README, and their routes are unregistered. The three endpoints kept on 2026-10-07 (`idle-time`, `idle-frequency`, `loan-recommender`) are not among the 22 and stay mounted. Earlier lines in this log that say "deleted" or "the step 12 deletion" are kept as dated records | 01A 6.11, M-06 | Step 12 (analytics) |
 
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.

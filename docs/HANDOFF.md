@@ -794,6 +794,8 @@ Answered on 2026-10-08 (see the log, "Team decisions on step 9"): ITS is removed
 
 - Backup job (F-39): keep, extend, or delete? It moved unchanged.
 - Step 9 is merged (PR #50), but the log has no record of its 12 hand checks passing. Did they?
+
+Answered on 2026-10-09 (see the log): the backup job is deleted in its own labelled commit, in step 12 or later (recorded in PROMPT-2's decisions table). Step 9's hand checks were partly run, recorded as reported, with a note that the reported numbers do not all match the log's list. The step 10 hand checks passed (4 skipped, no Mailgun); a pre-existing bell bug (cards open a 404 for most roles) was filed as its own issue and logged as a note.
 - Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
 
 ### Exact next step
