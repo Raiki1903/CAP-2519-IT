@@ -3962,6 +3962,9 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> =
             staffUnit = "ITS";
         } else if (roles.some(ur => ur.roles?.role_name === "ADRIC_DIRECTOR")) {
             determinedRole = "AdRICDirector";
+        } else if (roles.some(ur => ur.roles?.role_name === "ITS_STAFF")) {
+            determinedRole = "Staff";
+            staffUnit = "ITS";
         } else if (roles.some(ur => ur.roles?.role_name === "TSG_STAFF")) {
             determinedRole = "Staff";
             staffUnit = "TSG";
@@ -4035,6 +4038,9 @@ app.get('/api/auth/me', async (req: Request, res: Response): Promise<void> => {
             staffUnit = "ITS";
         } else if (roles.some(ur => ur.roles?.role_name === "ADRIC_DIRECTOR")) {
             determinedRole = "AdRICDirector";
+        } else if (roles.some(ur => ur.roles?.role_name === "ITS_STAFF")) {
+            determinedRole = "Staff";
+            staffUnit = "ITS";
         } else if (roles.some(ur => ur.roles?.role_name === "TSG_STAFF")) {
             determinedRole = "Staff";
             staffUnit = "TSG";
