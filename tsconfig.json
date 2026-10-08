@@ -33,7 +33,9 @@
     "mailer.ts",
     "test-user.ts",
     "vite.config.ts",
-    "prisma.config.ts"
+    "prisma.config.ts",
+    "tests",
+    "vitest.config.ts"
   ],
   "exclude": ["node_modules", "dist", "legacy", "scratch"]
 }

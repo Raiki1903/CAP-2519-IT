@@ -12,6 +12,7 @@
     "dev:all": "concurrently -n FE,API -c blue,green \"npm run dev\" \"npm run server\"",
     "seed": "tsx test-user.ts",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "prisma:generate": "prisma generate",
     "prisma:pull": "prisma db pull"
   },
