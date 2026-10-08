@@ -52,7 +52,7 @@ function labDistribution(counts: Record<string, { available: number; onLoan: num
   return LOCATION_STATUS_LABS.map((location) => ({ location, ...(counts[location] ?? { available: 0, onLoan: 0, underRepair: 0 }) }));
 }
 
-/** A record location in the server's "Campus — Lab" form. */
+/** A record location as the server writes it: campus, LOCATION_SEPARATOR, lab. */
 const at = (campus: string, lab: string) => `${campus}${LOCATION_SEPARATOR}${lab}`;
 
 /** Adds a project at the seeded research center. */
