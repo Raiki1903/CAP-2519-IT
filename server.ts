@@ -4816,7 +4816,7 @@ async function performDatabaseBackup() {
 setInterval(performDatabaseBackup, 6 * 60 * 60 * 1000);
 
 // 19. Start the Application Listener
-const PORT = 4000;
+const PORT = Number(process.env.PORT) || 4000;
 app.listen(PORT, async () => {
     console.log(`\n==================================================`);
     console.log(`✅ Mini-Backend API is actively listening!`);
