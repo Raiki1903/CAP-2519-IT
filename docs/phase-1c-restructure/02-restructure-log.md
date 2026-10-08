@@ -21,7 +21,7 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 6 | Split `context.tsx`, delete localStorage-only actions | Done (hand checks passed, PR #16) | `9d1b62a9`, `b35a67e1` (behavior changes), `20cd4fdd` (move), `8dcd6120` (types) | `f8f43435` | **93** (from 98, see detail) | 2026-10-03 |
 | 7 | Delete `prismaClient.ts` | Done (hand checks passed) | `6e08e469` (behavior change) | n/a (see note 4) | **93** (unchanged, same errors) | 2026-10-04 |
 | 8 | Move the frontend to `web/` with feature folders (part 1: everything except `ITSDashboard.tsx`; part 2: split it) | Part 1 done (hand checks passed, PR #45). Part 2 done (hand checks passed, PR #46) | Part 1: `edcb9162` to `6d9facc2` (14 commits). Part 2: `5d26ed8e` to `7ca707c5` (19 commits, 5 of them labelled behavior changes, see detail) | Part 1: `ffa05a38`. Part 2: `caca57a9` | Part 1: **93**. Part 2: **71** (from 93; every removed error is accounted for, none added) | 2026-10-06, 2026-10-07 |
-| 9 | Merge ITS and TSG into `/staff/*` | Not started | | | | |
+| 9 | Merge ITS and TSG into `/staff/*` | Done (hand checks pending) | `d37d2233`, `44d9d729`, `d9d95f18` (behavior changes), `af1c641c`, `5e1a0f80` (renames); `89d2212c` (step 8 follow-up move) | `223e2060`, `4101aa1b` | **71** (unchanged, same errors) | 2026-10-08 |
 | 10 | Create the `server/` skeleton | Not started | | | | |
 | 11 | Extract one backend feature end to end (loans) | Not started | | | | |
 | 12 | Extract the remaining backend features | Not started | | | | |
@@ -428,7 +428,7 @@ Step 8 runs in two sessions (decided 2026-10-06). **Part 1 (2026-10-06):** move 
 - **The three role dashboards moved whole.** 01D section 7 has `LabHeadDashboard`, `CustodianPortal`, and `AdRICDirectorDashboard` become one page per tab. Each is one component today, with the tab picked by an `activeTab` prop from `routes.tsx`. Splitting them means rewriting their state and changing the routes, which is not "files only". They now sit in their role's `web/pages/` folder as one file each. The per-tab split can go with step 9 (the routes change) or later.
 - **Login and Register are pages, not `features/auth`.** 01D lists them under `web/features/auth/`. This session's instruction was to move the auth screens as pages, so they are in `web/pages/auth/`. `useSession` (also listed under `features/auth` in 01D) has lived in `web/state/session.tsx` since step 6.
 - **No `features/qr`, `features/registrations`, `features/inspections`, or `features/disposals` folder yet.** The code for those lives inside the dashboards (the QR scanner in `CustodianPortal`, sign-up approval in `LabHeadDashboard`, inspections and disposals in `ITSDashboard` and the Director screen). The folders appear when that code is pulled out.
-- **The analytics views kept their names**, including `TSGAnalyticsView` in `analytics/staff/`. Renaming TSG to Staff belongs with step 9.
+- **The analytics views kept their names**, including `TSGAnalyticsView` in `analytics/staff/`. Renaming TSG to Staff belongs with step 9. (Done in step 9, `af1c641c`: now `StaffAnalyticsView.tsx`.)
 
 ### Comment commit `ffa05a38`
 
@@ -562,6 +562,77 @@ Raiki ran the thirteen checks below and all passed (reported 2026-10-08). Step 8
 
 ---
 
+## Step 9 detail
+
+**This step changes behavior on purpose.** It started from the PR #46 merge (`8db5a88f`). Three commits change behavior and say so in their message; the rest are moves, renames, or comments.
+
+| Commit | Kind | What it does |
+|---|---|---|
+| `4511de94` | Docs | Records the step 8 part 2 hand checks, PR #46, and the team's decisions on the part 2 notes |
+| `89d2212c` | Move (step 8 follow-up) | `RepairAlertCard` to `legacy/repair-alert-card/` with a README (team decision 2026-10-08). Nothing imported it: the production build is byte-identical |
+| `d37d2233` | **Behavior change** | ITS and TSG become one app role, `Staff`, at `/staff/*`, with redirects from `/its/*` and `/tsg/*`. The session keeps the unit |
+| `44d9d729` | **Behavior change** (M-11) | `ITS_STAFF` accounts get the Staff dashboard instead of the Custodian portal |
+| `af1c641c` | Rename | `TSGAnalyticsView.tsx` to `StaffAnalyticsView.tsx` (file and component) |
+| `5e1a0f80` | Rename | `TSGTechnicalMaintenanceSection` to `StaffTechnicalMaintenanceSection` |
+| `d9d95f18` | **Behavior change**, text only | Wording that named ITS or TSG as the staff now says Staff |
+| `223e2060` | Comments | Headers, TSDoc, TODOs |
+| `4101aa1b` | Comments | Corrects two of those comments: the server does not store a ticket's forwarding unit, only its text does |
+
+### What changed in behavior
+
+1. **One Staff role and one route tree.** The app role type is `"Staff" | "LabHead" | "Custodian" | "AdRICDirector"`. The server's login and `/me` answer `role: "Staff"` for every account they used to call ITS (`ADMIN`, `ADRIC_SECRETARY`) or TSG (`TSG_STAFF`). `/staff/*` replaces both trees, with the same eight tabs and the account page. Staff land on `/staff/overview` after login, as both did before; the fallback page (opening `/` or another role's URL) was `/tsg/repairs` for TSG and is now `/staff/overview` for both. The database is unchanged: both roles stay.
+2. **Old URLs redirect.** `/its/<tab>` and `/tsg/<tab>` go to `/staff/<tab>`, keeping the query string and hash, case-insensitively. `/its` alone goes to `/staff`, which opens Overview. Look-alike paths (`/itsy/...`) are not caught and show the not-found page, as before. The redirect runs before the signed-in frame, so a Staff user lands on the tab they asked for, a different role is then sent to their own dashboard, and a visitor who is not logged in goes to the login page.
+3. **The session keeps the unit.** The login and `/me` answers carry `user.staffUnit`: `"ITS"` for `ADMIN`, `ADRIC_SECRETARY`, and (since `44d9d729`) `ITS_STAFF`; `"TSG"` for `TSG_STAFF`; `null` for everyone else. The session stores it on `currentUser.staffUnit`, and the shared type `StaffUnit` names it. Issue #41 will use it for different edit and delete rights; **#41 is not implemented**. Today the unit is used in two places. Send to Maintenance (in the asset modal) fills in the account's own unit, exactly as before: in the ticket text ("... servicing by ITS."), which is saved as `asset_repairs.issue_description`, and in the ticket's `forwardedTo` field, which the server does not store (a pre-existing gap: "Dispatched To" on the Repairs page always shows a dash). And the sidebar's session card reads "Staff (ITS)" or "Staff (TSG)", so anyone can see which unit the session holds.
+4. **Same screens and buttons for ITS and TSG.** Every `role === "ITS" || role === "TSG"` check became `role === "Staff"` (the bell, the asset modal, the account page). **One difference was dropped:** the bell's degraded-asset reminder used to be marked "action needed" only for TSG; it now is for every Staff account. Keeping it TSG-only would have been the one place the dashboards differed. It is one condition in `NotificationCenter.tsx` if the team wants it back through `staffUnit`.
+5. **Labels.** The sidebar, the mobile header badge, and the account page show "Staff" where they showed "ITS Admin", "TSG Staff", "ITS", or "TSG".
+6. **M-11, `ITS_STAFF` (`44d9d729`).** An `ITS_STAFF` account fell through every branch of the mapping and got the Custodian portal. It now gets Staff with unit ITS. The new branch sits after `ADRIC_DIRECTOR` and before `TSG_STAFF`, so an account holding both staff roles is ITS. Both copies of the mapping (login and `/me`) changed the same way. The rest of M-11 is not part of this step (see notes).
+7. **Wording (`d9d95f18`).** Text that named ITS or TSG as the people using the Staff screens now says Staff, for example "SCHEDULED BY TSG" is "SCHEDULED BY STAFF", "TSG ALERT DISPATCHED" is "STAFF ALERT DISPATCHED", "hand over the physical device to TSG" is "to Staff", "couldn't reach the ITS database" is "couldn't reach the database", the remarks labels say "Staff Comments & Remarks", and the Health heading says "Staff Maintenance & Workflows Dashboard". Fallback names shown when a record has no person ("TSG Technical Staff", "ITS/TSG staff", "ITS Staff") are "Staff", on screen and in the four `server.ts` answers and the disposal email that send them.
+
+**Kept on purpose, because they name a department as data or a choice, not the app role:** the repair forwarding choice (TSG, ITS, Both) and its badges, "ITS Central Override" in the repair pipeline, the ITS and TSG property tags on the Director screens, the Inspector Role options (issue #48), the separate TSG and ITS remarks fields of the finalize dialog, stored values (`"Pending TSG Review"`, `"Manila — TSG Office"`), place names used as fallbacks ("ITS Warehouse", "ITS Main Warehouse"), and the `/api/analytics/tsg` URL with its `getTsgAnalyticsRaw` function. Comments in `server.ts` are not edited (it is about to be split).
+
+### Renames
+
+Only one file name no longer matched its folder or role: `web/features/analytics/staff/TSGAnalyticsView.tsx`, now `StaffAnalyticsView.tsx` (git records it as a rename). Its second TSG-named export got its own commit. Every other file in `web/` already matches: the three role dashboards are named after their role, and the Staff pages and features carry no unit name. The `tsg-...` React Query cache keys inside the view were left alone: they are internal strings, not names anyone imports.
+
+### Differences from 01D
+
+- 01D step 9 names `routes.tsx` and `Sidebar.tsx`. The role check sat in eight more files (the session maps, the layout, the bell, the asset modal, the account page, the Overview page, the shared role type, and the server mapping), so they changed too.
+- 01D says ITS and TSG get "the same permissions". They do today; the only difference left is the unit written into a Send to Maintenance ticket (item 3). Issue #41 changes this later on purpose.
+- 01D section 7 splits the other role dashboards into one page per tab "with step 9 (the routes change) or later". Not done here: step 9 only merged the Staff trees. The Lab Head, Custodian, and Director screens still pick their tab with `activeTab`.
+
+### Typecheck: 71, unchanged
+
+Compared error by error after every commit, by file and message. No error was added or removed. Two messages changed text with the code: the four `motion` errors in the analytics view now name `StaffAnalyticsView.tsx`, and the existing TS2367 in `AssetDetailModal.tsx` now names `"Staff"` where it named `"ITS" | "TSG"`.
+
+### Verified
+
+- `npm run typecheck` (71) and `npm run build` after every commit.
+- **Every commit of this session builds on its own**, each checked out in a temporary worktree and built with Vite. The production JavaScript is byte-identical where no browser code changed: `89d2212c` against its parent, `44d9d729` (server only) and both renames against the commit before, and the two comment commits against the wording commit.
+- React Router's own matcher (`matchRoutes`, version 7.18.1) was run on the new route table: `/its`, `/its/`, `/tsg/repairs`, `/ITS/overview`, and `/its/repairs?x=1` reach the redirect and become the matching `/staff` path; `/itsy/overview` and `/tsgfoo` reach not found; `/staff` and `/staff/overview` reach the Staff tree.
+- `npx tsx server.ts` starts and listens. **Read-only** check against the database: for every account holding `ADMIN`, `ADRIC_SECRETARY`, `ITS_STAFF`, or `TSG_STAFF`, `GET /api/auth/me` was called and only the role names and the answer were printed. Result: 1 `ADMIN` account answers `role=Staff staffUnit=ITS`, 1 `TSG_STAFF` account answers `role=Staff staffUnit=TSG`. `GET /api/asset-reports` answers 25 reports.
+- A Vite dev server on port 5199 served all 37 changed modules with status 200 and no errors in its log.
+
+**Not verified in the agent session:** nothing was clicked in a browser, and no login was made (that needs a password). **The database has no `ITS_STAFF` account and no `ADRIC_SECRETARY` account**, so the M-11 branch was checked by reading and by the typecheck only; testing it needs an account with that role, which is a database write and the team's call (hand check 8).
+
+### Hand checks
+
+**Restart both servers first** (`npm run dev:all`). A server started before this step still answers `ITS` or `TSG` as the role, and the new web app does not know those names: the sidebar would be empty.
+
+1. *ITS login.* Log in with the `ADMIN` account (ITS). You land on `/staff/overview`. The sidebar card under your name reads "Staff (ITS)", and the mobile header badge (narrow window) reads "Staff". The sidebar lists the same eight tabs as before.
+2. *TSG login.* Log in with the `TSG_STAFF` account. Same landing page, same eight tabs, and the card reads "Staff (TSG)". The two dashboards are identical.
+3. *Every Staff tab.* As either account, open all eight tabs and the account page (click your name in the sidebar). The URL is `/staff/<tab>` each time, and each screen loads as before. The account page's role field reads "Staff" and shows no lab affiliation field (as for ITS and TSG before).
+4. *Old URLs.* While logged in as Staff, type `/its/repairs` into the address bar: you land on `/staff/repairs`. Try `/tsg/inventory` (lands on `/staff/inventory`) and `/its` (lands on `/staff/overview`).
+5. *Old URLs, other roles.* Logged in as a Custodian, open `/its/repairs`: you end on your own My Assets page. Logged out, open `/tsg/repairs`: you end on the login page.
+6. *Reload.* As Staff, reload on any tab: you stay logged in, on that tab, with the same label.
+7. *Send to Maintenance keeps the unit.* As the ITS account, open an Active asset and press Send to Maintenance. In `asset_repairs`, the new row's `issue_description` ends "servicing by ITS." Repeat as TSG on another asset: "by TSG." (Same as before the step. "Dispatched To" on Repairs shows a dash, also as before.)
+8. *M-11, only if the team creates a test account.* An account whose only role is `ITS_STAFF` lands on `/staff/overview` with "Staff (ITS)", not the Custodian portal. This needs a database change, so it is the team's call; skip it otherwise.
+9. *Bell.* As Staff, open the bell. Repair tickets, returns, and reminders show as before, with Acknowledge on repair cards. A degraded-asset reminder now says action is needed for both ITS and TSG (it was TSG only).
+10. *Wording.* As a Custodian, open Send Inspection Report: the banner reads "SCHEDULED BY STAFF" and the page says "for Staff inspection compliance"; picking Critical shows "Staff alert on submit". On Staff Inventory, open Edit on an asset: "Staff Comments & Remarks". On Health, the heading reads "Staff Maintenance & Workflows Dashboard".
+11. *Lab Head and Director unchanged.* Log in as each, open every tab once. Nothing changed for them except "Staff" wording (Director: "decommissioning by Staff" on Approvals & Holds).
+12. *Build.* `npm run build` passes on your machine.
+
+---
+
 ## Bug fix: issues #25 and #26 (not a restructure step)
 
 Branch `fix/issues-25-26`, from `main` after PR #27. Both bugs were found during the step 6 hand checks and exist on `main` independently of the restructure. One commit per fix. **Merged into `main` in PR #33**, after both rounds of hand checks; the restructure branch continues from that merge (`1bc85da4`).
@@ -676,7 +747,7 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | 114 type errors now have names and line numbers, and none are fixed. The three worth fixing first are the H-13 ones, because they write wrong data today: two in `ITSDashboard.tsx`, one in `CustodianPortal.tsx` | H-13 | Its own `fix/h13-*` branch, not the restructure |
 | 37 of the 114 errors are `motion` animation props (`ease: string` where the library wants a union). Cosmetic and safe, but they are more than a third of the count, so fixing them makes the real errors easier to see | n/a | Separate chore commit |
 | `TSGAnalyticsView.tsx` `CATEGORY_OPTIONS` filters by `WORKSTATION`, `ROBOTICS`, `SENSOR`, `NETWORKING`, `ACCESSORY`, none of which exist in `assets_category`. Picking one of those can only ever match nothing. Not replaced with `ASSET_CATEGORIES` in step 3, because that would change what the filter offers | n/a (new) | Step 12 (analytics) or a small fix branch |
-| Database role names (`ADRIC_DIRECTOR`, `TSG_STAFF`, `LAB_HEAD`, and the rest of `roles_role_name`) are string literals inside the login, `/me`, and registration handlers in `server.ts`, alongside the mapping to app roles. That is logic, not a list, so it moves with `features/auth` | n/a | Steps 9 and 12 (auth) |
+| Database role names (`ADRIC_DIRECTOR`, `TSG_STAFF`, `LAB_HEAD`, and the rest of `roles_role_name`) are string literals inside the login, `/me`, and registration handlers in `server.ts`, alongside the mapping to app roles. That is logic, not a list, so it moves with `features/auth`. Step 9 changed the app-role side (ITS and TSG are now `Staff` plus a `staffUnit`) and added `ITS_STAFF`; the mapping itself is still inline in both handlers | n/a | Step 12 (auth) |
 | `LAGUNA_LABS` in `server.ts` and `LAB_OPTIONS` in `TSGAnalyticsView.tsx` are two more lab lists, using short codes, which do not match the full names in `shared/constants/labs.ts`. 01D says campus should come from `research_centers.location` instead | M-03 | Phase 3, or step 12 (assets) |
 | The condition text and colour maps (`CONDITION_TEXT_CLASS` and similar) are repeated in `ITSDashboard`, `LabHeadDashboard`, `CustodianPortal`, and `ReturnForm`. They are UI styling, so they belong in `web/features/assets/`, not `shared/`. **Not done in step 8 part 1**, which moved files without changing their code. **Step 8 part 2** moved the `ITSDashboard` copy to `web/features/assets/assetBadges.tsx`; the other three copies remain, since merging them changes three more files | n/a | A later cleanup, or with each dashboard's split |
 | `prismaClient.ts` has its own `RoleName` type, which is missing `ITS_STAFF` and `CUSTODIAN`. Left alone, since the file is deleted in step 7. **Gone with the file in step 7** (`6e08e469`) | H-01 | Done |
@@ -723,11 +794,16 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | **Step 8 part 2, new:** the intake wizard's serial is generated once, when the module loads. After a successful registration, and every time the Register tab opens, the form offers the same serial again until the page is reloaded, so two registrations in one session get the same serial unless Staff change it. True before the split too. **Decided 2026-10-08:** a bug, fixed after the restructure (issue #47) | n/a (new) | Issue #47, after the restructure |
 | **Step 8 part 2, new:** the finalize dialog's Inspector Role (TSG Staff, ITS Staff, Lab Head, Custodian) was stored only in the browser copy of the report. Since that copy is gone it reaches nowhere; the database records the reporter's account. The field could be removed, or stored with the report. **Decided 2026-10-08:** keep the field; it will be stored with the report in Phase 3 (issue #48) | F-28 | Phase 3 (issue #48) |
 | **Step 8 part 2, new:** the Inspections queue's "Last Inspected" column shows the procurement date (or the literal "Jan 15, 2024"), not the newest report. `TODO(F-28)` marks it | F-28 | Phase 3, or a small fix using the reports the page already loads |
-| **Step 8 part 2, new:** `RepairAlertCard` is rendered by no page, before or after the split. It moved to `web/features/repairs/` so `ITSDashboard.tsx` could go; its TSDoc says it is unused. Same question as the analytics widgets: keep, quarantine, or delete. **Decided 2026-10-08:** move it to `legacy/` | n/a | Step 9 session, its own commit |
+| **Step 8 part 2, new:** `RepairAlertCard` is rendered by no page, before or after the split. It moved to `web/features/repairs/` so `ITSDashboard.tsx` could go; its TSDoc says it is unused. Same question as the analytics widgets: keep, quarantine, or delete. **Decided 2026-10-08:** move it to `legacy/`. **Done** (`89d2212c`, `legacy/repair-alert-card/` with a README) | n/a | Done |
 | **Step 8 part 2, new:** `EditAssetDialog` has its own inline category list (the same 20 values as `ASSET_CATEGORIES`) and defaults a missing category to "IT Equipment", which is not a category. Step 3 replaced the intake copy but not this one | n/a | Small fix, or step 12 (assets) |
-| **Step 8 part 2, new:** the Custodian report banner still says "SCHEDULED BY TSG" and names the cycle, though nothing schedules inspections any more. The cycle comes from each browser's own setting (F-38) | F-38, H-18 | With issue #34, or a small text fix |
+| **Step 8 part 2, new:** the Custodian report banner still says "SCHEDULED BY TSG" and names the cycle, though nothing schedules inspections any more. The cycle comes from each browser's own setting (F-38). **Step 9** (`d9d95f18`) changed the text to "SCHEDULED BY STAFF", as asked; the banner still implies a schedule that nothing sets | F-38, H-18 | With issue #34 |
 | **Step 8 part 2, new:** invented figures on Staff screens, all pre-existing: the Overview "System Operational Index" is a fixed 97.8%, and the Health benchmark grid has no data source, so its table is empty and its four summary numbers are fixed text. `TODO(H-09)` marks both | H-09 | Step 12 (analytics), or remove the grid |
 | **Step 8 part 2, new:** the QR print window pastes asset names and labs into its HTML unescaped. `TODO(H-20)` marks it | H-20 | Step 13 (shared escaping) |
+| **Step 9, new: the rest of M-11 is still open.** Step 9 fixed only `ITS_STAFF`. Still true: `ADRIC_SECRETARY` gets the Staff dashboard (and unit ITS), which was already so; an account with several roles gets only the first match; the mapping is written out twice in `server.ts` (login and `/me`); and sign-up approval maps a requested "ITS" to `ADMIN`, so no `ITS_STAFF` account can be created through the app (the sign-up form only ever requests Custodian, so this is reachable only through the C-05 fallback). The live database has no `ITS_STAFF` or `ADRIC_SECRETARY` account today | M-11, C-05 | Step 12 (auth, one mapping table), with a team decision on the Secretary |
+| **Step 9, new: `staffUnit` protects nothing by itself.** The session carries the unit for issue #41, but the session is an unsigned email cookie (C-06) and the server checks no role on any write (C-02). Different edit and delete rights for ITS and TSG only mean something once the server enforces them | C-02, C-06, issue #41 | Step 13 (`requireAuth`), then #41 on the server |
+| **Step 9, new:** a ticket's forwarding unit (`forwardedTo`: TSG, ITS, Both) is chosen in the repair form and set by Send to Maintenance, but the server never stores it, so "Dispatched To" always shows a dash. Pre-existing; `useRepairTickets.ts` already says so. Step 9 kept the per-unit value for when it is stored | n/a | Step 12 (repairs), or Phase 3 (a column) |
+| **Step 9, new:** the Staff analytics endpoint is still `GET /api/analytics/tsg`, called by `getTsgAnalyticsRaw` in `web/api/analytics.api.ts`. Renaming the URL is a backend change | n/a | Step 12 (analytics) |
+| **Step 9, new:** `roleConfig` in `Sidebar.tsx` gives each role a `label` and `subtitle` that nothing renders (only `nav` is used). Step 9 gave Staff plain values. Cosmetic | n/a | Cleanup, no hurry |
 
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.
 

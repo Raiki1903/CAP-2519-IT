@@ -564,3 +564,44 @@ Both are fixed on their own branch after step 7, not inside the restructure.
 1. Run the 13 step 8 part 2 hand checks (restart `npm run dev:all` first), then push and open the pull request.
 2. Then **step 9**:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 9.`
+
+---
+
+## Phase 1C, restructure step 9, 2026-10-08
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 9. Branch: `refactor/feature-based-structure`, from the PR #46 merge (`8db5a88f`). Nothing pushed.
+
+### What was produced
+
+- **Log record** (`4511de94`): step 8 part 2 hand checks passed and merged in PR #46; the team's decisions on its notes.
+- **Step 8 follow-up** (`89d2212c`): `RepairAlertCard` moved to `legacy/repair-alert-card/` with a README. No behavior change.
+- **Three labelled behavior changes:** ITS and TSG merged into one app role, `Staff`, at `/staff/*`, with redirects from `/its/*` and `/tsg/*` and the unit kept in the session as `currentUser.staffUnit` (`d37d2233`); `ITS_STAFF` accounts reach the Staff dashboard instead of the Custodian portal (`44d9d729`, M-11); wording that named ITS or TSG as the staff now says Staff (`d9d95f18`, text only).
+- **Renames, one per commit:** `TSGAnalyticsView.tsx` to `StaffAnalyticsView.tsx` (`af1c641c`), and its `TSGTechnicalMaintenanceSection` (`5e1a0f80`).
+- **Comment commits** (`223e2060`, `4101aa1b`): headers, TSDoc for `Role` and `StaffUnit`, the redirect, and the TODO for Inspector Role (issue #48).
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-9-detail): step 9 detail, 12 hand checks, new notes. **Typecheck: 71, unchanged**, same errors.
+
+### Decisions recorded (team, 2026-10-08)
+
+- Keeping the Inspections tab with only scheduling moved is correct.
+- The finalize dialog's Inspector Role is stored with the report in Phase 3 (issue #48).
+- `RepairAlertCard` moves to `legacy/` (done).
+- The repeating intake serial is a bug, fixed after the restructure (issue #47).
+- Step 9 keeps the ITS or TSG unit in the session, because issue #41 will give the two units different edit and delete rights. #41 is not implemented.
+
+### Key findings
+
+- The live database has one `ADMIN` and one `TSG_STAFF` account, and no `ITS_STAFF` or `ADRIC_SECRETARY` account, so the M-11 branch could not be exercised without a database write. Hand check 8 covers it if the team creates a test account.
+- One ITS/TSG difference was dropped: the bell's degraded-asset reminder now asks every Staff account for action (it was TSG only). One was kept through `staffUnit`: Send to Maintenance writes the account's unit into the ticket.
+- A ticket's forwarding unit (`forwardedTo`) is never stored by the server, so "Dispatched To" always shows a dash. Pre-existing; logged.
+- The rest of M-11 (Secretary mapping, multi-role accounts, sign-up approval mapping "ITS" to `ADMIN`) and the `/api/analytics/tsg` URL are left for step 12. `staffUnit` gives no protection until the server checks roles (step 13).
+
+### Open questions
+
+- Manual clearance holds (F-37): still waiting on the team.
+- Should `ADRIC_SECRETARY` accounts keep the Staff dashboard? (M-11; decide before step 12 moves the mapping.)
+- Should the degraded-asset reminder go back to TSG only? One condition in `NotificationCenter.tsx`.
+
+### Exact next step
+
+1. Restart both servers (`npm run dev:all`), run the 12 step 9 hand checks, then push and open the pull request.
+2. Then the **Phase 2 tests** prompt, which is not written yet (session plan: step 9, then Phase 2 tests, then steps 10 to 12).
