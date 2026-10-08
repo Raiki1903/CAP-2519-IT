@@ -166,11 +166,11 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
       assetName: asset.name,
       custodian: asset.custodian || "Unassigned",
       statusLabel: "Under Maintenance",
-      description: `Flagged for immediate maintenance and component servicing by ${role}.`,
+      description: `Flagged for immediate maintenance and component servicing by ${currentUser?.staffUnit ?? role}.`,
       submittedAt: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
       priority: "High",
       acknowledged: true,
-      forwardedTo: role === "ITS" ? "ITS" : "TSG"
+      forwardedTo: currentUser?.staffUnit === "ITS" ? "ITS" : "TSG"
     });
     resetAndClose();
   };
@@ -395,12 +395,12 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       </details>
 
                       {/* ── Action panel conditional rendering ── */}
-                      {asset.status !== "Disposed" && (role === "TSG" || role === "Custodian" || role === "LabHead" || role === "ITS") && (
+                      {asset.status !== "Disposed" && (role === "Staff" || role === "Custodian" || role === "LabHead") && (
                         <>
                           <Separator className="mb-4" />
 
                           {/* QR Tag for TSG / ITS */}
-                          {(role === "TSG" || role === "ITS") && (
+                          {role === "Staff" && (
                             <div className="flex items-center gap-4 bg-muted/40 border border-dashed rounded-xl p-3 shadow-sm mb-4">
                               <div className="bg-white p-1 rounded-lg border flex-shrink-0 shadow-sm">
                                 <QRCodeSVG
@@ -474,7 +474,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 )}
 
                                 {/* TSG/ITS direct maintenance */}
-                                {(role === "TSG" || role === "ITS") && (
+                                {role === "Staff" && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       variant="outline"
@@ -544,7 +544,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 )}
 
                                 {/* 2b — Direct Send to Maintenance */}
-                                {(role === "TSG" || role === "ITS") && (
+                                {role === "Staff" && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       variant="outline"

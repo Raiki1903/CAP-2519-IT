@@ -6,6 +6,7 @@ import { sendEmail, emailTemplate } from './mailer';
 import { prisma } from './prisma.js';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
+import type { StaffUnit } from '@shared/enums/role';
 
 const app = express();
 
@@ -3955,12 +3956,15 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> =
 
         const roles = user.user_roles || [];
         let determinedRole = "Custodian";
+        let staffUnit: StaffUnit | null = null;
         if (roles.some(ur => ur.roles?.role_name === "ADMIN" || ur.roles?.role_name === "ADRIC_SECRETARY")) {
-            determinedRole = "ITS";
+            determinedRole = "Staff";
+            staffUnit = "ITS";
         } else if (roles.some(ur => ur.roles?.role_name === "ADRIC_DIRECTOR")) {
             determinedRole = "AdRICDirector";
         } else if (roles.some(ur => ur.roles?.role_name === "TSG_STAFF")) {
-            determinedRole = "TSG";
+            determinedRole = "Staff";
+            staffUnit = "TSG";
         } else if (roles.some(ur => ur.roles?.role_name === "LAB_HEAD")) {
             determinedRole = "LabHead";
         }
@@ -3979,7 +3983,8 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> =
                 userType: user.user_type,
                 userImg: user.user_img,
                 profilePicture: user.user_img,
-                labAffiliation: primaryCenter
+                labAffiliation: primaryCenter,
+                staffUnit
             }
         });
     } catch (error: any) {
@@ -4024,12 +4029,15 @@ app.get('/api/auth/me', async (req: Request, res: Response): Promise<void> => {
 
         const roles = user.user_roles || [];
         let determinedRole = "Custodian";
+        let staffUnit: StaffUnit | null = null;
         if (roles.some(ur => ur.roles?.role_name === "ADMIN" || ur.roles?.role_name === "ADRIC_SECRETARY")) {
-            determinedRole = "ITS";
+            determinedRole = "Staff";
+            staffUnit = "ITS";
         } else if (roles.some(ur => ur.roles?.role_name === "ADRIC_DIRECTOR")) {
             determinedRole = "AdRICDirector";
         } else if (roles.some(ur => ur.roles?.role_name === "TSG_STAFF")) {
-            determinedRole = "TSG";
+            determinedRole = "Staff";
+            staffUnit = "TSG";
         } else if (roles.some(ur => ur.roles?.role_name === "LAB_HEAD")) {
             determinedRole = "LabHead";
         }
@@ -4048,7 +4056,8 @@ app.get('/api/auth/me', async (req: Request, res: Response): Promise<void> => {
                 userImg: user.user_img,
                 profilePicture: user.user_img,
                 labAffiliation: primaryCenter,
-                role: determinedRole
+                role: determinedRole,
+                staffUnit
             }
         });
     } catch (error: any) {

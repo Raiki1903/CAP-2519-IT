@@ -117,7 +117,7 @@ export function NotificationCenter() {
         let isRelevant = false;
         let actionRequired = false;
 
-        if (role === "AdRICDirector" || role === "ITS" || role === "TSG") {
+        if (role === "AdRICDirector" || role === "Staff") {
           isRelevant = true;
           actionRequired = role === "AdRICDirector";
         } else if (role === "LabHead") {
@@ -150,7 +150,7 @@ export function NotificationCenter() {
         let isRelevant = false;
         let actionRequired = false;
 
-        if (role === "AdRICDirector" || role === "ITS" || role === "TSG") {
+        if (role === "AdRICDirector" || role === "Staff") {
           isRelevant = true;
           actionRequired = role === "AdRICDirector";
         } else if (role === "LabHead") {
@@ -196,7 +196,7 @@ export function NotificationCenter() {
         let isRelevant = false;
         let actionRequired = false;
 
-        if (role === "ITS" || role === "TSG") {
+        if (role === "Staff") {
           isRelevant = true;
           actionRequired = !rep.acknowledged;
         } else if (role === "AdRICDirector") {
@@ -235,7 +235,7 @@ export function NotificationCenter() {
 
         if (role === "AdRICDirector") {
           isRelevant = true;
-        } else if (role === "ITS" || role === "TSG") {
+        } else if (role === "Staff") {
           isRelevant = true;
           actionRequired = true;
         } else if (role === "LabHead") {
@@ -282,9 +282,9 @@ export function NotificationCenter() {
             isRelevant = true;
             actionRequired = true; // Pending Lab Head authorization
           }
-        } else if (role === "ITS" || role === "TSG" || role === "AdRICDirector") {
+        } else if (role === "Staff" || role === "AdRICDirector") {
           isRelevant = true;
-          actionRequired = role === "ITS" || role === "TSG";
+          actionRequired = role === "Staff";
         } else if (role === "Custodian") {
           const isMyLoan = (currentUserId && loan.borrower_id === currentUserId) || (loan.borrower && loan.borrower.toLowerCase().includes(currentUserName.toLowerCase()));
           if (isMyLoan) isRelevant = true;
@@ -312,7 +312,7 @@ export function NotificationCenter() {
         let isRelevant = false;
         let actionRequired = false;
 
-        if (role === "ITS" || role === "TSG") {
+        if (role === "Staff") {
           isRelevant = true;
           actionRequired = true;
         } else if (role === "LabHead") {
@@ -347,7 +347,7 @@ export function NotificationCenter() {
       if (role === "AdRICDirector") {
         isRelevant = true;
         actionRequired = true; // Director sign-off needed
-      } else if (role === "ITS" || role === "TSG") {
+      } else if (role === "Staff") {
         isRelevant = true;
       } else if (role === "LabHead") {
         isRelevant = true;
@@ -408,7 +408,7 @@ export function NotificationCenter() {
             isRelevant = true;
             actionRequired = true;
           }
-        } else if (role === "ITS" || role === "TSG") {
+        } else if (role === "Staff") {
           isRelevant = true;
         }
 
@@ -447,14 +447,14 @@ export function NotificationCenter() {
 
       // Degraded Condition / High Value Maintenance
       if (isDegraded) {
-        let isRelevant = role === "ITS" || role === "TSG" || (role === "AdRICDirector" && isHighValue) || (role === "LabHead" && asset.lab === "CITe4D");
+        let isRelevant = role === "Staff" || (role === "AdRICDirector" && isHighValue) || (role === "LabHead" && asset.lab === "CITe4D");
         if (isRelevant) {
           reminders.push({
             id: `REM-DEG-${asset.id}`,
             type: "degraded",
             title: `Degraded Health Alert: ${asset.name}`,
             description: `Device condition is at ${asset.condition}% in lab ${asset.lab}. Maintenance inspection recommended.`,
-            needsAction: role === "TSG" || (role === "LabHead" && asset.lab === "CITe4D"),
+            needsAction: role === "Staff" ||(role === "LabHead" && asset.lab === "CITe4D"),
             targetTab: "repairs",
             meta: asset
           });
@@ -495,7 +495,7 @@ export function NotificationCenter() {
             isRelevant = true;
             actionRequired = true;
           }
-        } else if (role === "ITS" || role === "TSG" || role === "AdRICDirector") {
+        } else if (role === "Staff" || role === "AdRICDirector") {
           isRelevant = true;
           actionRequired = true;
         }
@@ -731,7 +731,7 @@ export function NotificationCenter() {
                           onClick={e => e.stopPropagation()}
                         >
                           {/* Acknowledge Repair Ticket Button */}
-                          {item.type === "repair" && (role === "ITS" || role === "TSG") && (
+                          {item.type === "repair" && (role === "Staff") && (
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();
@@ -744,7 +744,7 @@ export function NotificationCenter() {
                           )}
 
                           {/* Authorize Equipment Loan Button */}
-                          {item.type === "loan" && (role === "LabHead" || role === "ITS" || role === "TSG") && (
+                          {item.type === "loan" && (role === "LabHead" || role === "Staff") && (
                             <button
                               type="button"
                               onClick={async (e) => {

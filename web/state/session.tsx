@@ -5,7 +5,7 @@
  * Used by: every role.
  */
 import { createContext, useContext, useState, useEffect } from "react";
-import type { Role } from "@shared/enums/role";
+import type { Role, StaffUnit } from "@shared/enums/role";
 import * as authApi from "../api/auth.api";
 
 /**
@@ -70,6 +70,7 @@ export interface SessionUser {
   avatarUrl?: string;
   /** Short code of the person's first research center, for example "CITe4D". */
   labAffiliation?: string;
+  staffUnit?: StaffUnit | null;
 }
 
 interface SessionContextType {
@@ -289,8 +290,7 @@ export function useSession() {
 
 /** The first URL segment of each role's pages, for example `/lab-head/...`. */
 export const roleToSlug: Record<Role, string> = {
-  ITS: "its",
-  TSG: "tsg",
+  Staff: "staff",
   LabHead: "lab-head",
   Custodian: "custodian",
   AdRICDirector: "adric-director",
@@ -298,8 +298,7 @@ export const roleToSlug: Record<Role, string> = {
 
 /** Where each role lands after login, and when it opens a URL that belongs to another role. */
 export const roleDefaultPath: Record<Role, string> = {
-  ITS: "/its/overview",
-  TSG: "/tsg/repairs",
+  Staff: "/staff/overview",
   LabHead: "/lab-head/custody",
   Custodian: "/custodian/myassets",
   AdRICDirector: "/adric-director/overview",

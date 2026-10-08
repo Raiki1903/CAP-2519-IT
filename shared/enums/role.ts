@@ -9,4 +9,6 @@
  * These are not the database role names (`roles_role_name`, such as LAB_HEAD):
  * the server maps those to one of these at login.
  */
-export type Role = "ITS" | "TSG" | "LabHead" | "Custodian" | "AdRICDirector";
+export type Role = "Staff" | "LabHead" | "Custodian" | "AdRICDirector";
+
+export type StaffUnit = "ITS" | "TSG";

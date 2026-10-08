@@ -5,7 +5,7 @@
  * Used by: Staff (ITS and TSG).
  */
 import { useNavigate } from "react-router";
-import { useSession, roleToSlug } from "@web/state/session";
+import { roleToSlug } from "@web/state/session";
 import { useBrowserOnly } from "@web/state/browserOnly";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { useRepairTickets } from "@web/features/repairs/useRepairTickets";
@@ -19,7 +19,6 @@ import { CheckCircle, Clock, Package, ChevronRight, Bell, AlertTriangle, Shield 
 /** The Staff landing tab. Reads only; every action is a link to another tab. Takes no props. */
 export function OverviewPage() {
   const navigate = useNavigate();
-  const { role } = useSession();
   const { returns } = useBrowserOnly();
   const { displayedAssets } = useStaffAssets();
   const { combinedRepairs } = useRepairTickets();
@@ -27,8 +26,7 @@ export function OverviewPage() {
   const unacknowledged = combinedRepairs.filter(r => !r.acknowledged);
   const pendingReturns = returns.filter(r => r.status === "Pending");
 
-  // Links stay inside the tree the user is in (/its or /tsg) until step 9 merges them.
-  const overviewSlug = roleToSlug[role] || ((typeof window !== "undefined" && window.location.pathname.startsWith("/tsg")) || role === "TSG" ? "tsg" : "its");
+  const overviewSlug = roleToSlug.Staff;
 
   // TODO(M-03): campus is guessed from location and lab text, and anything not clearly Laguna counts as Manila. Phase 3 (research_centers.location).
   const manilaAssetsCount = displayedAssets.filter(a => {
