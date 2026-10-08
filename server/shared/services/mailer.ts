@@ -4,10 +4,11 @@
 
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
+import { env } from '../../config/env';
 
-const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY || '';
-const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || '';
-const MAILGUN_FROM = process.env.MAILGUN_FROM || `AdRIC Asset Management <mailgun@${MAILGUN_DOMAIN}>`;
+const MAILGUN_API_KEY = env.mailgunApiKey;
+const MAILGUN_DOMAIN = env.mailgunDomain;
+const MAILGUN_FROM = env.mailgunFrom || `AdRIC Asset Management <mailgun@${MAILGUN_DOMAIN}>`;
 
 const mailgun = new Mailgun(formData);
 const mg = MAILGUN_API_KEY

@@ -1,13 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../config/prisma.js';
+import { env } from '../config/env';
 
 export async function performDatabaseBackup() {
     try {
         // Disabled unless BACKUP_DIR is set, and the path must be outside the repository.
         // Writing backups into scratch/backups/ is how 113 files of personal data got
         // committed, so there is deliberately no default. (C-01, M-19)
-        const backupDir = process.env.BACKUP_DIR;
+        const backupDir = env.backupDir;
         if (!backupDir) {
             console.warn("⚠️  Backup skipped: BACKUP_DIR is not set. See .env.example.");
             return;

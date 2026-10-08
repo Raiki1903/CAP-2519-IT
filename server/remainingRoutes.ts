@@ -1,6 +1,5 @@
 // server.ts
 import express, { Request, Response } from 'express';
-import 'dotenv/config';
 import { sendEmail, emailTemplate } from './shared/services/mailer';
 import { prisma } from './config/prisma.js';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
