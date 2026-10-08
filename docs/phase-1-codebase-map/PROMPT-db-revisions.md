@@ -96,6 +96,8 @@ Explain:
 - Include a Mermaid diagram of the overall request flow, plus per-process diagrams where helpful.
 
 ## Phase 2: Tests → `docs/phase-2-tests/02-test-spec.md` + test files
+> **Superseded (2026-10-08)** by [docs/phase-2-tests/PROMPT-tests.md](../phase-2-tests/PROMPT-tests.md). Kept for the record; do not run this part.
+
 - Write tests for triggers and stored procedures BEFORE any database plan exists.
 - Base expected behavior on current business rules in the code and on the panel comments. Do not design the solution first and write tests to match it.
 - Tests are expected to fail right now. That is intended.

@@ -607,3 +607,37 @@ Answered on 2026-10-08 (see the log, "Team decisions on step 9"): ITS is removed
 
 1. Restart both servers (`npm run dev:all`), run the 12 step 9 hand checks, then push and open the pull request.
 2. Then the **Phase 2 tests** prompt, which is not written yet (session plan: step 9, then Phase 2 tests, then steps 10 to 12).
+
+---
+
+## Phase 2, API tests Part A, 2026-10-08
+
+**Prompt followed:** [phase-2-tests/PROMPT-tests.md](phase-2-tests/PROMPT-tests.md), Part A. Branch: `test/phase-2-api-tests`, from `main` after PR #50 (`a02786c8` adds the prompt). Nothing pushed.
+
+### What was produced
+
+- **Vitest 4.1.11**, dev dependency only (`0e9d308e`). Uses the installed Vite 6.4.3; no other dependency changed.
+- **`server.ts` reads its port from `PORT`**, default 4000 (`ec738f0b`, behavior-neutral). The only app-code change.
+- **The harness and a smoke test** (`f2058aef`): `tests/setup/` holds the database guard, the schema load, the reset and fake seed, and the code that starts `server.ts` as a child process on a free port, from a temporary folder, aimed only at the local test database, with mail and backups off. `tests/api/smoke.test.ts` (3 tests) and `tests/setup/guard.test.ts` (7 tests). `npm test` runs them; `tsconfig.json` now includes `tests/`.
+- **[tests/README.md](../tests/README.md) and the [test plan](phase-2-tests/01-test-plan.md)** (`225770e9`): all 62 endpoints, 40 assigned to sessions B1 to B4 with what each test checks and the defects pinned, 22 skipped with reasons.
+- **Docs housekeeping:** [02-test-log.md](phase-2-tests/02-test-log.md), this entry, the status board, the superseded note in `PROMPT-db-revisions.md`, the MySQL correction in `PROMPT-2-restructure.md`, and `TEST_DATABASE_URL=` in `.env.example`.
+- **Checks:** `npm test` 10 passed; build passes; **typecheck 71, unchanged** (none in `tests/`).
+
+### Key findings
+
+- **Prisma 7.9 refuses `prisma db push --force-reset` when an AI agent runs it** and asks for the user's consent. The harness was redesigned so it never needs that flag: it empties the guarded test tables itself and runs a plain `db push`. No consent was requested or used.
+- **MySQL on Windows stores database names in lower case**, which broke a repeated `db push` against `AdRIC_DB_test`. The harness passes the stored name. Worth knowing for step 14.
+- **The test database comes from `schema.prisma`, not the live database**, so H-21 cannot be reproduced locally. Step 14 baselines from the live database.
+- Verified: the guard refuses a non-local host and a name without `_test`; the server resolves `@shared/*` from a temporary folder only through `TSX_TSCONFIG_PATH`; a sign-up lands in the temporary folder and the repo's `pending_registrations.json` is untouched. Registration writes are therefore safe to test in B1.
+- New defects logged, not fixed (all in the log): the account update's invalid `MANILA_CAMPUS` value, the repair duplicate guard answering 409 before 404, two analytics oddities.
+
+### Open questions
+
+- **11 analytics endpoints never had a caller** and are neither in the step 12 deletion nor among the three kept on 2026-10-07 (plan section 3.2). Delete them in step 12, or give them a "responds with 200" test in B4?
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. On your machine: create `AdRIC_DB_test` and set `TEST_DATABASE_URL` as in [tests/README.md](../tests/README.md), then run `npm test`. Push the branch when it passes.
+2. Then Part B1:
+`Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B1.`
