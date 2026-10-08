@@ -641,3 +641,33 @@ Answered on 2026-10-08 (see the log, "Team decisions on step 9"): ITS is removed
 1. On your machine: create `AdRIC_DB_test` and set `TEST_DATABASE_URL` as in [tests/README.md](../tests/README.md), then run `npm test`. Push the branch when it passes.
 2. Then Part B1:
 `Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B1.`
+
+## Phase 2, API tests Part B1, 2026-10-08
+
+**Prompt followed:** [phase-2-tests/PROMPT-tests.md](phase-2-tests/PROMPT-tests.md), Part B1. Branch: `test/phase-2-api-tests`, continued from Part A. Nothing pushed.
+
+### What was produced
+
+- **Auth and registration tests** (`212b69df`): `tests/api/auth.test.ts` (33 tests: login and `/me` for each seeded role, the account update) and `tests/api/registration.test.ts` (22 tests: sign-up requests, the pending list, approve, reject, direct registration). Sign-ups are written only in the test server's temporary folder.
+- **Asset tests** (`4fae5b46`): `tests/api/assets.test.ts` (33 tests: the list, custodian history, intake, edit, delete).
+- **Team decision recorded (2026-10-08):** none of the 22 analytics endpoints in plan sections 3.1 and 3.2 is deleted. In step 12 their handler code moves to `legacy/analytics-endpoints/` with a README (path, method, what it computed, tables read, group 3.1 or 3.2) and their routes are unregistered, so they answer not found. No Phase 2 tests for them. Written into the plan (3.1, 3.2), the [test log](phase-2-tests/02-test-log.md), and the "Old analytics" row of the [PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md) decisions table. `server.ts` is unchanged.
+- **Docs housekeeping:** the test log (status, B1 detail, notes), the plan's B1 defect columns, the status board, the run counts in `tests/README.md`, and this entry.
+- **Checks:** `npm test` 5 files, **98 passed**, twice in a row; build passes; **typecheck 71, unchanged** (none in `tests/`).
+
+### Key findings
+
+- **No app code changed.** Every test passed against today's behavior on the first full run; nothing was fixed.
+- **C-03 is real on the test database:** the password matches in any letter case (`users.password` uses `utf8mb4_unicode_ci`). CCS Cloud's collation was not checked.
+- **Three new defects pinned**, logged not fixed: the account update answers `CITe4D` when no lab is sent (the account page shows it until reload); approving a sign-up for an unknown lab name creates a new research center; editing an asset with only an acquisition value resets its funding source to "Unspecified" (M-16 family).
+- **Older text still describes the 2026-10-04 deletion** (`PROMPT-tests.md` B4 line and skip list, the two `legacy/` analytics READMEs, the restructure log). Left as is in this session; listed in the log.
+
+### Open questions
+
+- `PROMPT-tests.md` still says B4 skips "the ones that step 12 deletes". Under the new decision B4's scope is unchanged (live callers plus the three kept on 2026-10-07), but the wording is stale. Update it now, or leave it to step 12?
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. On your machine: `npm test` (expect 98 passed). Push the branch when it passes.
+2. Then Part B2:
+`Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B2.`

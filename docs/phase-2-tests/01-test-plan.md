@@ -42,10 +42,10 @@ Counts: B1 13 endpoints, B2 9, B3 10, B4 8. Total 40.
 |---|---|---|---|---|---|
 | `/api/auth/login` | POST | `web/pages/auth/Login.tsx` | 200 with `role` and `user` (`userId`, names, `email`, `idNumber`, `userType`, `labAffiliation`, `staffUnit`) for each seeded role: ADMIN, ADRIC_SECRETARY, ITS_STAFF to `Staff`/`ITS`; TSG_STAFF to `Staff`/`TSG`; ADRIC_DIRECTOR to `AdRICDirector`; LAB_HEAD to `LabHead`; CUSTODIAN to `Custodian`. `labAffiliation` falls back to `CITe4D` for an account with no lab. 400 with no email or password; 401 for a wrong password | B1 | M-11 (`ITS_STAFF` maps to Staff, the Phase 2 test the team asked for; ADRIC_SECRETARY still maps to Staff/ITS); C-03 (the password is compared in SQL, so a different letter case still logs in) |
 | `/api/auth/me` | GET | `web/state/session.tsx`, `web/pages/AccountDetailsPage.tsx` | 200 with the same profile fields plus `role` for any seeded email; 400 without `email`; 404 for an unknown email | B1 | C-06 (answers any email, no session needed) |
-| `/api/auth/account` | PUT | `web/state/session.tsx` | 200 and the new first and last name in `users`; picture saved when sent; lab link updated through `user_centers` for a known lab code; 400 without email or names; 404 for an unknown email; another person's email in the body renames that person | B1 | C-02 (the body names the account to change); new: an unknown lab code tries to create a center with location `MANILA_CAMPUS`, which is not a valid value, fails silently, and the answer still names the lab the account is not linked to |
+| `/api/auth/account` | PUT | `web/state/session.tsx` | 200 and the new first and last name in `users`; picture saved when sent; lab link updated through `user_centers` for a known lab code; 400 without email or names; 404 for an unknown email; another person's email in the body renames that person | B1 | C-02 (the body names the account to change); new: an unknown lab code tries to create a center with location `MANILA_CAMPUS`, which is not a valid value, fails silently, and the answer still names the lab the account is not linked to; new: with no lab sent, the answer says `CITe4D` whatever the account's lab is, and the account page shows that until reload |
 | `/api/auth/register-request` | POST | `web/pages/auth/Register.tsx` | 200 with a `registration` (`REG-` id, `status` PENDING, defaults `Custodian` and `CITe4D`); written to `pending_registrations.json` in the server's **temporary** working folder (confirmed in Part A, see the log); 400 without names, email, or id number; 400 for an email or id number already in `users` | B1 | H-17 (stored in a JSON file in the working folder); C-03 (a missing password becomes `password123`) |
 | `/api/auth/pending-registrations` | GET | `web/state/serverData.tsx` (Lab Head dashboard) | 200 with only `PENDING` entries, newest first, after register-request | B1 | C-04 (each entry includes its `password`) |
-| `/api/auth/approve-registration` | POST | `web/state/serverData.tsx` (Lab Head dashboard) | For a pending id: 200, a `users` row, a `user_roles` row (requested "Custodian" to CUSTODIAN, "Lab Head" to LAB_HEAD, "TSG" to TSG_STAFF, "ITS" to ADMIN), a `user_centers` row for a known lab, and the entry gone from the pending list. 404 for an unknown id with no body details | B1 | C-05 (an unknown id with names and email in the body creates the account anyway, with the requested role); M-11 ("ITS" becomes ADMIN); 01C 4.1 (the answer echoes the created row, `password` included) |
+| `/api/auth/approve-registration` | POST | `web/state/serverData.tsx` (Lab Head dashboard) | For a pending id: 200, a `users` row, a `user_roles` row (requested "Custodian" to CUSTODIAN, "Lab Head" to LAB_HEAD, "TSG" to TSG_STAFF, "ITS" to ADMIN), a `user_centers` row for a known lab, and the entry gone from the pending list. 404 for an unknown id with no body details | B1 | C-05 (an unknown id with names and email in the body creates the account anyway, with the requested role); M-11 ("ITS" becomes ADMIN); 01C 4.1 (the answer echoes the created row, `password` included); new: a lab name it does not know creates a new research center (location MANILA) and links the account to it |
 | `/api/auth/reject-registration` | POST | `web/state/serverData.tsx` (Lab Head dashboard) | 200 and the entry gone from the pending list; 200 for an unknown id as well | B1 | |
 | `/api/auth/register` | POST | No caller | 200, a `users` row with a CUSTODIAN role and an optional lab link, no approval step; 400 for missing fields and for a duplicate email or id number | B1 | C-05 family (direct account creation) |
 
@@ -56,7 +56,7 @@ Counts: B1 13 endpoints, B2 9, B3 10, B4 8. Total 40.
 | `/api/assets` | GET | `web/state/serverData.tsx`, `web/features/assets/useStaffAssets.ts`, `web/pages/custodian/CustodianPortal.tsx`, `web/pages/director/AdRICDirectorDashboard.tsx`, `web/pages/lab-head/LabHeadDashboard.tsx`, `web/features/analytics/staff/StaffAnalyticsView.tsx` | 200 with one entry per asset: `id` (the tag), `name`, `category`, `status` (Active, On Loan, Maintenance, Disposed, or Overdue), `location` and `lab` split from the newest record, `custodian`, `condition` (number) and `assetCondition`, `cost` and `funding`, `borrowedOn`/`dueDate`/`daysLeft` for an asset on loan, `disposalDetails` for a disposed one, and the nested `asset_records`, `asset_transfers`, `asset_reports` | B1 | M-13 (disposal details parsed back out of one text column); M-09 (newest record by `date_logged`, then id) |
 | `/api/assets/:tag/custodian-history` | GET | `web/features/assets/AssetDetailModal.tsx` | 200 with `custodianHistory` oldest first (`sequence`, `custodianName`, `status`, `location`, `condition`, `remarks`, `isCurrent` on the last); a numeric tag is also looked up as an asset id; 404 for an unknown tag | B1 | 01C 4.2 (each entry includes the custodian's `custodianEmail` and `custodianId`); an asset with no records gets an invented first entry (`custodian@dlsu.edu.ph`, H-09 family) |
 | `/api/assets` | POST | `web/features/assets/IntakeWizard.tsx` | 200 and the next free tag for the lab prefix (`TEST-0007`); one `assets`, one `asset_monetary`, and one ACTIVE PERFECT `asset_records` row; an unknown category stored as `DEV_KIT`; custodian defaults to user 1; 400 without name or category; 400 for an image that is not an image | B1 | H-10 (custodian defaults to user 1) |
-| `/api/assets/:tag` | PUT | `web/features/assets/EditAssetDialog.tsx` | 200; only the fields sent are changed; custodian found by typed name; a remark or condition also adds an `asset_reports` row; 404 for an unknown tag; 400 for a bad image | B1 | H-14 (rewrites the newest `asset_records` row instead of adding one); M-16 (a new acquisition value is ignored when a monetary row exists); H-10 (report filed under user 1 when the custodian name matches nobody) |
+| `/api/assets/:tag` | PUT | `web/features/assets/EditAssetDialog.tsx` | 200; only the fields sent are changed; custodian found by typed name; a remark or condition also adds an `asset_reports` row; 404 for an unknown tag; 400 for a bad image | B1 | H-14 (rewrites the newest `asset_records` row instead of adding one); M-16 (a new acquisition value is ignored when a monetary row exists); new, M-16 family: sending only an acquisition value resets the funding source to "Unspecified"; H-10 (report filed under user 1 when the custodian name matches nobody) |
 | `/api/assets/:tag` | DELETE | `web/features/assets/DeleteAssetDialog.tsx` | 200 and the asset gone with its records, loans, repairs, transfers, returns, and disposals; 404 for an unknown tag | B1 | H-03 (deletes the whole history; an asset with an inspection report cannot be deleted and answers 500); H-16 (that 500 carries the raw database error) |
 
 ### 2.3 Loans (B2)
@@ -127,31 +127,37 @@ Counts: B1 13 endpoints, B2 9, B3 10, B4 8. Total 40.
 
 22 endpoints get no test. All are analytics.
 
-### 3.1 Deleted in step 12 (11)
+> **Team decision, 2026-10-08 (covers 3.1 and 3.2).** None of these 22 endpoints is deleted. This replaces the 2026-10-04 decision to delete the 11 in section 3.1. In step 12 the handler code of all 22 moves to `legacy/analytics-endpoints/` with a README (one line per endpoint: path, method, what it computed, which tables it read, and its group, 3.1 or 3.2), and their routes are no longer registered, so calling them answers not found (404). No tests for them in Phase 2. Recorded in the decisions table of [PROMPT-2-restructure.md](../phase-1c-restructure/PROMPT-2-restructure.md) ("Old analytics") and in the [test log](02-test-log.md).
 
-Decided 2026-10-04: the 11 endpoints whose only callers were quarantined in `legacy/analytics-v1/` are deleted when the analytics backend is extracted in step 12. The list is the one in [legacy/analytics-v1/README.md](../../legacy/analytics-v1/README.md#backend-endpoints-that-now-have-no-caller-at-all) and [01A section 6.11](../phase-1b-deep-map/01A-system-trace.md#611-analytics-and-reporting) ("called only by dead components").
+### 3.1 Callers quarantined in `legacy/analytics-v1/` (11): moved to legacy and unregistered in step 12
+
+**Note (2026-10-08):** these 11 are no longer deleted. In step 12 their handlers move to `legacy/analytics-endpoints/` (README group 3.1) and their routes are unregistered. No tests in Phase 2.
+
+Decided 2026-10-04, replaced 2026-10-08 (above): the 11 endpoints whose only callers were quarantined in `legacy/analytics-v1/` were to be deleted when the analytics backend is extracted in step 12. The list is the one in [legacy/analytics-v1/README.md](../../legacy/analytics-v1/README.md#backend-endpoints-that-now-have-no-caller-at-all) and [01A section 6.11](../phase-1b-deep-map/01A-system-trace.md#611-analytics-and-reporting) ("called only by dead components").
 
 | Endpoint | Method | Was called by | Reason skipped |
 |---|---|---|---|
-| `/api/analytics/dashboard` | GET | `AnalyticsDashboard.tsx` (legacy) | Deleted in step 12 (decision 2026-10-04) |
-| `/api/analytics/compliance` | GET | `ReportsAnalyticsDashboard.tsx` (legacy) | Deleted in step 12 |
-| `/api/analytics/delinquencies` | GET | `ReportsAnalyticsDashboard.tsx` (legacy) | Deleted in step 12 |
-| `/api/analytics/health-trends` | GET | `ReportsAnalyticsDashboard.tsx` (legacy) | Deleted in step 12 |
-| `/api/analytics/stakeholder/utilization` | GET | `RoleAnalyticsModule.tsx` (legacy) | Deleted in step 12 |
-| `/api/analytics/stakeholder/audit-discrepancies` | GET | `RoleAnalyticsModule.tsx` (legacy) | Deleted in step 12 |
-| `/api/analytics/stakeholder/degradation-tracker` | GET | `RoleAnalyticsModule.tsx` (legacy) | Deleted in step 12 |
-| `/api/analytics/stakeholder/disposal-prescriptions` | GET | `RoleAnalyticsModule.tsx` (legacy) | Deleted in step 12 |
-| `/api/analytics/stakeholder/preventative-schedule` | GET | `RoleAnalyticsModule.tsx` (legacy) | Deleted in step 12 |
-| `/api/analytics/stakeholder/accountability-bottlenecks` | GET | `RoleAnalyticsModule.tsx` (legacy) | Deleted in step 12 |
-| `/api/analytics/advanced/stewardship-score/:userId` | GET | `StudentAnalyticsView.tsx` (legacy) | Deleted in step 12 |
+| `/api/analytics/dashboard` | GET | `AnalyticsDashboard.tsx` (legacy) | Moved to legacy and unregistered in step 12 (decision 2026-10-08) |
+| `/api/analytics/compliance` | GET | `ReportsAnalyticsDashboard.tsx` (legacy) | Same |
+| `/api/analytics/delinquencies` | GET | `ReportsAnalyticsDashboard.tsx` (legacy) | Same |
+| `/api/analytics/health-trends` | GET | `ReportsAnalyticsDashboard.tsx` (legacy) | Same |
+| `/api/analytics/stakeholder/utilization` | GET | `RoleAnalyticsModule.tsx` (legacy) | Same |
+| `/api/analytics/stakeholder/audit-discrepancies` | GET | `RoleAnalyticsModule.tsx` (legacy) | Same |
+| `/api/analytics/stakeholder/degradation-tracker` | GET | `RoleAnalyticsModule.tsx` (legacy) | Same |
+| `/api/analytics/stakeholder/disposal-prescriptions` | GET | `RoleAnalyticsModule.tsx` (legacy) | Same |
+| `/api/analytics/stakeholder/preventative-schedule` | GET | `RoleAnalyticsModule.tsx` (legacy) | Same |
+| `/api/analytics/stakeholder/accountability-bottlenecks` | GET | `RoleAnalyticsModule.tsx` (legacy) | Same |
+| `/api/analytics/advanced/stewardship-score/:userId` | GET | `StudentAnalyticsView.tsx` (legacy) | Same |
 
-### 3.2 Never called by anything (11): open question for the team
+### 3.2 Never called by anything (11): moved to legacy and unregistered in step 12
+
+**Note (2026-10-08):** the team answered the question below. These 11 are not deleted: in step 12 their handlers move to `legacy/analytics-endpoints/` (README group 3.2) and their routes are unregistered, like section 3.1. They get no test in Phase 2, not even a "responds with 200" one in B4.
 
 [01A section 6.11](../phase-1b-deep-map/01A-system-trace.md#611-analytics-and-reporting) lists a **second** group of 11 analytics endpoints that no file has ever called, live or legacy (checked again on 2026-10-08 across `web/`, `shared/`, and `legacy/`). They are not in the step 12 deletion (that list is 3.1), they are not among the three kept on 2026-10-07, and they have no live caller, so they fall outside B4.
 
 | Endpoint | Method | Reason skipped |
 |---|---|---|
-| `/api/analytics/advanced/funding-valuation` | GET | No caller ever; not in B4's scope (live callers only) |
+| `/api/analytics/advanced/funding-valuation` | GET | No caller ever; moved to legacy and unregistered in step 12 (decision 2026-10-08) |
 | `/api/analytics/advanced/campus-transfer-flow` | GET | Same |
 | `/api/analytics/advanced/grant-readiness-index` | GET | Same |
 | `/api/analytics/advanced/project-allocation` | GET | Same |
@@ -163,7 +169,7 @@ Decided 2026-10-04: the 11 endpoints whose only callers were quarantined in `leg
 | `/api/analytics/stakeholder/stewardship-guidelines/:category` | GET | Same |
 | `/api/analytics/stakeholder/project-closure-recall` | POST | Same |
 
-**Question for the team:** step 12 will move these 11 as they are. Should they be deleted with the 11 in 3.1, or kept? If kept, B4 can give them the same "responds with 200" test as the three in section 2.9, so the move is checked. Until then they stay untested.
+**Question for the team (answered 2026-10-08, see the note above):** step 12 will move these 11 as they are. Should they be deleted with the 11 in 3.1, or kept? If kept, B4 can give them the same "responds with 200" test as the three in section 2.9, so the move is checked. Until then they stay untested.
 
 ---
 

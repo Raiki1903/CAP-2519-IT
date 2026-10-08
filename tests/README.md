@@ -59,8 +59,8 @@ You do not need to stop `npm run dev:all`: the tests start their own copy of the
 A good run ends like this:
 
 ```
- Test Files  2 passed (2)
-      Tests  10 passed (10)
+ Test Files  5 passed (5)
+      Tests  98 passed (98)
 ```
 
 The first time, Windows may ask whether to allow Node.js through the firewall. Choose **Cancel** (or deny). The tests only talk to your own computer, so they work either way.
