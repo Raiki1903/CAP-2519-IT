@@ -29,8 +29,6 @@
     "web",
     "shared",
     "server.ts",
-    "prisma.ts",
-    "mailer.ts",
     "test-user.ts",
     "vite.config.ts",
     "prisma.config.ts",

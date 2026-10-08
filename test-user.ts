@@ -1,4 +1,4 @@
-import { prisma } from './prisma.js';
+import { prisma } from './server/config/prisma.js';
 
 async function main() {
     console.log("🚀 Inserting new asset into the 'assets' table...");

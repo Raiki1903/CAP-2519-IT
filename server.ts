@@ -2,8 +2,8 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import 'dotenv/config';
-import { sendEmail, emailTemplate } from './mailer';
-import { prisma } from './prisma.js';
+import { sendEmail, emailTemplate } from './server/shared/services/mailer';
+import { prisma } from './server/config/prisma.js';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import type { StaffUnit } from '@shared/enums/role';
