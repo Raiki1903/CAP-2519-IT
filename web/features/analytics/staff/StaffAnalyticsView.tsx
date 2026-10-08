@@ -2,7 +2,7 @@
  * Staff analytics: repair board, condition heatmap, warranty timeline, location status, and inspection progress widgets.
  * Layer: feature component. Called by pages/staff/HealthPage.tsx.
  * Calls: api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), api/repairs.api.ts updateRepairStatus(), state/serverData.tsx.
- * Used by: Staff (ITS and TSG).
+ * Used by: Staff.
  */
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -681,7 +681,6 @@ export const InspectionProgressTracker: React.FC = () => {
 const LAB_OPTIONS = ["All Labs", "CITe4D", "CAR", "GAME", "CIVI", "CeHCI", "Bio", "TE3D", "CeLT", "HXIL", "CNIS"];
 const CATEGORY_OPTIONS = ["All Categories", "DEV_KIT", "MONITOR", "WORKSTATION", "ROBOTICS", "SENSOR", "NETWORKING", "ACCESSORY"];
 
-// Master TSG Dashboard Analytics View
 /** The Staff analytics screen: holds the date, lab, and category filters and lays out four widgets. Takes no props. */
 export const StaffAnalyticsView: React.FC = () => {
   const [startDate, setStartDate] = React.useState<string>("");

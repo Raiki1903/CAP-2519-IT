@@ -56,7 +56,7 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
 
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
   const [condition, setCondition] = useState("");
-  const [inspection, setInspection] = useState(""); // Custodian turn-in comments OR TSG notes
+  const [inspection, setInspection] = useState(""); // Custodian turn-in comments OR Staff notes
   const [clearanceIssued, setClearance] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -246,7 +246,7 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
 
           <Separator />
 
-          {/* Pending return info for TSG */}
+          {/* Pending return info for Staff */}
           {!isCustodian && pendingReturn && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-1">
               <p className="font-extrabold uppercase tracking-wider text-[9px] text-blue-700">Custodian Turn-in Comments</p>
@@ -316,7 +316,7 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
               </div>
             </div>
           ) : (
-            /* TSG / ITS View: Full inspection checklist and diagnostics */
+            /* Staff view: full inspection checklist and diagnostics */
             <>
               {/* Condition on Return */}
               <div className="flex flex-col gap-1.5">
@@ -351,7 +351,7 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
                 </div>
               </div>
 
-              {/* TSG Inspection Result */}
+              {/* Staff inspection result */}
               <div className="flex flex-col gap-1.5">
                 <Label className="text-[10px] font-extrabold tracking-[1.5px] text-muted-foreground uppercase flex items-center gap-1.5">
                   <ClipboardCheck size={10} /> Staff Inspection Notes

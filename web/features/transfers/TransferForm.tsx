@@ -94,7 +94,7 @@ interface Props {
  * @param onBack returns to the asset detail view
  * @param onClose closes the modal from the success screen
  */
-// The pipeline drawn here (Lab Head approval, then TSG) is not enforced anywhere: the
+// The pipeline drawn here (Lab Head approval, then Staff) is not enforced anywhere: the
 // server lets any caller decide a transfer. Transfers are to be replaced by a
 // custodianship queue, so no approval rule is added in the meantime. (C-02, issue #22)
 export function TransferForm({ asset, onBack, onClose }: Props) {

@@ -2,7 +2,7 @@
  * Intake wizard: the three-step form Staff use to register a newly acquired asset.
  * Layer: feature component. Called by pages/staff/RegisterPage.tsx.
  * Calls: api/assets.api.ts createAssetRaw(), state/serverData.tsx syncFromDb().
- * Used by: Staff (ITS and TSG) asset registration.
+ * Used by: Staff asset registration.
  */
 import { useState, useEffect } from "react";
 import { useServerData } from "@web/state/serverData";

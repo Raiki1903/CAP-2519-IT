@@ -2,7 +2,7 @@
  * Delete asset dialog: Staff confirm the permanent removal of an asset from the registry.
  * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
  * Calls: api/assets.api.ts deleteAsset(), state/serverData.tsx syncFromDb().
- * Used by: Staff (ITS and TSG) inventory.
+ * Used by: Staff inventory.
  */
 import { useState } from "react";
 import { useServerData } from "@web/state/serverData";

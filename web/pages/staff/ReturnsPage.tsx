@@ -1,8 +1,8 @@
 /**
  * Staff Pending Returns: custodian return requests waiting to be checked and finalized.
- * Layer: page. Called by app/routes.tsx at /its/returns and /tsg/returns.
+ * Layer: page. Called by app/routes.tsx at /staff/returns.
  * Calls: state/browserOnly.tsx (the requests), features/assets/useStaffAssets.ts, features/returns/ReturnForm.tsx.
- * Used by: Staff (ITS and TSG) return finalization.
+ * Used by: Staff return finalization.
  */
 import { useState } from "react";
 import { useBrowserOnly } from "@web/state/browserOnly";

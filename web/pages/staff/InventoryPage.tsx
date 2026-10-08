@@ -1,8 +1,8 @@
 /**
  * Staff Inventory: every asset, in gallery or table view, with search, filters, sorting, and the active and decommissioned sub-tabs.
- * Layer: page. Called by app/routes.tsx at /its/inventory and /tsg/inventory.
+ * Layer: page. Called by app/routes.tsx at /staff/inventory.
  * Calls: features/assets (useStaffAssets, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx, state/serverData.tsx syncFromDb(), state/session.tsx.
- * Used by: Staff (ITS and TSG) asset editing, deletion, and disposal requests.
+ * Used by: Staff asset editing, deletion, and disposal requests.
  */
 import { useState } from "react";
 import { useSession } from "@web/state/session";

@@ -2,7 +2,7 @@
  * Edit asset dialog: Staff correct an asset's registry details, status, condition, custodian, and photo.
  * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
  * Calls: api/assets.api.ts updateAssetRaw().
- * Used by: Staff (ITS and TSG) asset editing.
+ * Used by: Staff asset editing.
  */
 import { useState } from "react";
 import * as assetsApi from "@web/api/assets.api";

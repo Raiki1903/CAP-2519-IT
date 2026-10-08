@@ -364,7 +364,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
       syncFromDb();
 
-      // 2. Trigger repair request to TSG if critical fault or immediate inspection requested
+      // 2. Trigger repair request to Staff if critical fault or immediate inspection requested
       if (triggerRepair) {
         onRepairRequest({
           id: ref,

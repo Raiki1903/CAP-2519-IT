@@ -1,8 +1,8 @@
 /**
  * Staff Health: the Staff analytics view, and a benchmark grid for component health.
- * Layer: page. Called by app/routes.tsx at /its/health and /tsg/health.
+ * Layer: page. Called by app/routes.tsx at /staff/health.
  * Calls: features/analytics/staff/StaffAnalyticsView.tsx. The benchmark grid calls nothing.
- * Used by: Staff (ITS and TSG).
+ * Used by: Staff.
  */
 import { useState } from "react";
 import StaffAnalyticsView from "@web/features/analytics/staff/StaffAnalyticsView";

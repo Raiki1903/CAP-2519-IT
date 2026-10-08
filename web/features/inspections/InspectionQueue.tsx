@@ -2,7 +2,7 @@
  * Inspection queue: assets grouped by lab group (A to D), each with a button to inspect it and file a condition report.
  * Layer: feature component. Called by pages/staff/InspectionsPage.tsx.
  * Calls: api/inspections.api.ts submitInspectionRaw(), state/serverData.tsx syncFromDb(), state/session.tsx (the signed-in user).
- * Used by: Staff (ITS and TSG) single-item inspection.
+ * Used by: Staff single-item inspection.
  */
 import { useState } from "react";
 import { useSession } from "@web/state/session";
@@ -20,7 +20,7 @@ import { cn } from "@web/components/ui/utils";
 import { CheckCircle, ClipboardCheck, Camera, Upload } from "lucide-react";
 
 // TODO(M-03): the lab groups are another hardcoded lab list, separate from research_centers. Phase 3.
-// TSG Specific Constants - 10 DB Research Centers evenly distributed across 4 groups
+// Inspection groups: the 10 research centers spread across 4 groups.
 const labGroups = [
   { id: "A", name: "Group A", labs: ["CITe4D", "CAR", "CNIS"], color: "text-blue-600" },
   { id: "B", name: "Group B", labs: ["CeHCI", "CeLT", "TE3D"], color: "text-violet-600" },
@@ -58,6 +58,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
   const [selectedQueueItem, setSelectedQueueItem] = useState<any | null>(null);
   const [inspectionStatusOption, setInspectionStatusOption] = useState<string>("Operational");
   const [inspectionNotesOption, setInspectionNotesOption] = useState<string>("");
+  // TODO(F-28): the Inspector Role is not saved anywhere; the database records only the reporter's account. Phase 3 stores it with the report (issue #48).
   const [inspectorRoleOption, setInspectorRoleOption] = useState<string>("TSG Staff");
   const [tsgRemarksOption, setTsgRemarksOption] = useState<string>("");
   const [itsRemarksOption, setItsRemarksOption] = useState<string>("");

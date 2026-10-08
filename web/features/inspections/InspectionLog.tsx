@@ -2,7 +2,7 @@
  * Inspection log: the table of saved condition reports, with a dialog to read one.
  * Layer: feature component. Called by pages/staff/InspectionsPage.tsx.
  * Calls nothing: the reports come in as a prop (useInspectionReports on the page).
- * Used by: Staff (ITS and TSG) inspection review.
+ * Used by: Staff inspection review.
  */
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";

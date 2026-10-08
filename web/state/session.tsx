@@ -70,6 +70,7 @@ export interface SessionUser {
   avatarUrl?: string;
   /** Short code of the person's first research center, for example "CITe4D". */
   labAffiliation?: string;
+  /** ITS or TSG for a Staff account, null for every other role. See `StaffUnit`. */
   staffUnit?: StaffUnit | null;
 }
 

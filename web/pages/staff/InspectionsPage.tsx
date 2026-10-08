@@ -1,8 +1,8 @@
 /**
  * Staff Inspections: inspect assets by lab group, and read the inspection reports on file.
- * Layer: page. Called by app/routes.tsx at /its/inspections and /tsg/inspections.
+ * Layer: page. Called by app/routes.tsx at /staff/inspections.
  * Calls: features/assets/useStaffAssets.ts, features/inspections (useInspectionReports, InspectionQueue, InspectionLog).
- * Used by: Staff (ITS and TSG) inspections.
+ * Used by: Staff inspections.
  */
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { useInspectionReports } from "@web/features/inspections/useInspectionReports";

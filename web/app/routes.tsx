@@ -22,6 +22,12 @@ import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboa
 import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
 import { NotFound } from "@web/pages/NotFound";
 
+/**
+ * Sends a pre-merge URL (`/its/...` or `/tsg/...`) to the same tab under `/staff/...`,
+ * keeping the query string and hash, so bookmarks and shared links still work.
+ * It runs outside RootLayout on purpose: inside it, RootLayout would see a URL that is
+ * not the Staff tree and send the user to their default page instead of the tab they asked for.
+ */
 function OldStaffUrlRedirect() {
   const { pathname, search, hash } = useLocation();
   return <Navigate to={pathname.replace(/^\/(its|tsg)(?=\/|$)/i, "/staff") + search + hash} replace />;
@@ -29,7 +35,7 @@ function OldStaffUrlRedirect() {
 
 /**
  * The app's router. Login and sign-up sit outside RootLayout because they need no session.
- * Staff (ITS and TSG) have one page per tab. The Lab Head, Custodian, and Director dashboards
+ * Staff (ITS and TSG accounts alike) have one tree, `/staff/*`, with one page per tab. The Lab Head, Custodian, and Director dashboards
  * are still one component each, and the URL's last segment picks the tab through `activeTab`.
  * Which role may open which tree is decided in RootLayout, not here.
  */

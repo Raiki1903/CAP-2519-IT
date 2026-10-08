@@ -1,8 +1,8 @@
 /**
  * Staff Overview: asset, repair, and return counts, quick links to the other tabs, campus totals, alerts, and recent registrations.
- * Layer: page. Called by app/routes.tsx at /its/overview and /tsg/overview.
+ * Layer: page. Called by app/routes.tsx at /staff/overview.
  * Calls: features/assets/useStaffAssets.ts, features/repairs/useRepairTickets.ts, state/browserOnly.tsx (pending returns), state/session.tsx.
- * Used by: Staff (ITS and TSG).
+ * Used by: Staff.
  */
 import { useNavigate } from "react-router";
 import { roleToSlug } from "@web/state/session";

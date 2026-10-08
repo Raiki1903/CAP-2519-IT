@@ -189,7 +189,7 @@ export function NotificationCenter() {
       meta: any;
     }[] = [];
 
-    // A. Repair Tickets (Strictly for ITS Admin / TSG or AdRIC Director, NOT shown to Lab Head)
+    // A. Repair Tickets (Staff and AdRIC Director only, NOT shown to Lab Head)
     repairRequests.forEach(rep => {
       const isOverdueOrActive = rep.statusLabel !== "Fixed & Completed";
       if (isOverdueOrActive) {
@@ -454,7 +454,7 @@ export function NotificationCenter() {
             type: "degraded",
             title: `Degraded Health Alert: ${asset.name}`,
             description: `Device condition is at ${asset.condition}% in lab ${asset.lab}. Maintenance inspection recommended.`,
-            needsAction: role === "Staff" ||(role === "LabHead" && asset.lab === "CITe4D"),
+            needsAction: role === "Staff" || (role === "LabHead" && asset.lab === "CITe4D"),
             targetTab: "repairs",
             meta: asset
           });

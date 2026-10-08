@@ -170,6 +170,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
       submittedAt: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
       priority: "High",
       acknowledged: true,
+      // A Staff account forwards to its own unit, so the ticket records which unit took it.
       forwardedTo: currentUser?.staffUnit === "ITS" ? "ITS" : "TSG"
     });
     resetAndClose();
@@ -356,7 +357,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         </div>
                       )}
 
-                      {/* TSG & ITS Technical Service Remarks */}
+                      {/* Staff technical service remarks */}
                       <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                         <p className="text-[10px] font-extrabold text-slate-700 tracking-[1.5px] uppercase">Staff Service Remarks</p>
                         <p className="text-xs text-slate-600 leading-relaxed italic bg-white p-2.5 rounded-lg border border-slate-100">
@@ -399,7 +400,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         <>
                           <Separator className="mb-4" />
 
-                          {/* QR Tag for TSG / ITS */}
+                          {/* QR tag, Staff only */}
                           {role === "Staff" && (
                             <div className="flex items-center gap-4 bg-muted/40 border border-dashed rounded-xl p-3 shadow-sm mb-4">
                               <div className="bg-white p-1 rounded-lg border flex-shrink-0 shadow-sm">
@@ -473,7 +474,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                   </motion.div>
                                 )}
 
-                                {/* TSG/ITS direct maintenance */}
+                                {/* Staff direct maintenance */}
                                 {role === "Staff" && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
