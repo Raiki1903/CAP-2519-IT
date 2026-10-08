@@ -170,7 +170,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
       submittedAt: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
       priority: "High",
       acknowledged: true,
-      // A Staff account forwards to its own unit, so the ticket records which unit took it.
+      // A Staff account forwards to its own unit. The server does not store forwardedTo yet,
+      // so the unit named in the description above is the only lasting record of it.
       forwardedTo: currentUser?.staffUnit === "ITS" ? "ITS" : "TSG"
     });
     resetAndClose();

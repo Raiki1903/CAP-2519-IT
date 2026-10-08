@@ -17,7 +17,8 @@ export type Role = "Staff" | "LabHead" | "Custodian" | "AdRICDirector";
  * Which unit a Staff account belongs to. The database keeps the two roles apart
  * (ITS: `ADMIN`, `ADRIC_SECRETARY`, `ITS_STAFF`; TSG: `TSG_STAFF`), and the session
  * keeps the difference because issue #41 will give ITS and TSG different edit and
- * delete rights. Today it only decides where Send to Maintenance forwards a ticket
- * and the label on the sidebar's session card.
+ * delete rights. Today it only fills in the unit on a Send to Maintenance ticket
+ * (its text, and a forwarding field the server does not store yet) and labels the
+ * sidebar's session card.
  */
 export type StaffUnit = "ITS" | "TSG";
