@@ -64,7 +64,7 @@ const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#EF4444"];
  * @param selectedLab lab to scope to, or "All Labs"
  * @param selectedCategory category to scope to, or "All Categories"
  */
-export const TSGTechnicalMaintenanceSection: React.FC<{
+export const StaffTechnicalMaintenanceSection: React.FC<{
   startDate: string;
   endDate: string;
   selectedLab: string;
@@ -765,7 +765,7 @@ export const StaffAnalyticsView: React.FC = () => {
         )}
       </div>
 
-      <TSGTechnicalMaintenanceSection
+      <StaffTechnicalMaintenanceSection
         startDate={startDate}
         endDate={endDate}
         selectedLab={selectedLab}
