@@ -13,7 +13,7 @@ Branch: `test/phase-2-api-tests`, from `main` after PR #50 (`a02786c8` adds the 
 | A | Vitest, harness, smoke test, test plan, README | Done | `0e9d308e` (Vitest), `ec738f0b` (PORT), `f2058aef` (harness and smoke test), `225770e9` (README and plan), docs housekeeping | 10 (3 smoke, 7 guard) | 2026-10-08 |
 | B1 | Auth, assets | Done | `212b69df` (auth and registration), `4fae5b46` (assets), docs housekeeping | 88 (33 auth, 22 registration, 33 assets) | 2026-10-08 |
 | B2 | Loans, returns, transfers | Done | `78987f8e` (loans), `43a06080` (returns), `ccd47c25` (transfers), docs housekeeping | 79 (31 loans, 16 returns, 32 transfers) | 2026-10-08 |
-| B3 | Repairs, inspections and reports, disposals | Not started | | | |
+| B3 | Repairs, inspections and reports, disposals | Done | `ab494e76` (repairs), `0e81e87b` (inspections and reports), `13edf79d` (disposals), docs housekeeping | 90 (36 repairs, 29 inspections and reports, 25 disposals) | 2026-10-08 |
 | B4 | Analytics with a live caller | Not started | | | |
 
 ---
@@ -105,6 +105,28 @@ Three test files and one setup helper, all against the HTTP API only.
 
 ---
 
+## Part B3 detail
+
+### What was added
+
+Three test files, all against the HTTP API only. No new setup file: the write tests use `addExtraAsset` from B2 (tags `TEST-0401` onward for repairs, `TEST-0501` for inspections, `TEST-0601` for disposals), so each test that changes an asset has one of its own. The one exception is deliberate: a repairs test completes the seeded ticket MNT-1, which brings TEST-0003 out of maintenance; the list tests run before it.
+
+| File | Endpoints | Tests | What they pin |
+|---|---|---|---|
+| `tests/api/repairs.test.ts` | `POST /api/assets/:tag/repair`, `GET /api/asset_repairs`, `PUT /api/asset_repairs/:id`, `PUT /api/asset_repairs/:id/status` | 36 | The list newest first (`MNT-n`, `acknowledged` false only for the two starting statuses, `Critical` for an immediate ticket; `custodian` is the reporter, see notes); the request opens "Pending TSG Review" or "Awaiting Immediate Dispatch" and leaves the asset alone; the reporter by typed name, "Dr." dropped, H-10; H-05 (a disposed asset takes a repair); M-07 on both sides (same tag and description within 8 seconds answers 409; another description, or another asset, answers 200) and the B1 note (an unknown tag sent twice answers 409, not 404); the three maintenance statuses add one MAINTENANCE record at the TSG Office, and none when already in maintenance; "Fixed & Completed" restores the status, custodian, and location from before maintenance with the new condition and files a report (default remarks and kept condition when none is sent; also on a ticket that never went into maintenance; also on the seeded ticket); H-07 (any text is saved, and "Pending TSG Review" does not take the asset out of maintenance); 400 and 404; on `/status`, H-06 and H-07 (only the ticket changes, even for "Fixed & Completed"), a status of only spaces is accepted, and H-16 (an unknown id, or one that is not a number, answers 500 with the raw Prisma message) |
+| `tests/api/inspections.test.ts` | `POST /api/assets/:tag/inspection`, `GET /api/asset-reports`, `GET /api/asset_reports` | 29 | Both lists newest first and L-07 (the hyphen list has `reportId` as a number, the email and the image; the underscore list has `RPT-n` and neither); 01C 4.2 (the reporter's email); the report under the reporter by email, else `reportedById`, else user 1 (H-10, and an unknown email wins over a valid `reportedById`); H-16 (a `reportedById` that is no account answers 500 with the raw foreign key error, and the transaction writes nothing); H-14 (the newest record keeps its id and date and takes the new condition and remarks); the condition names it maps, and PERFECT for anything else (lower case and the stored spelling "MINOR DRIFT" included); `assetCondition` as a fallback; default remarks; remarks cut to 255; any image text stored; a numeric tag as an asset id; an asset with no records gets one at "DLSU Campus"; 404 |
+| `tests/api/disposals.test.ts` | `POST /api/assets/:tag/disposal`, `GET /api/asset_disposals`, `PUT /api/asset_disposals/:id/decision` | 25 | The list newest first, any status other than approved or rejected shown as Pending (H-07 family); the request files a pending disposal and leaves the asset alone; M-13 (pathway, last custodian, target date, and justification in one text, lines left out when not sent); H-10; H-05 (an asset on loan, in maintenance, or disposed is accepted; a second pending disposal on one asset is accepted, and approving both writes two DISPOSED records); approve adds a DISPOSED record carrying the disposal id, the last custodian, the condition, and no current location, and the asset list reads the details back out of the text; an asset on loan is disposed under its borrower; reject changes nothing on the asset; 400 for a decided disposal, for `"decline"`, `"approved"`, no decision, and the `DISP-n` id; 404 |
+
+### Checks
+
+- `npm test`: 11 files, **267 tests** passed (177 before, 90 new), run twice in a row, about 21 seconds each.
+- `npm run build`: passes.
+- `npm run typecheck`: **71**, unchanged; zero errors in `tests/`.
+- The repository's `pending_registrations.json` kept its modified time across both runs (its contents were not opened). No test server was left listening.
+- No test is skipped, and none needed a retry.
+
+---
+
 ## Notes: noticed, not fixed
 
 | Note | Finding | Where it belongs |
@@ -131,3 +153,14 @@ Three test files and one setup helper, all against the HTTP API only.
 | `POST /api/assets/:tag/return` checks no state: an asset that is not on loan is accepted, and a **disposed** asset comes back as ACTIVE under user 1, so it reappears in the pool. The loan, if any, stays open (H-04) | H-05 (new case) | B2 pins it; step 12 (returns), or Phase 3 triggers |
 | `GET /api/asset_loans` (H-08) inserts LOAN-9 on the first asset in the table. With the issue #25 guard, that row then blocks borrow and transfer requests on that asset until someone decides it. The B2 test puts the database back afterwards. Already noted in the restructure log for the live database | H-08 | Step 12 (loans): delete the block |
 | The loan list shows `LOAN-n` and the transfer list `TRF-n`, but both decision routes need the bare number: `/api/asset_loans/LOAN-2/decision` answers 400. The web app sends the bare number (`decideLoan` and `decideTransfer` take it without the prefix), so nothing is broken; noted because a script or a later screen could trip on it | n/a | No action, or step 12 if the API is cleaned up |
+| `PUT /api/asset_repairs/:id/status` checks only that `progressStatus` is present, so a status of only spaces is saved. `PUT /api/asset_repairs/:id` trims it and answers 400 | H-06 family (new) | B3 pins it; step 12 (repairs), when the two routes become one |
+| Neither repair route sets `asset_records.repair_id` on the MAINTENANCE record or the record that restores the asset, although the column exists. The disposal decision does set `disposal_id`. So a maintenance record cannot be traced to its ticket | n/a (new) | B3 pins it (`repair_id: null`); step 12 (repairs) or Phase 3 |
+| `"Fixed & Completed"` adds a restore record and an `asset_reports` row whenever it is sent, even for a ticket that never went into maintenance | H-07 family (new) | B3 pins it; Phase 3 (status as an enum with allowed moves) |
+| The repair list's `custodian` field is the **reporter**, not the asset's custodian (the same value as `reportedBy`). `RepairProgressDialog` shows it as "Submitted By", so the screen is right; noted so step 12 does not "correct" it into the asset's custodian | n/a | No action |
+| `POST /api/assets/:tag/inspection` with a condition it does not know (a typo, lower case, or the stored spelling "MINOR DRIFT") saves PERFECT and writes PERFECT onto the asset, with 200. The return route answers 400 for the same input | H-07 family (new) | B3 pins it; step 12 (inspections), with the shared condition enum |
+| `POST /api/assets/:tag/inspection` with a `reportedById` that is no account answers 500 with Prisma's full message (the server's file path, source lines, and "Foreign key constraint violated"). The transaction writes nothing. An unknown `reporterEmail` instead falls back to user 1, even when a valid `reportedById` is also sent | H-16, H-10 | B3 pins both; step 12 (inspections) or step 13 (error middleware) |
+| `POST /api/assets/:tag/inspection` stores `reportImg` as sent; the image check that `PUT /api/assets/:tag` applies (400 for a non-image) is not used here | n/a (new) | B3 pins it; step 12 (inspections), reuse the asset image check |
+| `POST /api/assets/:tag/inspection` on an asset with no `asset_records` row creates one at location "DLSU Campus" with no current location, under the reporter. Like the custodian history's invented first entry, it is a made-up value | H-09 family | B3 pins it; step 12 (inspections) |
+| The disposal form's "Last Custodian" is saved inside the reason text and never shown again: the asset list's `disposalDetails.lastCustodian` is the record's custodian | M-13 family (new) | B3 pins it; Phase 3 (columns for the disposal details) |
+| Disposals have no issue #25 style guard: a second pending disposal on the same asset is accepted, and approving both writes two DISPOSED records. An asset on loan or in maintenance is also accepted, and approval disposes it under its borrower | H-05 (new cases) | B3 pins it; step 12 (disposals), or Phase 3 triggers |
+| `PUT /api/asset_repairs/:id`, the inspection route, and the disposal decision read the asset's newest record by `date_logged` alone (M-09). The B3 tests never give one asset two records in the same second where the server's choice would matter, so they do not depend on that tie; the tie itself is timing and is not tested | M-09 | Step 12 (use the `asset_record_id` tie-break everywhere) |

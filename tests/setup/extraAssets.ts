@@ -1,7 +1,7 @@
 /**
  * Adds one more fake asset in a chosen custody state, for a test that needs an asset no other test touches.
- * Layer: test setup. Called by the loan, return, and transfer test files. Calls Prisma; reads fixtures.ts.
- * Used by: the custody workflows (borrow, return, transfer), where each request changes the asset's state.
+ * Layer: test setup. Called by the loan, return, transfer, repair, inspection, and disposal test files. Calls Prisma; reads fixtures.ts.
+ * Used by: the workflows where each request changes an asset's state or its newest record.
  */
 import type { PrismaClient } from "@prisma/client";
 import { FUNDING_SOURCE, LAB, USERS } from "./fixtures";

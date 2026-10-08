@@ -702,3 +702,37 @@ Answered on 2026-10-08 (see the log, "Team decisions on step 9"): ITS is removed
 1. On your machine: `npm test` (expect 177 passed). Push the branch when it passes.
 2. Then Part B3:
 `Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B3.`
+
+---
+
+## Phase 2, API tests Part B3, 2026-10-08
+
+**Prompt followed:** [phase-2-tests/PROMPT-tests.md](phase-2-tests/PROMPT-tests.md), Part B3. Branch: `test/phase-2-api-tests`, continued from B2. Nothing pushed.
+
+### What was produced
+
+- **Repair tests** (`ab494e76`): `tests/api/repairs.test.ts` (36 tests: the repair request and its 8-second duplicate guard, the ticket list, and both update routes).
+- **Inspection and report tests** (`0e81e87b`): `tests/api/inspections.test.ts` (29 tests: the inspection report and the two report lists).
+- **Disposal tests** (`13edf79d`): `tests/api/disposals.test.ts` (25 tests: the request, the list, and the Director's decision).
+- No new setup file: the write tests use B2's `addExtraAsset` (tags `TEST-0401`, `TEST-0501`, `TEST-0601` onward). Its file header now names the B3 callers.
+- **Docs housekeeping:** the test log (status, B3 detail, 11 notes), the plan's B3 rows, the run counts and the helper line in `tests/README.md`, the status board, and this entry.
+- **Checks:** `npm test` 11 files, **267 passed**, twice in a row; build passes; **typecheck 71, unchanged** (none in `tests/`).
+
+### Key findings
+
+- **No app code changed.** All 90 new tests describe today's behavior; nothing was fixed.
+- **The inspection route turns an unknown condition into PERFECT** and writes it onto the asset with 200 (a typo, lower case, or the stored spelling "MINOR DRIFT"). The return route answers 400 for the same input. New, H-07 family.
+- **Disposals have no duplicate guard** like issue #25: a second pending disposal on one asset is accepted, and approving both writes two DISPOSED records. Assets on loan or in maintenance are accepted too (H-05).
+- **Repair records are not linked to their ticket:** neither repair route sets `asset_records.repair_id`, while the disposal decision does set `disposal_id`.
+- **H-16 in two more places:** `PUT /api/asset_repairs/:id/status` with an unknown or non-numeric id, and an inspection with a `reportedById` that is no account, answer 500 with Prisma's full message (file path and source lines included).
+- **Smaller ones**, all in the test log: `/status` accepts a status of only spaces; "Fixed & Completed" adds a record and a report even if the ticket never went into maintenance; the inspection image is not checked; the disposal form's "Last Custodian" is never shown again (M-13 family).
+
+### Open questions
+
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. On your machine: `npm test` (expect 267 passed). Push the branch when it passes.
+2. Then Part B4:
+`Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B4.`
