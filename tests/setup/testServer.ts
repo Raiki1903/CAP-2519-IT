@@ -75,7 +75,7 @@ async function waitUntilAnswering(baseUrl: string, child: ChildProcess, output: 
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
-      throw new Error(`[tests] server.ts exited during startup (code ${child.exitCode}).\n${output()}`);
+      throw new Error(`[tests] server/main.ts exited during startup (code ${child.exitCode}).\n${output()}`);
     }
     try {
       // Any HTTP answer means the server is listening. This route answers 400 without touching the database.
@@ -85,7 +85,7 @@ async function waitUntilAnswering(baseUrl: string, child: ChildProcess, output: 
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   }
-  throw new Error(`[tests] server.ts did not answer within ${STARTUP_TIMEOUT_MS / 1000} s.\n${output()}`);
+  throw new Error(`[tests] server/main.ts did not answer within ${STARTUP_TIMEOUT_MS / 1000} s.\n${output()}`);
 }
 
 /**
@@ -102,7 +102,7 @@ export async function startTestServer(config: TestDatabaseConfig): Promise<Runni
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "adric-api-test-"));
   const tsxLoader = pathToFileURL(createRequire(path.join(REPO_ROOT, "package.json")).resolve("tsx")).href;
 
-  const child = spawn(process.execPath, ["--import", tsxLoader, path.join(REPO_ROOT, "server.ts")], {
+  const child = spawn(process.execPath, ["--import", tsxLoader, path.join(REPO_ROOT, "server", "main.ts")], {
     cwd: workDir,
     env: buildServerEnv(config, port),
     stdio: ["ignore", "pipe", "pipe"],

@@ -28,7 +28,6 @@
     "server",
     "web",
     "shared",
-    "server.ts",
     "test-user.ts",
     "vite.config.ts",
     "prisma.config.ts",

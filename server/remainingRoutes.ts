@@ -1,19 +1,13 @@
 // server.ts
 import express, { Request, Response } from 'express';
-import cors from 'cors';
 import 'dotenv/config';
-import { sendEmail, emailTemplate } from './server/shared/services/mailer';
-import { prisma } from './server/config/prisma.js';
+import { sendEmail, emailTemplate } from './shared/services/mailer';
+import { prisma } from './config/prisma.js';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import type { StaffUnit } from '@shared/enums/role';
 
-const app = express();
-
-// 1. Configure Middleware
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+export const router = express.Router();
 
 // TODO: replace with the actual logged-in user's id once auth/session is wired up.
 // asset_records.current_custodian is a required FK to users.user_id — the intake
@@ -31,7 +25,7 @@ function campusForLab(lab: string): string {
 
 // Fail loudly and immediately if DEFAULT_CUSTODIAN_ID doesn't exist, instead of
 // letting every asset write crash later with an opaque FK constraint error.
-async function assertDefaultCustodianExists() {
+export async function assertDefaultCustodianExists() {
     const user = await prisma.users.findUnique({ where: { user_id: DEFAULT_CUSTODIAN_ID } });
     if (!user) {
         console.error(
@@ -46,7 +40,7 @@ async function assertDefaultCustodianExists() {
 }
 
 // 2.5 Setup GET route to fetch and map assets from the MySQL database
-app.get('/api/assets', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/assets', async (req: Request, res: Response): Promise<void> => {
     try {
         // These 9 queries are all independent (no query depends on another's
         // result — they're cross-referenced together afterward in JS), so
@@ -281,7 +275,7 @@ app.get('/api/assets', async (req: Request, res: Response): Promise<void> => {
 
 // 2.6 GET all asset_transfers directly from database with resolved Custodian-to-Lab mapping
 // 2.65 GET all asset_loans directly from database
-app.get('/api/asset_loans', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/asset_loans', async (req: Request, res: Response): Promise<void> => {
     try {
         let dbLoans = await prisma.asset_loans.findMany({
             orderBy: { loaned_on: 'desc' }
@@ -370,7 +364,7 @@ app.get('/api/asset_loans', async (req: Request, res: Response): Promise<void> =
 
 // Update asset_loan decision
 // 2.7 GET all asset_reports directly from database
-app.get('/api/asset_reports', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/asset_reports', async (req: Request, res: Response): Promise<void> => {
     try {
         const [dbReports, dbUsers, dbAssets] = await Promise.all([
             prisma.asset_reports.findMany({
@@ -404,7 +398,7 @@ app.get('/api/asset_reports', async (req: Request, res: Response): Promise<void>
 });
 
 // GET Custodian History for a specific asset (from oldest to newest)
-app.get('/api/assets/:assetTag/custodian-history', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
+router.get('/api/assets/:assetTag/custodian-history', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
     try {
         const { assetTag } = req.params;
 
@@ -496,7 +490,7 @@ function sanitizeCategory(cat: any): any {
 }
 
 // 3. Setup the endpoint the ITSDashboard intake wizard (handleSubmit) posts to
-app.post('/api/assets', async (req: Request, res: Response): Promise<void> => {
+router.post('/api/assets', async (req: Request, res: Response): Promise<void> => {
     try {
         const data = req.body;
         console.log("🚀 Server received raw payload:", data);
@@ -593,7 +587,7 @@ app.post('/api/assets', async (req: Request, res: Response): Promise<void> => {
 });
 
 // 4. Edit an existing asset (EditAssetDialog -> handleSave)
-app.put('/api/assets/:assetTag', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
+router.put('/api/assets/:assetTag', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
     try {
         const { assetTag } = req.params;
         const data = req.body;
@@ -747,7 +741,7 @@ app.put('/api/assets/:assetTag', async (req: Request<{ assetTag: string }>, res:
 });
 
 // 4.5 POST Asset Inspection Report (saves directly to asset_reports table in MySQL)
-app.post('/api/assets/:assetTag/inspection', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
+router.post('/api/assets/:assetTag/inspection', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
     try {
         const { assetTag } = req.params;
         const data = req.body;
@@ -849,7 +843,7 @@ app.post('/api/assets/:assetTag/inspection', async (req: Request<{ assetTag: str
 });
 
 // GET All Asset Inspection Reports from asset_reports table
-app.get('/api/asset-reports', async (_req: Request, res: Response): Promise<void> => {
+router.get('/api/asset-reports', async (_req: Request, res: Response): Promise<void> => {
     try {
         const dbReports = await prisma.asset_reports.findMany({
             orderBy: { report_date: "desc" },
@@ -879,7 +873,7 @@ app.get('/api/asset-reports', async (_req: Request, res: Response): Promise<void
 });
 
 // 5. Delete an asset (Delete Confirmation Dialog)
-app.delete('/api/assets/:assetTag', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
+router.delete('/api/assets/:assetTag', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
     try {
         const { assetTag } = req.params;
         console.log(`🚀 Server received delete request for ${assetTag}`);
@@ -955,7 +949,7 @@ async function findCustodyRequestConflict(
 //     untouched until the Lab Head approves via
 //     PUT /api/asset_loans/:id/decision, so the asset keeps showing under
 //     its current custodian while the request is pending.
-app.post('/api/assets/:assetTag/borrow', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
+router.post('/api/assets/:assetTag/borrow', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
     try {
         const { assetTag } = req.params;
         const data = req.body;
@@ -1013,7 +1007,7 @@ app.post('/api/assets/:assetTag/borrow', async (req: Request<{ assetTag: string 
 });
 
 // 6.5 Approve or decline a pending loan request (LabHeadDashboard -> decideLoan)
-app.put('/api/asset_loans/:loanId/decision', async (req: Request<{ loanId: string }>, res: Response): Promise<void> => {
+router.put('/api/asset_loans/:loanId/decision', async (req: Request<{ loanId: string }>, res: Response): Promise<void> => {
     try {
         const loanId = parseInt(req.params.loanId, 10);
         const { decision } = req.body as { decision?: string };
@@ -1105,7 +1099,7 @@ app.put('/api/asset_loans/:loanId/decision', async (req: Request<{ loanId: strin
 const recentRepairSubmissions = new Map<string, number>();
 const DUPLICATE_WINDOW_MS = 8000;
 
-app.post('/api/assets/:assetTag/repair', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
+router.post('/api/assets/:assetTag/repair', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
     try {
         const { assetTag } = req.params;
         const data = req.body;
@@ -1161,7 +1155,7 @@ app.post('/api/assets/:assetTag/repair', async (req: Request<{ assetTag: string 
 });
 
 // 9. Fetch all repair/maintenance requests (ITSDashboard queue)
-app.get('/api/asset_repairs', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/asset_repairs', async (req: Request, res: Response): Promise<void> => {
     try {
         const [dbRepairs, dbAssets, dbUsers] = await Promise.all([
             prisma.asset_repairs.findMany({ orderBy: { created_at: 'desc' } }),
@@ -1225,7 +1219,7 @@ const MAINTENANCE_STATUSES = ["Inspection Phase", "Warranty Holder Possession", 
 // asset_records history once the repair completes.
 const TSG_OFFICE_LOCATION = "Manila — TSG Office";
 
-app.put('/api/asset_repairs/:repairId', async (req: Request<{ repairId: string }>, res: Response): Promise<void> => {
+router.put('/api/asset_repairs/:repairId', async (req: Request<{ repairId: string }>, res: Response): Promise<void> => {
     try {
         const repairId = parseInt(req.params.repairId, 10);
         const { progressStatus, assetCondition, assetRemarks } = req.body as { progressStatus?: string; assetCondition?: string; assetRemarks?: string };
@@ -1353,7 +1347,7 @@ app.put('/api/asset_repairs/:repairId', async (req: Request<{ repairId: string }
 //     The TSG/ITS inspection comment on this form also overwrites the
 //     asset's Asset_Remarks (carried forward unchanged if no comment given).
 
-app.post('/api/assets/:assetTag/return', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
+router.post('/api/assets/:assetTag/return', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
     try {
         const { assetTag } = req.params;
         const data = req.body;
@@ -1443,7 +1437,7 @@ app.post('/api/assets/:assetTag/return', async (req: Request<{ assetTag: string 
 });
 
 // 12. Fetch all finalized returns (audit trail / verification)
-app.get('/api/asset_returns', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/asset_returns', async (req: Request, res: Response): Promise<void> => {
     try {
         const [dbReturns, dbAssets, dbUsers] = await Promise.all([
             prisma.asset_returns.findMany({ orderBy: { returned_on: 'desc' } }),
@@ -1481,7 +1475,7 @@ app.get('/api/asset_returns', async (req: Request, res: Response): Promise<void>
 //     PUT /api/asset_transfers/:id/decision. There's no Lab Head gate
 //     anymore — the person actually being asked to take on the asset (and
 //     its liability) is the one who has to say yes.
-app.post('/api/assets/:assetTag/transfer', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
+router.post('/api/assets/:assetTag/transfer', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
     try {
         const { assetTag } = req.params;
         const data = req.body;
@@ -1564,7 +1558,7 @@ app.post('/api/assets/:assetTag/transfer', async (req: Request<{ assetTag: strin
 // 14. Fetch all custodianship transfers (read-only record for Lab Heads,
 //     plus the source of "transfers awaiting my decision" for whichever
 //     custodian is the recipient)
-app.get('/api/asset_transfers', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/asset_transfers', async (req: Request, res: Response): Promise<void> => {
     try {
         const [dbTransfers, dbAssets, dbUsers, dbRecords] = await Promise.all([
             prisma.asset_transfers.findMany({ orderBy: { requested_on: 'desc' } }),
@@ -1630,7 +1624,7 @@ app.get('/api/asset_transfers', async (req: Request, res: Response): Promise<voi
 });
 
 // 15. Approve or decline a pending custodianship transfer (LabHeadDashboard -> decideTransfer)
-app.put('/api/asset_transfers/:transferId/decision', async (req: Request<{ transferId: string }>, res: Response): Promise<void> => {
+router.put('/api/asset_transfers/:transferId/decision', async (req: Request<{ transferId: string }>, res: Response): Promise<void> => {
     try {
         const transferId = parseInt(req.params.transferId, 10);
         const { decision } = req.body as { decision?: string };
@@ -1756,7 +1750,7 @@ async function getRoleEmails(roleName: string): Promise<string[]> {
 //     asset_disposals only has one free-text `disposal_reason` column (no
 //     separate columns for disposal pathway / last custodian / target date),
 //     so those are composed into one readable block rather than dropped.
-app.post('/api/assets/:assetTag/disposal', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
+router.post('/api/assets/:assetTag/disposal', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
     try {
         const { assetTag } = req.params;
         const data = req.body;
@@ -1823,7 +1817,7 @@ app.post('/api/assets/:assetTag/disposal', async (req: Request<{ assetTag: strin
 });
 
 // 17. Fetch all disposal requests (AdRICDirectorDashboard approvals queue)
-app.get('/api/asset_disposals', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/asset_disposals', async (req: Request, res: Response): Promise<void> => {
     try {
         const [dbDisposals, dbAssets, dbUsers] = await Promise.all([
             prisma.asset_disposals.findMany({ orderBy: { disposal_date: 'desc' } }),
@@ -1860,7 +1854,7 @@ app.get('/api/asset_disposals', async (req: Request, res: Response): Promise<voi
 
 // 18. Approve or reject a pending disposal request (AdRICDirectorDashboard
 //     -> Authorize Disposal / Reject & Recirculate)
-app.put('/api/asset_disposals/:disposalId/decision', async (req: Request<{ disposalId: string }>, res: Response): Promise<void> => {
+router.put('/api/asset_disposals/:disposalId/decision', async (req: Request<{ disposalId: string }>, res: Response): Promise<void> => {
     try {
         const disposalId = parseInt(req.params.disposalId, 10);
         const { decision } = req.body as { decision?: string };
@@ -1946,7 +1940,7 @@ app.put('/api/asset_disposals/:disposalId/decision', async (req: Request<{ dispo
 });
 
 // 18.5 Aggregate descriptive analytics data for the reporting dashboard
-app.get('/api/analytics/dashboard', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/dashboard', async (req: Request, res: Response): Promise<void> => {
     try {
         // Independent queries — batched to cut connection-hold time.
         const [dbAssets, dbLoans, dbRepairs, dbDisposals, dbReturns] = await Promise.all([
@@ -2197,7 +2191,7 @@ app.get('/api/analytics/dashboard', async (req: Request, res: Response): Promise
 // ===========================================================================
 
 // 1. Director: Funding Capital & Valuation Breakdown
-app.get('/api/analytics/advanced/funding-valuation', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/funding-valuation', async (req: Request, res: Response): Promise<void> => {
     try {
         const monetaries = await prisma.asset_monetary.findMany({
             select: {
@@ -2260,7 +2254,7 @@ app.get('/api/analytics/advanced/funding-valuation', async (req: Request, res: R
 });
 
 // 2. Director: Cross-Campus Transfer Flow
-app.get('/api/analytics/advanced/campus-transfer-flow', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/campus-transfer-flow', async (req: Request, res: Response): Promise<void> => {
     try {
         const usersWithCenters = await prisma.users.findMany({
             select: {
@@ -2337,7 +2331,7 @@ app.get('/api/analytics/advanced/campus-transfer-flow', async (req: Request, res
 });
 
 // 3. Director: Grant Renewal Readiness Index
-app.get('/api/analytics/advanced/grant-readiness-index', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/grant-readiness-index', async (req: Request, res: Response): Promise<void> => {
     try {
         const allProjects = await prisma.projects.findMany({
             include: {
@@ -2372,7 +2366,7 @@ app.get('/api/analytics/advanced/grant-readiness-index', async (req: Request, re
 });
 
 // 4. Director: Documentation Completeness / Compliance Analytics
-app.get('/api/analytics/compliance', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/compliance', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const monetaries = await prisma.asset_monetary.findMany({
@@ -2438,7 +2432,7 @@ app.get('/api/analytics/compliance', async (req: Request, res: Response): Promis
 });
 
 // 5. Director: Asset Utilization Justifier
-app.get('/api/analytics/stakeholder/utilization', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/stakeholder/utilization', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const assets = await prisma.assets.findMany({
@@ -2477,7 +2471,7 @@ app.get('/api/analytics/stakeholder/utilization', async (req: Request, res: Resp
 });
 
 // 6. Director: Audit Discrepancy Analyzer
-app.get('/api/analytics/stakeholder/audit-discrepancies', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/stakeholder/audit-discrepancies', async (req: Request, res: Response): Promise<void> => {
     try {
         const labFilter = req.query.lab as string | undefined;
         const monetaries = await prisma.asset_monetary.findMany({
@@ -2532,7 +2526,7 @@ app.get('/api/analytics/stakeholder/audit-discrepancies', async (req: Request, r
 });
 
 // 7. Director: Disposal & Clearance Engine
-app.get('/api/analytics/stakeholder/disposal-prescriptions', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/stakeholder/disposal-prescriptions', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const assets = await prisma.assets.findMany({
@@ -2602,7 +2596,7 @@ app.get('/api/analytics/stakeholder/disposal-prescriptions', async (req: Request
 // ===========================================================================
 
 // 8. Lab Head: Project-to-Asset Allocation
-app.get('/api/analytics/advanced/project-allocation', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/project-allocation', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const dbAssets = await prisma.assets.findMany({
@@ -2642,7 +2636,7 @@ app.get('/api/analytics/advanced/project-allocation', async (req: Request, res: 
 });
 
 // 9a. Lab Head: Asset Idle Time Analyzer (Idle Time groups)
-app.get('/api/analytics/advanced/idle-time', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/idle-time', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const dbAssets = await prisma.assets.findMany({
@@ -2699,7 +2693,7 @@ app.get('/api/analytics/advanced/idle-time', async (req: Request, res: Response)
 });
 
 // 9b. Lab Head: Asset Idle Time Analyzer (Idle Frequency Range Chart)
-app.get('/api/analytics/advanced/idle-frequency', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/idle-frequency', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const dbAssets = await prisma.assets.findMany({
@@ -2758,7 +2752,7 @@ app.get('/api/analytics/advanced/idle-frequency', async (req: Request, res: Resp
 });
 
 // 10. Lab Head: Inter-Lab Loan Recommender
-app.get('/api/analytics/advanced/loan-recommender', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/loan-recommender', async (req: Request, res: Response): Promise<void> => {
     try {
         const targetCategory = req.query.category as string | undefined;
 
@@ -2807,7 +2801,7 @@ app.get('/api/analytics/advanced/loan-recommender', async (req: Request, res: Re
 });
 
 // 11. Lab Head: Custodianship & Delinquency Tracker
-app.get('/api/analytics/delinquencies', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/delinquencies', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const now = new Date();
@@ -2855,7 +2849,7 @@ app.get('/api/analytics/delinquencies', async (req: Request, res: Response): Pro
 });
 
 // 12. Lab Head: Accountability Bottleneck Mapper
-app.get('/api/analytics/stakeholder/accountability-bottlenecks', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/stakeholder/accountability-bottlenecks', async (req: Request, res: Response): Promise<void> => {
     try {
         const labFilter = req.query.lab as string | undefined;
         const loans = await prisma.asset_loans.findMany({
@@ -2912,7 +2906,7 @@ app.get('/api/analytics/stakeholder/accountability-bottlenecks', async (req: Req
 });
 
 // 13. Lab Head: Automated Project-Closure Recall
-app.post('/api/analytics/stakeholder/project-closure-recall', async (req: Request, res: Response): Promise<void> => {
+router.post('/api/analytics/stakeholder/project-closure-recall', async (req: Request, res: Response): Promise<void> => {
     try {
         const labFilter = req.query.lab as string | undefined;
         const now = new Date();
@@ -2962,7 +2956,7 @@ app.post('/api/analytics/stakeholder/project-closure-recall', async (req: Reques
 // ===========================================================================
 
 // 14. TSG: Real-Time Location Tracking
-app.get('/api/analytics/location-status', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/location-status', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
 
@@ -3056,7 +3050,7 @@ app.get('/api/analytics/location-status', async (req: Request, res: Response): P
 });
 
 // 15. TSG: Equipment Health Trend
-app.get('/api/analytics/health-trends', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/health-trends', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const twelveMonthsAgo = new Date();
@@ -3187,7 +3181,7 @@ app.get('/api/analytics/health-trends', async (req: Request, res: Response): Pro
 });
 
 // 16. TSG: Degradation Root-Cause Tracker
-app.get('/api/analytics/stakeholder/degradation', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/stakeholder/degradation', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const assets = await prisma.assets.findMany({
@@ -3263,7 +3257,7 @@ app.get('/api/analytics/stakeholder/degradation', async (req: Request, res: Resp
 });
 
 // 16b. TSG: Degradation Tracker List for Role Dashboard
-app.get('/api/analytics/stakeholder/degradation-tracker', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/stakeholder/degradation-tracker', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const assets = await prisma.assets.findMany({
@@ -3304,7 +3298,7 @@ app.get('/api/analytics/stakeholder/degradation-tracker', async (req: Request, r
 });
 
 // 17. TSG: Preventative Maintenance Scheduler
-app.get('/api/analytics/stakeholder/preventative-schedule', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/stakeholder/preventative-schedule', async (req: Request, res: Response): Promise<void> => {
     try {
         const lab = req.query.lab as string | undefined;
         const assets = await prisma.assets.findMany({
@@ -3377,7 +3371,7 @@ app.get('/api/analytics/stakeholder/preventative-schedule', async (req: Request,
 });
 
 // 18. TSG: Warranty Expiration Calendar
-app.get('/api/analytics/advanced/warranty-calendar', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/warranty-calendar', async (req: Request, res: Response): Promise<void> => {
     try {
         const now = new Date();
         const ninetyDaysLater = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
@@ -3407,7 +3401,7 @@ app.get('/api/analytics/advanced/warranty-calendar', async (req: Request, res: R
 });
 
 // 19. TSG: MTTR & Vendor Reliability
-app.get('/api/analytics/advanced/vendor-reliability', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/vendor-reliability', async (req: Request, res: Response): Promise<void> => {
     try {
         const repairs = await prisma.asset_repairs.findMany({
             include: {
@@ -3461,7 +3455,7 @@ app.get('/api/analytics/advanced/vendor-reliability', async (req: Request, res: 
 });
 
 // 20. TSG: Staggered Routine Inspection Progress
-app.get('/api/analytics/advanced/inspection-progress', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/inspection-progress', async (req: Request, res: Response): Promise<void> => {
     try {
         const researchCenters = await prisma.research_centers.findMany({
             include: {
@@ -3499,7 +3493,7 @@ app.get('/api/analytics/advanced/inspection-progress', async (req: Request, res:
 // ===========================================================================
 
 // 21. Student: Chain of Custody Defect Isolator
-app.get('/api/analytics/stakeholder/chain-of-custody/:assetId', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/stakeholder/chain-of-custody/:assetId', async (req: Request, res: Response): Promise<void> => {
     try {
         const assetId = Number(req.params.assetId);
 
@@ -3541,7 +3535,7 @@ app.get('/api/analytics/stakeholder/chain-of-custody/:assetId', async (req: Requ
 });
 
 // 22. Student: Contextual Stewardship Prompts
-app.get('/api/analytics/stakeholder/stewardship-guidelines/:category', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/stakeholder/stewardship-guidelines/:category', async (req: Request, res: Response): Promise<void> => {
     try {
         const category = (req.params.category as string) || "DEV_KIT";
 
@@ -3560,7 +3554,7 @@ app.get('/api/analytics/stakeholder/stewardship-guidelines/:category', async (re
 });
 
 // 23. Student: Equipment Availability & Reservation Calendar
-app.get('/api/analytics/advanced/equipment-calendar', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/equipment-calendar', async (req: Request, res: Response): Promise<void> => {
     try {
         const assetId = req.query.assetId ? Number(req.query.assetId) : undefined;
 
@@ -3586,7 +3580,7 @@ app.get('/api/analytics/advanced/equipment-calendar', async (req: Request, res: 
 });
 
 // 24. Student: Borrower Stewardship Score
-app.get('/api/analytics/advanced/stewardship-score/:userId', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/advanced/stewardship-score/:userId', async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = Number(req.params.userId);
 
@@ -3649,7 +3643,7 @@ app.get('/api/analytics/advanced/stewardship-score/:userId', async (req: Request
 });
 
 // 25. Authentication: Custodian Self-Registration
-app.post('/api/auth/register', async (req: Request, res: Response): Promise<void> => {
+router.post('/api/auth/register', async (req: Request, res: Response): Promise<void> => {
     try {
         const { firstName, lastName, email, password, idNumber, userType, centerId } = req.body;
         if (!firstName || !lastName || !email || !password || !idNumber) {
@@ -3753,12 +3747,12 @@ function savePendingRegistrations(items: PendingRegItem[]) {
 let pendingRegistrationsStore: PendingRegItem[] = loadPendingRegistrations();
 
 // GET pending registration requests
-app.get('/api/auth/pending-registrations', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/auth/pending-registrations', async (req: Request, res: Response): Promise<void> => {
     res.json({ success: true, pendingRegistrations: pendingRegistrationsStore.filter(r => r.status === "PENDING") });
 });
 
 // POST submit registration request for Lab Head approval
-app.post('/api/auth/register-request', async (req: Request, res: Response): Promise<void> => {
+router.post('/api/auth/register-request', async (req: Request, res: Response): Promise<void> => {
     try {
         const { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl } = req.body;
         if (!firstName || !lastName || !email || !idNumber) {
@@ -3805,7 +3799,7 @@ app.post('/api/auth/register-request', async (req: Request, res: Response): Prom
 });
 
 // POST Lab Head Approve Registration (Writes user account to database!)
-app.post('/api/auth/approve-registration', async (req: Request, res: Response): Promise<void> => {
+router.post('/api/auth/approve-registration', async (req: Request, res: Response): Promise<void> => {
     try {
         const { requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password } = req.body;
         let targetReq = pendingRegistrationsStore.find(r => r.id === requestId);
@@ -3922,7 +3916,7 @@ app.post('/api/auth/approve-registration', async (req: Request, res: Response): 
 });
 
 // POST Authentication Login Endpoint
-app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> => {
+router.post('/api/auth/login', async (req: Request, res: Response): Promise<void> => {
     try {
         const { email, password } = req.body;
         if (!email || !password) {
@@ -3997,7 +3991,7 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> =
 });
 
 // POST Lab Head Reject Registration
-app.post('/api/auth/reject-registration', async (req: Request, res: Response): Promise<void> => {
+router.post('/api/auth/reject-registration', async (req: Request, res: Response): Promise<void> => {
     try {
         const { requestId } = req.body;
         pendingRegistrationsStore = pendingRegistrationsStore.filter(r => r.id !== requestId);
@@ -4009,7 +4003,7 @@ app.post('/api/auth/reject-registration', async (req: Request, res: Response): P
 });
 
 // GET Current User Profile Details from MySQL DB in Prisma Studio
-app.get('/api/auth/me', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/auth/me', async (req: Request, res: Response): Promise<void> => {
     try {
         const email = req.query.email as string;
         if (!email) {
@@ -4073,7 +4067,7 @@ app.get('/api/auth/me', async (req: Request, res: Response): Promise<void> => {
 });
 
 // PUT Update Account Details in MySQL DB (Prisma Studio)
-app.put('/api/auth/account', async (req: Request, res: Response): Promise<void> => {
+router.put('/api/auth/account', async (req: Request, res: Response): Promise<void> => {
     try {
         const { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = req.body;
         if (!email || !firstName || !lastName) {
@@ -4159,7 +4153,7 @@ app.put('/api/auth/account', async (req: Request, res: Response): Promise<void> 
 });
 
 // 26. 3-Way Transfer Handshake: Step 2 Destination Custodian Acceptance
-app.put('/api/asset_transfers/:transferId/accept', async (req: Request<{ transferId: string }>, res: Response): Promise<void> => {
+router.put('/api/asset_transfers/:transferId/accept', async (req: Request<{ transferId: string }>, res: Response): Promise<void> => {
     try {
         const transferId = parseInt(req.params.transferId, 10);
         const { remarks } = req.body;
@@ -4186,7 +4180,7 @@ app.put('/api/asset_transfers/:transferId/accept', async (req: Request<{ transfe
 // ==========================================
 
 // 1. Task 1: Director & Secretary Analytics (Macro & Financial View)
-app.get('/api/analytics/director', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/director', async (req: Request, res: Response): Promise<void> => {
     try {
         const labFilter = (req.query.lab as string) || "";
         const startDateParam = req.query.startDate as string;
@@ -4333,7 +4327,7 @@ app.get('/api/analytics/director', async (req: Request, res: Response): Promise<
 });
 
 // 2. Task 2: Lab Head Analytics & Decisions (Operational & Localized View - Prefix Filtered)
-app.get('/api/analytics/lab-head', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/lab-head', async (req: Request, res: Response): Promise<void> => {
     try {
         const labParam = (req.query.labPrefix as string) || (req.query.lab as string) || "CITe4D";
         const cleanPrefix = labParam.trim();
@@ -4633,7 +4627,7 @@ app.get('/api/analytics/lab-head', async (req: Request, res: Response): Promise<
 });
 
 // 3. Task 3: TSG & ITS Staff Analytics & Repairs (Maintenance & Lifecycle View)
-app.get('/api/analytics/tsg', async (req: Request, res: Response): Promise<void> => {
+router.get('/api/analytics/tsg', async (req: Request, res: Response): Promise<void> => {
     try {
         const dbRepairs = await prisma.asset_repairs.findMany({
             include: { assets: true, users: true },
@@ -4740,7 +4734,7 @@ app.get('/api/analytics/tsg', async (req: Request, res: Response): Promise<void>
     }
 });
 
-app.put('/api/asset_repairs/:repairId/status', async (req: Request<{ repairId: string }>, res: Response): Promise<void> => {
+router.put('/api/asset_repairs/:repairId/status', async (req: Request<{ repairId: string }>, res: Response): Promise<void> => {
     try {
         const repairId = parseInt(req.params.repairId, 10);
         const { progressStatus } = req.body;
@@ -4763,65 +4757,5 @@ app.put('/api/asset_repairs/:repairId/status', async (req: Request<{ repairId: s
     }
 });
 
-// 27. Automated System Database Backup
 import fs from 'fs';
 import path from 'path';
-
-async function performDatabaseBackup() {
-    try {
-        // Disabled unless BACKUP_DIR is set, and the path must be outside the repository.
-        // Writing backups into scratch/backups/ is how 113 files of personal data got
-        // committed, so there is deliberately no default. (C-01, M-19)
-        const backupDir = process.env.BACKUP_DIR;
-        if (!backupDir) {
-            console.warn("⚠️  Backup skipped: BACKUP_DIR is not set. See .env.example.");
-            return;
-        }
-        const resolvedBackupDir = path.resolve(backupDir);
-        const repoRoot = path.resolve(process.cwd());
-        if (resolvedBackupDir === repoRoot || resolvedBackupDir.startsWith(repoRoot + path.sep)) {
-            console.warn("⚠️  Backup skipped: BACKUP_DIR must be outside the repository. (C-01)");
-            return;
-        }
-        if (!fs.existsSync(backupDir)) {
-            fs.mkdirSync(backupDir, { recursive: true });
-        }
-
-        // The users table is never backed up: every row holds a plaintext password
-        // and an ID number, and these files are not access controlled. (C-01, C-03)
-        const [assetsData, transfersData, repairsData, loansData] = await Promise.all([
-            prisma.assets.findMany(),
-            prisma.asset_transfers.findMany(),
-            prisma.asset_repairs.findMany(),
-            prisma.asset_loans.findMany()
-        ]);
-
-        const backupData = {
-            timestamp: new Date().toISOString(),
-            assets: assetsData,
-            transfers: transfersData,
-            repairs: repairsData,
-            loans: loansData
-        };
-
-        const filename = `backup-${Date.now()}.json`;
-        fs.writeFileSync(path.join(backupDir, filename), JSON.stringify(backupData, null, 2));
-        console.log(`💾 Automated DB Backup completed: ${filename}`);
-    } catch (e) {
-        console.error("❌ DB Backup failed:", e);
-    }
-}
-
-// Run backup every 6 hours
-setInterval(performDatabaseBackup, 6 * 60 * 60 * 1000);
-
-// 19. Start the Application Listener
-const PORT = Number(process.env.PORT) || 4000;
-app.listen(PORT, async () => {
-    console.log(`\n==================================================`);
-    console.log(`✅ Mini-Backend API is actively listening!`);
-    console.log(`🚀 Route Ready: http://localhost:${PORT}/api/assets`);
-    console.log(`==================================================\n`);
-    await assertDefaultCustodianExists();
-    performDatabaseBackup();
-});
