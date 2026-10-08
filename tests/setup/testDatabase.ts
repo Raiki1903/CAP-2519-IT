@@ -1,6 +1,6 @@
 /**
  * Test database guard: finds TEST_DATABASE_URL and refuses anything but a local database named `*_test`.
- * Layer: test setup. Called by globalSetup.ts, db.ts, and server.ts in this folder. Calls dotenv's parser.
+ * Layer: test setup. Called by globalSetup.ts, db.ts, and testServer.ts in this folder. Calls dotenv's parser.
  * Used by: every test run, before anything connects to a database.
  */
 import fs from "node:fs";
@@ -78,8 +78,8 @@ export function parseTestDatabaseUrl(url: string): TestDatabaseConfig {
     throw new TestDatabaseRefused(`the database name must end in "_test" (got "${database}").`);
   }
 
-  // prisma.ts replaces an empty user or password with its hardcoded CCS Cloud values,
-  // so the server would log in with the wrong account. (C-07)
+  // The server will not start without a user and a password (server/config/env.ts),
+  // so refuse here first, with a message that names the real problem.
   const user = decodeURIComponent(parsed.username);
   const password = decodeURIComponent(parsed.password);
   if (!user || !password) {

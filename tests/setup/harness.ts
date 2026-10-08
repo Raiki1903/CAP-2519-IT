@@ -37,7 +37,7 @@ export interface ApiHarness {
 
 /**
  * Registers the file's setup and cleanup: before the first test, empty the test database,
- * seed the fixtures, and start server.ts; after the last test, stop it.
+ * seed the fixtures, and start the server (server/main.ts); after the last test, stop it.
  * Each file therefore starts from the same data and a server with no memory of other files
  * (the server keeps the repair duplicate guard and the sign-up list in memory).
  * Call it once, at the top of the test file.

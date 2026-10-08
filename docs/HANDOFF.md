@@ -769,3 +769,37 @@ Answered on 2026-10-08 (see the log, "Team decisions on step 9"): ITS is removed
 1. On your machine: `npm test` (expect 305 passed). Push `test/phase-2-api-tests` and open the pull request for Phase 2.
 2. After it is merged, restructure step 10, on the branch PROMPT-2 names:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 10.`
+
+---
+
+## Phase 1C, restructure step 10, 2026-10-09
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 10. Branch: `refactor/feature-based-structure`, created fresh from the PR #52 merge (`dd6db809`). Nothing pushed.
+
+### What was produced
+
+- **Moves** (`584d0c5f`, `7a40911b`, `5fd47ff0`): `prisma.ts` to `server/config/prisma.ts`, `mailer.ts` to `server/shared/services/mailer.ts`, and `server.ts` split into `server/main.ts` (startup and listen), `server/app.ts` (Express app and middleware), `server/jobs/backup.ts`, and `server/remainingRoutes.ts` (the 62 routes, unchanged, on an Express router until steps 11 and 12 take them out). `server/config/env.ts` reads `PORT`, the mail settings, and `BACKUP_DIR` with the same defaults. `npm run server`, `server:watch`, and the test harness start `server/main.ts`.
+- **One labelled behavior change** (`bd242d15`, C-07): the five `DATABASE_*` variables are required. The hardcoded CCS Cloud host, account, and password are gone from the code; a missing variable stops the server at startup with its name.
+- **Comment commit** `docs(step 10)`: headers and TSDoc for the seven server files, TODOs (C-02 CORS, M-17 body limit, H-20 email escaping, F-39 backup, H-10 default custodian), stale `server.ts` mentions fixed in comments, the root README, `tests/README.md`, and the git workflow guide.
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-10-detail): step 10 detail, 7 hand checks, three new notes, two notes updated (C-07 done, F-39 moved).
+- **Checks after every commit:** `npm test` **305 passed**; typecheck **71, unchanged**; build passes, web bundle byte-identical. `npm run server` with the real `.env` answers `GET /api/assets` with 200.
+
+### Key findings
+
+- The real `.env` on this machine has all five database variables, so the change is invisible here. A teammate whose `.env` relied on the fallbacks will see the server stop with the missing names: that is the intent, and hand check 6 covers it.
+- 17 one-off scripts in `scratch/` import the old root `prisma.ts` or `mailer.ts` and no longer run. Logged, not fixed.
+- The routes file is named `remainingRoutes.ts`, not kept as a root `server.ts`, so that `npx tsx server.ts` fails loudly instead of loading routes and exiting silently.
+
+### Open questions
+
+- Backup job (F-39): keep, extend, or delete? It moved unchanged.
+- Step 9 is merged (PR #50), but the log has no record of its 12 hand checks passing. Did they?
+
+Answered on 2026-10-09 (see the log): the backup job is deleted in its own labelled commit, in step 12 or later (recorded in PROMPT-2's decisions table). Step 9's hand checks were partly run: 1, 2, 3, 9 to 12 passed; 4 blocked and 6 failed because of issue #49 (pre-existing: a reload or typed URL logs you out), so the redirects rest on the matcher check; 5 and 7 partly checked. The step 10 hand checks passed (4 skipped, no Mailgun; 6 announced in the PR). A pre-existing bell bug (cards open a 404 for most roles) is issue #55, logged as a note.
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. Stop any running server, `npm run dev:all`, run the 7 step 10 hand checks, then push and open the pull request. Tell the team to pull and check their `.env` (hand check 6).
+2. Then **step 11** (extract loans):
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 11.`

@@ -1,5 +1,5 @@
 /**
- * Starts the real backend (server.ts) as a child process aimed at the test database, and stops it.
+ * Starts the real backend (server/main.ts) as a child process aimed at the test database, and stops it.
  * Layer: test setup. Called by harness.ts. Calls testDatabase.ts, Node's child_process, and tsx's loader.
  * Used by: every API test file, which gets its own server on its own free port.
  */
@@ -44,9 +44,9 @@ async function findFreePort(): Promise<number> {
 
 /**
  * The child's environment: the current one minus anything that could aim it elsewhere,
- * plus every value it reads set explicitly. prisma.ts falls back to CCS Cloud when any
- * DATABASE_* variable is missing (C-07), and dotenv never overrides a variable that is
- * already set, even to an empty string, so the empty values below switch mail and backups off.
+ * plus every value it reads set explicitly. dotenv never overrides a variable that is already
+ * set, even to an empty string, so these values win over the CCS Cloud ones in .env (C-07),
+ * and the empty values below switch mail and backups off.
  */
 export function buildServerEnv(config: TestDatabaseConfig, port: number): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
@@ -75,7 +75,7 @@ async function waitUntilAnswering(baseUrl: string, child: ChildProcess, output: 
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
-      throw new Error(`[tests] server.ts exited during startup (code ${child.exitCode}).\n${output()}`);
+      throw new Error(`[tests] server/main.ts exited during startup (code ${child.exitCode}).\n${output()}`);
     }
     try {
       // Any HTTP answer means the server is listening. This route answers 400 without touching the database.
@@ -85,11 +85,11 @@ async function waitUntilAnswering(baseUrl: string, child: ChildProcess, output: 
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   }
-  throw new Error(`[tests] server.ts did not answer within ${STARTUP_TIMEOUT_MS / 1000} s.\n${output()}`);
+  throw new Error(`[tests] server/main.ts did not answer within ${STARTUP_TIMEOUT_MS / 1000} s.\n${output()}`);
 }
 
 /**
- * Starts server.ts on a free port with its working directory in a new temporary folder,
+ * Starts server/main.ts on a free port with its working directory in a new temporary folder,
  * so the sign-up file it writes never lands in the repository. (H-17)
  * Run with `node --import <tsx loader>` rather than the tsx command, so there is one process to stop.
  *
@@ -102,7 +102,7 @@ export async function startTestServer(config: TestDatabaseConfig): Promise<Runni
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "adric-api-test-"));
   const tsxLoader = pathToFileURL(createRequire(path.join(REPO_ROOT, "package.json")).resolve("tsx")).href;
 
-  const child = spawn(process.execPath, ["--import", tsxLoader, path.join(REPO_ROOT, "server.ts")], {
+  const child = spawn(process.execPath, ["--import", tsxLoader, path.join(REPO_ROOT, "server", "main.ts")], {
     cwd: workDir,
     env: buildServerEnv(config, port),
     stdio: ["ignore", "pipe", "pipe"],

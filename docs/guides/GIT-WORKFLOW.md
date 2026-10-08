@@ -158,7 +158,7 @@ This repo is **public**. Treat anything pushed as public forever.
 - **Announce in the group chat before you touch a file that is being moved**, and wait for an ok. Announce again when you merge.
 - One commit per migration step, one PR per step, each independently revertible.
 - Everyone else: keep changes small, merge them fast, and pull `main` into your branch daily.
-- Until the restructure lands, avoid big edits to `server.ts`, `context.tsx`, and the four dashboard components.
+- Until the restructure lands, avoid big edits to `server/remainingRoutes.ts` (the old `server.ts`), `context.tsx`, and the four dashboard components.
 
 **Database changes (Phase 3):**
 - **One migration branch at a time.** Merge it before the next one starts.

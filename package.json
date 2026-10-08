@@ -7,8 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "server": "tsx server.ts",
-    "server:watch": "tsx watch server.ts",
+    "server": "tsx server/main.ts",
+    "server:watch": "tsx watch server/main.ts",
     "dev:all": "concurrently -n FE,API -c blue,green \"npm run dev\" \"npm run server\"",
     "seed": "tsx test-user.ts",
     "typecheck": "tsc --noEmit",
