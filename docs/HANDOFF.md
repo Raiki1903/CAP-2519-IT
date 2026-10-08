@@ -598,8 +598,10 @@ Both are fixed on their own branch after step 7, not inside the restructure.
 ### Open questions
 
 - Manual clearance holds (F-37): still waiting on the team.
-- Should `ADRIC_SECRETARY` accounts keep the Staff dashboard? (M-11; decide before step 12 moves the mapping.)
-- Should the degraded-asset reminder go back to TSG only? One condition in `NotificationCenter.tsx`.
+- Can `ADRIC_SECRETARY` approve and sign off like the Director, or only view? (Decided 2026-10-08 that it gets the Director view, on the ITS removal branch.)
+- Issue #41: who gets the "edit or delete assets with no history" right, TSG or Admin? Related to issue #19.
+
+Answered on 2026-10-08 (see the log, "Team decisions on step 9"): ITS is removed from the system on its own branch; an Admin app role comes after step 13; the TSG-only degraded reminder and the Overview landing are accepted as built; M-11 stays verified by code reading, with a Phase 2 test.
 
 ### Exact next step
 
