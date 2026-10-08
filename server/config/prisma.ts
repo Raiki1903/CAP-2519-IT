@@ -1,13 +1,13 @@
-import "dotenv/config";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@prisma/client";
+import { env } from "./env";
 
 const adapter = new PrismaMariaDb({
-    host: process.env.DATABASE_HOST || "ccscloud.dlsu.edu.ph",
-    port: Number(process.env.DATABASE_PORT) || 11572,
-    user: process.env.DATABASE_USER || "cap-2519-it",
-    password: process.env.DATABASE_PASSWORD || "admin",
-    database: process.env.DATABASE_NAME || "AdRIC_DB",
+    host: env.database.host,
+    port: env.database.port,
+    user: env.database.user,
+    password: env.database.password,
+    database: env.database.name,
     connectionLimit: 20,
     connectTimeout: 10000,
     allowPublicKeyRetrieval: true,
