@@ -45,7 +45,7 @@ These 11 endpoints in `server.ts` existed **only** for the files above. After th
 
 **Two endpoints these files used are still live and must not be touched:**
 
-- `GET /api/analytics/location-status`, also called by `TSGAnalyticsView.tsx` (the live Staff health tab).
+- `GET /api/analytics/location-status`, also called by `StaffAnalyticsView.tsx` (the live Staff health tab).
 - `GET /api/assets`, the backbone of every live screen.
 
 ## Notes worth keeping

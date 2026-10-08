@@ -2,7 +2,7 @@
  * Staff analytics: repair board, condition heatmap, warranty timeline, location status, and inspection progress widgets.
  * Layer: feature component. Called by pages/staff/HealthPage.tsx.
  * Calls: api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), api/repairs.api.ts updateRepairStatus(), state/serverData.tsx.
- * Used by: Staff (ITS and TSG).
+ * Used by: Staff.
  */
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -64,7 +64,7 @@ const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#EF4444"];
  * @param selectedLab lab to scope to, or "All Labs"
  * @param selectedCategory category to scope to, or "All Categories"
  */
-export const TSGTechnicalMaintenanceSection: React.FC<{
+export const StaffTechnicalMaintenanceSection: React.FC<{
   startDate: string;
   endDate: string;
   selectedLab: string;
@@ -82,7 +82,7 @@ export const TSGTechnicalMaintenanceSection: React.FC<{
         const res = await analyticsApi.getTsgAnalyticsRaw(params.toString());
         if (res.ok) {
           const json = await res.json();
-          console.log("📊 [TSG API Response]:", json);
+          console.log("📊 [Staff API Response]:", json);
           if (json.success) return json.data;
         }
       } catch (e) {}
@@ -681,9 +681,8 @@ export const InspectionProgressTracker: React.FC = () => {
 const LAB_OPTIONS = ["All Labs", "CITe4D", "CAR", "GAME", "CIVI", "CeHCI", "Bio", "TE3D", "CeLT", "HXIL", "CNIS"];
 const CATEGORY_OPTIONS = ["All Categories", "DEV_KIT", "MONITOR", "WORKSTATION", "ROBOTICS", "SENSOR", "NETWORKING", "ACCESSORY"];
 
-// Master TSG Dashboard Analytics View
 /** The Staff analytics screen: holds the date, lab, and category filters and lays out four widgets. Takes no props. */
-export const TSGAnalyticsView: React.FC = () => {
+export const StaffAnalyticsView: React.FC = () => {
   const [startDate, setStartDate] = React.useState<string>("");
   const [endDate, setEndDate] = React.useState<string>("");
   const [selectedLab, setSelectedLab] = React.useState<string>("All Labs");
@@ -765,7 +764,7 @@ export const TSGAnalyticsView: React.FC = () => {
         )}
       </div>
 
-      <TSGTechnicalMaintenanceSection
+      <StaffTechnicalMaintenanceSection
         startDate={startDate}
         endDate={endDate}
         selectedLab={selectedLab}
@@ -785,4 +784,4 @@ export const TSGAnalyticsView: React.FC = () => {
   );
 };
 
-export default TSGAnalyticsView;
+export default StaffAnalyticsView;

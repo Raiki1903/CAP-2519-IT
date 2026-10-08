@@ -4,7 +4,7 @@
  * Calls: the screens in web/pages/.
  * Used by: every role.
  */
-import { createBrowserRouter, Navigate } from "react-router";
+import { createBrowserRouter, Navigate, useLocation } from "react-router";
 import { RootLayout } from "./layouts/RootLayout";
 import { Login } from "@web/pages/auth/Login";
 import { Register } from "@web/pages/auth/Register";
@@ -23,8 +23,19 @@ import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
 import { NotFound } from "@web/pages/NotFound";
 
 /**
+ * Sends a pre-merge URL (`/its/...` or `/tsg/...`) to the same tab under `/staff/...`,
+ * keeping the query string and hash, so bookmarks and shared links still work.
+ * It runs outside RootLayout on purpose: inside it, RootLayout would see a URL that is
+ * not the Staff tree and send the user to their default page instead of the tab they asked for.
+ */
+function OldStaffUrlRedirect() {
+  const { pathname, search, hash } = useLocation();
+  return <Navigate to={pathname.replace(/^\/(its|tsg)(?=\/|$)/i, "/staff") + search + hash} replace />;
+}
+
+/**
  * The app's router. Login and sign-up sit outside RootLayout because they need no session.
- * Staff (ITS and TSG) have one page per tab. The Lab Head, Custodian, and Director dashboards
+ * Staff (ITS and TSG accounts alike) have one tree, `/staff/*`, with one page per tab. The Lab Head, Custodian, and Director dashboards
  * are still one component each, and the URL's last segment picks the tab through `activeTab`.
  * Which role may open which tree is decided in RootLayout, not here.
  */
@@ -37,32 +48,17 @@ export const router = createBrowserRouter([
     path: "/register",
     Component: Register,
   },
+  { path: "/its/*", Component: OldStaffUrlRedirect },
+  { path: "/tsg/*", Component: OldStaffUrlRedirect },
   {
     path: "/",
     Component: RootLayout,
     children: [
       { index: true, element: <Navigate to="/login" replace /> },
 
-      // ITS routes
+      // Staff routes
       {
-        path: "its",
-        children: [
-          { index: true, element: <Navigate to="overview" replace /> },
-          { path: "overview",    element: <OverviewPage /> },
-          { path: "register",    element: <RegisterPage /> },
-          { path: "inventory",   element: <InventoryPage /> },
-          { path: "repairs",     element: <RepairsPage /> },
-          { path: "inspections", element: <InspectionsPage /> },
-          { path: "returns",     element: <ReturnsPage /> },
-          { path: "qrtags",      element: <QrTagsPage /> },
-          { path: "health",      element: <HealthPage /> },
-          { path: "account",     element: <AccountDetailsPage /> },
-        ],
-      },
-
-      // TSG routes
-      {
-        path: "tsg",
+        path: "staff",
         children: [
           { index: true, element: <Navigate to="overview" replace /> },
           { path: "overview",    element: <OverviewPage /> },

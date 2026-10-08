@@ -222,7 +222,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
             disposalId: d.disposalId,
             assetId: d.assetId || `EQ-2024-${String(d.asset_id || 0).padStart(3, "0")}`,
             assetName: d.assetName || "Asset Scheduled for Decommissioning",
-            requestedBy: d.requestedBy || "ITS/TSG Staff",
+            requestedBy: d.requestedBy || "Staff",
             requestedAt: d.requestedAt || new Date().toISOString(),
             reason: d.reason || d.disposal_reason || "Obsolescence",
           })));

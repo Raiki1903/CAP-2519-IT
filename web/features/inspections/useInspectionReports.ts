@@ -2,7 +2,7 @@
  * Inspection reports for Staff: loads every report saved in asset_reports.
  * Layer: feature component (data hook). Called by pages/staff/InspectionsPage.tsx.
  * Calls: api/inspections.api.ts listInspectionReports().
- * Used by: Staff (ITS and TSG) inspection log.
+ * Used by: Staff inspection log.
  */
 import { useState, useEffect } from "react";
 import * as inspectionsApi from "@web/api/inspections.api";

@@ -1,8 +1,8 @@
 /**
  * Staff Register: the asset intake page.
- * Layer: page. Called by app/routes.tsx at /its/register and /tsg/register.
+ * Layer: page. Called by app/routes.tsx at /staff/register.
  * Calls: features/assets/IntakeWizard.tsx.
- * Used by: Staff (ITS and TSG) asset registration.
+ * Used by: Staff asset registration.
  */
 import { IntakeWizard } from "@web/features/assets/IntakeWizard";
 

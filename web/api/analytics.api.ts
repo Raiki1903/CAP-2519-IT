@@ -1,6 +1,6 @@
 /**
  * Analytics API: the read-only dashboard data for the three live analytics views.
- * Layer: api. Called by DirectorAnalyticsView, LabHeadAnalyticsView, and TSGAnalyticsView. Calls client.ts.
+ * Layer: api. Called by DirectorAnalyticsView, LabHeadAnalyticsView, and StaffAnalyticsView. Calls client.ts.
  * Used by: Director, Lab Head, and Staff analytics.
  */
 import { apiGet, apiGetRaw, type ApiResult } from "./client";
@@ -61,7 +61,8 @@ export function getLoanRecommenderRaw(): Promise<Response> {
 }
 
 /**
- * Loads the Staff (TSG) dashboard data.
+ * Loads the Staff analytics dashboard data. The endpoint, and so this function,
+ * still carry the `tsg` name: renaming the URL is a backend change, left for step 12.
  *
  * @param query the query string without "?", built by the caller (optionally startDate, endDate)
  * @returns the raw Response

@@ -73,8 +73,7 @@ export function RootLayout() {
           <span className="text-[9px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-500/10 px-2 py-0.5 rounded uppercase">
             {role === "AdRICDirector" ? "Director" :
              role === "Custodian" ? "Custodian" :
-             role === "ITS" ? "ITS" :
-             role === "TSG" ? "TSG" :
+             role === "Staff" ? "Staff" :
              role === "LabHead" ? "Lab Head" : role}
           </span>
           <button

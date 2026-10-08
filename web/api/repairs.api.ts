@@ -1,6 +1,6 @@
 /**
  * Repairs API: repair tickets and their progress.
- * Layer: api. Called by RepairForm, ReturnForm, useRepairTickets, TSGAnalyticsView, and state/serverData.tsx. Calls client.ts.
+ * Layer: api. Called by RepairForm, ReturnForm, useRepairTickets, StaffAnalyticsView, and state/serverData.tsx. Calls client.ts.
  * Used by: Custodian repair request, Staff repair queue and progress updates.
  */
 import { apiGet, apiPost, apiPostRaw, apiPut, apiPutRaw, type ApiResult } from "./client";

@@ -2,7 +2,7 @@
  * Intake wizard: the three-step form Staff use to register a newly acquired asset.
  * Layer: feature component. Called by pages/staff/RegisterPage.tsx.
  * Calls: api/assets.api.ts createAssetRaw(), state/serverData.tsx syncFromDb().
- * Used by: Staff (ITS and TSG) asset registration.
+ * Used by: Staff asset registration.
  */
 import { useState, useEffect } from "react";
 import { useServerData } from "@web/state/serverData";
@@ -225,7 +225,7 @@ export function IntakeWizard() {
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-bold text-foreground">TSG / ITS Comments &amp; Remarks</Label>
+              <Label className="text-xs font-bold text-foreground">Staff Comments &amp; Remarks</Label>
               <textarea
                 value={form.remarks || ""}
                 onChange={e => setForm({ ...form, remarks: e.target.value })}

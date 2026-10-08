@@ -1,8 +1,8 @@
 /**
  * Staff QR Tags: pick assets, preview their tags, and print a tag sheet.
- * Layer: page. Called by app/routes.tsx at /its/qrtags and /tsg/qrtags.
+ * Layer: page. Called by app/routes.tsx at /staff/qrtags.
  * Calls: features/assets/useStaffAssets.ts. No API: the sheet is built in the browser.
- * Used by: Staff (ITS and TSG) asset labelling.
+ * Used by: Staff asset labelling.
  */
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";

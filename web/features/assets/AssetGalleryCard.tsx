@@ -2,7 +2,7 @@
  * Asset gallery card: one asset as a picture card in the Staff inventory's gallery view.
  * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
  * Calls: features/assets/AssetImagePlaceholder.tsx and assetBadges.tsx. No API.
- * Used by: Staff (ITS and TSG) inventory.
+ * Used by: Staff inventory.
  */
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { statusBadgeClass, CONDITION_DOT_CLASS, ConditionState } from "./assetBadges";

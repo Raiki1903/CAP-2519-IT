@@ -364,7 +364,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
       syncFromDb();
 
-      // 2. Trigger repair request to TSG if critical fault or immediate inspection requested
+      // 2. Trigger repair request to Staff if critical fault or immediate inspection requested
       if (triggerRepair) {
         onRepairRequest({
           id: ref,
@@ -707,14 +707,14 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
           </div>
         </div>
         <div className="text-right">
-          <p className="text-[10px] text-muted-foreground tracking-wide">SCHEDULED BY TSG</p>
+          <p className="text-[10px] text-muted-foreground tracking-wide">SCHEDULED BY STAFF</p>
           <p className={cn("text-xs font-semibold", cycleMode === "Trimestral" ? "text-emerald-700" : "text-blue-700")}>{cycleMode === "Trimestral" ? "Every Trimester" : "Once Per Year"}</p>
         </div>
       </div>
 
       <div className="mb-5">
         <h1 className="text-foreground mb-1">Send Asset Inspection Report</h1>
-        <p className="text-muted-foreground text-sm">Submit your asset condition report for ITS &amp; TSG inspection compliance. Saves directly to <code className="text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">asset_reports</code> in the database and marks the asset as Inspected.</p>
+        <p className="text-muted-foreground text-sm">Submit your asset condition report for Staff inspection compliance. Saves directly to <code className="text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">asset_reports</code> in the database and marks the asset as Inspected.</p>
       </div>
 
       {/* Submit result */}
@@ -728,11 +728,11 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               {submitResult === "healthy" ? "Report Archived — Asset Healthy" : "Repair Request Triggered"}
             </p>
             <p className={cn("text-xs", submitResult === "healthy" ? "text-emerald-700" : "text-red-700")}>
-              {submitResult === "healthy" ? "Logged in the archival timeline. Asset card updated with green status indicator." : <>Report routed to TSG as high-priority On-Demand Repair Request. Ref: <strong>{submittedRef}</strong></>}
+              {submitResult === "healthy" ? "Logged in the archival timeline. Asset card updated with green status indicator." : <>Report routed to Staff as high-priority On-Demand Repair Request. Ref: <strong>{submittedRef}</strong></>}
             </p>
             {submitResult === "repair" && (
               <div className="w-full rounded-lg bg-red-100 border border-red-200 p-3 text-left">
-                <p className="text-[10px] font-bold text-red-700 tracking-widest mb-1">TSG ALERT DISPATCHED</p>
+                <p className="text-[10px] font-bold text-red-700 tracking-widest mb-1">STAFF ALERT DISPATCHED</p>
                 <p className="text-xs text-red-700">Status: <strong>{reportStatus}</strong></p>
                 {reportDesc && <p className="text-xs text-red-700 mt-0.5">"{reportDesc.slice(0, 80)}{reportDesc.length > 80 ? "…" : ""}"</p>}
               </div>
@@ -783,8 +783,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
             {selectedPill && (
               <div className={cn("flex items-center gap-2 p-2.5 rounded-lg mb-4 text-xs font-semibold border", isAlert ? "bg-red-50 border-red-200 text-red-700" : isWarn && descHasFault ? "bg-orange-50 border-orange-200 text-orange-700" : isWarn ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-emerald-50 border-emerald-200 text-emerald-700")}>
                 {isAlert ? <Zap size={12} /> : isWarn ? <AlertTriangle size={12} /> : <CheckCircle size={12} />}
-                {isAlert ? "REPAIR ENGINE WILL BE TRIGGERED — TSG alert on submit"
-                  : isWarn && descHasFault ? "FAULT DETECTED IN DESCRIPTION — TSG alert on submit"
+                {isAlert ? "REPAIR ENGINE WILL BE TRIGGERED — Staff alert on submit"
+                  : isWarn && descHasFault ? "FAULT DETECTED IN DESCRIPTION — Staff alert on submit"
                     : isWarn ? "Monitor status — describe issue to determine if escalation is needed"
                       : "Healthy state — will archive to timeline log"}
               </div>
@@ -843,7 +843,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                 className={cn("resize-y", triggerRepair && reportDesc ? "border-red-400 focus-visible:ring-red-300" : "")}
               />
               {triggerRepair && reportDesc && (
-                <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1"><AlertTriangle size={11} />Fault keywords detected — TSG repair request auto-generated</p>
+                <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1"><AlertTriangle size={11} />Fault keywords detected — Staff repair request auto-generated</p>
               )}
             </div>
 
@@ -867,7 +867,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               </div>
               {requestImmediate && (
                 <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-xs leading-relaxed font-semibold">
-                  WARNING: This will bypass the regular trimestral cycle and route an immediate high-priority repair request to the TSG.
+                  WARNING: This will bypass the regular trimestral cycle and route an immediate high-priority repair request to Staff.
                 </div>
               )}
             </div>
@@ -881,7 +881,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               {submitting
                 ? <><Loader size={14} className="animate-spin" />Sending Inspection Report…</>
                 : triggerRepair
-                  ? <><Zap size={14} />Send Inspection Report &amp; Trigger TSG Repair</>
+                  ? <><Zap size={14} />Send Inspection Report &amp; Trigger Staff Repair</>
                   : <><Send size={14} />Send Inspection Report</>
               }
             </Button>

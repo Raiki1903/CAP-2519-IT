@@ -2,7 +2,7 @@
  * Edit asset dialog: Staff correct an asset's registry details, status, condition, custodian, and photo.
  * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
  * Calls: api/assets.api.ts updateAssetRaw().
- * Used by: Staff (ITS and TSG) asset editing.
+ * Used by: Staff asset editing.
  */
 import { useState } from "react";
 import * as assetsApi from "@web/api/assets.api";
@@ -134,7 +134,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
           </div>
 
           <div className="flex flex-col gap-1.5 col-span-2">
-            <Label className="text-xs font-bold text-foreground">TSG / ITS Comments &amp; Remarks</Label>
+            <Label className="text-xs font-bold text-foreground">Staff Comments &amp; Remarks</Label>
             <textarea
               value={form.description}
               onChange={e => setForm({ ...form, description: e.target.value })}

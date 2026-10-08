@@ -6,6 +6,7 @@ import { sendEmail, emailTemplate } from './mailer';
 import { prisma } from './prisma.js';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
+import type { StaffUnit } from '@shared/enums/role';
 
 const app = express();
 
@@ -212,7 +213,7 @@ app.get('/api/assets', async (req: Request, res: Response): Promise<void> => {
                     id: r.report_id,
                     reportId: `RPT-${r.report_id}`,
                     assetId: asset.asset_tag,
-                    reportedBy: rUser ? `${rUser.first_name} ${rUser.last_name}` : "TSG Technical Staff",
+                    reportedBy: rUser ? `${rUser.first_name} ${rUser.last_name}` : "Staff",
                     reporterRole: rUser?.role || "Inspection Inspector",
                     reportDate: r.report_date ? formatDate(r.report_date) : "N/A",
                     date_logged: r.report_date ? formatDate(r.report_date) : "N/A",
@@ -389,7 +390,7 @@ app.get('/api/asset_reports', async (req: Request, res: Response): Promise<void>
                 asset_tag: asset?.asset_tag || `EQ-2024-${r.asset_id}`,
                 assetName: asset?.name || "Unknown Asset",
                 reported_by_id: r.reported_by_id,
-                reportedBy: rUser ? `${rUser.first_name} ${rUser.last_name}` : "TSG Technical Staff",
+                reportedBy: rUser ? `${rUser.first_name} ${rUser.last_name}` : "Staff",
                 report_date: r.report_date ? r.report_date.toISOString() : new Date().toISOString(),
                 reportDate: r.report_date ? r.report_date.toISOString() : new Date().toISOString(),
                 condition: r.report_condition,
@@ -1810,7 +1811,7 @@ app.post('/api/assets/:assetTag/disposal', async (req: Request<{ assetTag: strin
             emails,
             `New Disposal Request — ${existing.name} (${assetTag})`,
             emailTemplate("New Disposal Approval Request", `
-                <p><strong>${data.requestedBy || "ITS/TSG staff"}</strong> has requested to decommission <strong>${existing.name}</strong> (${assetTag}).</p>
+                <p><strong>${data.requestedBy || "Staff"}</strong> has requested to decommission <strong>${existing.name}</strong> (${assetTag}).</p>
                 <p><strong>Disposal Pathway:</strong> ${data.disposalPathway}</p>
                 <p>Please review this request in the Clearance & Disposal tab of your dashboard.</p>
             `)
@@ -3955,12 +3956,18 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> =
 
         const roles = user.user_roles || [];
         let determinedRole = "Custodian";
+        let staffUnit: StaffUnit | null = null;
         if (roles.some(ur => ur.roles?.role_name === "ADMIN" || ur.roles?.role_name === "ADRIC_SECRETARY")) {
-            determinedRole = "ITS";
+            determinedRole = "Staff";
+            staffUnit = "ITS";
         } else if (roles.some(ur => ur.roles?.role_name === "ADRIC_DIRECTOR")) {
             determinedRole = "AdRICDirector";
+        } else if (roles.some(ur => ur.roles?.role_name === "ITS_STAFF")) {
+            determinedRole = "Staff";
+            staffUnit = "ITS";
         } else if (roles.some(ur => ur.roles?.role_name === "TSG_STAFF")) {
-            determinedRole = "TSG";
+            determinedRole = "Staff";
+            staffUnit = "TSG";
         } else if (roles.some(ur => ur.roles?.role_name === "LAB_HEAD")) {
             determinedRole = "LabHead";
         }
@@ -3979,7 +3986,8 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> =
                 userType: user.user_type,
                 userImg: user.user_img,
                 profilePicture: user.user_img,
-                labAffiliation: primaryCenter
+                labAffiliation: primaryCenter,
+                staffUnit
             }
         });
     } catch (error: any) {
@@ -4024,12 +4032,18 @@ app.get('/api/auth/me', async (req: Request, res: Response): Promise<void> => {
 
         const roles = user.user_roles || [];
         let determinedRole = "Custodian";
+        let staffUnit: StaffUnit | null = null;
         if (roles.some(ur => ur.roles?.role_name === "ADMIN" || ur.roles?.role_name === "ADRIC_SECRETARY")) {
-            determinedRole = "ITS";
+            determinedRole = "Staff";
+            staffUnit = "ITS";
         } else if (roles.some(ur => ur.roles?.role_name === "ADRIC_DIRECTOR")) {
             determinedRole = "AdRICDirector";
+        } else if (roles.some(ur => ur.roles?.role_name === "ITS_STAFF")) {
+            determinedRole = "Staff";
+            staffUnit = "ITS";
         } else if (roles.some(ur => ur.roles?.role_name === "TSG_STAFF")) {
-            determinedRole = "TSG";
+            determinedRole = "Staff";
+            staffUnit = "TSG";
         } else if (roles.some(ur => ur.roles?.role_name === "LAB_HEAD")) {
             determinedRole = "LabHead";
         }
@@ -4048,7 +4062,8 @@ app.get('/api/auth/me', async (req: Request, res: Response): Promise<void> => {
                 userImg: user.user_img,
                 profilePicture: user.user_img,
                 labAffiliation: primaryCenter,
-                role: determinedRole
+                role: determinedRole,
+                staffUnit
             }
         });
     } catch (error: any) {
@@ -4629,7 +4644,7 @@ app.get('/api/analytics/tsg', async (req: Request, res: Response): Promise<void>
             repairId: r.repair_id,
             assetId: r.assets?.asset_tag || `ASSET-${r.asset_id}`,
             assetName: r.assets?.name || "Equipment",
-            reportedBy: r.users ? `${r.users.first_name} ${r.users.last_name}` : "TSG Staff",
+            reportedBy: r.users ? `${r.users.first_name} ${r.users.last_name}` : "Staff",
             issueDescription: r.issue_description,
             isImmediate: r.is_immediate,
             progressStatus: r.progress_status || "Reported",

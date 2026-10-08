@@ -166,11 +166,13 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
       assetName: asset.name,
       custodian: asset.custodian || "Unassigned",
       statusLabel: "Under Maintenance",
-      description: `Flagged for immediate maintenance and component servicing by ${role}.`,
+      description: `Flagged for immediate maintenance and component servicing by ${currentUser?.staffUnit ?? role}.`,
       submittedAt: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
       priority: "High",
       acknowledged: true,
-      forwardedTo: role === "ITS" ? "ITS" : "TSG"
+      // A Staff account forwards to its own unit. The server does not store forwardedTo yet,
+      // so the unit named in the description above is the only lasting record of it.
+      forwardedTo: currentUser?.staffUnit === "ITS" ? "ITS" : "TSG"
     });
     resetAndClose();
   };
@@ -356,9 +358,9 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         </div>
                       )}
 
-                      {/* TSG & ITS Technical Service Remarks */}
+                      {/* Staff technical service remarks */}
                       <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                        <p className="text-[10px] font-extrabold text-slate-700 tracking-[1.5px] uppercase">TSG &amp; ITS Service Remarks</p>
+                        <p className="text-[10px] font-extrabold text-slate-700 tracking-[1.5px] uppercase">Staff Service Remarks</p>
                         <p className="text-xs text-slate-600 leading-relaxed italic bg-white p-2.5 rounded-lg border border-slate-100">
                           {(asset as any).remarks || asset.tsgRemarks || asset.itsRemarks || asset.description || "Hardware inspected & verified operational. Routine diagnostic check completed with no outstanding hardware faults."}
                         </p>
@@ -386,7 +388,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 <span className="text-[10px] text-slate-400">{priorHistoryEntry?.dateLogged || "—"}</span>
                               </div>
                               <div className="flex justify-between items-center py-1">
-                                <span>Original Intake: <strong>{originalHistoryEntry?.custodianName || "ITS Tagging Registry"}</strong></span>
+                                <span>Original Intake: <strong>{originalHistoryEntry?.custodianName || "Staff Tagging Registry"}</strong></span>
                                 <span className="text-[10px] text-slate-400">{originalHistoryEntry?.dateLogged || asset.procured || "—"}</span>
                               </div>
                             </>
@@ -395,12 +397,12 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       </details>
 
                       {/* ── Action panel conditional rendering ── */}
-                      {asset.status !== "Disposed" && (role === "TSG" || role === "Custodian" || role === "LabHead" || role === "ITS") && (
+                      {asset.status !== "Disposed" && (role === "Staff" || role === "Custodian" || role === "LabHead") && (
                         <>
                           <Separator className="mb-4" />
 
-                          {/* QR Tag for TSG / ITS */}
-                          {(role === "TSG" || role === "ITS") && (
+                          {/* QR tag, Staff only */}
+                          {role === "Staff" && (
                             <div className="flex items-center gap-4 bg-muted/40 border border-dashed rounded-xl p-3 shadow-sm mb-4">
                               <div className="bg-white p-1 rounded-lg border flex-shrink-0 shadow-sm">
                                 <QRCodeSVG
@@ -473,8 +475,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                   </motion.div>
                                 )}
 
-                                {/* TSG/ITS direct maintenance */}
-                                {(role === "TSG" || role === "ITS") && (
+                                {/* Staff direct maintenance */}
+                                {role === "Staff" && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       variant="outline"
@@ -498,7 +500,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 <div>
                                   <p className="text-xs font-bold text-amber-800">Asset Under Maintenance</p>
                                   <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
-                                    TSG is currently servicing this unit. Custodianship transfer, repair requests, and returns are unavailable until maintenance is completed and the asset is handed back.
+                                    Staff are currently servicing this unit. Custodianship transfer, repair requests, and returns are unavailable until maintenance is completed and the asset is handed back.
                                   </p>
                                 </div>
                               </div>
@@ -544,7 +546,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 )}
 
                                 {/* 2b — Direct Send to Maintenance */}
-                                {(role === "TSG" || role === "ITS") && (
+                                {role === "Staff" && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       variant="outline"

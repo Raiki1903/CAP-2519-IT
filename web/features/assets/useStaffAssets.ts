@@ -3,7 +3,7 @@
  * Layer: feature component (data hook). Called by the pages in pages/staff/ that show assets
  * (Overview, Inventory, Inspections, Returns, QR Tags).
  * Calls: api/assets.api.ts listAssets(), state/serverData.tsx (the shared asset list).
- * Used by: Staff (ITS and TSG).
+ * Used by: Staff.
  */
 import { useState, useEffect } from "react";
 import { useServerData } from "@web/state/serverData";

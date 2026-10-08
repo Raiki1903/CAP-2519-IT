@@ -2,7 +2,7 @@
  * Repair tickets for Staff: loads them, shapes them for the Staff screens, and saves progress.
  * Layer: feature component (data hook). Called by pages/staff/OverviewPage.tsx and RepairsPage.tsx.
  * Calls: api/repairs.api.ts listRepairs() and updateRepair(), state/serverData.tsx (fallback actions).
- * Used by: Staff (ITS and TSG) repair handling.
+ * Used by: Staff repair handling.
  */
 import { useState, useEffect } from "react";
 import { useServerData } from "@web/state/serverData";

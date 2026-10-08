@@ -111,7 +111,7 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
   const pipelineSteps: PipelineStep[] = [
     { label: "Request Lodged", sublabel: "Custodian signature", status: submitted ? "done" : "active" },
     { label: "Lab Head Approval", sublabel: "Digital handshake auth", status: submitted ? "active" : "pending" },
-    { label: "TSG Verification", sublabel: "Asset check-out complete", status: "pending" },
+    { label: "Staff Verification", sublabel: "Asset check-out complete", status: "pending" },
   ];
 
   const canSubmit = borrower && selectedLab && purpose && dueDate;

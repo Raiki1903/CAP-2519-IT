@@ -113,7 +113,7 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
 
   const pipelineSteps: PipelineStep[] = [
     { label: "Lab Head Validation", sublabel: "Priority classification", status: "active" },
-    { label: "TSG Core Assignment", sublabel: "Technician dispatch", status: "pending" },
+    { label: "Staff Assignment", sublabel: "Technician dispatch", status: "pending" },
     { label: "ITS Central Override", sublabel: "Conditional if required", status: "pending" },
   ];
 
@@ -163,12 +163,12 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
               Incident Logged
             </h3>
             <p className="text-sm text-muted-foreground">
-              Repair request queued. TSG technician will be assigned shortly.
+              Repair request queued. A Staff technician will be assigned shortly.
             </p>
           </div>
           {submitError && (
             <div className="w-full rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs px-3 py-2 text-left">
-              Logged locally, but couldn't reach the ITS database: {submitError}
+              Logged locally, but couldn't reach the database: {submitError}
             </div>
           )}
           <div className="w-full rounded-xl bg-[#F3F4F6] border border-border p-4 text-left space-y-2">

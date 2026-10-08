@@ -1,11 +1,11 @@
 /**
  * Staff Health: the Staff analytics view, and a benchmark grid for component health.
- * Layer: page. Called by app/routes.tsx at /its/health and /tsg/health.
- * Calls: features/analytics/staff/TSGAnalyticsView.tsx. The benchmark grid calls nothing.
- * Used by: Staff (ITS and TSG).
+ * Layer: page. Called by app/routes.tsx at /staff/health.
+ * Calls: features/analytics/staff/StaffAnalyticsView.tsx. The benchmark grid calls nothing.
+ * Used by: Staff.
  */
 import { useState } from "react";
-import TSGAnalyticsView from "@web/features/analytics/staff/TSGAnalyticsView";
+import StaffAnalyticsView from "@web/features/analytics/staff/StaffAnalyticsView";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
@@ -21,7 +21,7 @@ function MetricBar({ value, color }: { value: number; color: string }) {
   return <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-1 w-12"><div className={cn("h-full rounded-full", color)} style={{ width: `${Math.min(100, value)}%` }} /></div>;
 }
 
-/** Switches between Advanced Analytics (the default, TSGAnalyticsView) and the benchmark grid. Takes no props. */
+/** Switches between Advanced Analytics (the default, StaffAnalyticsView) and the benchmark grid. Takes no props. */
 export function HealthPage() {
   const [healthEdits, setHealthEdits] = useState<Record<string, Record<string, string>>>({});
   const [showAdvancedAnalytics, setShowAdvancedAnalytics] = useState(true);
@@ -32,7 +32,7 @@ export function HealthPage() {
         <div>
           <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
             <Wrench className="w-6 h-6 text-[#005A36]" />
-            {showAdvancedAnalytics ? "TSG Maintenance & Workflows Dashboard" : "Numeric Health Benchmarking Grid"}
+            {showAdvancedAnalytics ? "Staff Maintenance & Workflows Dashboard" : "Numeric Health Benchmarking Grid"}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             {showAdvancedAnalytics
@@ -68,7 +68,7 @@ export function HealthPage() {
       </div>
 
       {showAdvancedAnalytics ? (
-        <TSGAnalyticsView />
+        <StaffAnalyticsView />
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-5">

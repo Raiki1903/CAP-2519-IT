@@ -1,8 +1,8 @@
 /**
  * Staff Repairs: the active repair tickets by priority, and the completed ones.
- * Layer: page. Called by app/routes.tsx at /its/repairs and /tsg/repairs.
+ * Layer: page. Called by app/routes.tsx at /staff/repairs.
  * Calls: features/repairs/useRepairTickets.ts and RepairProgressDialog.tsx.
- * Used by: Staff (ITS and TSG) repair handling.
+ * Used by: Staff repair handling.
  */
 import { useState } from "react";
 import { useRepairTickets } from "@web/features/repairs/useRepairTickets";

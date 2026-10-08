@@ -33,23 +33,9 @@ const roleConfig: Record<Role, {
   subtitle: string;
   nav: { id: string; label: string; icon: React.ElementType }[];
 }> = {
-  ITS: {
-    label: "Information Technology Services",
-    subtitle: "ITS · System Administration",
-    nav: [
-      { id: "overview",    label: "System Overview",      icon: Monitor       },
-      { id: "register",    label: "Register Equipment",   icon: Package       },
-      { id: "inventory",   label: "Asset Inventory",      icon: ClipboardList },
-      { id: "repairs",     label: "Repair Manager",       icon: Wrench        },
-      { id: "inspections", label: "Inspection Manager",   icon: ClipboardCheck },
-      { id: "returns",     label: "Pending Returns",       icon: ClipboardList },
-      { id: "qrtags",      label: "QR Tag Wizard",         icon: QrCode        },
-      { id: "health",      label: "Health Benchmarking",   icon: BarChart3     },
-    ],
-  },
-  TSG: {
-    label: "Technical Support Group",
-    subtitle: "TSG · Asset Maintenance",
+  Staff: {
+    label: "Staff",
+    subtitle: "Asset Administration & Maintenance",
     nav: [
       { id: "overview",    label: "System Overview",      icon: Monitor       },
       { id: "register",    label: "Register Equipment",   icon: Package       },
@@ -240,8 +226,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                   <p className="text-[9px] text-[#34D399] truncate font-semibold">
                     {role === "AdRICDirector" ? "AdRIC Director" :
                      role === "Custodian" ? "Active Custodian" :
-                     role === "ITS" ? "ITS Admin" :
-                     role === "TSG" ? "TSG Staff" :
+                     role === "Staff" ? (currentUser?.staffUnit ? `Staff (${currentUser.staffUnit})` : "Staff") :
                      role === "LabHead" ? "Lab Head" : role}
                   </p>
                 </div>
@@ -276,8 +261,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                   <p className="text-[10px] text-muted-foreground">
                     {role === "AdRICDirector" ? "AdRIC Director" :
                      role === "Custodian" ? "Active Custodian" :
-                     role === "ITS" ? "ITS Admin" :
-                     role === "TSG" ? "TSG Staff" :
+                     role === "Staff" ? (currentUser?.staffUnit ? `Staff (${currentUser.staffUnit})` : "Staff") :
                      role === "LabHead" ? "Lab Head" : role}
                   </p>
                   <p className="text-[9px] text-emerald-400 mt-1 uppercase tracking-wider font-extrabold">Active Session (Click to Edit)</p>

@@ -1,6 +1,6 @@
 /**
  * Assets API: the asset registry calls (list, history, create, edit, delete).
- * Layer: api. Called by the four role dashboards, AssetDetailModal, TSGAnalyticsView, and state/serverData.tsx. Calls client.ts.
+ * Layer: api. Called by the four role dashboards, AssetDetailModal, StaffAnalyticsView, and state/serverData.tsx. Calls client.ts.
  * Used by: every role's inventory view, Staff asset registration and editing.
  */
 import { apiDelete, apiGet, apiGetRaw, apiPostRaw, apiPutRaw, type ApiResult } from "./client";
@@ -17,7 +17,7 @@ export function listAssets(): Promise<ApiResult> {
 
 /**
  * Same request as `listAssets`, but returns the untouched Response.
- * For TSGAnalyticsView, which checks `res.ok` before parsing.
+ * For StaffAnalyticsView, which checks `res.ok` before parsing.
  *
  * @returns the raw Response; the caller checks the status and parses it
  */

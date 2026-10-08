@@ -2,7 +2,7 @@
  * Repair progress dialog: Staff move a repair ticket through its stages and, when it is fixed, record the asset's condition.
  * Layer: feature component. Called by pages/staff/RepairsPage.tsx.
  * Calls nothing itself: the save goes through the onSave prop (useRepairTickets' handleUpdateRepairStatus).
- * Used by: Staff (ITS and TSG) repair handling.
+ * Used by: Staff repair handling.
  */
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
@@ -96,7 +96,7 @@ export function RepairProgressDialog({ ticket, onClose, onSave }: { ticket: any;
               <p><strong className="text-foreground">Ticket Ref:</strong> {ticket.id}</p>
               <p><strong className="text-foreground">Asset:</strong> {ticket.assetName} ({ticket.assetId})</p>
               <p><strong className="text-foreground">Submitted By:</strong> {ticket.custodian} on {ticket.submittedAt}</p>
-              <p><strong className="text-foreground">Dispatched To:</strong> {ticket.forwardedTo || "ITS/TSG"}</p>
+              <p><strong className="text-foreground">Dispatched To:</strong> {ticket.forwardedTo || "Staff"}</p>
               <p><strong className="text-foreground">Urgency Priority:</strong> <span className={cn("font-bold", ticket.priority === "Critical" ? "text-red-700" : "text-amber-700")}>{ticket.priority}</span></p>
             </div>
 
