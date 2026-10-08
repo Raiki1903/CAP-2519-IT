@@ -683,7 +683,7 @@ const CATEGORY_OPTIONS = ["All Categories", "DEV_KIT", "MONITOR", "WORKSTATION",
 
 // Master TSG Dashboard Analytics View
 /** The Staff analytics screen: holds the date, lab, and category filters and lays out four widgets. Takes no props. */
-export const TSGAnalyticsView: React.FC = () => {
+export const StaffAnalyticsView: React.FC = () => {
   const [startDate, setStartDate] = React.useState<string>("");
   const [endDate, setEndDate] = React.useState<string>("");
   const [selectedLab, setSelectedLab] = React.useState<string>("All Labs");
@@ -785,4 +785,4 @@ export const TSGAnalyticsView: React.FC = () => {
   );
 };
 
-export default TSGAnalyticsView;
+export default StaffAnalyticsView;

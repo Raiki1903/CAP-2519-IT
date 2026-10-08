@@ -1,6 +1,6 @@
 /**
  * Analytics API: the read-only dashboard data for the three live analytics views.
- * Layer: api. Called by DirectorAnalyticsView, LabHeadAnalyticsView, and TSGAnalyticsView. Calls client.ts.
+ * Layer: api. Called by DirectorAnalyticsView, LabHeadAnalyticsView, and StaffAnalyticsView. Calls client.ts.
  * Used by: Director, Lab Head, and Staff analytics.
  */
 import { apiGet, apiGetRaw, type ApiResult } from "./client";
