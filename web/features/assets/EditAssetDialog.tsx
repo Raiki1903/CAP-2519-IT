@@ -134,7 +134,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
           </div>
 
           <div className="flex flex-col gap-1.5 col-span-2">
-            <Label className="text-xs font-bold text-foreground">TSG / ITS Comments &amp; Remarks</Label>
+            <Label className="text-xs font-bold text-foreground">Staff Comments &amp; Remarks</Label>
             <textarea
               value={form.description}
               onChange={e => setForm({ ...form, description: e.target.value })}

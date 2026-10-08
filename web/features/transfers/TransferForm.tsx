@@ -111,7 +111,7 @@ export function TransferForm({ asset, onBack, onClose }: Props) {
   const pipelineSteps: PipelineStep[] = [
     { label: "Current Owner Sign-off", sublabel: "Custodian confirmation", status: submitted ? "done" : "active" },
     { label: "Lab Head Approval", sublabel: "Digital handshake auth", status: submitted ? "active" : "pending" },
-    { label: "TSG Log Verification", sublabel: "Registry update", status: "pending" },
+    { label: "Staff Log Verification", sublabel: "Registry update", status: "pending" },
   ];
 
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail);

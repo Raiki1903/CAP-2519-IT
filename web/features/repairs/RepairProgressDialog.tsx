@@ -96,7 +96,7 @@ export function RepairProgressDialog({ ticket, onClose, onSave }: { ticket: any;
               <p><strong className="text-foreground">Ticket Ref:</strong> {ticket.id}</p>
               <p><strong className="text-foreground">Asset:</strong> {ticket.assetName} ({ticket.assetId})</p>
               <p><strong className="text-foreground">Submitted By:</strong> {ticket.custodian} on {ticket.submittedAt}</p>
-              <p><strong className="text-foreground">Dispatched To:</strong> {ticket.forwardedTo || "ITS/TSG"}</p>
+              <p><strong className="text-foreground">Dispatched To:</strong> {ticket.forwardedTo || "Staff"}</p>
               <p><strong className="text-foreground">Urgency Priority:</strong> <span className={cn("font-bold", ticket.priority === "Critical" ? "text-red-700" : "text-amber-700")}>{ticket.priority}</span></p>
             </div>
 

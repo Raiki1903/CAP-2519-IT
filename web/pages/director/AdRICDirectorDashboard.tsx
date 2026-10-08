@@ -173,7 +173,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     csvContent += `Report ID,Inspector,Date Logged,Condition / Status,Remarks\n`;
     if (assetReports.length > 0) {
       assetReports.forEach((rpt: any) => {
-        csvContent += `"${rpt.reportId || rpt.id || ""}","${(rpt.reportedBy || rpt.inspector || "TSG Technical Staff").replace(/"/g, '""')}","${rpt.reportDate || rpt.date_logged || rpt.date || "N/A"}","${rpt.condition || rpt.status || "VERIFIED"}","${(rpt.remarks || rpt.description || rpt.notes || "").replace(/"/g, '""')}"\n`;
+        csvContent += `"${rpt.reportId || rpt.id || ""}","${(rpt.reportedBy || rpt.inspector || "Staff").replace(/"/g, '""')}","${rpt.reportDate || rpt.date_logged || rpt.date || "N/A"}","${rpt.condition || rpt.status || "VERIFIED"}","${(rpt.remarks || rpt.description || rpt.notes || "").replace(/"/g, '""')}"\n`;
       });
     } else {
       csvContent += `No physical routine inspections logged.\n`;
@@ -514,7 +514,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-muted-foreground">
-              Assets scheduled for decommissioning by ITS/TSG cannot be purged without the Director's authorized sign-off.
+              Assets scheduled for decommissioning by Staff cannot be purged without the Director's authorized sign-off.
             </p>
 
             {loadingDbDisposals && pendingDisposals.length === 0 && (
@@ -944,7 +944,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                         <div key={rpt.id || rpt.reportId || idx} className="p-3 bg-muted/30 border border-border rounded-lg text-xs flex justify-between items-center shadow-2xs">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-foreground">{rpt.reportedBy || rpt.inspector || "TSG Technical Staff"}</span>
+                              <span className="font-bold text-foreground">{rpt.reportedBy || rpt.inspector || "Staff"}</span>
                               <span className="text-[10px] text-muted-foreground font-mono">({rpt.reportDate || rpt.date_logged || rpt.date || "N/A"})</span>
                             </div>
                             <p className="text-[11px] text-muted-foreground">{rpt.remarks || rpt.description || rpt.notes || "Routine physical inspection logged."}</p>

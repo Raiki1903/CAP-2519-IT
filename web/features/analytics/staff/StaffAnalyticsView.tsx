@@ -82,7 +82,7 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
         const res = await analyticsApi.getTsgAnalyticsRaw(params.toString());
         if (res.ok) {
           const json = await res.json();
-          console.log("📊 [TSG API Response]:", json);
+          console.log("📊 [Staff API Response]:", json);
           if (json.success) return json.data;
         }
       } catch (e) {}

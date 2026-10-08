@@ -225,7 +225,7 @@ export function IntakeWizard() {
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-bold text-foreground">TSG / ITS Comments &amp; Remarks</Label>
+              <Label className="text-xs font-bold text-foreground">Staff Comments &amp; Remarks</Label>
               <textarea
                 value={form.remarks || ""}
                 onChange={e => setForm({ ...form, remarks: e.target.value })}

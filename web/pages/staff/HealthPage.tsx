@@ -32,7 +32,7 @@ export function HealthPage() {
         <div>
           <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
             <Wrench className="w-6 h-6 text-[#005A36]" />
-            {showAdvancedAnalytics ? "TSG Maintenance & Workflows Dashboard" : "Numeric Health Benchmarking Grid"}
+            {showAdvancedAnalytics ? "Staff Maintenance & Workflows Dashboard" : "Numeric Health Benchmarking Grid"}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             {showAdvancedAnalytics

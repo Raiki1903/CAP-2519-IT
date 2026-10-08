@@ -358,7 +358,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
 
                       {/* TSG & ITS Technical Service Remarks */}
                       <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                        <p className="text-[10px] font-extrabold text-slate-700 tracking-[1.5px] uppercase">TSG &amp; ITS Service Remarks</p>
+                        <p className="text-[10px] font-extrabold text-slate-700 tracking-[1.5px] uppercase">Staff Service Remarks</p>
                         <p className="text-xs text-slate-600 leading-relaxed italic bg-white p-2.5 rounded-lg border border-slate-100">
                           {(asset as any).remarks || asset.tsgRemarks || asset.itsRemarks || asset.description || "Hardware inspected & verified operational. Routine diagnostic check completed with no outstanding hardware faults."}
                         </p>
@@ -386,7 +386,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 <span className="text-[10px] text-slate-400">{priorHistoryEntry?.dateLogged || "—"}</span>
                               </div>
                               <div className="flex justify-between items-center py-1">
-                                <span>Original Intake: <strong>{originalHistoryEntry?.custodianName || "ITS Tagging Registry"}</strong></span>
+                                <span>Original Intake: <strong>{originalHistoryEntry?.custodianName || "Staff Tagging Registry"}</strong></span>
                                 <span className="text-[10px] text-slate-400">{originalHistoryEntry?.dateLogged || asset.procured || "—"}</span>
                               </div>
                             </>
@@ -498,7 +498,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 <div>
                                   <p className="text-xs font-bold text-amber-800">Asset Under Maintenance</p>
                                   <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
-                                    TSG is currently servicing this unit. Custodianship transfer, repair requests, and returns are unavailable until maintenance is completed and the asset is handed back.
+                                    Staff are currently servicing this unit. Custodianship transfer, repair requests, and returns are unavailable until maintenance is completed and the asset is handed back.
                                   </p>
                                 </div>
                               </div>

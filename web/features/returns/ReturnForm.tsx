@@ -167,15 +167,15 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
             </h3>
             <p className="text-sm text-muted-foreground">
               {isCustodian
-                ? "Return request submitted. Please hand over the physical device to TSG."
+                ? "Return request submitted. Please hand over the physical device to Staff."
                 : "Asset return has been finalized and registry status set to Available."}
             </p>
           </div>
           {submitError && (
             <div className="w-full rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs px-3 py-2 text-left">
               {isCustodian
-                ? <>Return logged locally, but the repair ticket couldn't reach the ITS database: {submitError}</>
-                : <>Logged locally, but couldn't reach the ITS database to finalize this return: {submitError}</>}
+                ? <>Return logged locally, but the repair ticket couldn't reach the database: {submitError}</>
+                : <>Logged locally, but couldn't reach the database to finalize this return: {submitError}</>}
             </div>
           )}
           <div className="w-full rounded-xl bg-[#F3F4F6] border border-border p-4 text-left space-y-2">
@@ -305,7 +305,7 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
                     Flag for Repair Assessment
                   </p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Notifies ITS/TSG the device needs inspection — logs a repair ticket using the comments above, alongside this return.
+                    Notifies Staff the device needs inspection — logs a repair ticket using the comments above, alongside this return.
                   </p>
                 </div>
                 <Switch
@@ -354,7 +354,7 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
               {/* TSG Inspection Result */}
               <div className="flex flex-col gap-1.5">
                 <Label className="text-[10px] font-extrabold tracking-[1.5px] text-muted-foreground uppercase flex items-center gap-1.5">
-                  <ClipboardCheck size={10} /> TSG Inspection Notes
+                  <ClipboardCheck size={10} /> Staff Inspection Notes
                 </Label>
                 <textarea
                   value={inspection}

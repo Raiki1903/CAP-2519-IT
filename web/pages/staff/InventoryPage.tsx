@@ -51,7 +51,7 @@ export function InventoryPage() {
     category: eq.category, funding: eq.funding, procured: eq.procured,
     warranty: eq.warranty, location: eq.location, currentLocation: eq.currentLocation, lab: eq.lab,
     status: eq.status, condition: eq.condition, assetCondition: eq.assetCondition, custodian: eq.custodian,
-    description: eq.description || eq.remarks || "No additional TSG/ITS remarks recorded.",
+    description: eq.description || eq.remarks || "No additional Staff remarks recorded.",
     image: eq.image || eq.image_url,
     disposalId: eq.disposalId,
     disposalDetails: eq.disposalDetails
@@ -242,7 +242,7 @@ export function InventoryPage() {
           key={disposalAsset.id}
           asset={disposalAsset}
           onClose={() => setDisposalAsset(null)}
-          requestedBy={currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "ITS Staff"}
+          requestedBy={currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Staff"}
           onSubmitted={() => fetchDbAssets()}
         />
       )}
