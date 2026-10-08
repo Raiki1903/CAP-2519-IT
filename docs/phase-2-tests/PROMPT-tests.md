@@ -48,7 +48,8 @@ steps 10 to 12 can be checked by one command (`npm test`) instead of long hand c
   note in Context) and assets (list, detail, create, edit, delete, custodian history).
 - **B2:** loans (borrow, list, decision), returns, transfers (request, list, decision, accept).
 - **B3:** repairs (create, list, update, status), inspections and reports, disposals (request, list, decision).
-- **B4:** the analytics endpoints that have a live caller (see Context). Not the ones that step 12 deletes.
+- **B4:** the analytics endpoints that have a live caller (see Context), and the three kept on 2026-10-07.
+  Not the 22 that step 12 moves to `legacy/analytics-endpoints/` and unregisters.
 
 Stop after each session and report.
 
@@ -90,9 +91,13 @@ Stop after each session and report.
   - Sign-up requests are stored in `pending_registrations.json` in **`process.cwd()`** (H-17). On a
     developer machine that is the repo root, holding real pending sign-ups.
   - `GET /api/asset_loans` inserts a pending loan with id 9 when none is pending (H-08).
-- **Endpoints to skip:** the 11 analytics endpoints with no caller that step 12 deletes (see the
-  2026-10-04 decision in PROMPT-2 and 01C section 4.4). Find the exact list in the docs; do not
-  guess. The three `/api/analytics/advanced/*` endpoints kept on 2026-10-07 get at most a
+- **Endpoints to skip:** the 22 analytics endpoints with no live caller that step 12 moves to
+  `legacy/analytics-endpoints/` and unregisters, so they answer not found afterwards (decided
+  2026-10-08; this replaced the 2026-10-04 decision to delete 11 of them). They are the 11 whose
+  callers were quarantined in `legacy/analytics-v1/` and the 11 that never had a caller. The exact
+  list is in the "Old analytics" row of the PROMPT-2 decisions table and in sections 3.1 and 3.2 of
+  `01-test-plan.md`; do not guess. They get no tests in Phase 2. The three
+  `/api/analytics/advanced/*` endpoints kept on 2026-10-07 are not among the 22 and get at most a
   "responds with 200" test. List every skipped endpoint in the plan with the reason.
 - **Characterization tests.** The goal is to pin down what the API does **today**, so a later step
   that changes it by accident fails a test. So:

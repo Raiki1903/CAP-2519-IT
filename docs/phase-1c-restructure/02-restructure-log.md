@@ -120,6 +120,8 @@ Most common codes: 49 of TS2339 (property does not exist), 37 of TS2322 (type no
 
 **Decided 2026-10-04:** the 11 endpoints are deleted when the analytics backend is extracted in step 12, and the screen code stays in `legacy/analytics-v1/`. The README's "Open decision" section was updated to match.
 
+**Changed 2026-10-08:** the 11 endpoints are no longer deleted. In step 12 their handler code moves to `legacy/analytics-endpoints/`, with the 11 analytics endpoints that never had a caller (22 in all), and their routes are no longer registered, so calling them answers not found. See the "Old analytics" row of the [PROMPT-2-restructure.md](PROMPT-2-restructure.md) decisions table and section 3 of the [Phase 2 test plan](../phase-2-tests/01-test-plan.md). The line above is kept as the record of the earlier decision.
+
 ---
 
 ## Step 3 detail
@@ -816,6 +818,7 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | **Step 9, new:** a ticket's forwarding unit (`forwardedTo`: TSG, ITS, Both) is chosen in the repair form and set by Send to Maintenance, but the server never stores it, so "Dispatched To" always shows a dash. Pre-existing; `useRepairTickets.ts` already says so. Step 9 kept the per-unit value for when it is stored | n/a | Step 12 (repairs), or Phase 3 (a column) |
 | **Step 9, new:** the Staff analytics endpoint is still `GET /api/analytics/tsg`, called by `getTsgAnalyticsRaw` in `web/api/analytics.api.ts`. Renaming the URL is a backend change | n/a | Step 12 (analytics) |
 | **Step 9, new:** `roleConfig` in `Sidebar.tsx` gives each role a `label` and `subtitle` that nothing renders (only `nav` is used). Step 9 gave Staff plain values. Cosmetic | n/a | Cleanup, no hurry |
+| **Old analytics changed (2026-10-08).** The 2026-10-04 decision to delete the 11 no-caller analytics endpoints in step 12 is replaced: none of the 22 untested analytics endpoints is deleted (the 11 from `legacy/analytics-v1/` and the 11 that never had a caller). In step 12 their handler code moves to `legacy/analytics-endpoints/` with a README, and their routes are unregistered. The three endpoints kept on 2026-10-07 (`idle-time`, `idle-frequency`, `loan-recommender`) are not among the 22 and stay mounted. Earlier lines in this log that say "deleted" or "the step 12 deletion" are kept as dated records | 01A 6.11, M-06 | Step 12 (analytics) |
 
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.
 

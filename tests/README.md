@@ -59,8 +59,8 @@ You do not need to stop `npm run dev:all`: the tests start their own copy of the
 A good run ends like this:
 
 ```
- Test Files  5 passed (5)
-      Tests  98 passed (98)
+ Test Files  8 passed (8)
+      Tests  177 passed (177)
 ```
 
 The first time, Windows may ask whether to allow Node.js through the firewall. Choose **Cancel** (or deny). The tests only talk to your own computer, so they work either way.
@@ -137,6 +137,7 @@ describe("loans", () => {
 - These are **characterization tests**: they record what the API does **today**, even where that is wrong, so that a later change that alters it by accident makes a test fail. Do not "fix" the expected value to what it should be.
 - Do not check exact timestamps, generated ids, or text containing today's date.
 - Tests inside one file share that file's data, in order. Keep each test's changes in mind for the next one, or use a different seeded asset.
+- When a test changes an asset's state (a borrow, a return, a transfer), give it an asset of its own: `addExtraAsset(db, { tag: "TEST-0101", status: "ON_LOAN" })` from [setup/extraAssets.ts](setup/extraAssets.ts) adds one in the state you ask for. Use a tag no other test in the file uses.
 - Each file gets the same fresh data, so a test file never relies on another file.
 
 ---

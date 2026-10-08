@@ -12,7 +12,7 @@ Branch: `test/phase-2-api-tests`, from `main` after PR #50 (`a02786c8` adds the 
 |---|---|---|---|---|---|
 | A | Vitest, harness, smoke test, test plan, README | Done | `0e9d308e` (Vitest), `ec738f0b` (PORT), `f2058aef` (harness and smoke test), `225770e9` (README and plan), docs housekeeping | 10 (3 smoke, 7 guard) | 2026-10-08 |
 | B1 | Auth, assets | Done | `212b69df` (auth and registration), `4fae5b46` (assets), docs housekeeping | 88 (33 auth, 22 registration, 33 assets) | 2026-10-08 |
-| B2 | Loans, returns, transfers | Not started | | | |
+| B2 | Loans, returns, transfers | Done | `78987f8e` (loans), `43a06080` (returns), `ccd47c25` (transfers), docs housekeeping | 79 (31 loans, 16 returns, 32 transfers) | 2026-10-08 |
 | B3 | Repairs, inspections and reports, disposals | Not started | | | |
 | B4 | Analytics with a live caller | Not started | | | |
 
@@ -81,6 +81,30 @@ A **characterization test** records what the API does today, defects included, s
 
 ---
 
+## Part B2 detail
+
+### What was added
+
+Three test files and one setup helper, all against the HTTP API only.
+
+**Why a helper.** A borrow, return, or transfer changes the asset's state, and the issue #25 guard then refuses the next request on it. If every test used the six seeded assets, each test would depend on what the one before it did. So each write test adds an asset of its own with `tests/setup/extraAssets.ts` (`addExtraAsset`: an asset, its monetary row, and one record in the state the test asks for, tags `TEST-0101` onward). The seeded assets are still used where their state is the point: the seeded pending loan (LOAN-2), the asset on loan (LOAN-1, for H-04), and the Maintenance and Disposed assets (for the 409 answers). No seeded row is left changed.
+
+| File | Endpoints | Tests | What they pin |
+|---|---|---|---|
+| `tests/api/loans.test.ts` | `GET /api/asset_loans`, `POST /api/assets/:tag/borrow`, `PUT /api/asset_loans/:id/decision` | 31 | The list newest first with the lab line moved out of the purpose; H-08 (with no loan pending, the GET inserts LOAN-9 for the first asset and the first student, names its asset "ASUS TUF Gaming A15", and does it only once); the borrow request leaves custody alone; a leading "Dr." is dropped from the typed name; H-10; the issue #25 guard on both sides (first request 200, second 409, and 409 for a pending loan, a pending transfer, On Loan, Maintenance, Disposed); approve adds an ON_LOAN record at the destination lab (Laguna for CeLT, Manila otherwise, the current location when no lab was sent); decline adds nothing; after approval a new request answers 409, after decline 200; 400 for a decided loan, for `"reject"` (the restructure log note), for `"approved"`, for no decision, and for the `LOAN-n` id the list shows; 404 |
+| `tests/api/returns.test.ts` | `GET /api/asset_returns`, `POST /api/assets/:tag/return` | 16 | The list (empty, then newest first); the return puts the asset back as ACTIVE with the reported condition, under user 1, at its home lab, comment as remarks; H-04 (LOAN-1 stays `approved`, and the asset list shows the asset Active with no due date); MINOR_DRIFT and CRITICAL_DEFECT save (H-21 cannot be reproduced here); earlier remarks kept without a comment; `inspection` used as the comment; H-10 for an unknown and a missing name; H-05 (a disposed asset is accepted and becomes ACTIVE); 400 for no condition, an unknown one, lower case, and the stored spelling with a space; 404 |
+| `tests/api/transfers.test.ts` | `GET /api/asset_transfers`, `POST /api/assets/:tag/transfer`, `PUT /api/asset_transfers/:id/decision`, `PUT /api/asset_transfers/:id/accept` | 32 | The list (empty, then newest first, all four statuses); 01C 4.3 (the recipient's email); M-12 (`pending_approver` shows as Pending); the request from the current custodian to the recipient found by email; H-19 (the lab packed into the justification, the effective date stored nowhere); 400, 404 for an unknown tag and an unknown email; the issue #25 guard on both sides (an asset on loan is accepted); approve and decline as for loans; 400 for a decided transfer, for `"reject"`, `"accept"`, no decision, and the `TRF-n` id; accept appends the remarks; M-12 (the decision then answers 400); two new findings and H-16 (notes below) |
+
+### Checks
+
+- `npm test`: 8 files, **177 tests** passed (98 before, 79 new), run twice in a row, about 15 seconds each.
+- `npm run build`: passes.
+- `npm run typecheck`: **71**, unchanged; zero errors in `tests/`.
+- The repository's `pending_registrations.json` kept its modified time across both runs (its contents were not opened).
+- No test is skipped, and none needed a retry.
+
+---
+
 ## Notes: noticed, not fixed
 
 | Note | Finding | Where it belongs |
@@ -99,5 +123,11 @@ A **characterization test** records what the API does today, defects included, s
 | `PUT /api/auth/account` answers `labAffiliation: "CITe4D"` when the request sends no lab, whatever the account's lab is. `web/state/session.tsx` copies that answer into the session, so the account page shows CITe4D until the next reload. The database link is not changed | n/a (new) | B1 pins it; fix with step 12 (auth) |
 | `POST /api/auth/approve-registration` with a lab name it does not find creates a new research center (location MANILA) from that name and links the account to it. A sign-up's default lab is `CITe4D`, so on a database without that code (the test database) every default approval creates one. On CCS Cloud, a typo in a lab name would add a lab | C-05 family (new) | B1 pins it; step 12 (auth), or Phase 3 with a fixed lab list |
 | `PUT /api/assets/:tag` with an acquisition value but no funding source resets the funding source to "Unspecified", while the value itself is ignored (M-16) | M-16 family (new) | B1 pins it; fix with M-16 |
-| **C-03 confirmed on the test database:** login with the password in upper case succeeds, because the comparison happens in SQL and the `users.password` column's collation, `utf8mb4_unicode_ci` (read from `information_schema` on the test database), ignores case. Whether CCS Cloud uses the same collation was not checked (no connection to CCS Cloud) | C-03 | Phase 3 (hashed passwords) |
-| The 2026-10-08 analytics decision leaves older text that still describes the 2026-10-04 deletion: `PROMPT-tests.md` (the B4 line and "Endpoints to skip"), `legacy/analytics-v1/README.md`, `legacy/analytics-widgets/README.md`, and the restructure log. Not edited in this session: the decision named the files to update | n/a | Step 12, when `legacy/analytics-endpoints/` is created |
+| **C-03 confirmed on the test database:** login with the password in upper case succeeds, because the comparison happens in SQL and the `users.password` column's collation, `utf8mb4_unicode_ci` (read from `information_schema` on the test database), ignores case. **Checked on CCS Cloud by Raiki (2026-10-08):** there `users.password` is `utf8mb4_0900_ai_ci`, which also ignores case and accents, so the same case- and accent-insensitive login happens on the live database (an accented letter in a password matches the plain one). The two collations differ in name but behave the same for this. It goes away when passwords are hashed, because the check then compares hashes in code, not text in SQL | C-03 | Phase 3 (hashed passwords) |
+| The 2026-10-08 analytics decision leaves older text that still describes the 2026-10-04 deletion: `PROMPT-tests.md` (the B4 line and "Endpoints to skip"), `legacy/analytics-v1/README.md`, `legacy/analytics-widgets/README.md`, and the restructure log. **Done in the B2 docs commit (2026-10-08):** the prompt and both READMEs now describe the 22 endpoints kept in `legacy/analytics-endpoints/` and unregistered in step 12; the restructure log got dated notes (under step 2 and in its notes table) and its old lines were kept | n/a | Done |
+| `PUT /api/asset_transfers/:id/accept` checks only that the transfer exists, so it moves a transfer in **any** status to `pending_approver`, even one already approved (custody has moved) or declined. That transfer can then never be decided again (M-12) | M-12 family (new) | B2 pins it; step 12 (transfers): delete the route or finish the handshake, as M-12 says |
+| The issue #25 guard (`findCustodyRequestConflict`) counts only transfers with status `pending`. After `/accept`, a transfer is `pending_approver`, so the asset takes a second transfer request while the first transfer is still open (by the same check it would take a loan request too; only the transfer case is tested). No screen calls `/accept` today, so this needs a direct API call | M-12 family, issue #25 (new) | B2 pins it; step 12 (transfers), with M-12 |
+| `PUT /api/asset_transfers/:id/accept` with an id that is not a number answers 500 with Prisma's full message, which includes the path of `server.ts` on the server's disk and several of its source lines. `/decision` checks the id first and answers 400 | H-16 | B2 pins it; step 12 (transfers) or step 13 (error middleware) |
+| `POST /api/assets/:tag/return` checks no state: an asset that is not on loan is accepted, and a **disposed** asset comes back as ACTIVE under user 1, so it reappears in the pool. The loan, if any, stays open (H-04) | H-05 (new case) | B2 pins it; step 12 (returns), or Phase 3 triggers |
+| `GET /api/asset_loans` (H-08) inserts LOAN-9 on the first asset in the table. With the issue #25 guard, that row then blocks borrow and transfer requests on that asset until someone decides it. The B2 test puts the database back afterwards. Already noted in the restructure log for the live database | H-08 | Step 12 (loans): delete the block |
+| The loan list shows `LOAN-n` and the transfer list `TRF-n`, but both decision routes need the bare number: `/api/asset_loans/LOAN-2/decision` answers 400. The web app sends the bare number (`decideLoan` and `decideTransfer` take it without the prefix), so nothing is broken; noted because a script or a later screen could trip on it | n/a | No action, or step 12 if the API is cleaned up |

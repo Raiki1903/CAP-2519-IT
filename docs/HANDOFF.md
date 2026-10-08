@@ -671,3 +671,34 @@ Answered on 2026-10-08 (see the log, "Team decisions on step 9"): ITS is removed
 1. On your machine: `npm test` (expect 98 passed). Push the branch when it passes.
 2. Then Part B2:
 `Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B2.`
+
+## Phase 2, API tests Part B2, 2026-10-08
+
+**Prompt followed:** [phase-2-tests/PROMPT-tests.md](phase-2-tests/PROMPT-tests.md), Part B2. Branch: `test/phase-2-api-tests`, continued from B1. Nothing pushed.
+
+### What was produced
+
+- **Loan tests** (`78987f8e`): `tests/api/loans.test.ts` (31 tests: the loan list, the borrow request, the Lab Head's decision), plus `tests/setup/extraAssets.ts`, a helper that gives a test an asset of its own in a chosen custody state, so tests that move custody do not depend on each other.
+- **Return tests** (`43a06080`): `tests/api/returns.test.ts` (16 tests: return finalization and the return list).
+- **Transfer tests** (`ccd47c25`): `tests/api/transfers.test.ts` (32 tests: the request, the list, the decision, and the unused `/accept` route).
+- **Analytics wording brought in line with the 2026-10-08 decision:** the B4 line and the skip list in `PROMPT-tests.md`, `legacy/analytics-v1/README.md`, and `legacy/analytics-widgets/README.md` now describe the 22 endpoints kept in `legacy/analytics-endpoints/` and unregistered in step 12. The restructure log got dated notes (under step 2 and in its notes table); its old lines were kept.
+- **Docs housekeeping:** the test log (status, B2 detail, notes, the C-03 check on CCS Cloud), the plan's B2 rows, the run counts and a line on the helper in `tests/README.md`, the status board, and this entry.
+- **Checks:** `npm test` 8 files, **177 passed**, twice in a row; build passes; **typecheck 71, unchanged** (none in `tests/`).
+
+### Key findings
+
+- **No app code changed.** All 79 new tests describe today's behavior; nothing was fixed.
+- **C-03 also applies on CCS Cloud** (checked by Raiki, 2026-10-08): `users.password` there is `utf8mb4_0900_ai_ci`, so login ignores letter case and accents on the live database too. It goes away when passwords are hashed (Phase 3).
+- **Two new defects in the M-12 family**, pinned and logged: `/accept` moves a transfer in any status, even an approved one, to `pending_approver`; and once a transfer is `pending_approver`, the issue #25 guard no longer sees it, so the asset takes a second transfer request.
+- **H-05 reaches returns too:** a disposed asset can be returned and comes back as ACTIVE.
+- **H-16 on `/accept`:** an id that is not a number answers 500 with Prisma's full message, including the server's file path and source lines.
+
+### Open questions
+
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. On your machine: `npm test` (expect 177 passed). Push the branch when it passes.
+2. Then Part B3:
+`Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B3.`

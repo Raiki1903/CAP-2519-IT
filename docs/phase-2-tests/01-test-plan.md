@@ -26,7 +26,7 @@ Not asserted: exact timestamps, generated ids or reference numbers, and any text
 
 ### Test data
 
-Every file starts from the same fake data ([tests/setup/fixtures.ts](../../tests/setup/fixtures.ts)): 8 accounts (one per database role, plus two custodians), one lab (`TEST`, Manila), and six assets `TEST-0001` to `TEST-0006`, one in each state the workflows care about. The table in [tests/README.md](../../tests/README.md#the-fake-data) summarizes it. A session that needs more rows (for example projects, or a warranty that expires within 90 days, for B4) adds them in its own file's `beforeAll`, unless several files need them; then they go into the shared seed, with the smoke test still passing.
+Every file starts from the same fake data ([tests/setup/fixtures.ts](../../tests/setup/fixtures.ts)): 8 accounts (one per database role, plus two custodians), one lab (`TEST`, Manila), and six assets `TEST-0001` to `TEST-0006`, one in each state the workflows care about. The table in [tests/README.md](../../tests/README.md#the-fake-data) summarizes it. A session that needs more rows (for example projects, or a warranty that expires within 90 days, for B4) adds them in its own file's `beforeAll`, unless several files need them; then they go into the shared seed, with the smoke test still passing. The custody workflows (B2) change an asset's state with every request, so their write tests each add an asset of their own with [tests/setup/extraAssets.ts](../../tests/setup/extraAssets.ts) (tags `TEST-0101` onward) instead of sharing the six seeded ones.
 
 ---
 
@@ -71,7 +71,7 @@ Counts: B1 13 endpoints, B2 9, B3 10, B4 8. Total 40.
 
 | Endpoint | Method | Called from | What the tests check | Session | Known defects pinned |
 |---|---|---|---|---|---|
-| `/api/assets/:tag/return` | POST | `web/features/returns/ReturnForm.tsx` | 200, one `asset_returns` row (reference number not asserted), and a new ACTIVE record with the reported condition, custodian user 1, and `current_location` back to the home lab; the comment replaces the remarks; 400 without a condition or with one outside the five; 404 for an unknown tag | B2 | H-04 (the loan stays `approved`); H-10 (returned-by found by typed name, else user 1). H-21 cannot be reproduced here: the test database is built from `schema.prisma`, where the enum values have no spaces (see section 4) |
+| `/api/assets/:tag/return` | POST | `web/features/returns/ReturnForm.tsx` | 200, one `asset_returns` row (reference number not asserted), and a new ACTIVE record with the reported condition, custodian user 1, and `current_location` back to the home lab; the comment replaces the remarks; 400 without a condition or with one outside the five; 404 for an unknown tag | B2 | H-04 (the loan stays `approved`); H-10 (returned-by found by typed name, else user 1); H-05 (no state check: an asset that is not on loan, even a disposed one, is accepted and becomes ACTIVE). H-21 cannot be reproduced here: the test database is built from `schema.prisma`, where the enum values have no spaces (see section 4) |
 | `/api/asset_returns` | GET | No caller | 200 with `returns` (`id` RET-n, `assetId`, `asset`, `returnedBy`, `condition`, `referenceNumber`) | B2 | |
 
 ### 2.5 Transfers (B2)
@@ -81,7 +81,7 @@ Counts: B1 13 endpoints, B2 9, B3 10, B4 8. Total 40.
 | `/api/assets/:tag/transfer` | POST | `web/features/transfers/TransferForm.tsx` | 200 and one `pending` `asset_transfers` row from the asset's current custodian to the recipient found by email, destination lab written into `justification`; 400 without `toEmail` or `reason`; 404 for an unknown tag or email. The issue #25 guard, both sides: 409 for a pending loan or transfer, Maintenance, or Disposed; 200 for an Active or On Loan asset | B2 | H-19 (the destination lab is packed into the justification text; the effective date is dropped) |
 | `/api/asset_transfers` | GET | `web/state/serverData.tsx`, `web/pages/lab-head/LabHeadDashboard.tsx` | 200 with `transfers` (`id` TRF-n, `from`, `fromCustodianId`, `to`, `toEmail`, `justification`, `destinationLab`, `status` Pending/Approved/Declined, `lab` from the tag prefix) | B2 | 01C 4.3 (recipient email sent to any caller); M-12 interplay (a `pending_approver` row shows as Pending) |
 | `/api/asset_transfers/:id/decision` | PUT | `web/pages/lab-head/LabHeadDashboard.tsx`, `web/features/notifications/NotificationCenter.tsx` | approve: 200, `approved`, a new ON_LOAN record under the recipient; decline: 200, `declined`, no new record; 400 for a decided transfer, a bad id, or another word; 404 for an unknown id | B2 | |
-| `/api/asset_transfers/:id/accept` | PUT | No caller | 200 and status `pending_approver`; afterwards `/decision` answers 400 | B2 | M-12 (the transfer is stuck for good) |
+| `/api/asset_transfers/:id/accept` | PUT | No caller | 200 and status `pending_approver`, remarks appended to the justification; afterwards `/decision` answers 400; 404 for an unknown id | B2 | M-12 (the transfer is stuck for good); new, M-12 family: it changes a transfer in any status, even an approved one; new, M-12 family: the issue #25 guard counts only `pending`, so the asset then takes a second transfer request; H-16 (an id that is not a number answers 500 with the raw Prisma message, including the server's file path and source lines) |
 
 ### 2.6 Repairs (B3)
 

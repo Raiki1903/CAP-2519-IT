@@ -35,7 +35,7 @@ The three Lab Head widgets were the only callers of these endpoints. After this 
 | `GET /api/analytics/advanced/idle-frequency` | `IdleTimeDurationFrequencyWidget` | `getIdleFrequencyRaw` |
 | `GET /api/analytics/advanced/loan-recommender` | `LoanRecommenderList` | `getLoanRecommenderRaw` |
 
-**The team decided to keep the widget code and these three endpoints for now.** They are **not** part of the step 12 deletion, which covers only the 11 endpoints listed in [`analytics-v1/README.md`](../analytics-v1/README.md). They stay mounted and, until step 13, unauthenticated, so they remain attack surface (01C section 4.4); deleting them later needs a new team decision. The four Director widgets used no endpoint of their own.
+**The team decided to keep the widget code and these three endpoints for now.** They are **not** among the 22 analytics endpoints that step 12 moves to `legacy/analytics-endpoints/` and unregisters (decided 2026-10-08: the 11 listed in [`analytics-v1/README.md`](../analytics-v1/README.md) and the 11 that never had a caller; none is deleted). These three stay mounted, and session B4 of the Phase 2 tests gives each a "responds with 200" test. Until step 13 they are unauthenticated, so they remain attack surface (01C section 4.4); unregistering or deleting them later needs a new team decision. The four Director widgets used no endpoint of their own.
 
 ## Bringing a widget back
 
