@@ -736,3 +736,36 @@ Answered on 2026-10-08 (see the log, "Team decisions on step 9"): ITS is removed
 1. On your machine: `npm test` (expect 267 passed). Push the branch when it passes.
 2. Then Part B4:
 `Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B4.`
+
+---
+
+## Phase 2, API tests Part B4, 2026-10-09
+
+**Prompt followed:** [phase-2-tests/PROMPT-tests.md](phase-2-tests/PROMPT-tests.md), Part B4, the last Phase 2 session. Branch: `test/phase-2-api-tests`, continued from B3. Nothing pushed.
+
+### What was produced
+
+- **Analytics tests** (`fa00fa4c`): `tests/api/analytics.test.ts` (38 tests: 35 for the five endpoints the live Director, Lab Head, and Staff views call, and a "responds with 200" check for each of the three advanced endpoints kept on 2026-10-07). The 22 endpoints step 12 moves to `legacy/analytics-endpoints/` get no tests, as decided.
+- **Comment fix** (`400c7aea`): one comment in the new file reworded so it has no em dash. Comment only.
+- **Two additions to `tests/setup/extraAssets.ts`**, in the analytics commit: optional fields on `addExtraAsset` (home location, project, warranty date, funding; defaults unchanged), and `removeExtraAssets`, which deletes test assets with every row that points at them. The analytics endpoints count every asset, so each test puts the database back in a `finally` block.
+- **Docs housekeeping:** the test log (status, B4 detail, Phase 2 done, 8 notes), the plan's B4 rows (including why M-09 is not tested), the run count and a line on `removeExtraAssets` in `tests/README.md`, the status board (Phase 2 done; "Where we are now" set to restructure step 10), and this entry.
+- **Checks:** `npm test` 12 files, **305 passed**, twice in a row; build passes; **typecheck 71, unchanged** (none in `tests/`).
+
+### Key findings
+
+- **No app code changed.** All 38 new tests describe today's behavior; nothing was fixed.
+- **The Director's lab filter narrows one chart only:** the location counts follow the lab, but the portfolio value, funding, and pending disposals stay the all-lab totals. New.
+- **Lab code matching by substring:** the Director view counts any location containing "CAR" (and four other codes) as Laguna, and location-status files a Manila room containing "CAR" under the CAR lab. New, M-03 family.
+- **Lab Head delinquencies count a pending loan request past its due date as overdue**, and keep counting a returned loan (H-04).
+- **Inspection progress reads no inspection report:** it counts every record of a center's projects (history included) and calls the ACTIVE ones inspected; a center with no projects shows 100%.
+- **Smaller ones**, all in the test log: invented values for an asset with no records (H-09 family), "Pending_approver" shown raw on the Lab Head view (M-12 family), and the Staff endpoint ignoring the date range the view sends.
+
+### Open questions
+
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. On your machine: `npm test` (expect 305 passed). Push `test/phase-2-api-tests` and open the pull request for Phase 2.
+2. After it is merged, restructure step 10, on the branch PROMPT-2 names:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 10.`

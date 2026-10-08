@@ -59,8 +59,8 @@ You do not need to stop `npm run dev:all`: the tests start their own copy of the
 A good run ends like this:
 
 ```
- Test Files  11 passed (11)
-      Tests  267 passed (267)
+ Test Files  12 passed (12)
+      Tests  305 passed (305)
 ```
 
 The first time, Windows may ask whether to allow Node.js through the firewall. Choose **Cancel** (or deny). The tests only talk to your own computer, so they work either way.
@@ -138,6 +138,7 @@ describe("loans", () => {
 - Do not check exact timestamps, generated ids, or text containing today's date.
 - Tests inside one file share that file's data, in order. Keep each test's changes in mind for the next one, or use a different seeded asset.
 - When a test changes an asset's state (a borrow, a return, a transfer, a repair, an inspection, a disposal), give it an asset of its own: `addExtraAsset(db, { tag: "TEST-0101", status: "ON_LOAN" })` from [setup/extraAssets.ts](setup/extraAssets.ts) adds one in the state you ask for. Use a tag no other test in the file uses.
+- When a test adds rows that a later test in the file would count (the analytics endpoints count every asset), remove them in a `finally` block: `removeExtraAssets(db, [asset.assetId])` from the same file deletes the assets and every row that points at them.
 - Each file gets the same fresh data, so a test file never relies on another file.
 
 ---

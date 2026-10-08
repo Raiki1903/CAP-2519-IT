@@ -14,7 +14,9 @@ Branch: `test/phase-2-api-tests`, from `main` after PR #50 (`a02786c8` adds the 
 | B1 | Auth, assets | Done | `212b69df` (auth and registration), `4fae5b46` (assets), docs housekeeping | 88 (33 auth, 22 registration, 33 assets) | 2026-10-08 |
 | B2 | Loans, returns, transfers | Done | `78987f8e` (loans), `43a06080` (returns), `ccd47c25` (transfers), docs housekeeping | 79 (31 loans, 16 returns, 32 transfers) | 2026-10-08 |
 | B3 | Repairs, inspections and reports, disposals | Done | `ab494e76` (repairs), `0e81e87b` (inspections and reports), `13edf79d` (disposals), docs housekeeping | 90 (36 repairs, 29 inspections and reports, 25 disposals) | 2026-10-08 |
-| B4 | Analytics with a live caller | Not started | | | |
+| B4 | Analytics with a live caller, plus the three kept | Done | `fa00fa4c` (analytics), `400c7aea` (comment wording), docs housekeeping | 38 (35 for the five live endpoints, 3 "responds with 200") | 2026-10-09 |
+
+**Phase 2 is done** (2026-10-09): 12 test files, **305 tests**, covering the 40 endpoints in the plan; the 22 analytics endpoints step 12 moves to legacy are skipped, as decided. Next is restructure step 10 in [PROMPT-2-restructure.md](../phase-1c-restructure/PROMPT-2-restructure.md), which must keep `npm test` passing.
 
 ---
 
@@ -127,6 +129,31 @@ Three test files, all against the HTTP API only. No new setup file: the write te
 
 ---
 
+## Part B4 detail
+
+### What was added
+
+One test file, against the HTTP API only, and two additions to `tests/setup/extraAssets.ts`:
+
+- `addExtraAsset` takes four more optional fields: the record's home `location`, a `projectId`, a `warrantyExpiry`, and the funding source and value. The defaults are unchanged, so the B2 and B3 files behave as before.
+- `removeExtraAssets` deletes assets and every row that points at them. The analytics endpoints count **every** asset, so a row one test adds would change the numbers the next test expects. Each B4 test that adds rows (tags `TEST-0701` onward, a project, an overdue loan, a report, a disposal) removes them in a `finally` block, and every test starts from the seed. Nothing was added to the shared seed.
+
+| File | Endpoints | Tests | What they pin |
+|---|---|---|---|
+| `tests/api/analytics.test.ts` | `GET /api/analytics/director`, `/lab-head`, `/tsg`, `/location-status`, `/advanced/inspection-progress`; `/advanced/idle-time`, `/advanced/idle-frequency`, `/advanced/loan-recommender` (200 only) | 38 | **Director** (9): the seed's totals, funding per source, pending disposals in three spellings, reports per month; "All Labs" means no filter; the lab filter matches anywhere in the location and narrows only the location counts (new); a date range counts each asset by its newest record in the range, and with no report in it answers the fixed demo series (H-09); a Manila location containing "CAR" counts as Laguna (new). **Lab Head** (13): default prefix `CITe4D` and an unknown prefix give empty data (01C 4.4, M-14); loans and transfers newest first with the destination lab moved out; utilization, categories, project allocation; `labPrefix` before `lab`; `ALL` leaves out the `EQ-` pool; the date range limits loans and transfers only; delinquencies, scatter, and heatmap for overdue loans, with and without a project; returned and declined loans left out, a pending request past due counted (new); H-04 (a loan returned through the return route still counts). **Staff** (7): the repair board, the condition summary with each record's home location, the three condition colours, an asset with no records shown as PERFECT and "Unassigned" (H-09 family), an empty status shown as "Reported", the date filter ignored, warranties expired or within 90 days counted from today. **Location status** (4): M-03 (`TEST` counted as CITe4D), the lab filter, a Manila room containing "CAR" counted as the CAR lab (new), an asset with no records counted at CITe4D (H-09 family). **Inspection progress** (2): 100% for a center with no projects (new); every record of the center's projects counted, ACTIVE ones as inspected (new). **The three kept** (3): 200 with `success: true` |
+
+Dates relative to today (overdue loans, warranties) are stored as whole UTC days, so the day counts the server prints (`daysOverdue`, `daysRemaining`) come out the same at any time of day. The seeded warranties (2027-06-01) are left out of the warranty assertions, because they enter the 90-day window in 2027.
+
+### Checks
+
+- `npm test`: 12 files, **305 tests** passed (267 before, 38 new), run twice in a row, about 24 seconds each. The new file alone passed on its first run.
+- `npm run build`: passes.
+- `npm run typecheck`: **71**, unchanged; zero errors in `tests/`.
+- The repository's `pending_registrations.json` kept its modified time across both runs (its contents were not opened). No test server was left running (the only `node` processes were a Prisma Studio started outside the tests).
+- No test is skipped, and none needed a retry.
+
+---
+
 ## Notes: noticed, not fixed
 
 | Note | Finding | Where it belongs |
@@ -164,3 +191,11 @@ Three test files, all against the HTTP API only. No new setup file: the write te
 | The disposal form's "Last Custodian" is saved inside the reason text and never shown again: the asset list's `disposalDetails.lastCustodian` is the record's custodian | M-13 family (new) | B3 pins it; Phase 3 (columns for the disposal details) |
 | Disposals have no issue #25 style guard: a second pending disposal on the same asset is accepted, and approving both writes two DISPOSED records. An asset on loan or in maintenance is also accepted, and approval disposes it under its borrower | H-05 (new cases) | B3 pins it; step 12 (disposals), or Phase 3 triggers |
 | `PUT /api/asset_repairs/:id`, the inspection route, and the disposal decision read the asset's newest record by `date_logged` alone (M-09). The B3 tests never give one asset two records in the same second where the server's choice would matter, so they do not depend on that tie; the tie itself is timing and is not tested | M-09 | Step 12 (use the `asset_record_id` tie-break everywhere) |
+| `GET /api/analytics/director` applies the `lab` filter to the location counts only: `totalPortfolioValue`, `fundingData`, and `pendingDisposalsCount` stay the totals for every lab, so the Director's lab dropdown changes one chart and not the figures beside it | n/a (new) | B4 pins it; step 12 (analytics) |
+| `GET /api/analytics/location-status` puts a location under the **first** code in its hardcoded lab list that the text contains (case-sensitive), so a Manila room whose name contains "CAR" counts as the CAR lab. Same family as the Director's Laguna check in the note above | M-03 family (new) | B4 pins it; step 12 (analytics), with a real lab column |
+| `GET /api/analytics/lab-head` counts a **pending** loan request past its due date as overdue (only `returned` and `declined` are left out), although the asset was never handed over | H-04 family (new) | B4 pins it; step 12 (analytics), or when H-04 gives loans a closed status |
+| `GET /api/analytics/lab-head` shows a transfer's raw status with the first letter capitalized, so a `pending_approver` transfer appears as "Pending_approver", while `GET /api/asset_transfers` shows it as Pending | M-12 family (new) | B4 pins it; step 12 (transfers), with M-12 |
+| `GET /api/analytics/advanced/inspection-progress` reads no inspection report: `total` is every `asset_records` row of the center's projects (an asset's whole history, not one per asset), and `inspected` is the rows with status ACTIVE | n/a (new) | B4 pins it; step 12 (analytics), or Phase 3 |
+| `GET /api/analytics/tsg` and `GET /api/analytics/location-status` invent values for an asset with no `asset_records` row: PERFECT and "Unassigned" in the first, Active at the server's default location (Manila, CITe4D) in the second | H-09 family | B4 pins both; step 12 (analytics) |
+| `GET /api/analytics/tsg` ignores the `startDate` and `endDate` the Staff view sends; the view filters the repair list itself. The condition items show the record's home `location`, so an asset at the TSG Office shows its lab. Noted so step 12 does not change either by accident | n/a | No action |
+| `GET /api/analytics/location-status`, `/advanced/idle-time`, and `/advanced/idle-frequency` take each asset's newest record by `date_logged` alone (M-09). Not tested: which of two same-second records MySQL returns is not fixed, so a test could flip | M-09 | Step 12 (use the `asset_record_id` tie-break everywhere) |
