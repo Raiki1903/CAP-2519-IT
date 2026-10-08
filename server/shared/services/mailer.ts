@@ -1,7 +1,8 @@
-// mailer.ts
-// Thin wrapper around Mailgun for transactional notification emails
-// (loans, transfers, repairs, returns, disposals).
-
+/**
+ * Mailer: sends the notification emails (loans, transfers, repairs, returns, disposals) through Mailgun.
+ * Layer: shared service. Called by remainingRoutes.ts; later by each feature's service. Calls config/env.ts and mailgun.js.
+ * Used by: every workflow that notifies a custodian, Lab Head, Staff, or the Director by email.
+ */
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import { env } from '../../config/env';
@@ -16,12 +17,17 @@ const mg = MAILGUN_API_KEY
     : null;
 
 /**
- * Fire-and-forget email send. Deliberately never throws — a Mailgun outage,
- * missing config, or bad recipient should log a warning, not break the API
- * response the user is actually waiting on. Call this AFTER a DB write has
- * committed (e.g. after prisma.$transaction resolves), never from inside
- * one — a network call inside a DB transaction holds locks open and slows
- * every other request down while it waits on Mailgun.
+ * Sends one email, fire and forget. Never throws: a Mailgun outage, missing
+ * settings, or a bad recipient logs a warning instead of breaking the API
+ * answer the user is waiting on. Call it after a database write has
+ * committed (for example after prisma.$transaction resolves), never from
+ * inside one: a network call inside a transaction holds its locks open and
+ * slows every other request while it waits on Mailgun.
+ *
+ * @param to one address or several; empty entries are dropped
+ * @param subject the subject line
+ * @param html the body, usually from emailTemplate
+ * @returns when the send was attempted or skipped
  */
 export async function sendEmail(to: string | string[], subject: string, html: string): Promise<void> {
     const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
@@ -48,7 +54,14 @@ export async function sendEmail(to: string | string[], subject: string, html: st
     }
 }
 
-/** Shared HTML wrapper so every notification looks consistent. */
+/**
+ * Wraps a notification in the shared AdRIC layout, so every email looks the same.
+ *
+ * @param heading the title line, inserted as HTML
+ * @param bodyHtml the body, inserted as HTML
+ * @returns the full HTML for sendEmail
+ */
+// TODO(H-20): heading and bodyHtml are inserted unescaped, and callers put asset names and typed reasons in them. Escape them (server/shared/utils/html.ts). Step 13.
 export function emailTemplate(heading: string, bodyHtml: string): string {
     return `
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">

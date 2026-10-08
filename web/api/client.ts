@@ -4,7 +4,7 @@
  * Used by: every workflow that talks to the server.
  */
 
-// Falls back to the local server's address (server.ts listens on port 4000),
+// Falls back to the local server's address (server/main.ts listens on port 4000),
 // so the app runs with no VITE_API_URL set.
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 

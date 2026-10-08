@@ -12,11 +12,17 @@ AdRIC_System/
   vite.config.ts        Frontend build config
   web/                  Frontend source (React): app shell, pages, features, api, state
   shared/               Enums and constants used by both frontend and backend
-  server.ts             Backend API (Express, listens on http://localhost:4000)
-  prisma.ts             Prisma client wired to the MariaDB adapter
+  server/               Backend API (Express, listens on http://localhost:4000)
+    main.ts             Starts the server (npm run server)
+    app.ts              Express app: middleware, then the routes
+    remainingRoutes.ts  The routes not yet split into server/features/ (restructure steps 11 and 12)
+    config/env.ts       Reads and checks .env; the server will not start without the DATABASE_* variables
+    config/prisma.ts    Prisma client wired to the MariaDB adapter
+    shared/services/    mailer.ts (Mailgun)
+    jobs/backup.ts      Optional backup, switched off unless BACKUP_DIR is set
   prisma.config.ts      Prisma CLI config
   prisma/schema.prisma  Authoritative database schema
-  generated/prisma/     Generated Prisma client (imported by server.ts / prisma.ts)
+  generated/prisma/     Generated Prisma client (imported by server/config/prisma.ts)
   test-user.ts          Seed / test script
   .env                  Database connection settings
   docs/                 Merge notes + the old FE design schema, kept for reference
@@ -31,7 +37,8 @@ AdRIC_System/
    If React is not pulled in automatically, run `npm install react@18.3.1 react-dom@18.3.1`.
 
 2. Make sure the database connection in `.env` is correct and reachable (the backend
-   reads `DATABASE_HOST/PORT/USER/PASSWORD/NAME`; the port must match your SSH tunnel).
+   reads `DATABASE_HOST/PORT/USER/PASSWORD/NAME`, all five required, see `.env.example`;
+   the port must match your SSH tunnel).
 
 3. Regenerate the Prisma client if needed:
    ```

@@ -1,6 +1,6 @@
 # API tests
 
-Automated tests for the backend API. They start the real `server.ts`, send it HTTP requests, and check the answers and what was written to the database. Their job is to tell us, with one command, whether a change to the backend (for example the split of `server.ts` in restructure steps 10 to 12) changed what the API does.
+Automated tests for the backend API. They start the real server (`server/main.ts`), send it HTTP requests, and check the answers and what was written to the database. Their job is to tell us, with one command, whether a change to the backend (for example the split of `server.ts` in restructure steps 10 to 12) changed what the API does.
 
 They run against a **test database on your own computer**, never the shared CCS Cloud database.
 
@@ -84,7 +84,7 @@ In order:
 2. **The tables are loaded** from `prisma/schema.prisma` into the test database with `prisma db push`. Only `TEST_DATABASE_URL` is used for this. (`tests/setup/globalSetup.ts`)
 3. **For each test file, one at a time:**
    - every table in the test database is emptied and the fake data is written in (`tests/setup/seed.ts`, values in `tests/setup/fixtures.ts`);
-   - `server.ts` is started as a separate process on a free port, connected to the test database only, with email and backups switched off, and with its working folder set to a temporary folder (so `pending_registrations.json` is written there, never in the repository);
+   - the server (`server/main.ts`) is started as a separate process on a free port, connected to the test database only, with email and backups switched off, and with its working folder set to a temporary folder (so `pending_registrations.json` is written there, never in the repository);
    - the tests in that file run;
    - the server is stopped and its temporary folder deleted.
 
@@ -151,4 +151,4 @@ describe("loans", () => {
 | `No test files found, exiting with code 1` together with an error below it | The setup failed before any test ran. The real cause is the error printed under it. |
 | `Could not open localhost:3306/AdRIC_DB_test` | MySQL is not running (`Get-Service MySQL80`), the password in `TEST_DATABASE_URL` is wrong, or the database was not created (step 2). |
 | `prisma db push failed` | The tables could not be created. Read the Prisma message under it. |
-| `server.ts exited during startup` | The server crashed while starting. Its own output is printed under the message. |
+| `server/main.ts exited during startup` | The server crashed while starting. Its own output is printed under the message. |

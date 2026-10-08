@@ -12,7 +12,7 @@ export default defineConfig({
     // One file at a time: every file empties and reseeds the same database.
     fileParallelism: false,
     testTimeout: 30_000,
-    // Covers emptying and seeding the database and starting server.ts.
+    // Covers emptying and seeding the database and starting the server.
     hookTimeout: 120_000,
   },
 });

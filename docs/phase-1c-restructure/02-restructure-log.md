@@ -3,7 +3,7 @@
 Running record of the migration in [01D section 9](../phase-1b-deep-map/01D-restructure-plan.md#9-ordered-migration-steps).
 Decision and comment standard: [01-restructure-decision.md](01-restructure-decision.md), [../guides/CODE-COMMENTS.md](../guides/CODE-COMMENTS.md).
 
-Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16. The fixes for issues #25 and #26 were merged in PR #33 (their own branch); step 8 continues from that merge. Step 8 part 1 was merged in PR #45, and part 2 continues from that merge (`9db4a4d7`). Step 8 part 2 was merged in PR #46, and step 9 continues from that merge (`8db5a88f`). Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
+Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16. The fixes for issues #25 and #26 were merged in PR #33 (their own branch); step 8 continues from that merge. Step 8 part 1 was merged in PR #45, and part 2 continues from that merge (`9db4a4d7`). Step 8 part 2 was merged in PR #46, and step 9 continues from that merge (`8db5a88f`). Step 9 was merged in PR #50 and the Phase 2 API tests in PR #52; step 10 starts from that merge (`dd6db809`), on a fresh `refactor/feature-based-structure`. From step 10 on, `npm test` runs after every commit and must stay at 305 passed. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
 
 ---
 
@@ -22,13 +22,13 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 7 | Delete `prismaClient.ts` | Done (hand checks passed) | `6e08e469` (behavior change) | n/a (see note 4) | **93** (unchanged, same errors) | 2026-10-04 |
 | 8 | Move the frontend to `web/` with feature folders (part 1: everything except `ITSDashboard.tsx`; part 2: split it) | Part 1 done (hand checks passed, PR #45). Part 2 done (hand checks passed, PR #46) | Part 1: `edcb9162` to `6d9facc2` (14 commits). Part 2: `5d26ed8e` to `7ca707c5` (19 commits, 5 of them labelled behavior changes, see detail) | Part 1: `ffa05a38`. Part 2: `caca57a9` | Part 1: **93**. Part 2: **71** (from 93; every removed error is accounted for, none added) | 2026-10-06, 2026-10-07 |
 | 9 | Merge ITS and TSG into `/staff/*` | Done (hand checks pending) | `d37d2233`, `44d9d729`, `d9d95f18` (behavior changes), `af1c641c`, `5e1a0f80` (renames); `89d2212c` (step 8 follow-up move) | `223e2060`, `4101aa1b` | **71** (unchanged, same errors) | 2026-10-08 |
-| 10 | Create the `server/` skeleton | Not started | | | | |
+| 10 | Create the `server/` skeleton | Done (hand checks pending) | `584d0c5f`, `7a40911b`, `5fd47ff0` (moves); `bd242d15` (behavior change, C-07) | the `docs(step 10)` commit | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 11 | Extract one backend feature end to end (loans) | Not started | | | | |
 | 12 | Extract the remaining backend features | Not started | | | | |
 | 13 | Add `errorHandler` and `requireAuth` | Not started | | | | |
 | 14 | Baseline the migrations | Not started | | | | |
 
-Steps 6, 7, 9, and 13 change behavior on purpose, and so does step 8 part 2 in five labelled commits (team decisions H-18 and F-28, and M-07). Every other step is a move or an addition.
+Steps 6, 7, 9, and 13 change behavior on purpose, and so do step 8 part 2 in five labelled commits (team decisions H-18 and F-28, and M-07) and step 10 in one (C-07, the database fallbacks that 01D section 6 deletes). Every other step is a move or an addition.
 
 ---
 
@@ -647,6 +647,83 @@ Recorded in the PROMPT-2 decisions table too. No code changed for them in step 9
 
 ---
 
+## Step 10 detail
+
+Started from the PR #52 merge (`dd6db809`), after the Phase 2 API tests. `server.ts`, `prisma.ts`, and `mailer.ts` are gone from the root; the backend now lives in `server/`. Four commits move code, one changes behavior, one adds comments.
+
+| Commit | Kind | What it does |
+|---|---|---|
+| `584d0c5f` | Move | `prisma.ts` to `server/config/prisma.ts`, `mailer.ts` to `server/shared/services/mailer.ts`, both unchanged (git: 100% renames) |
+| `7a40911b` | Move | `server.ts` split into `server/main.ts`, `server/app.ts`, `server/jobs/backup.ts`, and `server/remainingRoutes.ts` (the rest, `git mv`). Scripts and the test harness point at `server/main.ts` |
+| `5fd47ff0` | Move | `server/config/env.ts` reads `PORT`, the three `MAILGUN_*` variables, and `BACKUP_DIR` with the same defaults as before |
+| `bd242d15` | **Behavior change** (C-07) | The five `DATABASE_*` variables are required; the hardcoded CCS Cloud fallbacks are deleted |
+| `docs(step 10)` | Comments | File headers, TSDoc, TODOs; stale mentions of `server.ts` in comments and READMEs; this log |
+
+### The new `server/` tree
+
+| File | Holds | From |
+|---|---|---|
+| `server/main.ts` | Starts the 6-hour backup timer, `app.listen`, the startup banner, the default custodian check, the first backup | the end of `server.ts` |
+| `server/app.ts` | The Express app: `cors()`, the two body parsers (50 MB), then the routes | the top of `server.ts` |
+| `server/remainingRoutes.ts` | All 62 routes and their helpers, unchanged, registered on an exported `express.Router()` | the rest of `server.ts` |
+| `server/config/env.ts` | Loads `.env` and checks every variable the server reads | new |
+| `server/config/prisma.ts` | The Prisma client | root `prisma.ts` |
+| `server/shared/services/mailer.ts` | `sendEmail`, `emailTemplate` | root `mailer.ts` |
+| `server/jobs/backup.ts` | `performDatabaseBackup` | `server.ts` |
+
+**How the routes stayed unchanged.** Every route line now reads `router.get(...)` (or `post`, `put`, `delete`) where it read `app.get(...)`; nothing else in a handler changed. A router (Express's object for a group of routes) matches paths exactly as the app does, with the same defaults, and `app.ts` mounts it after the same three middleware lines in the same order, so every request meets the same code. `git show 7a40911b -M --word-diff` shows the edits to the moved file: the imports, the removed setup and startup code, and `app` becoming `router` on 62 lines.
+
+**Startup order is the same:** the backup timer is set, the server listens, prints the same banner, runs the default custodian check, then the first backup. Module loading also runs in the same order (dotenv, then the mailer, then Prisma).
+
+### What changed in behavior: database variables are required (C-07)
+
+Before, `prisma.ts` replaced any missing or empty `DATABASE_*` variable with a hardcoded value: the CCS Cloud host, port, account, password, and database name. A machine with an incomplete `.env` therefore connected to the shared database, using credentials written in the code, without saying so.
+
+Now `server/config/env.ts` requires all five. If one is missing or empty, the server stops before it connects or listens, with:
+
+```
+Error: Missing required environment variable(s): DATABASE_PORT, DATABASE_USER, ... Copy .env.example to .env and fill them in.
+```
+
+A `DATABASE_PORT` that is not a whole number stops it too. **With a complete `.env` nothing changes.** The credentials are no longer in the code, but they stay in git history (team decision: no rewrite, C-01). `.env.example` now says the five are required. `prisma.config.ts` (Prisma CLI only, reads `DATABASE_URL`) is not touched.
+
+This is the "Fallbacks deleted" item of 01D section 6 for `prisma.ts`, and the note that put C-07 in step 10.
+
+### Differences from 01D
+
+- **`server/remainingRoutes.ts` is not in 01D.** 01D step 10 says "mount the existing `server.ts` routes unchanged". Keeping a root file named `server.ts` that no longer starts a server would mislead anyone who runs `npx tsx server.ts` (it would load and exit silently), so the routes moved into `server/` under a name that says what they are. Steps 11 and 12 move them out one feature at a time; the file is deleted when it is empty.
+- **The mailer and the backup job moved now**, though 01D step 10 names only `main.ts`, `app.ts`, and `config/`. Both were part of the old startup path (the backup runs from the listener), and `remainingRoutes.ts` would otherwise import from the repository root. Both moved unchanged apart from reading their settings from `env.ts`.
+- **`app.ts` keeps CORS open and the 50 MB limit.** 01D section 6 lists an origin allowlist, a lower body limit, and `errorHandler` for `app.ts`. Those change behavior and belong to 01C tier 2 and step 13; `TODO(C-02)` and `TODO(M-17)` mark the lines.
+- **The default custodian check stays**, in `remainingRoutes.ts` (exported for `main.ts`), because `DEFAULT_CUSTODIAN_ID` is still used by the routes. 01D deletes it with `DEFAULT_CUSTODIAN_ID`.
+- **The backup job was moved, not deleted.** Whether to keep it is still open (F-39, notes).
+
+### Typecheck: 71, unchanged
+
+Compared after every commit, by file and message. The eight `server.ts` errors are the same eight in `server/remainingRoutes.ts`, at new line numbers (the removed setup lines and, after the comment commit, the file header). TypeScript again prints some type members in a different order. No error added or removed.
+
+### Verified
+
+- After **every** commit: `npm run typecheck` (71), `npm run build` (passes; the production CSS and JS were compared with `main` after `584d0c5f`, `7a40911b`, and the comment changes, and were byte-identical each time; `5fd47ff0` and `bd242d15` touch no browser code), and `npm test`: **12 files, 305 tests passed**, every time. The tests start `server/main.ts` from commit `7a40911b` on, so the whole Phase 2 suite ran against the new startup path.
+- `npm run server` on a spare port (4123) with the real `.env`: the same banner, "Default custodian check passed", "Backup skipped: BACKUP_DIR is not set", `GET /api/assets` answered 200 with the asset list, `GET /api/auth/me` answered its usual 400, and an unknown path answered 404. Only GET requests were sent. Checked after `7a40911b` and again after `bd242d15`, so the real `.env` has all five database variables.
+- The fail-fast check, run from an empty folder so no `.env` was loaded: with only `DATABASE_HOST` set, the server stopped with exit code 1 and named the other four; with `DATABASE_PORT=abc`, it stopped with the port message. Neither run connected to anything.
+- The comment commit changes comments only: every changed line is a comment, apart from a final newline added to `prisma.ts`.
+
+**Not verified in the agent session:** nothing was clicked in a browser, and no email was sent (the tests run with mail off, and the `.env` check above did not trigger one).
+
+### Hand checks
+
+**Stop any running server and restart** (`npm run dev:all`). A server started before this step is still the old `server.ts` process.
+
+1. *Start.* `npm run server` prints the same banner as before ("Mini-Backend API is actively listening!", "Route Ready: http://localhost:4000/api/assets") and the default custodian line.
+2. *Every role.* Log in as Staff, Lab Head, Custodian, and Director, and open each sidebar tab once. Everything loads as before.
+3. *One write per workflow you can spare.* For example, as a Custodian, submit a borrow request; as a Lab Head, decline it. Both work as before. (`npm test` already covers every endpoint on the test database.)
+4. *Email, only if your `.env` has Mailgun set.* Do one action that sends mail (a disposal request, for example). The server terminal shows "Sent ..." as before.
+5. *Watch mode.* `npm run server:watch`, then save any file in `server/`: the server restarts.
+6. *Each teammate's `.env`.* After pulling, each teammate runs `npm run server` once. If it stops with "Missing required environment variable(s)", they add the named variables to their `.env`. This is the intended effect of the change.
+7. *Tests.* `npm test` passes on your machine: 305 tests.
+
+---
+
 ## Bug fix: issues #25 and #26 (not a restructure step)
 
 Branch `fix/issues-25-26`, from `main` after PR #27. Both bugs were found during the step 6 hand checks and exist on `main` independently of the restructure. One commit per fix. **Merged into `main` in PR #33**, after both rounds of hand checks; the restructure branch continues from that merge (`1bc85da4`).
@@ -752,9 +829,9 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 
 | Note | Finding | Where it belongs |
 |---|---|---|
-| The backup still covers only 4 of 15 tables (no `asset_records`, the table that holds custody state), so it could not actually restore the system. It is a partial export, not a backup. Deciding whether to keep it at all belongs with `server/jobs/backup.ts` | F-39 in 01A | Step 10, or delete the job |
+| The backup still covers only 4 of 15 tables (no `asset_records`, the table that holds custody state), so it could not actually restore the system. It is a partial export, not a backup. Deciding whether to keep it at all belongs with `server/jobs/backup.ts`. **Step 10 moved it there unchanged** (`7a40911b`); `TODO(F-39)` marks it. Keep, extend, or delete is still a team decision | F-39 in 01A | Team decision |
 | `pending_registrations.json` is now untracked but still the live store for pending sign-ups, holding a plaintext password per record | H-17 | Phase 3 (becomes a table) |
-| `prisma.ts` still carries hardcoded connection fallbacks including a password. Step 0 did not touch them, because removing them without `server/config/env.ts` would break every teammate's setup with no replacement | C-07 | Step 10 (`server/config/env.ts`) |
+| `prisma.ts` still carries hardcoded connection fallbacks including a password. Step 0 did not touch them, because removing them without `server/config/env.ts` would break every teammate's setup with no replacement. **Done in step 10** (`bd242d15`): `env.ts` requires the five variables and the fallbacks are gone. The values stay in git history (no rewrite, C-01), so rotating that password is still the team action from step 0 | C-07 | Done (password rotation: team action) |
 | `npm ci` reports 11 vulnerabilities (3 moderate, 8 high) and 2 packages have install scripts not covered by `allowScripts` (`@prisma/engines`, `prisma`) | 01C section 7, tier 3 item 22 | Separate dependency pass |
 | `node_modules` was absent in this working copy, so `npm ci` and `npm run prisma:generate` were run before anything could be verified. Worth knowing for the next session | n/a | n/a |
 | `LabHeadDashboard.tsx` does call `GET /api/assets` (line 165, via a template string), so 01D's list of callers is correct. Recorded because an earlier quick grep suggested otherwise | n/a | n/a |
@@ -818,6 +895,9 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | **Step 9, new:** a ticket's forwarding unit (`forwardedTo`: TSG, ITS, Both) is chosen in the repair form and set by Send to Maintenance, but the server never stores it, so "Dispatched To" always shows a dash. Pre-existing; `useRepairTickets.ts` already says so. Step 9 kept the per-unit value for when it is stored | n/a | Step 12 (repairs), or Phase 3 (a column) |
 | **Step 9, new:** the Staff analytics endpoint is still `GET /api/analytics/tsg`, called by `getTsgAnalyticsRaw` in `web/api/analytics.api.ts`. Renaming the URL is a backend change | n/a | Step 12 (analytics) |
 | **Step 9, new:** `roleConfig` in `Sidebar.tsx` gives each role a `label` and `subtitle` that nothing renders (only `nav` is used). Step 9 gave Staff plain values. Cosmetic | n/a | Cleanup, no hurry |
+| **Step 10, new:** 17 one-off scripts in `scratch/` import `../prisma` or `../mailer`, which no longer exist at the root, so they fail with "module not found". They are not part of the app, excluded from the typecheck, and 01D moves `scratch/` to `scripts/` later. Fixing an import is one line (`../server/config/prisma`), and with step 10 they also need the five `DATABASE_*` variables | n/a | When `scratch/` becomes `scripts/` (01D section 7) |
+| **Step 10, new:** `server/app.ts` keeps `cors()` open to every origin and the 50 MB body limit. 01D section 6 lists an origin allowlist and a lower limit for `app.ts`; both change behavior. `TODO(C-02)` and `TODO(M-17)` mark the lines | C-02, M-17 | 01C tier 2 with step 13 (CORS); Phase 3 with the image storage (limit) |
+| **Step 10, new:** the backup job's "inside the repository" guard takes the working folder as the repository, so it holds only when the server is started from the repository root (which every npm script does). Started from elsewhere, a `BACKUP_DIR` inside the repository would pass. Pre-existing since step 0; a comment says so | C-01 | With the F-39 decision |
 | **Old analytics changed (2026-10-08).** The 2026-10-04 decision to delete the 11 no-caller analytics endpoints in step 12 is replaced: none of the 22 untested analytics endpoints is deleted (the 11 from `legacy/analytics-v1/` and the 11 that never had a caller). In step 12 their handler code moves to `legacy/analytics-endpoints/` with a README, and their routes are unregistered. The three endpoints kept on 2026-10-07 (`idle-time`, `idle-frequency`, `loan-recommender`) are not among the 22 and stay mounted. Earlier lines in this log that say "deleted" or "the step 12 deletion" are kept as dated records | 01A 6.11, M-06 | Step 12 (analytics) |
 
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.

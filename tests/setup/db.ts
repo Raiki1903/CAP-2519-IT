@@ -9,7 +9,7 @@ import { loadTestDatabaseConfig, TestDatabaseRefused, type TestDatabaseConfig } 
 
 /**
  * Builds a Prisma client for the test database.
- * It does not import the app's prisma.ts, which falls back to CCS Cloud when a variable is missing. (C-07)
+ * It does not import the app's server/config/prisma.ts, which loads .env, where the DATABASE_* variables point at CCS Cloud. (C-07)
  *
  * @param config the guarded connection details; read from TEST_DATABASE_URL when omitted
  * @throws TestDatabaseRefused when TEST_DATABASE_URL fails the guard

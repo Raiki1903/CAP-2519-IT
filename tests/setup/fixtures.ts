@@ -5,7 +5,7 @@
  */
 
 /**
- * The separator server.ts writes between campus and lab in asset_records locations, and splits on
+ * The separator the server writes between campus and lab in asset_records locations, and splits on
  * when it lists assets. It is an em dash with a space on each side; the data has to match it exactly.
  */
 export const LOCATION_SEPARATOR = " — ";
@@ -20,7 +20,7 @@ export const LAB = {
   homeLocation: `Manila${LOCATION_SEPARATOR}TEST`,
 } as const;
 
-/** Where server.ts says an asset under maintenance is (its TSG_OFFICE_LOCATION). */
+/** Where the server says an asset under maintenance is (its TSG_OFFICE_LOCATION). */
 export const TSG_OFFICE_LOCATION = `Manila${LOCATION_SEPARATOR}TSG Office`;
 
 /** Role rows, one per database role name, in the order of the roles_role_name enum. */

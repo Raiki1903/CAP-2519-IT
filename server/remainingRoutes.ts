@@ -1,4 +1,8 @@
-// server.ts
+/**
+ * Every API route not yet extracted into server/features/<process>/: the old server.ts, minus startup.
+ * Layer: routes, temporarily all five layers in one file. Mounted by app.ts. Calls config/prisma.ts, shared/services/mailer.ts, and @shared/enums.
+ * Used by: every role and workflow. Steps 11 and 12 move its routes out one feature at a time, and the file is deleted when it is empty.
+ */
 import express, { Request, Response } from 'express';
 import { sendEmail, emailTemplate } from './shared/services/mailer';
 import { prisma } from './config/prisma.js';
@@ -6,6 +10,7 @@ import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import type { StaffUnit } from '@shared/enums/role';
 
+/** The routes below, registered in their original order. app.ts mounts it after the body parsers. */
 export const router = express.Router();
 
 // TODO: replace with the actual logged-in user's id once auth/session is wired up.
@@ -22,8 +27,11 @@ function campusForLab(lab: string): string {
     return LAGUNA_LABS.has(lab) ? "Laguna" : "Manila";
 }
 
-// Fail loudly and immediately if DEFAULT_CUSTODIAN_ID doesn't exist, instead of
-// letting every asset write crash later with an opaque FK constraint error.
+/**
+ * Startup check: logs an error if user DEFAULT_CUSTODIAN_ID does not exist, instead of
+ * letting every asset write fail later with an opaque foreign key error. Never throws.
+ * Called by main.ts once the server listens.
+ */
 export async function assertDefaultCustodianExists() {
     const user = await prisma.users.findUnique({ where: { user_id: DEFAULT_CUSTODIAN_ID } });
     if (!user) {
