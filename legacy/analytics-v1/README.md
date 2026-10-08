@@ -27,7 +27,7 @@ They are kept rather than deleted because the team asked to keep them, flagged (
 
 ## Backend endpoints that now have no caller at all
 
-These 11 endpoints in `server.ts` existed **only** for the files above. After this move, nothing in the app calls them. They are still mounted and still unauthenticated, so they remain attack surface that returns institutional equipment and finance data to anyone who asks ([01C section 4.4](../../docs/phase-1b-deep-map/01C-security-map.md#44-analytics-routes-30)).
+These 11 endpoints in `server.ts` existed **only** for the files above. After this move, nothing in the app calls them. Until step 12 they are still mounted and still unauthenticated, so they remain attack surface that returns institutional equipment and finance data to anyone who asks ([01C section 4.4](../../docs/phase-1b-deep-map/01C-security-map.md#44-analytics-routes-30)). Step 12 unregisters them (see the decision below).
 
 | Endpoint | Was called by |
 |---|---|
@@ -56,10 +56,12 @@ These 11 endpoints in `server.ts` existed **only** for the files above. After th
 
 ## Sibling folder: `legacy/analytics-widgets/` (2026-10-07)
 
-Seven widgets that the **live** analytics views exported but never rendered now sit in [`../analytics-widgets/`](../analytics-widgets/README.md). Three of them were the only callers of `/api/analytics/advanced/idle-time`, `idle-frequency`, and `loan-recommender`. The team decided to keep those three endpoints for now: they are **not** part of the step 12 deletion below.
+Seven widgets that the **live** analytics views exported but never rendered now sit in [`../analytics-widgets/`](../analytics-widgets/README.md). Three of them were the only callers of `/api/analytics/advanced/idle-time`, `idle-frequency`, and `loan-recommender`. The team decided to keep those three endpoints for now: they are **not** among the 22 endpoints that step 12 moves to `legacy/analytics-endpoints/` and unregisters (decision below). They stay mounted.
 
-## Decision (2026-10-04)
+## Decision (2026-10-04, changed 2026-10-08)
 
-**The 11 endpoints above are deleted; the files in this folder stay here.** None of them is re-attached. The endpoints go when the analytics backend is extracted from `server.ts` (restructure step 12), so no unauthenticated reporting route outlives its only caller. The two live endpoints listed above are not touched. This answers 01D section 6, open question 5 in [01A section 10](../../docs/phase-1b-deep-map/01A-system-trace.md#10-open-questions-and-uncertainties).
+**The 11 endpoints above are kept, not deleted, and stop being reachable in step 12; the files in this folder stay here.** None of them is re-attached. When the analytics backend is extracted from `server.ts` (restructure step 12), the handler code of these 11 moves to `legacy/analytics-endpoints/`, together with the 11 analytics endpoints that never had a caller (22 in all). That folder gets a README with one line per endpoint: path, method, what it computed, which tables it read, and its group. Their routes are no longer registered, so calling them answers not found (404), and no unauthenticated reporting route outlives its only caller. The two live endpoints listed above are not touched. This answers 01D section 6, open question 5 in [01A section 10](../../docs/phase-1b-deep-map/01A-system-trace.md#10-open-questions-and-uncertainties).
+
+The 2026-10-04 decision was to delete the 11 endpoints. On 2026-10-08 the team chose to keep their code in `legacy/analytics-endpoints/` instead (the "Old analytics" row of the [PROMPT-2-restructure.md](../../docs/phase-1c-restructure/PROMPT-2-restructure.md) decisions table). They get no tests in Phase 2.
 
 The screen code is kept so the team can read it without digging through git history. It is not maintained and stays out of the build and the typecheck. If someone later wants one of these screens back, it needs new endpoints: move the file into `web/features/analytics/`, point it at `web/api/analytics.api.ts`, and give it the file header and TSDoc required by [CODE-COMMENTS.md](../../docs/guides/CODE-COMMENTS.md).

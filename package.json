@@ -12,6 +12,7 @@
     "dev:all": "concurrently -n FE,API -c blue,green \"npm run dev\" \"npm run server\"",
     "seed": "tsx test-user.ts",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "prisma:generate": "prisma generate",
     "prisma:pull": "prisma db pull"
   },
@@ -61,7 +62,8 @@
     "tailwindcss": "4.1.12",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vite": "^6.4.3"
+    "vite": "^6.4.3",
+    "vitest": "^4.1.11"
   },
   "pnpm": {
     "overrides": {

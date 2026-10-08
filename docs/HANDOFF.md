@@ -607,3 +607,165 @@ Answered on 2026-10-08 (see the log, "Team decisions on step 9"): ITS is removed
 
 1. Restart both servers (`npm run dev:all`), run the 12 step 9 hand checks, then push and open the pull request.
 2. Then the **Phase 2 tests** prompt, which is not written yet (session plan: step 9, then Phase 2 tests, then steps 10 to 12).
+
+---
+
+## Phase 2, API tests Part A, 2026-10-08
+
+**Prompt followed:** [phase-2-tests/PROMPT-tests.md](phase-2-tests/PROMPT-tests.md), Part A. Branch: `test/phase-2-api-tests`, from `main` after PR #50 (`a02786c8` adds the prompt). Nothing pushed.
+
+### What was produced
+
+- **Vitest 4.1.11**, dev dependency only (`0e9d308e`). Uses the installed Vite 6.4.3; no other dependency changed.
+- **`server.ts` reads its port from `PORT`**, default 4000 (`ec738f0b`, behavior-neutral). The only app-code change.
+- **The harness and a smoke test** (`f2058aef`): `tests/setup/` holds the database guard, the schema load, the reset and fake seed, and the code that starts `server.ts` as a child process on a free port, from a temporary folder, aimed only at the local test database, with mail and backups off. `tests/api/smoke.test.ts` (3 tests) and `tests/setup/guard.test.ts` (7 tests). `npm test` runs them; `tsconfig.json` now includes `tests/`.
+- **[tests/README.md](../tests/README.md) and the [test plan](phase-2-tests/01-test-plan.md)** (`225770e9`): all 62 endpoints, 40 assigned to sessions B1 to B4 with what each test checks and the defects pinned, 22 skipped with reasons.
+- **Docs housekeeping:** [02-test-log.md](phase-2-tests/02-test-log.md), this entry, the status board, the superseded note in `PROMPT-db-revisions.md`, the MySQL correction in `PROMPT-2-restructure.md`, and `TEST_DATABASE_URL=` in `.env.example`.
+- **Checks:** `npm test` 10 passed; build passes; **typecheck 71, unchanged** (none in `tests/`).
+
+### Key findings
+
+- **Prisma 7.9 refuses `prisma db push --force-reset` when an AI agent runs it** and asks for the user's consent. The harness was redesigned so it never needs that flag: it empties the guarded test tables itself and runs a plain `db push`. No consent was requested or used.
+- **MySQL on Windows stores database names in lower case**, which broke a repeated `db push` against `AdRIC_DB_test`. The harness passes the stored name. Worth knowing for step 14.
+- **The test database comes from `schema.prisma`, not the live database**, so H-21 cannot be reproduced locally. Step 14 baselines from the live database.
+- Verified: the guard refuses a non-local host and a name without `_test`; the server resolves `@shared/*` from a temporary folder only through `TSX_TSCONFIG_PATH`; a sign-up lands in the temporary folder and the repo's `pending_registrations.json` is untouched. Registration writes are therefore safe to test in B1.
+- New defects logged, not fixed (all in the log): the account update's invalid `MANILA_CAMPUS` value, the repair duplicate guard answering 409 before 404, two analytics oddities.
+
+### Open questions
+
+- **11 analytics endpoints never had a caller** and are neither in the step 12 deletion nor among the three kept on 2026-10-07 (plan section 3.2). Delete them in step 12, or give them a "responds with 200" test in B4?
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. On your machine: create `AdRIC_DB_test` and set `TEST_DATABASE_URL` as in [tests/README.md](../tests/README.md), then run `npm test`. Push the branch when it passes.
+2. Then Part B1:
+`Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B1.`
+
+## Phase 2, API tests Part B1, 2026-10-08
+
+**Prompt followed:** [phase-2-tests/PROMPT-tests.md](phase-2-tests/PROMPT-tests.md), Part B1. Branch: `test/phase-2-api-tests`, continued from Part A. Nothing pushed.
+
+### What was produced
+
+- **Auth and registration tests** (`212b69df`): `tests/api/auth.test.ts` (33 tests: login and `/me` for each seeded role, the account update) and `tests/api/registration.test.ts` (22 tests: sign-up requests, the pending list, approve, reject, direct registration). Sign-ups are written only in the test server's temporary folder.
+- **Asset tests** (`4fae5b46`): `tests/api/assets.test.ts` (33 tests: the list, custodian history, intake, edit, delete).
+- **Team decision recorded (2026-10-08):** none of the 22 analytics endpoints in plan sections 3.1 and 3.2 is deleted. In step 12 their handler code moves to `legacy/analytics-endpoints/` with a README (path, method, what it computed, tables read, group 3.1 or 3.2) and their routes are unregistered, so they answer not found. No Phase 2 tests for them. Written into the plan (3.1, 3.2), the [test log](phase-2-tests/02-test-log.md), and the "Old analytics" row of the [PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md) decisions table. `server.ts` is unchanged.
+- **Docs housekeeping:** the test log (status, B1 detail, notes), the plan's B1 defect columns, the status board, the run counts in `tests/README.md`, and this entry.
+- **Checks:** `npm test` 5 files, **98 passed**, twice in a row; build passes; **typecheck 71, unchanged** (none in `tests/`).
+
+### Key findings
+
+- **No app code changed.** Every test passed against today's behavior on the first full run; nothing was fixed.
+- **C-03 is real on the test database:** the password matches in any letter case (`users.password` uses `utf8mb4_unicode_ci`). CCS Cloud's collation was not checked.
+- **Three new defects pinned**, logged not fixed: the account update answers `CITe4D` when no lab is sent (the account page shows it until reload); approving a sign-up for an unknown lab name creates a new research center; editing an asset with only an acquisition value resets its funding source to "Unspecified" (M-16 family).
+- **Older text still describes the 2026-10-04 deletion** (`PROMPT-tests.md` B4 line and skip list, the two `legacy/` analytics READMEs, the restructure log). Left as is in this session; listed in the log.
+
+### Open questions
+
+- `PROMPT-tests.md` still says B4 skips "the ones that step 12 deletes". Under the new decision B4's scope is unchanged (live callers plus the three kept on 2026-10-07), but the wording is stale. Update it now, or leave it to step 12?
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. On your machine: `npm test` (expect 98 passed). Push the branch when it passes.
+2. Then Part B2:
+`Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B2.`
+
+## Phase 2, API tests Part B2, 2026-10-08
+
+**Prompt followed:** [phase-2-tests/PROMPT-tests.md](phase-2-tests/PROMPT-tests.md), Part B2. Branch: `test/phase-2-api-tests`, continued from B1. Nothing pushed.
+
+### What was produced
+
+- **Loan tests** (`78987f8e`): `tests/api/loans.test.ts` (31 tests: the loan list, the borrow request, the Lab Head's decision), plus `tests/setup/extraAssets.ts`, a helper that gives a test an asset of its own in a chosen custody state, so tests that move custody do not depend on each other.
+- **Return tests** (`43a06080`): `tests/api/returns.test.ts` (16 tests: return finalization and the return list).
+- **Transfer tests** (`ccd47c25`): `tests/api/transfers.test.ts` (32 tests: the request, the list, the decision, and the unused `/accept` route).
+- **Analytics wording brought in line with the 2026-10-08 decision:** the B4 line and the skip list in `PROMPT-tests.md`, `legacy/analytics-v1/README.md`, and `legacy/analytics-widgets/README.md` now describe the 22 endpoints kept in `legacy/analytics-endpoints/` and unregistered in step 12. The restructure log got dated notes (under step 2 and in its notes table); its old lines were kept.
+- **Docs housekeeping:** the test log (status, B2 detail, notes, the C-03 check on CCS Cloud), the plan's B2 rows, the run counts and a line on the helper in `tests/README.md`, the status board, and this entry.
+- **Checks:** `npm test` 8 files, **177 passed**, twice in a row; build passes; **typecheck 71, unchanged** (none in `tests/`).
+
+### Key findings
+
+- **No app code changed.** All 79 new tests describe today's behavior; nothing was fixed.
+- **C-03 also applies on CCS Cloud** (checked by Raiki, 2026-10-08): `users.password` there is `utf8mb4_0900_ai_ci`, so login ignores letter case and accents on the live database too. It goes away when passwords are hashed (Phase 3).
+- **Two new defects in the M-12 family**, pinned and logged: `/accept` moves a transfer in any status, even an approved one, to `pending_approver`; and once a transfer is `pending_approver`, the issue #25 guard no longer sees it, so the asset takes a second transfer request.
+- **H-05 reaches returns too:** a disposed asset can be returned and comes back as ACTIVE.
+- **H-16 on `/accept`:** an id that is not a number answers 500 with Prisma's full message, including the server's file path and source lines.
+
+### Open questions
+
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. On your machine: `npm test` (expect 177 passed). Push the branch when it passes.
+2. Then Part B3:
+`Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B3.`
+
+---
+
+## Phase 2, API tests Part B3, 2026-10-08
+
+**Prompt followed:** [phase-2-tests/PROMPT-tests.md](phase-2-tests/PROMPT-tests.md), Part B3. Branch: `test/phase-2-api-tests`, continued from B2. Nothing pushed.
+
+### What was produced
+
+- **Repair tests** (`ab494e76`): `tests/api/repairs.test.ts` (36 tests: the repair request and its 8-second duplicate guard, the ticket list, and both update routes).
+- **Inspection and report tests** (`0e81e87b`): `tests/api/inspections.test.ts` (29 tests: the inspection report and the two report lists).
+- **Disposal tests** (`13edf79d`): `tests/api/disposals.test.ts` (25 tests: the request, the list, and the Director's decision).
+- No new setup file: the write tests use B2's `addExtraAsset` (tags `TEST-0401`, `TEST-0501`, `TEST-0601` onward). Its file header now names the B3 callers.
+- **Docs housekeeping:** the test log (status, B3 detail, 11 notes), the plan's B3 rows, the run counts and the helper line in `tests/README.md`, the status board, and this entry.
+- **Checks:** `npm test` 11 files, **267 passed**, twice in a row; build passes; **typecheck 71, unchanged** (none in `tests/`).
+
+### Key findings
+
+- **No app code changed.** All 90 new tests describe today's behavior; nothing was fixed.
+- **The inspection route turns an unknown condition into PERFECT** and writes it onto the asset with 200 (a typo, lower case, or the stored spelling "MINOR DRIFT"). The return route answers 400 for the same input. New, H-07 family.
+- **Disposals have no duplicate guard** like issue #25: a second pending disposal on one asset is accepted, and approving both writes two DISPOSED records. Assets on loan or in maintenance are accepted too (H-05).
+- **Repair records are not linked to their ticket:** neither repair route sets `asset_records.repair_id`, while the disposal decision does set `disposal_id`.
+- **H-16 in two more places:** `PUT /api/asset_repairs/:id/status` with an unknown or non-numeric id, and an inspection with a `reportedById` that is no account, answer 500 with Prisma's full message (file path and source lines included).
+- **Smaller ones**, all in the test log: `/status` accepts a status of only spaces; "Fixed & Completed" adds a record and a report even if the ticket never went into maintenance; the inspection image is not checked; the disposal form's "Last Custodian" is never shown again (M-13 family).
+
+### Open questions
+
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. On your machine: `npm test` (expect 267 passed). Push the branch when it passes.
+2. Then Part B4:
+`Read docs/phase-2-tests/PROMPT-tests.md and follow it. Do Part B4.`
+
+---
+
+## Phase 2, API tests Part B4, 2026-10-09
+
+**Prompt followed:** [phase-2-tests/PROMPT-tests.md](phase-2-tests/PROMPT-tests.md), Part B4, the last Phase 2 session. Branch: `test/phase-2-api-tests`, continued from B3. Nothing pushed.
+
+### What was produced
+
+- **Analytics tests** (`fa00fa4c`): `tests/api/analytics.test.ts` (38 tests: 35 for the five endpoints the live Director, Lab Head, and Staff views call, and a "responds with 200" check for each of the three advanced endpoints kept on 2026-10-07). The 22 endpoints step 12 moves to `legacy/analytics-endpoints/` get no tests, as decided.
+- **Comment fix** (`400c7aea`): one comment in the new file reworded so it has no em dash. Comment only.
+- **Two additions to `tests/setup/extraAssets.ts`**, in the analytics commit: optional fields on `addExtraAsset` (home location, project, warranty date, funding; defaults unchanged), and `removeExtraAssets`, which deletes test assets with every row that points at them. The analytics endpoints count every asset, so each test puts the database back in a `finally` block.
+- **Docs housekeeping:** the test log (status, B4 detail, Phase 2 done, 8 notes), the plan's B4 rows (including why M-09 is not tested), the run count and a line on `removeExtraAssets` in `tests/README.md`, the status board (Phase 2 done; "Where we are now" set to restructure step 10), and this entry.
+- **Checks:** `npm test` 12 files, **305 passed**, twice in a row; build passes; **typecheck 71, unchanged** (none in `tests/`).
+
+### Key findings
+
+- **No app code changed.** All 38 new tests describe today's behavior; nothing was fixed.
+- **The Director's lab filter narrows one chart only:** the location counts follow the lab, but the portfolio value, funding, and pending disposals stay the all-lab totals. New.
+- **Lab code matching by substring:** the Director view counts any location containing "CAR" (and four other codes) as Laguna, and location-status files a Manila room containing "CAR" under the CAR lab. New, M-03 family.
+- **Lab Head delinquencies count a pending loan request past its due date as overdue**, and keep counting a returned loan (H-04).
+- **Inspection progress reads no inspection report:** it counts every record of a center's projects (history included) and calls the ACTIVE ones inspected; a center with no projects shows 100%.
+- **Smaller ones**, all in the test log: invented values for an asset with no records (H-09 family), "Pending_approver" shown raw on the Lab Head view (M-12 family), and the Staff endpoint ignoring the date range the view sends.
+
+### Open questions
+
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. On your machine: `npm test` (expect 305 passed). Push `test/phase-2-api-tests` and open the pull request for Phase 2.
+2. After it is merged, restructure step 10, on the branch PROMPT-2 names:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 10.`
