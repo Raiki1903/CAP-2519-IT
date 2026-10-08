@@ -22,7 +22,7 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 7 | Delete `prismaClient.ts` | Done (hand checks passed) | `6e08e469` (behavior change) | n/a (see note 4) | **93** (unchanged, same errors) | 2026-10-04 |
 | 8 | Move the frontend to `web/` with feature folders (part 1: everything except `ITSDashboard.tsx`; part 2: split it) | Part 1 done (hand checks passed, PR #45). Part 2 done (hand checks passed, PR #46) | Part 1: `edcb9162` to `6d9facc2` (14 commits). Part 2: `5d26ed8e` to `7ca707c5` (19 commits, 5 of them labelled behavior changes, see detail) | Part 1: `ffa05a38`. Part 2: `caca57a9` | Part 1: **93**. Part 2: **71** (from 93; every removed error is accounted for, none added) | 2026-10-06, 2026-10-07 |
 | 9 | Merge ITS and TSG into `/staff/*` | Done (hand checks pending) | `d37d2233`, `44d9d729`, `d9d95f18` (behavior changes), `af1c641c`, `5e1a0f80` (renames); `89d2212c` (step 8 follow-up move) | `223e2060`, `4101aa1b` | **71** (unchanged, same errors) | 2026-10-08 |
-| 10 | Create the `server/` skeleton | Done (hand checks pending) | `584d0c5f`, `7a40911b`, `5fd47ff0` (moves); `bd242d15` (behavior change, C-07) | the `docs(step 10)` commit | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
+| 10 | Create the `server/` skeleton | Done (hand checks pending) | `584d0c5f`, `7a40911b`, `5fd47ff0` (moves); `bd242d15` (behavior change, C-07) | `77f68fa7` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 11 | Extract one backend feature end to end (loans) | Not started | | | | |
 | 12 | Extract the remaining backend features | Not started | | | | |
 | 13 | Add `errorHandler` and `requireAuth` | Not started | | | | |
@@ -657,7 +657,7 @@ Started from the PR #52 merge (`dd6db809`), after the Phase 2 API tests. `server
 | `7a40911b` | Move | `server.ts` split into `server/main.ts`, `server/app.ts`, `server/jobs/backup.ts`, and `server/remainingRoutes.ts` (the rest, `git mv`). Scripts and the test harness point at `server/main.ts` |
 | `5fd47ff0` | Move | `server/config/env.ts` reads `PORT`, the three `MAILGUN_*` variables, and `BACKUP_DIR` with the same defaults as before |
 | `bd242d15` | **Behavior change** (C-07) | The five `DATABASE_*` variables are required; the hardcoded CCS Cloud fallbacks are deleted |
-| `docs(step 10)` | Comments | File headers, TSDoc, TODOs; stale mentions of `server.ts` in comments and READMEs; this log |
+| `77f68fa7` | Comments | File headers, TSDoc, TODOs; stale mentions of `server.ts` in comments and READMEs; this log |
 
 ### The new `server/` tree
 
