@@ -24,7 +24,7 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 9 | Merge ITS and TSG into `/staff/*` | Done, merged in PR #50 (hand checks partly run: 4 and 6 blocked by issue #49, 5 and 7 partly checked, see detail) | `d37d2233`, `44d9d729`, `d9d95f18` (behavior changes), `af1c641c`, `5e1a0f80` (renames); `89d2212c` (step 8 follow-up move) | `223e2060`, `4101aa1b` | **71** (unchanged, same errors) | 2026-10-08 |
 | 10 | Create the `server/` skeleton | Done (hand checks passed; 4 skipped, no Mailgun; 6 a team action) | `584d0c5f`, `7a40911b`, `5fd47ff0` (moves); `bd242d15` (behavior change, C-07) | `77f68fa7` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 11 | Extract one backend feature end to end (loans) | Done (all 8 hand checks passed), merged in PR #58 | `0ba5feda`, `b3212304`, `2261a0dd` (moves and types) | `4a51c67a` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
-| 12 | Extract the remaining backend features | Batch 1 done (returns, transfers, disposals); hand checks pending. Batches for repairs, inspections, registrations, auth, assets, and analytics not started | Batch 1: `86d166ee` (email lookups), `02147897` (returns), `574ded38` (transfers), `9e81ffc6` (disposals) | Batch 1: see the step 12 detail | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
+| 12 | Extract the remaining backend features | Batch 1 done (returns, transfers, disposals); hand checks pending. Batches for repairs, inspections, registrations, auth, assets, and analytics not started | Batch 1: `86d166ee` (email lookups), `02147897` (returns), `574ded38` (transfers), `9e81ffc6` (disposals) | Batch 1: `5dc2f47a` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 13 | Add `errorHandler` and `requireAuth` | Not started | | | | |
 | 14 | Baseline the migrations | Not started | | | | |
 
@@ -826,7 +826,7 @@ Step 12 runs in batches. **Batch 1 (2026-10-09): returns, transfers, disposals**
 | `02147897` | Move | The two return routes leave `remainingRoutes.ts` for `server/features/returns/` (five files). Adds `shared/types/returns.ts`; `web/api/returns.api.ts` takes its request type from there |
 | `574ded38` | Move | The four transfer routes (including `/accept`) leave for `server/features/transfers/`. Adds `shared/types/transfers.ts`; `web/api/transfers.api.ts` takes its request type from there |
 | `9e81ffc6` | Move | The three disposal routes leave for `server/features/disposals/`. Adds `shared/types/disposals.ts`; `web/api/disposals.api.ts` takes its request type from there. `remainingRoutes.ts` no longer sends email |
-| (this commit) | Comments | Headers, TSDoc, TODOs on the 19 new files; stale headers in `app.ts`, `config/prisma.ts`, `remainingRoutes.ts`, `AppError.ts`, `custodyRequestGuard.ts`, `campus.ts`, `defaultCustodian.ts`, `mailer.ts`, `assetCondition.ts`, the three web API files, and the disposal form's TODO; this log, issue #57 in the step 11 note |
+| `5dc2f47a` | Comments | Headers, TSDoc, TODOs on the 19 new files; stale headers in `app.ts`, `config/prisma.ts`, `remainingRoutes.ts`, `AppError.ts`, `custodyRequestGuard.ts`, `campus.ts`, `defaultCustodian.ts`, `mailer.ts`, `assetCondition.ts`, the three web API files, and the disposal form's TODO; this log, issue #57 in the step 11 note |
 
 ### Where the code is now
 
