@@ -15,7 +15,7 @@ export interface LabOption {
  * The full name doubles as the id, and it is what the form sends as `labAffiliation`.
  */
 // TODO(M-03): hardcoded, and separate from both research_centers and the short lab
-// codes in server/remainingRoutes.ts. Phase 3 serves it from GET /api/research-centers.
+// codes in server/shared/utils/campus.ts and server/remainingRoutes.ts. Phase 3 serves it from GET /api/research-centers.
 export const DLSU_LABS: LabOption[] = [
   { id: "Bioinformatics Lab", name: "Bioinformatics Lab" },
   { id: "Center for Automation Research (CAR)", name: "Center for Automation Research (CAR)" },

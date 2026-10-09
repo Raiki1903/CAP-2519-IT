@@ -1,21 +1,10 @@
 /**
  * Loans API: every loan request the web app sends to the server.
- * Layer: api. Called by LoanForm, LabHeadDashboard, LabHeadAnalyticsView, and state/serverData.tsx. Calls client.ts.
+ * Layer: api. Called by LoanForm, LabHeadDashboard, LabHeadAnalyticsView, and state/serverData.tsx. Calls client.ts; types from @shared/types/loans.
  * Used by: Custodian borrow request, Lab Head approval.
  */
+import type { LoanRequestInput } from "@shared/types/loans";
 import { apiGet, apiPost, apiPut, type ApiResult } from "./client";
-
-/** What the borrow form sends. */
-export interface LoanRequestInput {
-  /** Borrower's display name as typed in the form. */
-  // TODO(H-10): the server resolves this name to a user by matching text. Phase 3 takes the borrower from the session.
-  borrower: string;
-  /** Destination lab code, for example "CITe4D". */
-  lab: string;
-  purpose: string;
-  /** Due date as yyyy-mm-dd. */
-  dueDate: string;
-}
 
 /**
  * Files a pending borrow request for an asset.

@@ -470,7 +470,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
   // A lab may be stored as a full name, a short code, or "Name (CODE)", so this compares
   // all three forms loosely.
-  // TODO(M-02): scoping to the Lab Head's branch happens only here, in the browser; the server sends every lab's rows. Moves to the server (01D section 7), steps 11 and 12.
+  // TODO(M-02): scoping to the Lab Head's branch happens only here, in the browser; the server sends every lab's rows. Moves to the server (01D section 7) once requireAuth gives it the acting user, step 13 or later.
   const matchesBranch = (lab: string | undefined | null) => {
     if (!lab) return false;
     const target = userLab.toLowerCase().trim();

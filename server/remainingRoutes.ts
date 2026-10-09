@@ -1,7 +1,8 @@
 /**
  * Every API route not yet extracted into server/features/<process>/: the old server.ts, minus startup.
- * Layer: routes, temporarily all five layers in one file. Mounted by app.ts. Calls config/prisma.ts, shared/services/mailer.ts, and @shared/enums.
- * Used by: every role and workflow. Steps 11 and 12 move its routes out one feature at a time, and the file is deleted when it is empty.
+ * Layer: routes, temporarily all five layers in one file. Mounted by app.ts. Calls config/prisma.ts, shared/services/mailer.ts,
+ * shared/services/custodyRequestGuard.ts, shared/utils/campus.ts, shared/constants/defaultCustodian.ts, and @shared/enums.
+ * Used by: every role and workflow except loans (server/features/loans/). Step 12 moves the rest out one feature at a time, and the file is deleted when it is empty.
  */
 import express, { Request, Response } from 'express';
 import { sendEmail, emailTemplate } from './shared/services/mailer';
@@ -9,23 +10,12 @@ import { prisma } from './config/prisma.js';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import type { StaffUnit } from '@shared/enums/role';
+import { DEFAULT_CUSTODIAN_ID } from './shared/constants/defaultCustodian';
+import { campusForLab } from './shared/utils/campus';
+import { findCustodyRequestConflict } from './shared/services/custodyRequestGuard';
 
 /** The routes below, registered in their original order. app.ts mounts it after the body parsers. */
 export const router = express.Router();
-
-// TODO: replace with the actual logged-in user's id once auth/session is wired up.
-// asset_records.current_custodian is a required FK to users.user_id — the intake
-// form doesn't collect this yet, so every asset is provisionally logged under this id.
-const DEFAULT_CUSTODIAN_ID = 1;
-
-// Which campus each research lab sits on — used to format current_location
-// as "<Lab>-<Campus>" (e.g. "CITe4D-Manila"). Laguna set matches the same
-// classification already used in /api/analytics/director; anything not
-// listed defaults to Manila.
-const LAGUNA_LABS = new Set(["CAR", "HXIL", "CeLT", "CIVI", "MECH"]);
-function campusForLab(lab: string): string {
-    return LAGUNA_LABS.has(lab) ? "Laguna" : "Manila";
-}
 
 /**
  * Startup check: logs an error if user DEFAULT_CUSTODIAN_ID does not exist, instead of
@@ -281,95 +271,6 @@ router.get('/api/assets', async (req: Request, res: Response): Promise<void> => 
 });
 
 // 2.6 GET all asset_transfers directly from database with resolved Custodian-to-Lab mapping
-// 2.65 GET all asset_loans directly from database
-router.get('/api/asset_loans', async (req: Request, res: Response): Promise<void> => {
-    try {
-        let dbLoans = await prisma.asset_loans.findMany({
-            orderBy: { loaned_on: 'desc' }
-        });
-
-        // Seed LOAN-9 pending loan if missing
-        if (!dbLoans.some(l => l.loan_id === 9 || l.status === "pending" || l.status === "Pending")) {
-            const firstAsset = await prisma.assets.findFirst();
-            const firstUser = await prisma.users.findFirst({ where: { user_type: 'STUDENT' } });
-            if (firstAsset && firstUser) {
-                try {
-                    const seeded = await prisma.asset_loans.create({
-                        data: {
-                            loan_id: 9,
-                            asset_id: firstAsset.asset_id,
-                            borrower_id: firstUser.user_id,
-                            purpose: "Graphics & AI Performance Testing",
-                            status: "pending",
-                            due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-                        }
-                    });
-                    dbLoans.unshift(seeded);
-                } catch (err) { }
-            }
-        }
-
-        const [dbUsers, dbAssets, dbUserCenters] = await Promise.all([
-            prisma.users.findMany(),
-            prisma.assets.findMany(),
-            prisma.user_centers.findMany({
-                include: { research_centers: true }
-            }),
-        ]);
-
-        const formatted = dbLoans.map(l => {
-            const borrowerUser = dbUsers.find(u => u.user_id === l.borrower_id);
-            const asset = dbAssets.find(a => a.asset_id === l.asset_id);
-            const borrowerCenterLink = dbUserCenters.find(uc => uc.user_id === l.borrower_id);
-            const center = borrowerCenterLink?.research_centers;
-
-            // Scope by the asset's own tag prefix (e.g. "CeLT-0004" -> "CeLT")
-            // — the same convention /api/analytics/lab-head and
-            // /api/asset_transfers already use. This is what determines which
-            // LabHead branch the request belongs to; the borrower's own home
-            // center is unrelated and previously caused loans to silently
-            // never appear for the LabHead who actually owns the asset
-            // whenever the borrower belonged to a different lab.
-            const lab = asset?.asset_tag?.includes("-") ? asset.asset_tag.split("-")[0] : "";
-
-            // The destination lab picked on LoanForm was encoded into purpose
-            // at request time (see /borrow) — pulled out here as its own
-            // field for display, and stripped from the shown purpose/reason
-            // text so it isn't shown twice.
-            const destLabMatch = l.purpose?.match(/^Destination Lab:\s*(.+?)\s*(?:\n|$)/);
-            const destinationLab = destLabMatch ? destLabMatch[1] : undefined;
-            const cleanPurpose = destLabMatch
-                ? l.purpose.replace(/^Destination Lab:\s*.+?\n\n?/, "")
-                : l.purpose;
-
-            return {
-                id: `LOAN-${l.loan_id}`,
-                loanId: l.loan_id,
-                loan_id: l.loan_id,
-                asset_id: l.asset_id,
-                assetId: asset?.asset_tag || `EQ-2024-${l.asset_id}`,
-                asset: l.loan_id === 9 ? "ASUS TUF Gaming A15" : (asset?.name || "ASUS TUF Gaming A15"),
-                assetName: l.loan_id === 9 ? "ASUS TUF Gaming A15" : (asset?.name || "ASUS TUF Gaming A15"),
-                borrower_id: l.borrower_id,
-                borrower: borrowerUser ? `${borrowerUser.first_name} ${borrowerUser.last_name}` : `Borrower ID: ${l.borrower_id}`,
-                purpose: cleanPurpose || "Research Project Use",
-                destinationLab,
-                requestedOn: l.loaned_on ? l.loaned_on.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                dueDate: l.due_date ? l.due_date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                status: l.status ? (l.status.charAt(0).toUpperCase() + l.status.slice(1)) : "Pending",
-                location: center ? (center.location === "MANILA" ? "Manila" : "Laguna") : "Manila",
-                lab,
-                center_id: center?.center_id || 1
-            };
-        });
-
-        res.json({ success: true, loans: formatted });
-    } catch (e: any) {
-        res.status(500).json({ success: false, error: e.message });
-    }
-});
-
-// Update asset_loan decision
 // 2.7 GET all asset_reports directly from database
 router.get('/api/asset_reports', async (req: Request, res: Response): Promise<void> => {
     try {
@@ -913,187 +814,6 @@ router.delete('/api/assets/:assetTag', async (req: Request<{ assetTag: string }>
     }
 });
 
-/**
- * Says why a new loan or transfer request on an asset must be refused, or null if it may go ahead.
- * An asset may hold only one pending request of either kind, because approving
- * two would hand one item to two custodians. (H-05)
- *
- * @param asset the asset row being requested
- * @param allowedStatuses the asset_records statuses this kind of request accepts
- * @returns a message for a 409 answer, or null
- */
-async function findCustodyRequestConflict(
-    asset: { asset_id: number; asset_tag: string },
-    allowedStatuses: readonly string[],
-): Promise<string | null> {
-    // TODO(H-05): the check and the insert are not atomic, so two requests in the same instant can both pass. Phase 3 database triggers.
-    const [latestRecord, pendingLoan, pendingTransfer] = await Promise.all([
-        // Same ordering GET /api/assets uses, so this agrees with the status the screens show.
-        prisma.asset_records.findFirst({
-            where: { asset_id: asset.asset_id },
-            orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }],
-            select: { status: true },
-        }),
-        prisma.asset_loans.findFirst({ where: { asset_id: asset.asset_id, status: "pending" }, select: { loan_id: true } }),
-        prisma.asset_transfers.findFirst({ where: { asset_id: asset.asset_id, status: "pending" }, select: { transfer_id: true } }),
-    ]);
-
-    if (pendingLoan) return `${asset.asset_tag} already has a pending loan request (LOAN-${pendingLoan.loan_id}).`;
-    if (pendingTransfer) return `${asset.asset_tag} already has a pending transfer request (TRF-${pendingTransfer.transfer_id}).`;
-
-    // An asset with no record yet is listed as Active, so it is treated as ACTIVE here too.
-    const status = latestRecord?.status ?? "ACTIVE";
-    if (!allowedStatuses.includes(status)) {
-        const described: Record<string, string> = { ACTIVE: "active", ON_LOAN: "on loan", MAINTENANCE: "under maintenance", DISPOSED: "disposed" };
-        return `${asset.asset_tag} is ${described[status] ?? status} and cannot take this request.`;
-    }
-    return null;
-}
-
-// 6. Log an equipment loan request (AssetDetailModal -> LoanForm handleSubmit).
-//     Only the asset_loans row (the approval-pipeline record) is written
-//     here. Custody does NOT move to the borrower yet — asset_records stays
-//     untouched until the Lab Head approves via
-//     PUT /api/asset_loans/:id/decision, so the asset keeps showing under
-//     its current custodian while the request is pending.
-router.post('/api/assets/:assetTag/borrow', async (req: Request<{ assetTag: string }>, res: Response): Promise<void> => {
-    try {
-        const { assetTag } = req.params;
-        const data = req.body;
-        console.log(`🚀 Server received loan request for ${assetTag}:`, data);
-
-        if (!data.borrower || !data.purpose || !data.dueDate) {
-            res.status(400).json({ success: false, error: "Missing required fields: borrower, purpose, dueDate." });
-            return;
-        }
-
-        const existing = await prisma.assets.findUnique({ where: { asset_tag: assetTag } });
-        if (!existing) {
-            res.status(404).json({ success: false, error: `No asset found with tag ${assetTag}.` });
-            return;
-        }
-
-        const conflict = await findCustodyRequestConflict(existing, ["ACTIVE"]);
-        if (conflict) {
-            res.status(409).json({ success: false, error: conflict });
-            return;
-        }
-
-        // LoanForm collects the borrower as a free-text name (e.g. "A. Dela Cruz"), same
-        // convention EditAssetDialog already uses for custodian — best-effort lookup by
-        // combined name, falling back to DEFAULT_CUSTODIAN_ID if nothing matches.
-        // asset_loans.borrower_id is a required FK, so this always needs a resolved id.
-        let borrowerId = DEFAULT_CUSTODIAN_ID;
-        const [first, ...rest] = String(data.borrower).replace(/^Dr\.\s*/i, "").split(" ");
-        const match = await prisma.users.findFirst({
-            where: { first_name: first, last_name: rest.join(" ") },
-        });
-        if (match) borrowerId = match.user_id;
-
-        // Logged as text (asset_loans has no dedicated lab column) so the
-        // decision endpoint below can format current_location as
-        // "<Lab>-<Campus>" once approved.
-        const purposeWithLab = data.lab ? `Destination Lab: ${data.lab}\n\n${data.purpose}` : data.purpose;
-
-        const loan = await prisma.asset_loans.create({
-            data: {
-                asset_id: existing.asset_id,
-                borrower_id: borrowerId,
-                purpose: purposeWithLab,
-                due_date: new Date(data.dueDate),
-                status: "pending",
-            },
-        });
-
-        console.log("✅ Loan request logged in MySQL successfully:", loan.loan_id, assetTag);
-        res.json({ success: true, loan });
-    } catch (error: any) {
-        console.error("❌ MySQL Loan Insertion Failed:", error);
-        res.status(500).json({ success: false, error: error.message || "Database execution failed." });
-    }
-});
-
-// 6.5 Approve or decline a pending loan request (LabHeadDashboard -> decideLoan)
-router.put('/api/asset_loans/:loanId/decision', async (req: Request<{ loanId: string }>, res: Response): Promise<void> => {
-    try {
-        const loanId = parseInt(req.params.loanId, 10);
-        const { decision } = req.body as { decision?: string };
-        console.log(`🚀 Server received loan decision for #${loanId}:`, decision);
-
-        if (!Number.isInteger(loanId)) {
-            res.status(400).json({ success: false, error: "Invalid loan id." });
-            return;
-        }
-        if (decision !== "approve" && decision !== "decline") {
-            res.status(400).json({ success: false, error: "decision must be 'approve' or 'decline'." });
-            return;
-        }
-
-        const loan = await prisma.asset_loans.findUnique({ where: { loan_id: loanId } });
-        if (!loan) {
-            res.status(404).json({ success: false, error: `No loan found with id ${loanId}.` });
-            return;
-        }
-        if (loan.status !== "pending") {
-            res.status(400).json({ success: false, error: `Loan #${loanId} has already been ${loan.status}.` });
-            return;
-        }
-
-        // asset_loans (approval status) and asset_records (append-only custody log)
-        // are updated together so a failure on either rolls back the whole decision.
-        const updatedLoan = await prisma.$transaction(async (tx) => {
-            const newLoanStatus = decision === "approve" ? "approved" : "declined";
-            const updated = await tx.asset_loans.update({
-                where: { loan_id: loanId },
-                data: { status: newLoanStatus },
-            });
-
-            if (decision === "approve") {
-                // This is the actual custody handoff: /borrow only logged the
-                // request, so the asset is still with its prior custodian until
-                // now. Append a new asset_records entry moving it to the borrower.
-                const latestRecord = await tx.asset_records.findFirst({
-                    where: { asset_id: loan.asset_id },
-                    orderBy: { date_logged: "desc" },
-                });
-
-                // current_location becomes "<Campus> — <Lab>" (e.g. "Manila — CITe4D"),
-                // matching the same format used by location, from the destination
-                // picked on LoanForm (logged into purpose at request time, see
-                // /borrow above). location (home lab) is untouched.
-                const destLabMatch = loan.purpose?.match(/^Destination Lab:\s*(.+?)\s*(?:\n|$)/);
-                const destLab = destLabMatch ? destLabMatch[1] : null;
-                const currentLocationVal = destLab
-                    ? `${campusForLab(destLab)} — ${destLab}`
-                    : (latestRecord?.current_location ?? latestRecord?.location ?? "Unassigned");
-
-                await tx.asset_records.create({
-                    data: {
-                        asset_id: loan.asset_id,
-                        status: "ON_LOAN",
-                        asset_condition: latestRecord?.asset_condition ?? "PERFECT",
-                        location: latestRecord?.location ?? "Unassigned",
-                        current_location: currentLocationVal,
-                        current_custodian: loan.borrower_id,
-                    },
-                });
-            }
-            // On decline, asset_records is untouched — custody never left the
-            // prior custodian in the first place, so there's nothing to revert.
-
-            return updated;
-        });
-
-        console.log(`✅ Loan #${loanId} ${decision}d successfully.`);
-        res.json({ success: true, loan: updatedLoan });
-    } catch (error: any) {
-        console.error("❌ MySQL Loan Decision Failed:", error);
-        res.status(500).json({ success: false, error: error.message || "Database execution failed." });
-    }
-});
-
-// 7. Fetch all equipment loans (read-only record — LabHeadDashboard custody
-//    tab, and anywhere else that needs full visibility into loan activity)
 // 8. Log a repair/maintenance request against an asset (RepairForm -> handleSubmit,
 //    and ReturnForm -> handleSubmit when a custodian flags the item on return).
 //    This is the shared function referenced from both forms.
