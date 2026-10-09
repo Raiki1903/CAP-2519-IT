@@ -827,8 +827,10 @@ Answered on 2026-10-09 (see the log): the backup job is deleted in its own label
 - **Issue #32 for loans:** the decisions table puts "identify users by id" in steps 11 to 13. It was not applied to the borrow request, because the server has no acting user until `requireAuth` (step 13) and the Phase 2 tests pin the typed-name lookup. Proposed: apply it to loans in step 13. Does the team agree?
 - Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
 
+Answered on 2026-10-09 (see the log): **issue #32 is decided.** Step 13 switches to the session user for loans and for every feature step 12 extracts, and updates the three Phase 2 tests that pin the typed-name lookup in the same commit; step 12 moves the name lookups unchanged (recorded in PROMPT-2's decisions table). **All 8 step 11 hand checks passed.** During checks 5 to 7 a pre-existing gap was found: a loan decided on the Custody tab does not update the bell until a reload, and one decided from the bell does not update the open Custody tab (the bell reads `dbLoans` from `web/state/serverData.tsx`, loaded once at login; the tab keeps its own list). Not caused by step 11 (web bundle identical to `main`); Raiki is filing it as an issue, to be fixed with #55. Logged as a note.
+
 ### Exact next step
 
-1. Stop any running server, `npm run dev:all`, run the 8 step 11 hand checks, then push and open the pull request.
+1. Push and open the step 11 pull request (hand checks passed).
 2. Then **step 12** (the remaining backend features, one per commit). It is large; name a subset of features per session if needed:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 12.`
