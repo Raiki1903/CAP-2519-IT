@@ -3,17 +3,8 @@
  * Layer: api. Called by ReturnForm. Calls client.ts.
  * Used by: return finalization.
  */
+import type { ReturnInput } from "@shared/types/returns";
 import { apiPost, type ApiResult } from "./client";
-
-/** What the return form sends when a return is finalized. */
-export interface ReturnInput {
-  /** Display name of the person returning the asset. */
-  returnedBy: string;
-  /** One of ASSET_CONDITIONS from shared/enums/assetCondition.ts. */
-  condition: string;
-  /** Inspection notes. */
-  comments: string;
-}
 
 /**
  * Records a finalized return.
