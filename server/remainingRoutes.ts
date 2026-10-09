@@ -1,7 +1,8 @@
 /**
  * Every API route not yet extracted into server/features/<process>/: the old server.ts, minus startup.
- * Layer: routes, temporarily all five layers in one file. Mounted by app.ts. Calls config/prisma.ts, shared/services/mailer.ts, and @shared/enums.
- * Used by: every role and workflow. Steps 11 and 12 move its routes out one feature at a time, and the file is deleted when it is empty.
+ * Layer: routes, temporarily all five layers in one file. Mounted by app.ts. Calls config/prisma.ts, shared/services/mailer.ts,
+ * shared/services/custodyRequestGuard.ts, shared/utils/campus.ts, shared/constants/defaultCustodian.ts, and @shared/enums.
+ * Used by: every role and workflow except loans (server/features/loans/). Step 12 moves the rest out one feature at a time, and the file is deleted when it is empty.
  */
 import express, { Request, Response } from 'express';
 import { sendEmail, emailTemplate } from './shared/services/mailer';

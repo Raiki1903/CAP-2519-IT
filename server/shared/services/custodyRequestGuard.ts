@@ -1,9 +1,16 @@
+/**
+ * The custody request guard: one pending loan or transfer per asset, and only from a status that allows it.
+ * Layer: shared service. Called by features/loans/loans.service.ts (borrow) and the transfer request in remainingRoutes.ts. Calls config/prisma.ts.
+ * Used by: Custodian borrow and transfer requests.
+ */
 import { prisma } from '../../config/prisma';
 
 /**
  * Says why a new loan or transfer request on an asset must be refused, or null if it may go ahead.
  * An asset may hold only one pending request of either kind, because approving
  * two would hand one item to two custodians. (H-05)
+ * It reads three tables itself, unlike a service should, because the assets and
+ * transfers repositories it would call do not exist until step 12.
  *
  * @param asset the asset row being requested
  * @param allowedStatuses the asset_records statuses this kind of request accepts

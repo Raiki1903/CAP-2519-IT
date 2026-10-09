@@ -20,7 +20,8 @@
 > Steps 3 to 5 were merged in PR #15 and step 6 in PR #16, all on `refactor/feature-based-structure`.
 > The fixes for issues #25 and #26 were merged in PR #33 (branch `fix/issues-25-26`).
 > Step 8 part 1 was merged in PR #45 and step 8 part 2 in PR #46. Step 9 was merged in PR #50 and the Phase 2
-> tests in PR #52. Step 10 was done on 2026-10-09 on a fresh `refactor/feature-based-structure` from that merge.
+> tests in PR #52. Step 10 was done on 2026-10-09 on a fresh `refactor/feature-based-structure` from that merge
+> and merged in PR #56. Step 11 was done on 2026-10-09 on a fresh `refactor/feature-based-structure` from that merge.
 
 ---
 

@@ -803,3 +803,32 @@ Answered on 2026-10-09 (see the log): the backup job is deleted in its own label
 1. Stop any running server, `npm run dev:all`, run the 7 step 10 hand checks, then push and open the pull request. Tell the team to pull and check their `.env` (hand check 6).
 2. Then **step 11** (extract loans):
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 11.`
+
+## Phase 1C, restructure step 11, 2026-10-09
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 11. Branch: `refactor/feature-based-structure`, created fresh from the PR #56 merge (`2256e0ad`). Nothing pushed.
+
+### What was produced
+
+- **Moves** (`0ba5feda`, `b3212304`): the three loan endpoints (`GET /api/asset_loans`, `POST /api/assets/:assetTag/borrow`, `PUT /api/asset_loans/:loanId/decision`) left `server/remainingRoutes.ts` for `server/features/loans/`, split into routes, validation, controller, service, and repository. Three helpers they share with routes still in `remainingRoutes.ts` moved first to `server/shared/` (`DEFAULT_CUSTODIAN_ID`, `campusForLab`, the H-05 guard). New: `server/shared/errors/AppError.ts` (an error with an HTTP status) and `shared/types/loans.ts`.
+- **Types only** (`2261a0dd`): `web/api/loans.api.ts` takes the borrow body type from `shared/types/loans.ts`.
+- **Comment commit** `docs(step 11)`: headers and TSDoc for the ten new files, TODOs (C-02, H-08, H-10, H-16, H-19, M-02, M-03, M-09), stale mentions of `remainingRoutes.ts` and "steps 11 and 12" in comments and the root README.
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-11-detail): step 11 detail, 8 hand checks, four new notes, three notes updated.
+- **Checks after every commit:** `npm test` **305 passed**; typecheck **71, unchanged**; build passes, web bundle byte-identical to `main`. `main` and the new code, run side by side on the test database, gave byte-identical answers to 18 loan read and refusal requests.
+
+### Key findings
+
+- No behavior change was needed to split loans into five layers. Refusals (400, 404, 409) are thrown as `AppError` and answered by the controller exactly as before; step 13's `errorHandler` can take that over.
+- The H-05 guard is shared by loans and transfers and reads three tables, so it lives in `server/shared/services/` and still calls Prisma itself until step 12 creates the assets and transfers repositories.
+- The web loan responses were not typed: doing so surfaces existing dead comparisons in `DirectorAnalyticsView.tsx` and the unused "reject" handler in `LabHeadAnalyticsView.tsx` as new type errors.
+
+### Open questions
+
+- **Issue #32 for loans:** the decisions table puts "identify users by id" in steps 11 to 13. It was not applied to the borrow request, because the server has no acting user until `requireAuth` (step 13) and the Phase 2 tests pin the typed-name lookup. Proposed: apply it to loans in step 13. Does the team agree?
+- Manual clearance holds (F-37) and issue #41: still waiting on the team (unchanged).
+
+### Exact next step
+
+1. Stop any running server, `npm run dev:all`, run the 8 step 11 hand checks, then push and open the pull request.
+2. Then **step 12** (the remaining backend features, one per commit). It is large; name a subset of features per session if needed:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 12.`

@@ -1,6 +1,6 @@
 /**
  * Builds the Express app: the middleware, in order, then the routes.
- * Layer: server app. Called by main.ts. Calls remainingRoutes.ts.
+ * Layer: server app. Called by main.ts. Calls features/loans/loans.routes.ts and remainingRoutes.ts.
  * Used by: every request to the API.
  */
 import express from 'express';
@@ -10,7 +10,7 @@ import { router as remainingRoutes } from './remainingRoutes';
 
 /**
  * The Express app, configured but not listening. main.ts starts it.
- * Feature routers (server/features/<process>/) are mounted here as steps 11 and 12 extract them.
+ * Feature routers (server/features/<process>/) are mounted here as they are extracted: loans so far, the rest in step 12.
  */
 export const app = express();
 
