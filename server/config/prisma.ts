@@ -1,7 +1,8 @@
 /**
  * The Prisma client: the one database connection pool for the whole backend.
- * Layer: config. Imported by features/loans/loans.repository.ts, shared/services/custodyRequestGuard.ts, remainingRoutes.ts, jobs/backup.ts,
- * and test-user.ts; by each feature's repository as step 12 extracts them. Calls config/env.ts and the MariaDB adapter.
+ * Layer: config. Imported by the repositories in features/ (loans, returns, transfers, disposals, and auth so far),
+ * shared/services/custodyRequestGuard.ts, remainingRoutes.ts, jobs/backup.ts, and test-user.ts; by each further
+ * feature's repository as step 12 extracts them. Calls config/env.ts and the MariaDB adapter.
  * Used by: every workflow that reads or writes the database.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
@@ -23,7 +24,7 @@ const adapter = new PrismaMariaDb({
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 /**
- * The shared Prisma client. Only repository code should call it (01D section 4). Until step 12,
+ * The shared Prisma client. Only repository code should call it (01D section 4). Until step 12 is finished,
  * remainingRoutes.ts and shared/services/custodyRequestGuard.ts also call it directly.
  */
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });

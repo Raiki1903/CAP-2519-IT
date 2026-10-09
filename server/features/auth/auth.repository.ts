@@ -1,15 +1,28 @@
+/**
+ * Account lookups other features need: who to email. The first part of the auth feature;
+ * login, /me, and the account update join it when auth is extracted later in step 12.
+ * Layer: repository. Called by features/transfers/transfers.service.ts and features/disposals/disposals.service.ts. Calls config/prisma.ts.
+ * Used by: the transfer and disposal notification emails.
+ */
 import { prisma } from '../../config/prisma';
 
-/** A single user's email by id, e.g. the borrower on a loan. */
+/**
+ * One user's email, for example the custodian who filed a transfer.
+ *
+ * @param userId the users.user_id
+ * @returns the email, or null if there is no such user or the email is empty
+ */
 export async function getUserEmail(userId: number): Promise<string | null> {
     const user = await prisma.users.findUnique({ where: { user_id: userId } });
     return user?.email || null;
 }
 
 /**
- * Every email address for users holding a given role (e.g. 'LAB_HEAD').
- * Returns [] if nobody currently holds that role — sendEmail() logs a
- * warning and no-ops rather than throwing.
+ * Every email address of the users holding one database role.
+ * An empty list is not an error: sendEmail logs that nobody was resolved and skips the send.
+ *
+ * @param roleName a roles.role_name value, for example "ADRIC_DIRECTOR"
+ * @returns the addresses, or [] if the role does not exist or nobody holds it
  */
 export async function getRoleEmails(roleName: string): Promise<string[]> {
     const role = await prisma.roles.findFirst({ where: { role_name: roleName as any } });

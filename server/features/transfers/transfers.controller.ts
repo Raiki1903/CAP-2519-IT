@@ -1,12 +1,24 @@
+/**
+ * Transfer controller: unpacks transfer requests, calls the service, and writes the JSON answers.
+ * Layer: controller. Called by transfers.routes.ts. Calls transfers.validation.ts and transfers.service.ts.
+ * Used by: Custodian transfer request, Lab Head approval.
+ */
 import type { Request, Response } from 'express';
 import * as transfersService from './transfers.service';
 import { checkTransferDecision, checkTransferRequest } from './transfers.validation';
 import { AppError } from '../../shared/errors/AppError';
 
+/**
+ * Handles POST /api/assets/:assetTag/transfer: files a pending transfer request, then emails the recipient.
+ * Answers `{ success, transfer }` with the new row, or the AppError's status and message
+ * (400 missing field, 404 unknown tag or recipient email, 409 refused by the custody request guard), or 500.
+ */
+// TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function requestTransfer(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     try {
         const { assetTag } = req.params;
         const data = req.body;
+        // Printed before the checks, so a refused request still shows in the server terminal.
         console.log(`🚀 Server received transfer request for ${assetTag}:`, data);
 
         checkTransferRequest(data);
@@ -15,7 +27,7 @@ export async function requestTransfer(req: Request<{ assetTag: string }>, res: R
         console.log("✅ Transfer request logged in MySQL successfully:", transfer.transfer_id, assetTag);
         res.json({ success: true, transfer });
 
-        // Fire-and-forget — the recipient is the one who needs to act now.
+        // Sent after the answer and not awaited, so a slow mail service never delays it. sendEmail catches its own send failures.
         transfersService.notifyRecipient(asset, recipient, assetTag, data.reason);
     } catch (error: any) {
         if (error instanceof AppError) {
@@ -27,6 +39,10 @@ export async function requestTransfer(req: Request<{ assetTag: string }>, res: R
     }
 }
 
+/**
+ * Handles GET /api/asset_transfers: every transfer, newest first, as `{ success, transfers }`.
+ * A failure answers 500 with the raw error message.
+ */
 export async function listTransfers(req: Request, res: Response): Promise<void> {
     try {
         const transfers = await transfersService.listTransfers();
@@ -37,10 +53,17 @@ export async function listTransfers(req: Request, res: Response): Promise<void> 
     }
 }
 
+/**
+ * Handles PUT /api/asset_transfers/:transferId/decision: approves or declines a pending transfer,
+ * then emails the custodian the asset was leaving.
+ * Answers `{ success, transfer }` with the updated row, or the AppError's status and message
+ * (400 bad id, bad decision word, or transfer not pending; 404 unknown transfer), or 500.
+ */
 export async function decideTransfer(req: Request<{ transferId: string }>, res: Response): Promise<void> {
     try {
         const transferId = parseInt(req.params.transferId, 10);
         const { decision } = req.body as { decision?: string };
+        // Printed before the checks, so a refused decision still shows in the server terminal.
         console.log(`🚀 Server received transfer decision for #${transferId}:`, decision);
 
         checkTransferDecision(transferId, decision);
@@ -49,7 +72,7 @@ export async function decideTransfer(req: Request<{ transferId: string }>, res: 
         console.log(`✅ Transfer #${transferId} ${decision}d successfully.`);
         res.json({ success: true, transfer: updatedTransfer });
 
-        // Fire-and-forget — let the original custodian know the outcome.
+        // Sent after the answer and not awaited, as for the request above.
         transfersService.notifyDecision(transferId, updatedTransfer.from_custodian_id, decision);
     } catch (error: any) {
         if (error instanceof AppError) {
@@ -61,6 +84,11 @@ export async function decideTransfer(req: Request<{ transferId: string }>, res: 
     }
 }
 
+/**
+ * Handles PUT /api/asset_transfers/:transferId/accept: sets the transfer to pending_approver. (M-12)
+ * Answers `{ success, transfer }`, 404 for an unknown transfer, or 500 with the raw message
+ * (including a non-number id). Unlike the other transfer endpoints it logs nothing.
+ */
 export async function acceptTransfer(req: Request<{ transferId: string }>, res: Response): Promise<void> {
     try {
         const transferId = parseInt(req.params.transferId, 10);

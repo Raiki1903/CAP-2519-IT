@@ -1,6 +1,6 @@
 /**
  * Returns API: recording that a borrowed asset came back.
- * Layer: api. Called by ReturnForm. Calls client.ts.
+ * Layer: api. Called by ReturnForm. Calls client.ts; types from @shared/types/returns.
  * Used by: return finalization.
  */
 import type { ReturnInput } from "@shared/types/returns";

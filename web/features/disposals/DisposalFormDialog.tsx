@@ -22,7 +22,7 @@ import { Archive } from "lucide-react";
  * @param requestedBy the signed-in Staff member's display name, sent as the requester
  * @param onSubmitted optional, called after the request is saved
  */
-// TODO(H-05): the server accepts a disposal for an asset that is on loan or already has a pending one. Step 12 (disposals).
+// TODO(H-05): the server accepts a disposal for an asset that is on loan or already has a pending one (issue #54). Its own fix.
 // TODO(M-13): pathway, last custodian, and date are packed into one text column and parsed back with regex. Phase 3.
 export function DisposalFormDialog({ asset, onClose, requestedBy, onSubmitted }: { asset: any; onClose: () => void; requestedBy: string; onSubmitted?: () => void }) {
   const [form, setForm] = useState({

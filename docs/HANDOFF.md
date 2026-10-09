@@ -834,3 +834,30 @@ Answered on 2026-10-09 (see the log): **issue #32 is decided.** Step 13 switches
 1. Push and open the step 11 pull request (hand checks passed).
 2. Then **step 12** (the remaining backend features, one per commit). It is large; name a subset of features per session if needed:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 12.`
+
+## Phase 1C, restructure step 12 batch 1, 2026-10-09
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 12, batch 1 only: returns, transfers, disposals. Branch: `refactor/feature-based-structure`, created fresh from the PR #58 merge (`6cf95b29`). Nothing pushed.
+
+### What was produced
+
+- **Moves**, one per feature, following the loans pattern from step 11: `86d166ee` (the two notification email lookups to `server/features/auth/auth.repository.ts`, where 01D puts them), `02147897` (returns: 2 routes), `574ded38` (transfers: 4 routes, `/accept` included), `9e81ffc6` (disposals: 3 routes). Each feature now has routes, validation, controller, service, and repository files under `server/features/`, and its shapes in `shared/types/`; the three web API files take their request types from there. `server/remainingRoutes.ts` is down to 50 routes and sends no email.
+- **Comment commit** `docs(step 12)`: headers and TSDoc for the 19 new files; TODOs for C-02, H-04, H-05 (issues #51 and #54), H-10 (issue #32), H-16, H-19, H-20, M-02, M-09, M-12, M-13; stale headers in eleven existing files; the disposal form's TODO now names issue #54.
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-12-detail): step 12 detail with 9 hand checks, five new notes, seven notes updated, and issue #57 added to the step 11 note about the bell and the Custody tab.
+- **Checks after every commit:** `npm test` **305 passed**; typecheck **71, unchanged**; build passes, web bundle byte-identical to `main`. `main` and each feature commit, run side by side on a freshly seeded test database with the same 60 requests, gave identical answers, log and email lines, and table rows. The comment commit compiles to the same JavaScript as before it.
+
+### Key findings
+
+- All three features split into five layers with no behavior change, including the fire-and-forget emails (still sent after the answer) and `/accept`'s odd answers (no log line, raw 500 text).
+- Pre-existing, logged as notes: an email lookup that fails after the answer is an unhandled promise rejection, which stops Node by default; the transfer emails say the recipient decides while the Lab Head does; the disposal email names a tab ("Clearance & Disposal") the sidebar calls "Approvals & Holds"; `GET /api/asset_returns` has no web caller; two returns in the same millisecond would collide on the `CLR-` reference.
+- Lists ordered by one-second `DATETIME` columns return same-second rows in no fixed order (M-09). It showed up in the side-by-side check and is why the check starts each write burst on a fresh second.
+
+### Open questions
+
+- None new for the team. Manual clearance holds (F-37) and issue #41 are still waiting on the team (unchanged).
+
+### Exact next step
+
+1. Stop any running server, `npm run dev:all`, run the 9 step 12 batch 1 hand checks, then push and open the pull request.
+2. Then the next batch of step 12 (repairs, inspections, registrations, auth, assets, analytics, in that order), naming the features in the first message, for example:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 12, batch 2: repairs and inspections.`

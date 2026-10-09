@@ -1,6 +1,6 @@
 /**
  * Which campus a research lab is on, from its short code.
- * Layer: shared (server utility). Called by features/loans/loans.service.ts and the transfer decision in remainingRoutes.ts. Calls nothing.
+ * Layer: shared (server utility). Called by features/loans/loans.service.ts and features/transfers/transfers.service.ts. Calls nothing.
  * Used by: Lab Head loan and transfer approval, which write the campus into the asset's current_location.
  */
 

@@ -1,6 +1,6 @@
 /**
  * Disposals API: disposal requests and the Director's decisions.
- * Layer: api. Called by DisposalFormDialog, AdRICDirectorDashboard, NotificationCenter, and state/serverData.tsx. Calls client.ts.
+ * Layer: api. Called by DisposalFormDialog, AdRICDirectorDashboard, NotificationCenter, and state/serverData.tsx. Calls client.ts; types from @shared/types/disposals.
  * Used by: Staff disposal filing, Director approval.
  */
 import type { DisposalRequestInput } from "@shared/types/disposals";
