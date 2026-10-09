@@ -856,8 +856,12 @@ Answered on 2026-10-09 (see the log): **issue #32 is decided.** Step 13 switches
 
 - None new for the team. Manual clearance holds (F-37) and issue #41 are still waiting on the team (unchanged).
 
+Answered on 2026-10-09 (see the log): **all 9 step 12 batch 1 hand checks passed.** Two pre-existing gaps were found while running them, neither caused by step 12: the return form shows a random `CLR-` placeholder (`Math.random()` in `ReturnForm.tsx`) that changes on every render until the server's number replaces it after finalizing (issue #59); and the issue #57 refresh gap also affects transfers (a transfer approved on the Custody tab keeps Approve and Decline in the bell until a full reload; a second decision is refused with a 400 and only logged to the console; added to #57). The unhandled email lookup note is issue #60. All three are in the log's notes.
+
+**Team decision (2026-10-09): who does what after the restructure.** Raiki finishes the restructure, including step 14 (baseline migrations and `prisma/seed.ts`). The team then handles the Phase 3 schema changes, stored procedures, and triggers on top of the step 14 baseline, as migration files, each tested on the local `_test` database first. No hand edits to the CCS Cloud database. Recorded in [README.md](README.md).
+
 ### Exact next step
 
-1. Stop any running server, `npm run dev:all`, run the 9 step 12 batch 1 hand checks, then push and open the pull request.
+1. Push and open the step 12 batch 1 pull request (hand checks passed).
 2. Then the next batch of step 12 (repairs, inspections, registrations, auth, assets, analytics, in that order), naming the features in the first message, for example:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 12, batch 2: repairs and inspections.`
