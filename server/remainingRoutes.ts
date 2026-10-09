@@ -13,6 +13,7 @@ import type { StaffUnit } from '@shared/enums/role';
 import { DEFAULT_CUSTODIAN_ID } from './shared/constants/defaultCustodian';
 import { campusForLab } from './shared/utils/campus';
 import { findCustodyRequestConflict } from './shared/services/custodyRequestGuard';
+import { getUserEmail, getRoleEmails } from './features/auth/auth.repository';
 
 /** The routes below, registered in their original order. app.ts mounts it after the body parsers. */
 export const router = express.Router();
@@ -1443,29 +1444,6 @@ router.put('/api/asset_transfers/:transferId/decision', async (req: Request<{ tr
         res.status(500).json({ success: false, error: error.message || "Database execution failed." });
     }
 });
-
-/** A single user's email by id, e.g. the borrower on a loan. */
-async function getUserEmail(userId: number): Promise<string | null> {
-    const user = await prisma.users.findUnique({ where: { user_id: userId } });
-    return user?.email || null;
-}
-
-/**
- * Every email address for users holding a given role (e.g. 'LAB_HEAD').
- * Returns [] if nobody currently holds that role — sendEmail() logs a
- * warning and no-ops rather than throwing.
- */
-async function getRoleEmails(roleName: string): Promise<string[]> {
-    const role = await prisma.roles.findFirst({ where: { role_name: roleName as any } });
-    if (!role) return [];
-
-    const assignments = await prisma.user_roles.findMany({ where: { role_id: role.role_id } });
-    const userIds = assignments.map(a => a.user_id);
-    if (userIds.length === 0) return [];
-
-    const users = await prisma.users.findMany({ where: { user_id: { in: userIds } } });
-    return users.map(u => u.email).filter(Boolean);
-}
 
 // 16. Log a disposal request (ITSDashboard -> DisposalFormDialog "Commit
 //     Decommission" button, on the Decommission Asset action in Asset
