@@ -3,19 +3,8 @@
  * Layer: api. Called by TransferForm, LabHeadDashboard, LabHeadAnalyticsView, NotificationCenter, and state/serverData.tsx. Calls client.ts.
  * Used by: Custodian transfer request, Lab Head approval.
  */
+import type { TransferRequestInput } from "@shared/types/transfers";
 import { apiGet, apiPost, apiPut, type ApiResult } from "./client";
-
-/** What the transfer form sends. */
-export interface TransferRequestInput {
-  /** Email of the person receiving the asset. */
-  toEmail: string;
-  reason: string;
-  /** Destination lab code, for example "CITe4D". */
-  // TODO(H-19): the server does not keep lab and effectiveDate in their own columns. Phase 3.
-  lab: string;
-  /** Effective date as yyyy-mm-dd. */
-  effectiveDate: string;
-}
 
 /**
  * Files a pending transfer request for an asset.

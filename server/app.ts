@@ -7,6 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import { loansRouter } from './features/loans/loans.routes';
 import { returnsRouter } from './features/returns/returns.routes';
+import { transfersRouter } from './features/transfers/transfers.routes';
 import { router as remainingRoutes } from './remainingRoutes';
 
 /**
@@ -23,4 +24,5 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use(loansRouter);
 app.use(returnsRouter);
+app.use(transfersRouter);
 app.use(remainingRoutes);
