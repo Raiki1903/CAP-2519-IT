@@ -23,7 +23,7 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 8 | Move the frontend to `web/` with feature folders (part 1: everything except `ITSDashboard.tsx`; part 2: split it) | Part 1 done (hand checks passed, PR #45). Part 2 done (hand checks passed, PR #46) | Part 1: `edcb9162` to `6d9facc2` (14 commits). Part 2: `5d26ed8e` to `7ca707c5` (19 commits, 5 of them labelled behavior changes, see detail) | Part 1: `ffa05a38`. Part 2: `caca57a9` | Part 1: **93**. Part 2: **71** (from 93; every removed error is accounted for, none added) | 2026-10-06, 2026-10-07 |
 | 9 | Merge ITS and TSG into `/staff/*` | Done, merged in PR #50 (hand checks partly run: 4 and 6 blocked by issue #49, 5 and 7 partly checked, see detail) | `d37d2233`, `44d9d729`, `d9d95f18` (behavior changes), `af1c641c`, `5e1a0f80` (renames); `89d2212c` (step 8 follow-up move) | `223e2060`, `4101aa1b` | **71** (unchanged, same errors) | 2026-10-08 |
 | 10 | Create the `server/` skeleton | Done (hand checks passed; 4 skipped, no Mailgun; 6 a team action) | `584d0c5f`, `7a40911b`, `5fd47ff0` (moves); `bd242d15` (behavior change, C-07) | `77f68fa7` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
-| 11 | Extract one backend feature end to end (loans) | Done in the agent session, hand checks pending | `0ba5feda`, `b3212304`, `2261a0dd` (moves and types) | see step 11 detail | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
+| 11 | Extract one backend feature end to end (loans) | Done in the agent session, hand checks pending | `0ba5feda`, `b3212304`, `2261a0dd` (moves and types) | `4a51c67a` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 12 | Extract the remaining backend features | Not started | | | | |
 | 13 | Add `errorHandler` and `requireAuth` | Not started | | | | |
 | 14 | Baseline the migrations | Not started | | | | |
@@ -750,7 +750,7 @@ Started from the PR #56 merge (`2256e0ad`), on a fresh `refactor/feature-based-s
 | `0ba5feda` | Move | Three helpers the loan routes share with routes that stay behind go to `server/shared/`: `DEFAULT_CUSTODIAN_ID`, `campusForLab` (with `LAGUNA_LABS`), and the H-05 guard `findCustodyRequestConflict`. Code unchanged |
 | `b3212304` | Move | The three loan routes leave `remainingRoutes.ts` for `server/features/loans/` (five files). Adds `server/shared/errors/AppError.ts` and `shared/types/loans.ts`. `app.ts` mounts the loans router |
 | `2261a0dd` | Types only | `web/api/loans.api.ts` takes `LoanRequestInput` from `shared/types/loans.ts` |
-| comment commit | Comments | Headers, TSDoc, TODOs; stale mentions of `remainingRoutes.ts` and "steps 11 and 12"; the root README; this log |
+| `4a51c67a` | Comments | Headers, TSDoc, TODOs; stale mentions of `remainingRoutes.ts` and "steps 11 and 12"; the root README; this log |
 
 ### Where the loan code is now
 
