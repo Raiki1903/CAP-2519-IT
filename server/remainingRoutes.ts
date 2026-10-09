@@ -9,23 +9,12 @@ import { prisma } from './config/prisma.js';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import type { StaffUnit } from '@shared/enums/role';
+import { DEFAULT_CUSTODIAN_ID } from './shared/constants/defaultCustodian';
+import { campusForLab } from './shared/utils/campus';
+import { findCustodyRequestConflict } from './shared/services/custodyRequestGuard';
 
 /** The routes below, registered in their original order. app.ts mounts it after the body parsers. */
 export const router = express.Router();
-
-// TODO: replace with the actual logged-in user's id once auth/session is wired up.
-// asset_records.current_custodian is a required FK to users.user_id — the intake
-// form doesn't collect this yet, so every asset is provisionally logged under this id.
-const DEFAULT_CUSTODIAN_ID = 1;
-
-// Which campus each research lab sits on — used to format current_location
-// as "<Lab>-<Campus>" (e.g. "CITe4D-Manila"). Laguna set matches the same
-// classification already used in /api/analytics/director; anything not
-// listed defaults to Manila.
-const LAGUNA_LABS = new Set(["CAR", "HXIL", "CeLT", "CIVI", "MECH"]);
-function campusForLab(lab: string): string {
-    return LAGUNA_LABS.has(lab) ? "Laguna" : "Manila";
-}
 
 /**
  * Startup check: logs an error if user DEFAULT_CUSTODIAN_ID does not exist, instead of
@@ -912,43 +901,6 @@ router.delete('/api/assets/:assetTag', async (req: Request<{ assetTag: string }>
         res.status(500).json({ success: false, error: error.message || "Database execution failed." });
     }
 });
-
-/**
- * Says why a new loan or transfer request on an asset must be refused, or null if it may go ahead.
- * An asset may hold only one pending request of either kind, because approving
- * two would hand one item to two custodians. (H-05)
- *
- * @param asset the asset row being requested
- * @param allowedStatuses the asset_records statuses this kind of request accepts
- * @returns a message for a 409 answer, or null
- */
-async function findCustodyRequestConflict(
-    asset: { asset_id: number; asset_tag: string },
-    allowedStatuses: readonly string[],
-): Promise<string | null> {
-    // TODO(H-05): the check and the insert are not atomic, so two requests in the same instant can both pass. Phase 3 database triggers.
-    const [latestRecord, pendingLoan, pendingTransfer] = await Promise.all([
-        // Same ordering GET /api/assets uses, so this agrees with the status the screens show.
-        prisma.asset_records.findFirst({
-            where: { asset_id: asset.asset_id },
-            orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }],
-            select: { status: true },
-        }),
-        prisma.asset_loans.findFirst({ where: { asset_id: asset.asset_id, status: "pending" }, select: { loan_id: true } }),
-        prisma.asset_transfers.findFirst({ where: { asset_id: asset.asset_id, status: "pending" }, select: { transfer_id: true } }),
-    ]);
-
-    if (pendingLoan) return `${asset.asset_tag} already has a pending loan request (LOAN-${pendingLoan.loan_id}).`;
-    if (pendingTransfer) return `${asset.asset_tag} already has a pending transfer request (TRF-${pendingTransfer.transfer_id}).`;
-
-    // An asset with no record yet is listed as Active, so it is treated as ACTIVE here too.
-    const status = latestRecord?.status ?? "ACTIVE";
-    if (!allowedStatuses.includes(status)) {
-        const described: Record<string, string> = { ACTIVE: "active", ON_LOAN: "on loan", MAINTENANCE: "under maintenance", DISPOSED: "disposed" };
-        return `${asset.asset_tag} is ${described[status] ?? status} and cannot take this request.`;
-    }
-    return null;
-}
 
 // 6. Log an equipment loan request (AssetDetailModal -> LoanForm handleSubmit).
 //     Only the asset_loans row (the approval-pipeline record) is written
