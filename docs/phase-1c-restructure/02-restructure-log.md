@@ -24,7 +24,7 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 9 | Merge ITS and TSG into `/staff/*` | Done, merged in PR #50 (hand checks partly run: 4 and 6 blocked by issue #49, 5 and 7 partly checked, see detail) | `d37d2233`, `44d9d729`, `d9d95f18` (behavior changes), `af1c641c`, `5e1a0f80` (renames); `89d2212c` (step 8 follow-up move) | `223e2060`, `4101aa1b` | **71** (unchanged, same errors) | 2026-10-08 |
 | 10 | Create the `server/` skeleton | Done (hand checks passed; 4 skipped, no Mailgun; 6 a team action) | `584d0c5f`, `7a40911b`, `5fd47ff0` (moves); `bd242d15` (behavior change, C-07) | `77f68fa7` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 11 | Extract one backend feature end to end (loans) | Done (all 8 hand checks passed), merged in PR #58 | `0ba5feda`, `b3212304`, `2261a0dd` (moves and types) | `4a51c67a` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
-| 12 | Extract the remaining backend features | Batch 1 done (returns, transfers, disposals; all 9 hand checks passed), merged in PR #61. Batch 2 done (repairs, inspections), waiting for hand checks. Batches for registrations, auth, assets, and analytics not started | Batch 1: `86d166ee` (email lookups), `02147897` (returns), `574ded38` (transfers), `9e81ffc6` (disposals). Batch 2: `d4a473d6` (repairs), `3d8d4547` (inspections) | Batch 1: `5dc2f47a`. Batch 2: `e30282a5` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09, 2026-10-10 |
+| 12 | Extract the remaining backend features | Batch 1 done (returns, transfers, disposals; all 9 hand checks passed), merged in PR #61. Batch 2 done (repairs, inspections; all 9 hand checks passed). Batches for registrations, auth, assets, and analytics not started | Batch 1: `86d166ee` (email lookups), `02147897` (returns), `574ded38` (transfers), `9e81ffc6` (disposals). Batch 2: `d4a473d6` (repairs), `3d8d4547` (inspections) | Batch 1: `5dc2f47a`. Batch 2: `e30282a5`, `edad3003` (issue #53) | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09, 2026-10-10 |
 | 13 | Add `errorHandler` and `requireAuth` | Not started | | | | |
 | 14 | Baseline the migrations | Not started | | | | |
 
@@ -893,6 +893,7 @@ On a fresh `refactor/feature-based-structure` from the PR #61 merge (`d571d697`)
 | `d4a473d6` | Move | The four repair routes leave `remainingRoutes.ts` for `server/features/repairs/` (five files). Adds `shared/types/repairs.ts`; `web/api/repairs.api.ts` takes its two request types from there |
 | `3d8d4547` | Move | The three inspection routes leave for `server/features/inspections/`. Adds `shared/types/inspections.ts`; `web/api/inspections.api.ts` takes its request type from there |
 | `e30282a5` | Comments | Headers, TSDoc, TODOs on the 12 new files; stale headers in `app.ts`, `config/prisma.ts`, `remainingRoutes.ts`, `AppError.ts`, `defaultCustodian.ts`, `assetCondition.ts`; the H-06 and L-07 TODOs in the two web API files and `useRepairTickets.ts`, which promised a merge in step 12; this log, `docs/README.md`, `docs/HANDOFF.md`, and the prompt's history line |
+| `edad3003` | Comments | Issue #53 named at the inspection condition fallback (`TODO(H-07)` in `inspections.validation.ts`, `fileReport`'s TSDoc), once Raiki confirmed what it covers; the docs to match. Compiles to the same JavaScript |
 
 #### Where the code is now
 
@@ -938,7 +939,15 @@ Compared after every commit, by file and message: the same 71 errors. None of th
 
 **Not verified in the agent session:** nothing was clicked in a browser, and nothing was written to the shared database. The hand checks below cover the browser.
 
-#### Hand checks: waiting
+#### Hand checks: passed
+
+Raiki ran all nine checks below and all passed (reported 2026-10-10). Notes from the run, by check number:
+
+- **Check 6:** one `asset_reports` row per custodian report (row 34). It first looked as if the report saved twice; the second write is the asset's newest `asset_records` row being updated with the report's condition, which is the route's design (H-14 is about that update being in place).
+- **Check 7:** passed, but the Staff "Submit & Finalize Inspection" button saved the same report twice (`asset_reports` rows 35 and 36, one second apart). Pre-existing: the button's handler waits for `syncFromDb()` before posting and does not lock the button meanwhile, so a second click posts again. Not caused by the batch: `web/features/inspections/InspectionQueue.tsx` is unchanged and the web bundle is identical to `main`. Issue #63.
+- **During the checks:** the browser console warned of a duplicate React key `MNT-0001` in `InspectionQueue.tsx`. The queue's ticket ids strip the leading letters from the asset tag, so assets with the same number in different labs get the same id. Pre-existing. Issue #62.
+
+Both issues are in the notes. The list is kept for the record.
 
 **Stop any running server and restart** (`npm run dev:all`). A server started before this batch still runs the old code.
 
@@ -1147,6 +1156,9 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | **Step 12 batch 2, new:** a completed repair writes a record and a report, and a maintenance status writes a record, but none of them sets `asset_records.repair_id`, so the history cannot link a record to its ticket | n/a (from the Phase 2 test plan) | Phase 3, with the repair status enum (H-07) |
 | **Step 12 batch 2, new:** `GET /api/asset_repairs` sends the reporter's name as `custodian`, and screens label it that way, but the reporter is not necessarily who holds the asset (a Lab Head or Staff can report someone else's equipment) | n/a | With the repairs screens, or the H-06 merge |
 | **Issue #53 (confirmed by Raiki, 2026-10-10):** `POST /api/assets/:assetTag/inspection` saves any condition it does not recognize (a typo, lower case, or the stored spelling "MINOR DRIFT") as PERFECT, writes it onto the asset, and answers 200. Expected: answer 400 for an unknown condition and write nothing, as the return route does with `ASSET_CONDITIONS`. Pinned by `tests/api/inspections.test.ts`. Step 12 batch 2 moved it unchanged; `TODO(H-07)` at the condition fallback in `server/features/inspections/inspections.validation.ts` names #53 | H-07 family | Issue #53, its own fix (updates the pinned tests) |
+| **Step 12 batch 2 hand checks, new (2026-10-10):** the Staff "Submit & Finalize Inspection" button can save the same report twice (seen as `asset_reports` rows 35 and 36, one second apart). Its handler in `web/features/inspections/InspectionQueue.tsx` awaits `syncFromDb()` before posting and does not disable the button while it waits. Pre-existing, not caused by step 12 (the file is unchanged, the web bundle identical to `main`). Issue #63 | n/a (new; same family as M-07) | Issue #63, a small web fix (lock the button, or post before the reload) |
+| **Step 12 batch 2 hand checks, new (2026-10-10):** React warns of a duplicate key `MNT-0001` in `InspectionQueue.tsx`. The queue builds each ticket id from the asset tag with its leading letters stripped, so assets with the same number in different labs collide. Pre-existing. Issue #62 | n/a (new) | Issue #62, a small web fix (use the full tag or the asset id) |
+| **Step 12 batch 2, for Phase 3:** `asset_reports` holds three kinds of report (the custodian condition report, the Staff inspection, and the report a completed repair files) with no column saying which, and two listings read it (L-07). A report type column would let the log and the audit tell them apart; it fits with the L-07 merge | L-07 | Phase 3 (a column), with the L-07 merge |
 
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.
 
