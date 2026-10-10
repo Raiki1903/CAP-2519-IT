@@ -23,7 +23,8 @@
 > tests in PR #52. Step 10 was done on 2026-10-09 on a fresh `refactor/feature-based-structure` from that merge
 > and merged in PR #56. Step 11 was done on 2026-10-09 on a fresh `refactor/feature-based-structure` from that merge
 > and merged in PR #58. Step 12 runs in batches; batch 1 (returns, transfers, disposals) was done on 2026-10-09 on a fresh
-> `refactor/feature-based-structure` from that merge.
+> `refactor/feature-based-structure` from that merge and merged in PR #61. Batch 2 (repairs, inspections) was done on
+> 2026-10-10 on a fresh `refactor/feature-based-structure` from that merge.
 
 ---
 

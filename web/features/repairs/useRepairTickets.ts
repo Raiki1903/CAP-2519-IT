@@ -73,7 +73,7 @@ export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
 
   const updateDbRepairStatus = async (repairId: number, status: string, condition?: string, remarks?: string) => {
     try {
-      // TODO(H-06): the Staff analytics board moves tickets through a second endpoint that does not touch the asset's status. Step 12 (repairs).
+      // TODO(H-06): the Staff analytics board moves tickets through a second endpoint that does not touch the asset's status. Kept in step 12 as decided; merging them is its own behavior-change commit.
       // TODO(H-07): the server stores any status text it is sent. Phase 3.
       const data = await repairsApi.updateRepair(repairId, { progressStatus: status, assetCondition: condition, assetRemarks: remarks });
       if (!data.success) {
