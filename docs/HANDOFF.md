@@ -895,3 +895,5 @@ Answered on 2026-10-09 (see the log): **all 9 step 12 batch 1 hand checks passed
 1. Run the 9 batch 2 hand checks in the log, then push and open the pull request.
 2. Then the next batch of step 12 (registrations, auth, assets, analytics, in that order), for example:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 12, batch 3: registrations and auth.`
+
+Answered on 2026-10-10: **issue #53** is the inspection condition fallback. `POST /api/assets/:assetTag/inspection` saves any condition it does not recognize (a typo, lower case, or the stored spelling "MINOR DRIFT") as PERFECT and answers 200; it should answer 400 and write nothing, as the return route does with `ASSET_CONDITIONS`. Pinned by `tests/api/inspections.test.ts`. The `TODO(H-07)` at the condition fallback in `inspections.validation.ts`, the service's TSDoc, and the log note now name it. Comments and docs only.

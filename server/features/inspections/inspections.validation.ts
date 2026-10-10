@@ -30,7 +30,7 @@ const conditionMap: Record<string, any> = {
  * @param data the request body
  * @returns the condition (an asset_reports_condition value), the remarks, and the image text or null
  */
-// TODO(H-07): an unknown condition (a typo, lower case, or "MINOR DRIFT" with a space) is saved as PERFECT and written onto the asset, where the return route answers 400. With the shared condition enum, its own fix.
+// TODO(H-07): an unknown condition (a typo, lower case, or the stored spelling "MINOR DRIFT") is saved as PERFECT and written onto the asset, with 200 (issue #53). It should answer 400 and write nothing, as the return route does with ASSET_CONDITIONS. Its own fix; tests/api/inspections.test.ts pins it.
 // The image text is stored as sent, without the image check that PUT /api/assets/:assetTag applies.
 // Pinned by tests/api/inspections.test.ts; reusing the asset image check is its own fix.
 export function readInspectionReport(data: InspectionReportInput): { condition: any; remarks: string; image: string | null } {

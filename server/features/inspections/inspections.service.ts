@@ -14,8 +14,9 @@ import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
 
 /**
  * Saves an inspection report and writes its condition and remarks onto the asset's newest record,
- * in one transaction. Known inspection defects stay as they are (issue #53); each is marked below,
- * and tests/api/inspections.test.ts pins them.
+ * in one transaction. Known inspection defects stay as they are, each marked at its line and pinned by
+ * tests/api/inspections.test.ts: an unknown condition is saved as PERFECT instead of refused (issue #53,
+ * in inspections.validation.ts), and the reporter, record, and error defects below.
  *
  * @param assetTag the asset's tag from the URL, or its numeric asset_id
  * @param data the request body; every field has a fallback
