@@ -3,18 +3,8 @@
  * Layer: api. Called by CustodianPortal, features/inspections (InspectionQueue, useInspectionReports), and state/serverData.tsx. Calls client.ts.
  * Used by: Custodian condition report, Staff inspection finalize and report list.
  */
+import type { InspectionReportInput } from "@shared/types/inspections";
 import { apiGet, apiPostRaw, type ApiResult } from "./client";
-
-/** What an inspection report sends. */
-export interface InspectionReportInput {
-  reporterEmail?: string;
-  reportedById?: number;
-  /** One of ASSET_CONDITIONS from shared/enums/assetCondition.ts. */
-  reportCondition: string;
-  reportRemarks: string;
-  /** One image, or null. Callers send only the first image they hold. */
-  reportImg: string | null;
-}
 
 /**
  * Files an inspection report for an asset. Returns the untouched Response
