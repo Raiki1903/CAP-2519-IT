@@ -65,7 +65,7 @@ export function updateRepairRaw(repairId: number | string, input: RepairUpdateIn
  * @param progressStatus the new status text
  * @returns `success`, and `error` when the update is refused
  */
-// TODO(H-06): this endpoint and the one behind updateRepair have different side effects. They merge into one when repairs is extracted (step 12).
+// TODO(H-06): this endpoint and the one behind updateRepair have different side effects: this one never changes the asset's status. Kept in step 12 as decided; merging them is its own behavior-change commit.
 export function updateRepairStatus(repairId: number | string, progressStatus: string): Promise<ApiResult> {
   return apiPut(`/api/asset_repairs/${repairId}/status`, { progressStatus });
 }

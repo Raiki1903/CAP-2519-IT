@@ -2,7 +2,7 @@
  * Every API route not yet extracted into server/features/<process>/: the old server.ts, minus startup.
  * Layer: routes, temporarily all five layers in one file. Mounted by app.ts. Calls config/prisma.ts,
  * shared/constants/defaultCustodian.ts, and @shared/enums.
- * Used by: every role and workflow except loans, returns, transfers, and disposals (server/features/). Step 12 moves the rest out
+ * Used by: every role and workflow except loans, returns, transfers, disposals, repairs, and inspections (server/features/). Step 12 moves the rest out
  * one feature at a time, and the file is deleted when it is empty.
  */
 import express, { Request, Response } from 'express';

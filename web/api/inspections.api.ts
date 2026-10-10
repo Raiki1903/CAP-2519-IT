@@ -24,7 +24,7 @@ export function submitInspectionRaw(assetTag: string, input: InspectionReportInp
  *
  * @returns `success` and `reports`
  */
-// TODO(L-07): two list endpoints with two spellings and two shapes. They become one when inspections is extracted (step 12).
+// TODO(L-07): two list endpoints with two spellings and two shapes. Kept in step 12 as decided; merging them is its own commit, with both callers.
 export function listInspectionReports(): Promise<ApiResult> {
   return apiGet("/api/asset-reports");
 }

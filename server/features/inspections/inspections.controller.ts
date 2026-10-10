@@ -1,12 +1,24 @@
+/**
+ * Inspection controller: unpacks inspection requests, calls the service, and writes the JSON answers.
+ * Layer: controller. Called by inspections.routes.ts. Calls inspections.service.ts.
+ * Used by: Custodian condition report, Staff inspection finalize, the Staff inspection log, and state/serverData.tsx.
+ */
 import type { Request, Response } from 'express';
 import * as inspectionsService from './inspections.service';
 import { AppError } from '../../shared/errors/AppError';
 
-// POST Asset Inspection Report (saves directly to asset_reports table in MySQL)
+/**
+ * Handles POST /api/assets/:assetTag/inspection: saves a condition report to asset_reports and
+ * writes its condition onto the asset.
+ * Answers `{ success, report }` with the new row, 404 for an unknown asset, or 500.
+ * No validation runs here: the body is read by the service, after the asset lookup.
+ */
+// TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function fileReport(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     try {
         const { assetTag } = req.params;
         const data = req.body;
+        // Printed before the lookups, so a refused report still shows in the server terminal.
         console.log(`📋 Server received inspection report for ${assetTag}:`, data);
 
         const newReport = await inspectionsService.fileReport(assetTag, data);
@@ -23,7 +35,10 @@ export async function fileReport(req: Request<{ assetTag: string }>, res: Respon
     }
 }
 
-// GET all asset_reports directly from database
+/**
+ * Handles GET /api/asset_reports: every report, newest first, in the short shape, as `{ success, reports }`.
+ * A failure answers 500 with the raw message and prints nothing, as before.
+ */
 export async function listReportSummaries(req: Request, res: Response): Promise<void> {
     try {
         const reports = await inspectionsService.listReportSummaries();
@@ -33,7 +48,10 @@ export async function listReportSummaries(req: Request, res: Response): Promise<
     }
 }
 
-// GET All Asset Inspection Reports from asset_reports table
+/**
+ * Handles GET /api/asset-reports: every report, newest first, in the detailed shape, as `{ success, reports }`.
+ * A failure answers 500 with the raw message.
+ */
 export async function listInspectionReports(_req: Request, res: Response): Promise<void> {
     try {
         const reports = await inspectionsService.listInspectionReports();

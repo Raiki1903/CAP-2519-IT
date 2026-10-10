@@ -865,3 +865,33 @@ Answered on 2026-10-09 (see the log): **all 9 step 12 batch 1 hand checks passed
 1. Push and open the step 12 batch 1 pull request (hand checks passed).
 2. Then the next batch of step 12 (repairs, inspections, registrations, auth, assets, analytics, in that order), naming the features in the first message, for example:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 12, batch 2: repairs and inspections.`
+
+---
+
+## Phase 1C, restructure step 12 batch 2, 2026-10-10
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 12, batch 2 only: repairs, then inspections. Branch: `refactor/feature-based-structure`, created fresh from the PR #61 merge (`d571d697`). Nothing pushed.
+
+### What was produced
+
+- **Moves**, one per feature, following the batch 1 pattern: `d4a473d6` (repairs: 4 routes, both status endpoints included) and `3d8d4547` (inspections: 3 routes, both report listings included). Each feature has routes, validation, controller, service, and repository files under `server/features/`, and its shapes in `shared/types/`; the two web API files take their request types from there. `server/remainingRoutes.ts` is down to 43 routes. No email is sent by either feature, so `auth.repository.ts` is unchanged.
+- **Comment commit:** headers and TSDoc for the 12 new files; TODOs for C-02, H-05, H-06, H-07, H-09, H-10 (issue #32), H-14, H-16, L-07, M-07, M-09, M-17; stale headers in six existing files; the three web TODOs that promised the H-06 and L-07 merges "in step 12".
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#batch-2-repairs-and-inspections-2026-10-10): the batch 2 detail with 9 hand checks and three proposals; five new notes and four updated.
+- **Checks after every commit:** `npm test` **305 passed**; typecheck **71, unchanged**; build passes, web bundle byte-identical to `main`. `main` and each feature commit, run side by side on a freshly seeded test database (44 repair requests, 29 inspection requests), gave identical answers, log lines, and table rows, apart from where Prisma's raw 500 text points in the source. The comment commit compiles to the same JavaScript as before it.
+
+### Key findings
+
+- Both features split into five layers with no behavior change, including the repair duplicate guard (still before the tag lookup) and `/status`'s own answers.
+- The inspection route refuses nothing but an unknown asset, so its validation file reads the body instead of checking it, and runs where the old handler read it (after the lookups), which keeps a no-body request's answer the same.
+- 01D's three changes for these features (delete the guard, M-07; merge the status endpoints, H-06; merge the report listings, L-07) are proposed as separate commits, with their effects and the tests each would update, in the log.
+
+### Open questions
+
+- **Issue #53:** the GitHub CLI is not installed here, so the issue could not be read. The code names it only as "known inspection defects". What does it cover?
+- **The three proposals** (M-07, H-06, L-07): do them, and when?
+
+### Exact next step
+
+1. Run the 9 batch 2 hand checks in the log, then push and open the pull request.
+2. Then the next batch of step 12 (registrations, auth, assets, analytics, in that order), for example:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 12, batch 3: registrations and auth.`
