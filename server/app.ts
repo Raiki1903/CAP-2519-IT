@@ -9,6 +9,7 @@ import { loansRouter } from './features/loans/loans.routes';
 import { returnsRouter } from './features/returns/returns.routes';
 import { transfersRouter } from './features/transfers/transfers.routes';
 import { disposalsRouter } from './features/disposals/disposals.routes';
+import { repairsRouter } from './features/repairs/repairs.routes';
 import { router as remainingRoutes } from './remainingRoutes';
 
 /**
@@ -29,4 +30,5 @@ app.use(loansRouter);
 app.use(returnsRouter);
 app.use(transfersRouter);
 app.use(disposalsRouter);
+app.use(repairsRouter);
 app.use(remainingRoutes);

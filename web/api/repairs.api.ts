@@ -3,26 +3,8 @@
  * Layer: api. Called by RepairForm, ReturnForm, useRepairTickets, StaffAnalyticsView, and state/serverData.tsx. Calls client.ts.
  * Used by: Custodian repair request, Staff repair queue and progress updates.
  */
+import type { RepairRequestInput, RepairUpdateInput } from "@shared/types/repairs";
 import { apiGet, apiPost, apiPostRaw, apiPut, apiPutRaw, type ApiResult } from "./client";
-
-/** What a repair request sends. */
-export interface RepairRequestInput {
-  /** Display name of the person reporting the fault. */
-  // TODO(H-10): the server resolves this name to a user by matching text. Phase 3 takes the reporter from the session.
-  reportedBy: string;
-  description: string;
-  /** True when the fault needs immediate attention. */
-  isImmediate: boolean;
-}
-
-/** What a repair progress update sends. Only `progressStatus` is required. */
-export interface RepairUpdateInput {
-  // TODO(H-07): free text, the server accepts any value. Phase 3 makes it an enum.
-  progressStatus: string;
-  /** Condition after the repair, one of ASSET_CONDITIONS. */
-  assetCondition?: string;
-  assetRemarks?: string;
-}
 
 /**
  * Opens a repair ticket for an asset.
