@@ -1,21 +1,10 @@
 /**
  * Disposals API: disposal requests and the Director's decisions.
- * Layer: api. Called by DisposalFormDialog, AdRICDirectorDashboard, NotificationCenter, and state/serverData.tsx. Calls client.ts.
+ * Layer: api. Called by DisposalFormDialog, AdRICDirectorDashboard, NotificationCenter, and state/serverData.tsx. Calls client.ts; types from @shared/types/disposals.
  * Used by: Staff disposal filing, Director approval.
  */
+import type { DisposalRequestInput } from "@shared/types/disposals";
 import { apiGet, apiPost, apiPut, type ApiResult } from "./client";
-
-/** What the disposal form sends. */
-// TODO(M-13): the server packs these fields into one text column. Phase 3 splits them into columns.
-export interface DisposalRequestInput {
-  /** Display name of the staff member filing the request. */
-  requestedBy: string;
-  lastCustodian: string;
-  breakdownReasons: string;
-  disposalPathway: string;
-  /** Decommission date as yyyy-mm-dd. */
-  decommissionDate: string;
-}
 
 /**
  * Files a disposal request for an asset.

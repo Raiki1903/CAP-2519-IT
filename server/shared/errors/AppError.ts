@@ -1,7 +1,8 @@
 /**
  * An error that carries the HTTP status it should be answered with.
- * Layer: shared (server errors). Thrown by features/loans (validation and service), caught by loans.controller.ts. Imports nothing.
- * Used by: Custodian borrow request, Lab Head approval (loans is the only feature that throws it so far).
+ * Layer: shared (server errors). Thrown by the validation and service files of features/loans, returns, transfers, and disposals;
+ * caught by each of those features' controllers. Imports nothing.
+ * Used by: every workflow those four features serve (borrow, return, transfer, disposal, and their decisions).
  */
 
 /**
