@@ -42,6 +42,11 @@ export async function getRoleEmails(roleName: string): Promise<string[]> {
     return users.map(u => u.email).filter(Boolean);
 }
 
+/** The user with this id, or null. */
+export function findUserById(userId: number) {
+    return prisma.users.findUnique({ where: { user_id: userId } });
+}
+
 /** The user with this email, or null. Used by sign-ups (the duplicate check), the transfer recipient, and the inspection reporter. */
 export function findUserByEmail(email: string) {
     return prisma.users.findUnique({ where: { email } });

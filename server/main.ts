@@ -6,7 +6,7 @@
  */
 import { env } from './config/env';
 import { app } from './app';
-import { assertDefaultCustodianExists } from './remainingRoutes';
+import { assertDefaultCustodianExists } from './shared/services/defaultCustodianCheck';
 import { performDatabaseBackup } from './jobs/backup';
 
 // Run backup every 6 hours
