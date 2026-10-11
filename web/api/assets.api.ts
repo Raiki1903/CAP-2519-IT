@@ -11,7 +11,7 @@ import { apiDelete, apiGet, apiGetRaw, apiPostRaw, apiPutRaw, type ApiResult } f
  *
  * @returns `success` and `assets`, an array of asset view rows
  */
-// TODO(M-01): the server loads nine whole tables for this, and most screens call it. Phase 3 replaces it with targeted queries.
+// TODO(M-01): the server loads nine whole tables for this, and most screens call it. Phase 3 replaces it with targeted queries (issue #76).
 export function listAssets(): Promise<ApiResult> {
   return apiGet("/api/assets");
 }
@@ -56,7 +56,7 @@ export function createAssetRaw(form: AssetCreateInput): Promise<Response> {
  * @param form the edit dialog values
  * @returns the raw Response
  */
-// TODO(H-14): the server overwrites the newest history row instead of adding one. Phase 3.
+// TODO(H-14): the server overwrites the newest history row instead of adding one. Issue #74.
 export function updateAssetRaw(assetTag: string, form: AssetUpdateInput): Promise<Response> {
   return apiPutRaw(`/api/assets/${encodeURIComponent(assetTag)}`, form);
 }
@@ -67,7 +67,7 @@ export function updateAssetRaw(assetTag: string, form: AssetUpdateInput): Promis
  * @param assetTag the asset's tag
  * @returns `success`, and `error` when the delete fails
  */
-// TODO(H-03): this is a hard delete that destroys the asset's history. Phase 3 turns it into "retire".
+// TODO(H-03): this is a hard delete that destroys the asset's history. Phase 3 turns it into "retire" (issue #69).
 export function deleteAsset(assetTag: string): Promise<ApiResult> {
   return apiDelete(`/api/assets/${encodeURIComponent(assetTag)}`);
 }

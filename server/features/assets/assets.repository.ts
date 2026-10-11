@@ -137,7 +137,8 @@ export interface EditRows {
 /**
  * Saves an asset edit in one transaction: the assets fields, the monetary row, the newest record,
  * and, when the edit carries a condition or remarks, an inspection report. The reads and writes run in
- * the order the old handler ran them; the edit queries are kept as they are (issue #8).
+ * the order the old handler ran them; the edit queries are kept as they are. On the slow CCS Cloud link this one interactive
+ * transaction can outlast Prisma's transaction timeout, and the edit then fails with P2028, "expired transaction" (issue #8).
  * The newest record is read inside the transaction, after the assets and monetary writes, and handed to the
  * service, which builds the record values and the report.
  *
@@ -171,8 +172,8 @@ export function saveEdit(
         }
 
         // The newest record is changed in place; no record is added.
-        // TODO(H-14): an edit overwrites the newest history row (status, location, custodian, condition) instead of appending one, so the earlier state is lost. 01D appends; its own commit.
-        // TODO(M-09): no tie-break on asset_record_id, unlike the asset list, so with two records in the same second this can change a different one than the list shows. Phase 3, with the shared asset state rule.
+        // TODO(H-14): an edit overwrites the newest history row (status, location, custodian, condition) instead of appending one, so the earlier state is lost. 01D appends; issue #74.
+        // TODO(M-09): no tie-break on asset_record_id, unlike the asset list, so with two records in the same second this can change a different one than the list shows. With issue #74, or Phase 3 with the shared asset state rule.
         const latestRecord = await tx.asset_records.findFirst({
             where: { asset_id: existing.asset_id },
             orderBy: { date_logged: "desc" },
@@ -210,7 +211,7 @@ export function saveEdit(
     });
 }
 
-/** Deletes an asset and the rows of seven tables that point at it, in one transaction. (H-03: asset_reports is not among them) */
+/** Deletes an asset and the rows of seven tables that point at it, in one transaction. (H-03, issue #69: asset_reports is not among them) */
 export function deleteWithHistory(assetId: number) {
     // The schema has no ON DELETE CASCADE, so the child rows go first, or the delete fails on a foreign key.
     return prisma.$transaction(async (tx) => {

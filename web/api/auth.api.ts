@@ -55,7 +55,7 @@ export function requestRegistrationRaw(registration: RegistrationRequestInput): 
  *
  * @returns `success` and `pendingRegistrations`
  */
-// TODO(C-04): the answer includes each applicant's password and needs no login. Step 13 and Phase 3.
+// TODO(C-04): the answer includes each applicant's password and needs no login (issue #72). Step 13 and Phase 3.
 export function listPendingRegistrations(): Promise<ApiResult> {
   return apiGet("/api/auth/pending-registrations");
 }
@@ -66,7 +66,7 @@ export function listPendingRegistrations(): Promise<ApiResult> {
  * @param registration `requestId`, plus the registration's own fields when the caller has them
  * @returns `success`, or `error` when the user could not be created
  */
-// TODO(C-05): the server creates an account from the body when the request id is unknown. Phase 3 removes that fallback.
+// TODO(C-05): the server creates an account from the body when the request id is unknown. Removing that fallback is issue #71, after issue #68.
 export function approveRegistration(registration: ApproveRegistrationInput): Promise<ApiResult> {
   return apiPost("/api/auth/approve-registration", registration);
 }

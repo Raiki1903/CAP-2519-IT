@@ -21,7 +21,7 @@ import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
  *
  * @returns one AssetListItem per assets row, with its records, transfers, and reports
  */
-// TODO(M-01): nine whole tables are loaded and joined in code on every call, and most screens call it. 01D rewrites it as targeted queries, in its own commit.
+// TODO(M-01): nine whole tables are loaded and joined in code on every call, and most screens call it. 01D rewrites it as targeted queries, in its own commit (issue #76).
 // TODO(H-13): reporterRole reads a `role` field users does not have, so it is always "Inspection Inspector"; and the condition score checks spellings the condition enum does not have. A small fix.
 export async function listAssets(): Promise<AssetListItem[]> {
     const [dbAssets, dbMonetaries, dbRecords, dbUsers, dbLoans, dbDisposals, dbTransfers, dbReports, dbProjects] = await assetsRepository.findListTables();
@@ -223,7 +223,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
  * @returns the asset's tag and name and the entries, numbered from 1
  * @throws AppError 404 if neither the tag nor the id matches an asset
  */
-// TODO(C-02): each entry carries the custodian's email and id number, sent to anyone who asks (01C 4.2). Step 13, then strip them.
+// TODO(C-02): each entry carries the custodian's email and id number, sent to anyone who asks (01C 4.2). Step 13, then strip them (issue #72).
 export async function custodianHistory(assetTag: string): Promise<CustodianHistory> {
     let asset = await assetsRepository.findByTag(assetTag);
 
@@ -305,7 +305,7 @@ function sanitizeCategory(cat: any): any {
  * @returns the created assets row and its tag
  * @throws AppError 400 if the picture is text but not an image
  */
-// TODO(H-11): the next number is read before the transaction, so two registrations in the same lab at once can pick the same tag; the second then fails with a 500. Move it into the transaction, its own commit.
+// TODO(H-11): the next number is read before the transaction, so two registrations in the same lab at once can pick the same tag; the second then fails with a 500. Move it into the transaction, its own commit (issue #75).
 export async function registerAsset(data: AssetCreateInput): Promise<{ asset: assets; assetTag: string }> {
     const imageVal = data.image || data.image_url || data.imageUrl || null;
     checkAssetImage(imageVal);
@@ -365,7 +365,8 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
 /**
  * Saves an edit: the assets fields that were sent, the monetary row, and the asset's newest record; and, when the edit
  * carries a condition or remarks, a new inspection report whose condition the newest record then takes.
- * The edit queries are kept exactly as they are (issue #8); see the TODOs here and in assets.repository.ts saveEdit.
+ * The edit queries are kept exactly as they are; see the TODOs here and in assets.repository.ts saveEdit. Appending instead of
+ * overwriting is issue #74.
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the body; every field is optional
@@ -410,7 +411,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
     if (data.procured !== undefined) assetUpdateData.procurement_date = data.procured ? new Date(data.procured) : null;
     if (data.warranty !== undefined) assetUpdateData.warranty_expiry = data.warranty ? new Date(data.warranty) : null;
 
-    // TODO(M-16): an existing monetary row gets only the funding source (reset to "Unspecified" when none is sent); the value is ignored. Its own fix.
+    // TODO(M-16): an existing monetary row gets only the funding source (reset to "Unspecified" when none is sent); the value is ignored. Its own fix (issue #74).
     const monetary = (data.funding !== undefined || data.acquisitionValue !== undefined)
         ? {
             update: { funding_source: data.funding || "Unspecified" },
@@ -488,7 +489,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
  * @param assetTag the asset's tag, from the URL
  * @throws AppError 404 if no asset has this tag
  */
-// TODO(H-03): a hard delete that destroys the asset's history; and asset_reports is not cleared, so an inspected asset cannot be deleted (500). 01D turns it into "retire", a status change, in its own commit.
+// TODO(H-03): a hard delete that destroys the asset's history; and asset_reports is not cleared, so an inspected asset cannot be deleted (500). 01D turns it into "retire", a status change, in its own commit (issue #69).
 export async function deleteAsset(assetTag: string): Promise<void> {
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {

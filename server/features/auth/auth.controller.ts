@@ -12,7 +12,7 @@ import { AppError } from '../../shared/errors/AppError';
 // (Express 5 leaves req.body undefined) therefore fails there with the same TypeError text, and answers 500.
 
 /**
- * Handles POST /api/auth/register: creates a Custodian account directly, with no approval step. No screen calls it.
+ * Handles POST /api/auth/register: creates a Custodian account directly, with no approval step. No screen calls it (deleting it is issue #70).
  * Answers `{ success, user }` with the new account's id, names, and email, or the AppError's status and message
  * (400 missing field, email taken, or id number taken), or 500.
  */
@@ -40,14 +40,14 @@ export async function register(req: Request, res: Response): Promise<void> {
  * Handles GET /api/auth/pending-registrations: `{ success, pendingRegistrations }`, newest first.
  * It has no error handling of its own, as before: it reads only the in-memory list.
  */
-// TODO(C-04): each request is sent with its password, to anyone who asks. Step 13 (requireAuth) and Phase 3 (the table, H-17).
+// TODO(C-04): each request is sent with its password, to anyone who asks (issue #72). Step 13 (requireAuth) and Phase 3 (the table, H-17).
 export async function listPendingRegistrations(req: Request, res: Response): Promise<void> {
     res.json({ success: true, pendingRegistrations: authService.listPendingRegistrations() });
 }
 
 /**
  * Handles POST /api/auth/register-request: files a sign-up request for a Lab Head to approve.
- * Answers `{ success, registration }` with the stored request, password included (01C 4.1),
+ * Answers `{ success, registration }` with the stored request, password included (01C 4.1, issue #72),
  * or the AppError's status and message (400 missing field, email taken, or id number taken), or 500.
  */
 export async function requestRegistration(req: Request, res: Response): Promise<void> {
@@ -73,7 +73,7 @@ export async function requestRegistration(req: Request, res: Response): Promise<
 
 /**
  * Handles POST /api/auth/approve-registration: creates the account a sign-up request asked for.
- * Answers `{ success, user, message }` with the whole new users row, password included (01C 4.1),
+ * Answers `{ success, user, message }` with the whole new users row, password included (01C 4.1, issue #72),
  * 404 when neither the request id nor the body describes an account, or 500 (for example an email already taken).
  */
 export async function approveRegistration(req: Request, res: Response): Promise<void> {

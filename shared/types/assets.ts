@@ -51,7 +51,7 @@ export interface AssetUpdateInput {
   procured?: string;
   warranty?: string;
   funding?: string;
-  /** Ignored when the monetary row exists: only the funding source is updated. (M-16) */
+  /** Ignored when the monetary row exists: only the funding source is updated. (M-16, issue #74) */
   acquisitionValue?: number | string;
   location?: string;
   lab?: string;
@@ -174,7 +174,7 @@ export interface CustodianHistoryEntry {
   sequence: number;
   recordId?: number;
   custodianName: string;
-  // TODO(C-02): the custodian's email and id number go to anyone who asks (01C 4.2). Step 13, then strip them.
+  // TODO(C-02): the custodian's email and id number go to anyone who asks (01C 4.2). Step 13, then strip them (issue #72).
   custodianEmail: string;
   /** The custodian's id number (users.id_number), not users.user_id. */
   custodianId?: number | string;

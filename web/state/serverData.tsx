@@ -102,7 +102,7 @@ export interface PendingDisposal {
 }
 
 /** A sign-up request waiting for a Lab Head. */
-// TODO(C-04): the server sends each applicant's password in this list. Step 13 and Phase 3.
+// TODO(C-04): the server sends each applicant's password in this list (issue #72). Step 13 and Phase 3.
 export interface PendingRegistration {
   id: string;
   firstName: string;
@@ -172,7 +172,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
   // Each list has its own try block so one failed request does not stop the
   // others. A list whose request fails keeps what it showed before.
-  // TODO(M-01): six requests on every reload, and GET /api/assets alone reads nine tables. Pages loading their own data (01D), and the asset list rewrite, its own commit.
+  // TODO(M-01): six requests on every reload, and GET /api/assets alone reads nine tables. Pages loading their own data (01D), and the asset list rewrite (issue #76).
   const syncFromDb = async () => {
     setIsDbLoading(true);
     try {

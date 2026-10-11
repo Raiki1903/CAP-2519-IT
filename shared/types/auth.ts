@@ -48,7 +48,7 @@ export interface PendingRegistration {
   userType: "STUDENT" | "FACULTY" | "STAFF";
   requestedRole: string;
   labAffiliation: string;
-  /** Plain text, and sent with every listing. (C-03, C-04) */
+  /** Plain text, and sent with every listing. (C-03, C-04; issue #72) */
   password?: string;
   avatarUrl?: string;
   /** A display date such as "Oct 11, 2026", not a timestamp. */
@@ -59,7 +59,7 @@ export interface PendingRegistration {
 
 /**
  * The body of POST /api/auth/approve-registration: the request id, plus the request's own fields when the caller has them.
- * The fields are used only when the id matches no request. (C-05)
+ * The fields are used only when the id matches no request. (C-05, issue #71)
  */
 export interface ApproveRegistrationInput {
   requestId?: string;

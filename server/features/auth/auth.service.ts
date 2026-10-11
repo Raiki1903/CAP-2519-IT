@@ -18,11 +18,11 @@ import type {
 import * as authRepository from './auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 
-// Duplicate email handling is left as it is (issue #14). Today the email check looks at accounts only, not at
-// pending sign-ups, so one email can be requested twice; approving the second then fails with a 500.
+// Registration accepts the same email more than once (issue #14), kept as is: the email check looks at accounts only,
+// not at pending sign-ups, so one email can be requested twice; approving the second then fails with a 500.
 
 /**
- * Creates a Custodian account directly, with no approval step. No screen calls it.
+ * Creates a Custodian account directly, with no approval step. No screen calls it; deleting it is issue #70.
  * The account gets the CUSTODIAN role if that role row exists, and a lab link only when a center id is sent.
  *
  * @param data the checked body: names, email, password, id number, optional user type and center id
@@ -64,7 +64,7 @@ export async function register(data: RegisterInput): Promise<{ userId: number; f
 /**
  * The sign-up requests still waiting for a decision, newest first.
  *
- * @returns the PENDING requests, each with its password (C-04)
+ * @returns the PENDING requests, each with its password (C-04, issue #72)
  */
 export function listPendingRegistrations(): PendingRegistration[] {
     return authRepository.listPendingRegistrations().filter(r => r.status === "PENDING");
@@ -115,13 +115,13 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
 /**
  * Approves a sign-up request: creates the account with its role and lab, then drops the request.
  * The role comes from the requested role's wording, and the lab is matched by name or short code;
- * a lab that matches nothing is created as a new research center. (C-05 family)
+ * a lab that matches nothing is created as a new research center. (C-05 family, issue #73)
  *
  * @param data `requestId`, plus the request's own fields when the caller has them
- * @returns the created users row, password included (01C 4.1)
+ * @returns the created users row, password included (01C 4.1, issue #72)
  * @throws AppError 404 if the id matches no request and the body has no email and names to fall back on
  */
-// TODO(C-05): an unknown request id plus a body with an email and names creates that account, with the role it asks for. Phase 3 removes the fallback.
+// TODO(C-05): an unknown request id plus a body with an email and names creates that account, with the role it asks for. Removing the fallback is issue #71, which needs issue #68 first: in the tab that filed a sign-up, the list holds the Register page's own REG-<timestamp> id, not the server's, so those approvals work only through this fallback.
 // TODO(M-11): "ITS" or "Admin" in the requested role maps to ADMIN, so no ITS_STAFF account can be created here. With the ITS removal branch.
 export async function approveRegistration(data: ApproveRegistrationInput): Promise<users> {
     const { requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password } = data;
@@ -358,7 +358,7 @@ export async function updateAccount(data: AccountUpdateInput): Promise<{ updated
         if (!center) {
             // MANILA_CAMPUS is not a research_centers location, so this create always fails, the empty catch
             // swallows it, and the account keeps its old lab while the answer names the new one.
-            // TODO(M-03): a lab code is turned into a new research center instead of being refused. A fixed lab list, Phase 3.
+            // TODO(M-03): a lab code is turned into a new research center instead of being refused (issue #73). A fixed lab list, Phase 3.
             try {
                 center = await authRepository.createResearchCenter({ name: `${labAffiliation} Research Laboratory`, short_code: labAffiliation, location: "MANILA_CAMPUS" });
             } catch (e) { }
@@ -385,7 +385,7 @@ export async function updateAccount(data: AccountUpdateInput): Promise<{ updated
             userImg: updatedUser.user_img,
             profilePicture: updatedUser.user_img,
             avatarUrl: updatedUser.user_img,
-            // The lab sent, not the account's lab: with no lab sent this says CITe4D whatever the account's lab is.
+            // The lab sent, not the account's lab: with no lab sent this says CITe4D whatever the account's lab is (issue #73).
             labAffiliation: labAffiliation || "CITe4D"
         }
     };
