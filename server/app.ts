@@ -13,6 +13,7 @@ import { disposalsRouter } from './features/disposals/disposals.routes';
 import { repairsRouter } from './features/repairs/repairs.routes';
 import { inspectionsRouter } from './features/inspections/inspections.routes';
 import { authRouter } from './features/auth/auth.routes';
+import { assetsRouter } from './features/assets/assets.routes';
 import { router as remainingRoutes } from './remainingRoutes';
 
 /**
@@ -36,4 +37,5 @@ app.use(disposalsRouter);
 app.use(repairsRouter);
 app.use(inspectionsRouter);
 app.use(authRouter);
+app.use(assetsRouter);
 app.use(remainingRoutes);

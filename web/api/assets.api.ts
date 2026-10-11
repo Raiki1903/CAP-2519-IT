@@ -3,6 +3,7 @@
  * Layer: api. Called by the four role dashboards, AssetDetailModal, StaffAnalyticsView, and state/serverData.tsx. Calls client.ts.
  * Used by: every role's inventory view, Staff asset registration and editing.
  */
+import type { AssetCreateInput, AssetUpdateInput } from "@shared/types/assets";
 import { apiDelete, apiGet, apiGetRaw, apiPostRaw, apiPutRaw, type ApiResult } from "./client";
 
 /**
@@ -43,7 +44,7 @@ export function getCustodianHistory(assetTag: string): Promise<ApiResult> {
  * @param form the intake form values
  * @returns the raw Response; on success its JSON holds `asset` with the new `asset_tag`
  */
-export function createAssetRaw(form: unknown): Promise<Response> {
+export function createAssetRaw(form: AssetCreateInput): Promise<Response> {
   return apiPostRaw("/api/assets", form);
 }
 
@@ -56,7 +57,7 @@ export function createAssetRaw(form: unknown): Promise<Response> {
  * @returns the raw Response
  */
 // TODO(H-14): the server overwrites the newest history row instead of adding one. Phase 3.
-export function updateAssetRaw(assetTag: string, form: unknown): Promise<Response> {
+export function updateAssetRaw(assetTag: string, form: AssetUpdateInput): Promise<Response> {
   return apiPutRaw(`/api/assets/${encodeURIComponent(assetTag)}`, form);
 }
 
