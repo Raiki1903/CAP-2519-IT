@@ -1,6 +1,6 @@
 /**
  * The asset category values.
- * Layer: shared. Imported by server/remainingRoutes.ts (category sanitizing) and web/ (features/assets/IntakeWizard.tsx). Imports nothing.
+ * Layer: shared. Imported by server/features/assets/assets.service.ts (category sanitizing) and web/ (features/assets/IntakeWizard.tsx). Imports nothing.
  * Used by: asset registration and edit.
  */
 

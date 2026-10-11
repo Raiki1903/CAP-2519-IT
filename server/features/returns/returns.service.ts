@@ -1,11 +1,14 @@
 /**
  * Returns service: the business rules for finalizing a return, and the return list.
- * Layer: service. Called by returns.controller.ts. Calls returns.repository.ts and shared/constants/defaultCustodian.ts.
+ * Layer: service. Called by returns.controller.ts. Calls returns.repository.ts, features/assets/assets.repository.ts,
+ * features/auth/auth.repository.ts, and shared/constants/defaultCustodian.ts.
  * Used by: Staff return finalization (ReturnForm), after a custodian's return request.
  */
 import type { Prisma, asset_records, asset_returns } from '@prisma/client';
 import type { ReturnInput, ReturnListItem } from '@shared/types/returns';
 import * as returnsRepository from './returns.repository';
+import * as assetsRepository from '../assets/assets.repository';
+import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
 
@@ -25,7 +28,7 @@ import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
 export async function finalizeReturn(assetTag: string, data: ReturnInput): Promise<asset_returns> {
     const conditionEnum = data.condition;
 
-    const existing = await returnsRepository.findAssetByTag(assetTag);
+    const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
@@ -36,7 +39,7 @@ export async function finalizeReturn(assetTag: string, data: ReturnInput): Promi
     let returnedById = DEFAULT_CUSTODIAN_ID;
     if (data.returnedBy) {
         const [first, ...rest] = String(data.returnedBy).replace(/^Dr\.\s*/i, "").split(" ");
-        const match = await returnsRepository.findUserByName(first, rest.join(" "));
+        const match = await authRepository.findUserByName(first, rest.join(" "));
         if (match) returnedById = match.user_id;
     }
 

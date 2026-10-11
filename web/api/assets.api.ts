@@ -1,8 +1,9 @@
 /**
  * Assets API: the asset registry calls (list, history, create, edit, delete).
- * Layer: api. Called by the four role dashboards, AssetDetailModal, StaffAnalyticsView, and state/serverData.tsx. Calls client.ts.
+ * Layer: api. Called by the four role dashboards, AssetDetailModal, StaffAnalyticsView, and state/serverData.tsx. Calls client.ts; types from @shared/types/assets.
  * Used by: every role's inventory view, Staff asset registration and editing.
  */
+import type { AssetCreateInput, AssetUpdateInput } from "@shared/types/assets";
 import { apiDelete, apiGet, apiGetRaw, apiPostRaw, apiPutRaw, type ApiResult } from "./client";
 
 /**
@@ -10,7 +11,7 @@ import { apiDelete, apiGet, apiGetRaw, apiPostRaw, apiPutRaw, type ApiResult } f
  *
  * @returns `success` and `assets`, an array of asset view rows
  */
-// TODO(M-01): the server loads nine whole tables for this, and most screens call it. Phase 3 replaces it with targeted queries.
+// TODO(M-01): the server loads nine whole tables for this, and most screens call it. Phase 3 replaces it with targeted queries (issue #76).
 export function listAssets(): Promise<ApiResult> {
   return apiGet("/api/assets");
 }
@@ -43,7 +44,7 @@ export function getCustodianHistory(assetTag: string): Promise<ApiResult> {
  * @param form the intake form values
  * @returns the raw Response; on success its JSON holds `asset` with the new `asset_tag`
  */
-export function createAssetRaw(form: unknown): Promise<Response> {
+export function createAssetRaw(form: AssetCreateInput): Promise<Response> {
   return apiPostRaw("/api/assets", form);
 }
 
@@ -55,8 +56,8 @@ export function createAssetRaw(form: unknown): Promise<Response> {
  * @param form the edit dialog values
  * @returns the raw Response
  */
-// TODO(H-14): the server overwrites the newest history row instead of adding one. Phase 3.
-export function updateAssetRaw(assetTag: string, form: unknown): Promise<Response> {
+// TODO(H-14): the server overwrites the newest history row instead of adding one. Issue #74.
+export function updateAssetRaw(assetTag: string, form: AssetUpdateInput): Promise<Response> {
   return apiPutRaw(`/api/assets/${encodeURIComponent(assetTag)}`, form);
 }
 
@@ -66,7 +67,7 @@ export function updateAssetRaw(assetTag: string, form: unknown): Promise<Respons
  * @param assetTag the asset's tag
  * @returns `success`, and `error` when the delete fails
  */
-// TODO(H-03): this is a hard delete that destroys the asset's history. Phase 3 turns it into "retire".
+// TODO(H-03): this is a hard delete that destroys the asset's history. Phase 3 turns it into "retire" (issue #69).
 export function deleteAsset(assetTag: string): Promise<ApiResult> {
   return apiDelete(`/api/assets/${encodeURIComponent(assetTag)}`);
 }

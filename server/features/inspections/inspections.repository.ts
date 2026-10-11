@@ -6,22 +6,10 @@
 import type { Prisma, asset_records, asset_reports } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
-// The next three read other features' tables. They live here until the assets and auth
-// repositories are extracted (later in step 12), so that no inspection code calls Prisma outside this file.
-
-/** The asset with this tag, or null. */
-export function findAssetByTag(assetTag: string) {
-    return prisma.assets.findUnique({ where: { asset_tag: assetTag } });
-}
-
+// Reads the assets feature's table, with the same query as assets.repository.ts findById.
 /** The asset with this id, or null. */
 export function findAssetById(assetId: number) {
     return prisma.assets.findUnique({ where: { asset_id: assetId } });
-}
-
-/** The user with this email, or null. */
-export function findUserByEmail(email: string) {
-    return prisma.users.findUnique({ where: { email } });
 }
 
 /** How a new report changes the asset's records: update the newest record in place, or create the first one. */

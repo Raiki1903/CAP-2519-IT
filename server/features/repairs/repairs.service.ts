@@ -1,7 +1,7 @@
 /**
  * Repairs service: the business rules for repair tickets, their progress, and the asset status that follows them.
- * Layer: service. Called by repairs.controller.ts. Calls repairs.repository.ts, shared/constants/defaultCustodian.ts,
- * and @shared/enums/assetCondition.
+ * Layer: service. Called by repairs.controller.ts. Calls repairs.repository.ts, features/assets/assets.repository.ts,
+ * features/auth/auth.repository.ts, shared/constants/defaultCustodian.ts, and @shared/enums/assetCondition.
  * Used by: Custodian repair request (RepairForm, and ReturnForm's "flag for repair"), Staff repair queue,
  * repair dialog, and the Staff analytics board.
  */
@@ -9,6 +9,8 @@ import type { Prisma, asset_records, asset_repairs } from '@prisma/client';
 import type { RepairListItem, RepairRequestInput } from '@shared/types/repairs';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import * as repairsRepository from './repairs.repository';
+import * as assetsRepository from '../assets/assets.repository';
+import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
 
@@ -39,7 +41,7 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput):
     }
     recentRepairSubmissions.set(dedupeKey, Date.now());
 
-    const existing = await repairsRepository.findAssetByTag(assetTag);
+    const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
@@ -50,7 +52,7 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput):
     let reporterId = DEFAULT_CUSTODIAN_ID;
     if (data.reportedBy) {
         const [first, ...rest] = String(data.reportedBy).replace(/^Dr\.\s*/i, "").split(" ");
-        const match = await repairsRepository.findUserByName(first, rest.join(" "));
+        const match = await authRepository.findUserByName(first, rest.join(" "));
         if (match) reporterId = match.user_id;
     }
 

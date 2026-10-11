@@ -1,12 +1,14 @@
 /**
  * Loans service: the business rules for borrow requests, decisions, and the loan list.
- * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, shared/services/custodyRequestGuard.ts,
- * shared/utils/campus.ts, and shared/constants/defaultCustodian.ts.
+ * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, features/assets/assets.repository.ts,
+ * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/utils/campus.ts, and shared/constants/defaultCustodian.ts.
  * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
  */
 import type { Prisma, asset_loans, asset_records } from '@prisma/client';
 import type { LoanDecision, LoanListItem, LoanRequestInput } from '@shared/types/loans';
 import * as loansRepository from './loans.repository';
+import * as assetsRepository from '../assets/assets.repository';
+import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
 import { campusForLab } from '../../shared/utils/campus';
@@ -98,7 +100,7 @@ export async function listLoans(): Promise<LoanListItem[]> {
  * @throws AppError 409 if the guard refuses the request
  */
 export async function requestLoan(assetTag: string, data: LoanRequestInput): Promise<asset_loans> {
-    const existing = await loansRepository.findAssetByTag(assetTag);
+    const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
@@ -114,7 +116,7 @@ export async function requestLoan(assetTag: string, data: LoanRequestInput): Pro
     // TODO(H-10): two people with the same name cannot be told apart, and a typo files the loan under user 1 (issue #32). The borrower comes from the session after step 13.
     let borrowerId = DEFAULT_CUSTODIAN_ID;
     const [first, ...rest] = String(data.borrower).replace(/^Dr\.\s*/i, "").split(" ");
-    const match = await loansRepository.findUserByName(first, rest.join(" "));
+    const match = await authRepository.findUserByName(first, rest.join(" "));
     if (match) borrowerId = match.user_id;
 
     // asset_loans has no destination column, so the lab is stored as the first line of purpose,

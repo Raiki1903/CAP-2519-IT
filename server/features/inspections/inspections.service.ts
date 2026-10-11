@@ -1,13 +1,15 @@
 /**
  * Inspections service: the business rules for condition reports, and the two report lists.
- * Layer: service. Called by inspections.controller.ts. Calls inspections.repository.ts, inspections.validation.ts,
- * and shared/constants/defaultCustodian.ts.
+ * Layer: service. Called by inspections.controller.ts. Calls inspections.repository.ts, features/assets/assets.repository.ts,
+ * features/auth/auth.repository.ts, inspections.validation.ts, and shared/constants/defaultCustodian.ts.
  * Used by: Custodian condition report (CustodianPortal), Staff inspection finalize (InspectionQueue),
  * the Staff inspection log, and state/serverData.tsx.
  */
 import type { asset_reports } from '@prisma/client';
 import type { InspectionReportInput, InspectionReportItem, ReportSummaryItem } from '@shared/types/inspections';
 import * as inspectionsRepository from './inspections.repository';
+import * as assetsRepository from '../assets/assets.repository';
+import * as authRepository from '../auth/auth.repository';
 import { readInspectionReport } from './inspections.validation';
 import { AppError } from '../../shared/errors/AppError';
 import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
@@ -25,7 +27,7 @@ import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
  */
 export async function fileReport(assetTag: string, data: InspectionReportInput): Promise<asset_reports> {
     // A tag that is a number is also tried as an asset_id.
-    let asset = await inspectionsRepository.findAssetByTag(assetTag);
+    let asset = await assetsRepository.findByTag(assetTag);
     if (!asset && !isNaN(Number(assetTag))) {
         asset = await inspectionsRepository.findAssetById(Number(assetTag));
     }
@@ -41,7 +43,7 @@ export async function fileReport(assetTag: string, data: InspectionReportInput):
     // TODO(H-16): a reportedById that is no account fails the insert and answers 500 with Prisma's raw message. Step 13 (errorHandler), or its own check.
     let reporterId = DEFAULT_CUSTODIAN_ID;
     if (data.reporterEmail) {
-        const u = await inspectionsRepository.findUserByEmail(data.reporterEmail);
+        const u = await authRepository.findUserByEmail(data.reporterEmail);
         if (u) reporterId = u.user_id;
     } else if (data.reportedById) {
         reporterId = Number(data.reportedById);

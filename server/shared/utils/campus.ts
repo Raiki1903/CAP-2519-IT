@@ -4,7 +4,7 @@
  * Used by: Lab Head loan and transfer approval, which write the campus into the asset's current_location.
  */
 
-// TODO(M-03): one more lab list, by short code, apart from shared/constants/labs.ts. Campus should come from research_centers.location. Phase 3, or step 12 (assets).
+// TODO(M-03): one more lab list, by short code, apart from shared/constants/labs.ts. Campus should come from research_centers.location. Phase 3.
 const LAGUNA_LABS = new Set(["CAR", "HXIL", "CeLT", "CIVI", "MECH"]);
 
 /**

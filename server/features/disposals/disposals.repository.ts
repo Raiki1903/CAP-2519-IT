@@ -6,21 +6,6 @@
 import type { Prisma, asset_disposals, asset_records } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
-// The next two read other features' tables. They live here until the assets and auth
-// repositories are extracted (later in step 12), so that no disposal code calls Prisma outside this file.
-
-/** The asset with this tag, or null. */
-export function findAssetByTag(assetTag: string) {
-    return prisma.assets.findUnique({ where: { asset_tag: assetTag } });
-}
-
-/** The first user whose first and last name match exactly, or null. (H-10) */
-export function findUserByName(firstName: string, lastName: string) {
-    return prisma.users.findFirst({
-        where: { first_name: firstName, last_name: lastName },
-    });
-}
-
 /** Inserts an asset_disposals row and returns it. */
 export function create(data: Prisma.asset_disposalsUncheckedCreateInput) {
     return prisma.asset_disposals.create({ data });
