@@ -1,7 +1,7 @@
 /**
  * Loans service: the business rules for borrow requests, decisions, and the loan list.
- * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, shared/services/custodyRequestGuard.ts,
- * shared/utils/campus.ts, and shared/constants/defaultCustodian.ts.
+ * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, features/assets/assets.repository.ts,
+ * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/utils/campus.ts, and shared/constants/defaultCustodian.ts.
  * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
  */
 import type { Prisma, asset_loans, asset_records } from '@prisma/client';

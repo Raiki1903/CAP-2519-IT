@@ -1,7 +1,7 @@
 /**
  * Repairs service: the business rules for repair tickets, their progress, and the asset status that follows them.
- * Layer: service. Called by repairs.controller.ts. Calls repairs.repository.ts, shared/constants/defaultCustodian.ts,
- * and @shared/enums/assetCondition.
+ * Layer: service. Called by repairs.controller.ts. Calls repairs.repository.ts, features/assets/assets.repository.ts,
+ * features/auth/auth.repository.ts, shared/constants/defaultCustodian.ts, and @shared/enums/assetCondition.
  * Used by: Custodian repair request (RepairForm, and ReturnForm's "flag for repair"), Staff repair queue,
  * repair dialog, and the Staff analytics board.
  */

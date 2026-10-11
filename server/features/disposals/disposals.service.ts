@@ -1,7 +1,7 @@
 /**
  * Disposals service: the business rules for disposal requests, the Director's decisions, and the disposal list.
- * Layer: service. Called by disposals.controller.ts. Calls disposals.repository.ts, features/auth/auth.repository.ts,
- * shared/services/mailer.ts, and shared/constants/defaultCustodian.ts.
+ * Layer: service. Called by disposals.controller.ts. Calls disposals.repository.ts, features/assets/assets.repository.ts,
+ * features/auth/auth.repository.ts, shared/services/mailer.ts, and shared/constants/defaultCustodian.ts.
  * Used by: Staff disposal filing (DisposalFormDialog), Director approval (Approvals & Holds tab and the bell).
  */
 import type { Prisma, asset_disposals, asset_records, assets } from '@prisma/client';

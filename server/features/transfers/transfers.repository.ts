@@ -1,6 +1,6 @@
 /**
  * Transfer row access: every database read and write the transfer endpoints make.
- * Layer: repository. Called by transfers.service.ts. Calls server/config/prisma.ts.
+ * Layer: repository. Called by transfers.service.ts and shared/services/custodyRequestGuard.ts (the pending transfer). Calls server/config/prisma.ts.
  * Used by: Custodian transfer request, Lab Head approval, and the screens that list transfers.
  */
 import type { Prisma, asset_records, asset_transfers } from '@prisma/client';

@@ -1,6 +1,7 @@
 /**
  * The custody request guard: one pending loan or transfer per asset, and only from a status that allows it.
- * Layer: shared service. Called by features/loans/loans.service.ts (borrow) and features/transfers/transfers.service.ts (transfer request). Calls config/prisma.ts.
+ * Layer: shared service. Called by features/loans/loans.service.ts (borrow) and features/transfers/transfers.service.ts (transfer request).
+ * Calls features/assets/assets.repository.ts, features/loans/loans.repository.ts, and features/transfers/transfers.repository.ts.
  * Used by: Custodian borrow and transfer requests.
  */
 import * as assetsRepository from '../../features/assets/assets.repository';

@@ -1,6 +1,6 @@
 /**
  * Loan row access: every database read and write the loan endpoints make.
- * Layer: repository. Called by loans.service.ts. Calls server/config/prisma.ts.
+ * Layer: repository. Called by loans.service.ts and shared/services/custodyRequestGuard.ts (the pending loan). Calls server/config/prisma.ts.
  * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
  */
 import type { Prisma, asset_loans, asset_records } from '@prisma/client';

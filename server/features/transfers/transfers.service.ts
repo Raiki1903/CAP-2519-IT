@@ -1,7 +1,7 @@
 /**
  * Transfers service: the business rules for custodianship transfer requests, decisions, and the transfer list.
- * Layer: service. Called by transfers.controller.ts. Calls transfers.repository.ts, features/auth/auth.repository.ts,
- * shared/services/custodyRequestGuard.ts, shared/services/mailer.ts, shared/utils/campus.ts, and shared/constants/defaultCustodian.ts.
+ * Layer: service. Called by transfers.controller.ts. Calls transfers.repository.ts, features/assets/assets.repository.ts,
+ * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/services/mailer.ts, shared/utils/campus.ts, and shared/constants/defaultCustodian.ts.
  * Used by: Custodian transfer request, Lab Head approval (Custody tab and the bell), and the screens that list transfers.
  */
 import type { Prisma, asset_records, asset_transfers, assets, users } from '@prisma/client';

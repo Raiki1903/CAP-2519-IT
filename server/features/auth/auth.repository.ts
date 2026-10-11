@@ -1,8 +1,10 @@
 /**
- * Account lookups other features need: who to email. The first part of the auth feature;
- * login, /me, and the account update join it when auth is extracted later in step 12.
- * Layer: repository. Called by features/transfers/transfers.service.ts and features/disposals/disposals.service.ts. Calls config/prisma.ts.
- * Used by: the transfer and disposal notification emails.
+ * Account, role, and lab row access, and the pending sign-up file: every database read and write the auth endpoints
+ * make, plus the user lookups other features need (who to email, a user by email, a user by typed name).
+ * Layer: repository. Called by auth.service.ts, the services of features/loans, returns, transfers, disposals, repairs,
+ * inspections, and assets. Calls config/prisma.ts and Node's fs (pending_registrations.json).
+ * Used by: login, the session reload, the account page, sign-ups and their approval, the transfer and disposal emails,
+ * and every workflow that names a person by typed name or email.
  */
 import fs from 'fs';
 import path from 'path';
@@ -40,12 +42,17 @@ export async function getRoleEmails(roleName: string): Promise<string[]> {
     return users.map(u => u.email).filter(Boolean);
 }
 
-/** The user with this email, or null. */
+/** The user with this email, or null. Used by sign-ups (the duplicate check), the transfer recipient, and the inspection reporter. */
 export function findUserByEmail(email: string) {
     return prisma.users.findUnique({ where: { email } });
 }
 
-/** The first user whose first and last name match exactly, or null. (H-10) */
+/**
+ * The first user whose first and last name match exactly, or null.
+ * Used where a screen sends a person as typed text: the borrower, returner, disposal requester,
+ * repair reporter, and the custodian in an asset edit.
+ */
+// TODO(H-10): two people with the same name cannot be told apart, and the callers split a typed name at its first space (issue #32). Step 13 uses the session user instead.
 export function findUserByName(firstName: string, lastName: string) {
     return prisma.users.findFirst({
         where: { first_name: firstName, last_name: lastName },
@@ -63,10 +70,13 @@ export function findRoleByName(roleName: string) {
 }
 
 /**
- * Creates a user and, when given, their role link and lab link, in one transaction.
+ * Creates a user and, when given, their role link and lab link, in one transaction,
+ * so a failed link leaves no account behind.
  *
+ * @param data the users row
  * @param roleId the role to link, or null for none
  * @param centerId the research center to link, or null for none
+ * @returns the created users row
  */
 export function createUser(data: Prisma.usersUncheckedCreateInput, roleId: number | null, centerId: number | null) {
     return prisma.$transaction(async (tx) => {
@@ -96,7 +106,7 @@ export function createUser(data: Prisma.usersUncheckedCreateInput, roleId: numbe
     });
 }
 
-/** The user with this email and password, with their roles and labs, or null. */
+/** The user with this email (trimmed) and password, with their roles and labs, or null. (C-03: compared as plain text) */
 export function findUserByCredentials(email: string, password: string) {
     return prisma.users.findFirst({
         where: {
@@ -118,7 +128,7 @@ export function findUserByCredentials(email: string, password: string) {
     });
 }
 
-/** The first user with this email, with their roles and labs, or null. */
+/** The first user with this email (trimmed), with their roles and labs, or null. */
 export function findUserProfileByEmail(email: string) {
     return prisma.users.findFirst({
         where: { email: email.trim() },
@@ -129,12 +139,12 @@ export function findUserProfileByEmail(email: string) {
     });
 }
 
-/** The first user with exactly this email, or null. */
+/** The first user with exactly this email, or null. Used by the account update, which tries it twice before findAllUsers. */
 export function findFirstUserByEmail(email: string) {
     return prisma.users.findFirst({ where: { email } });
 }
 
-/** Every user. */
+/** Every user. The account update's last resort for an email in another letter case. */
 export function findAllUsers() {
     return prisma.users.findMany();
 }
@@ -147,7 +157,7 @@ export function updateUser(userId: number, data: Prisma.usersUpdateInput) {
     });
 }
 
-/** The first research center whose name or short code matches the lab, or null. */
+/** The first research center whose name is the lab name, or whose short code is the lab name or the code taken from it, or null. */
 export function findResearchCenterForLab(labName: string, extractedCode: string) {
     return prisma.research_centers.findFirst({
         where: {
@@ -192,9 +202,13 @@ export function createUserCenter(userId: number, centerId: number) {
     });
 }
 
-// Persistent JSON File Storage for Pending Registrations
+// Pending sign-ups are kept in a JSON file, not in the database. The file is read once, when this module loads,
+// into the list below; every change rewrites the whole file from that list. The path is the server's working
+// folder, which is the repository root under the npm scripts and a temporary folder in the tests.
+// TODO(H-17): the file holds each applicant's personal data and password in plain text, beside the code. A table, Phase 3.
 const PENDING_FILE = path.join(process.cwd(), "pending_registrations.json");
 
+/** Reads the file, or returns [] when it is missing or unreadable (the error is logged). */
 function loadPendingRegistrations(): PendingRegistration[] {
     try {
         if (fs.existsSync(PENDING_FILE)) {
@@ -207,6 +221,7 @@ function loadPendingRegistrations(): PendingRegistration[] {
     return [];
 }
 
+/** Writes the whole list. A failed write is logged and not thrown, so the list in memory and the file can differ. */
 function savePendingRegistrations(items: PendingRegistration[]) {
     try {
         fs.writeFileSync(PENDING_FILE, JSON.stringify(items, null, 2), "utf-8");
@@ -217,12 +232,12 @@ function savePendingRegistrations(items: PendingRegistration[]) {
 
 let pendingRegistrationsStore: PendingRegistration[] = loadPendingRegistrations();
 
-/** Every sign-up request held in memory, newest first. */
+/** Every sign-up request held in memory, newest first, whatever its status. */
 export function listPendingRegistrations(): PendingRegistration[] {
     return pendingRegistrationsStore;
 }
 
-/** The sign-up request with this id, or undefined. */
+/** The first sign-up request with this id, or undefined. It is the stored object itself, not a copy. */
 export function findPendingRegistration(requestId: string): PendingRegistration | undefined {
     return pendingRegistrationsStore.find(r => r.id === requestId);
 }

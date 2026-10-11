@@ -1,6 +1,6 @@
 /**
  * Auth API: login, the current user's profile, and sign-up requests.
- * Layer: api. Called by Login, Register, AccountDetailsPage, state/session.tsx, and state/serverData.tsx. Calls client.ts.
+ * Layer: api. Called by Login, Register, AccountDetailsPage, state/session.tsx, and state/serverData.tsx. Calls client.ts; types from @shared/types/auth.
  * Used by: login for every role, self-registration, approval of sign-ups, account page.
  */
 import type { AccountUpdateInput, ApproveRegistrationInput, RegistrationRequestInput } from "@shared/types/auth";

@@ -1,7 +1,7 @@
 /**
  * Inspections service: the business rules for condition reports, and the two report lists.
- * Layer: service. Called by inspections.controller.ts. Calls inspections.repository.ts, inspections.validation.ts,
- * and shared/constants/defaultCustodian.ts.
+ * Layer: service. Called by inspections.controller.ts. Calls inspections.repository.ts, features/assets/assets.repository.ts,
+ * features/auth/auth.repository.ts, inspections.validation.ts, and shared/constants/defaultCustodian.ts.
  * Used by: Custodian condition report (CustodianPortal), Staff inspection finalize (InspectionQueue),
  * the Staff inspection log, and state/serverData.tsx.
  */

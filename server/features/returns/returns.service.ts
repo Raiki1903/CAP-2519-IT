@@ -1,6 +1,7 @@
 /**
  * Returns service: the business rules for finalizing a return, and the return list.
- * Layer: service. Called by returns.controller.ts. Calls returns.repository.ts and shared/constants/defaultCustodian.ts.
+ * Layer: service. Called by returns.controller.ts. Calls returns.repository.ts, features/assets/assets.repository.ts,
+ * features/auth/auth.repository.ts, and shared/constants/defaultCustodian.ts.
  * Used by: Staff return finalization (ReturnForm), after a custodian's return request.
  */
 import type { Prisma, asset_records, asset_returns } from '@prisma/client';

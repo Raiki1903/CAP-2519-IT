@@ -172,7 +172,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
   // Each list has its own try block so one failed request does not stop the
   // others. A list whose request fails keeps what it showed before.
-  // TODO(M-01): six requests on every reload, and GET /api/assets alone reads nine tables. Step 8 and step 12.
+  // TODO(M-01): six requests on every reload, and GET /api/assets alone reads nine tables. Pages loading their own data (01D), and the asset list rewrite, its own commit.
   const syncFromDb = async () => {
     setIsDbLoading(true);
     try {

@@ -15,8 +15,9 @@ AdRIC_System/
   server/               Backend API (Express, listens on http://localhost:4000)
     main.ts             Starts the server (npm run server)
     app.ts              Express app: middleware, then the routes
-    features/loans/     Loan endpoints in five layers: routes, validation, controller, service, repository
-    remainingRoutes.ts  The routes not yet split into server/features/ (restructure step 12)
+    features/           One folder per workflow (loans, returns, transfers, disposals, repairs, inspections, auth,
+                        assets), each in five layers: routes, validation, controller, service, repository
+    remainingRoutes.ts  The analytics routes, not yet split into server/features/ (restructure step 12)
     config/env.ts       Reads and checks .env; the server will not start without the DATABASE_* variables
     config/prisma.ts    Prisma client wired to the MariaDB adapter
     shared/             errors/AppError.ts, services/ (mailer.ts, custodyRequestGuard.ts), utils/, constants/

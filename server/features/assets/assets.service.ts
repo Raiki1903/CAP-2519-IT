@@ -1,3 +1,9 @@
+/**
+ * Assets service: the rules for the asset list, the custodian history, registration (with its tag), edits, and deletion.
+ * Layer: service. Called by assets.controller.ts. Calls assets.repository.ts, features/auth/auth.repository.ts,
+ * assets.validation.ts, shared/constants/defaultCustodian.ts, and @shared/enums.
+ * Used by: every role's inventory view and the bell, the asset detail modal, Staff asset registration, editing, and deletion.
+ */
 import type { asset_records, assets } from '@prisma/client';
 import type { AssetCreateInput, AssetListItem, AssetUpdateInput, CustodianHistory } from '@shared/types/assets';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
@@ -8,7 +14,15 @@ import { checkAssetImage } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
 import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
 
-/** Lists every asset with its current state, shaped for the screens. */
+/**
+ * Lists every asset with its current state, shaped for the screens.
+ * Each asset's state is read from its newest record (ties on date_logged go to the higher asset_record_id),
+ * its due date from the newest approved loan, and its disposal details from the disposal's packed reason text.
+ *
+ * @returns one AssetListItem per assets row, with its records, transfers, and reports
+ */
+// TODO(M-01): nine whole tables are loaded and joined in code on every call, and most screens call it. 01D rewrites it as targeted queries, in its own commit.
+// TODO(H-13): reporterRole reads a `role` field users does not have, so it is always "Inspection Inspector"; and the condition score checks spellings the condition enum does not have. A small fix.
 export async function listAssets(): Promise<AssetListItem[]> {
     const [dbAssets, dbMonetaries, dbRecords, dbUsers, dbLoans, dbDisposals, dbTransfers, dbReports, dbProjects] = await assetsRepository.findListTables();
 
@@ -18,7 +32,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
     const formatted = dbAssets.map(asset => {
         const monetary = dbMonetaries.find(m => m.asset_id === asset.asset_id);
 
-        // Get the latest log entry for this asset
+        // dbRecords is newest first, so the first match is the newest record.
         const records = dbRecords.filter(r => r.asset_id === asset.asset_id);
         const latestRecord = records[0];
 
@@ -46,16 +60,10 @@ export async function listAssets(): Promise<AssetListItem[]> {
             if (parts[0]) location = parts[0];
             if (parts[1]) lab = parts[1];
 
-            // On loan: pull borrowedOn/dueDate from the matching approved loan
-            // so the custodian's dashboard can show the countdown/overdue
-            // state. Matched by asset alone (dbLoans is already sorted
-            // newest-first, so this picks the most recent approved loan
-            // cycle) — NOT by requiring the loan's original borrower_id to
-            // still equal current_custodian. A transfer moves custody to
-            // someone new without touching the original loan row, so that
-            // stricter match used to make the deadline vanish for the new
-            // custodian even though the same loan cycle (and its due date)
-            // is still in effect.
+            // The due date comes from the asset's newest approved loan (dbLoans is newest first), matched by
+            // asset alone, not by borrower: a transfer moves custody without touching the loan row, and the
+            // new custodian still needs the same due date.
+            // TODO(H-04): a returned asset's loan stays approved, so an asset put On Loan later by a transfer shows the old loan's dates. Phase 3 (returns close the loan).
             if (st === "ON_LOAN") {
                 const loan = dbLoans.find(l => l.asset_id === asset.asset_id);
                 if (loan) {
@@ -67,7 +75,8 @@ export async function listAssets(): Promise<AssetListItem[]> {
             }
         }
 
-        // Look up approved disposal record if asset is disposed
+        // The disposal named by the newest record, or else any approved disposal of the asset.
+        // TODO(M-13): the pathway and justification are parsed back out of the packed reason text. Columns of their own, Phase 3.
         const disposal = dbDisposals.find(d =>
             (latestRecord?.disposal_id && d.disposal_id === latestRecord.disposal_id) ||
             (d.asset_id === asset.asset_id && d.status === "approved")
@@ -170,10 +179,8 @@ export async function listAssets(): Promise<AssetListItem[]> {
             warranty: asset.warranty_expiry ? asset.warranty_expiry.toISOString().split("T")[0] : "",
             location,
             lab,
-            // Full "Campus — Lab" string of wherever the asset is checked
-            // out to right now (loan/transfer destination, or the TSG
-            // office during repair) — distinct from the split
-            // location/lab fields above, which are always the home campus/lab.
+            // Where the asset is right now ("Campus — Lab": a loan or transfer destination, or the TSG Office
+            // during a repair), unlike location and lab above, which are always its home.
             currentLocation: latestRecord?.current_location || undefined,
             status,
             condition: calculatedCondition,
@@ -208,7 +215,15 @@ export async function listAssets(): Promise<AssetListItem[]> {
     return formatted;
 }
 
-/** Who has held an asset, oldest first. */
+/**
+ * Who has held an asset, oldest first: one entry per asset record, with its custodian.
+ * The tag is tried as an asset id when no asset has it, as the inspection route does.
+ *
+ * @param assetTag the asset's tag, or its numeric id
+ * @returns the asset's tag and name and the entries, numbered from 1
+ * @throws AppError 404 if neither the tag nor the id matches an asset
+ */
+// TODO(C-02): each entry carries the custodian's email and id number, sent to anyone who asks (01C 4.2). Step 13, then strip them.
 export async function custodianHistory(assetTag: string): Promise<CustodianHistory> {
     let asset = await assetsRepository.findByTag(assetTag);
 
@@ -220,7 +235,6 @@ export async function custodianHistory(assetTag: string): Promise<CustodianHisto
         throw new AppError(404, "Asset not found in database.");
     }
 
-    // Fetch all asset_records for this asset ordered by date_logged ASC (Oldest to Newest)
     const records = await assetsRepository.findRecordsWithCustodian(asset.asset_id);
 
     const history: any[] = [];
@@ -254,6 +268,7 @@ export async function custodianHistory(assetTag: string): Promise<CustodianHisto
     }
 
     if (history.length === 0) {
+        // TODO(H-09): an asset with no records gets an invented entry (a placeholder custodian and email, at "DLSU Campus"). Remove it, or say there is no history.
         history.push({
             sequence: 1,
             custodianName: "Equipment Custodian",
@@ -275,13 +290,22 @@ export async function custodianHistory(assetTag: string): Promise<CustodianHisto
     };
 }
 
+/** The stored category for any spelling ("Dev Kit" becomes DEV_KIT), or DEV_KIT when it is missing or not a category. */
 function sanitizeCategory(cat: any): any {
     if (!cat) return 'DEV_KIT';
     const formatted = String(cat).trim().toUpperCase().replace(/[\s-]+/g, '_');
     return ASSET_CATEGORIES.includes(formatted) ? formatted : 'DEV_KIT';
 }
 
-/** Registers a new asset with the next tag of its lab, its monetary row, and its first record. */
+/**
+ * Registers a new asset: its assets row, its monetary row, and its first record (ACTIVE, PERFECT, at its home lab).
+ * The tag is the lab code and the next free number for that lab, for example "CeLT-0005".
+ *
+ * @param data the checked body
+ * @returns the created assets row and its tag
+ * @throws AppError 400 if the picture is text but not an image
+ */
+// TODO(H-11): the next number is read before the transaction, so two registrations in the same lab at once can pick the same tag; the second then fails with a 500. Move it into the transaction, its own commit.
 export async function registerAsset(data: AssetCreateInput): Promise<{ asset: assets; assetTag: string }> {
     const imageVal = data.image || data.image_url || data.imageUrl || null;
     checkAssetImage(imageVal);
@@ -290,7 +314,7 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
         console.log(`📸 Saving image payload for new asset (${imageVal.slice(0, 30)}... [length: ${imageVal.length}])`);
     }
 
-    // Generate a unique asset tag following the lab naming convention (<LabName>-<4-digit sequence>)
+    // The tag prefix is the lab code with anything but letters and digits removed.
     const labPrefix = String(data.lab || "CITe4D").trim().replace(/[^a-zA-Z0-9]/g, "") || "CITe4D";
     const existingLabAssets = await assetsRepository.findTagsWithPrefix(labPrefix);
 
@@ -325,12 +349,11 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
         {
             status: "ACTIVE",
             asset_condition: "PERFECT",
-            // Combines the campus dropdown + lab group since assets has no direct center_id column
+            // assets has no lab column, so the home campus and lab are stored together on the record.
             location: [data.location, data.lab].filter(Boolean).join(" — ") || "Unassigned",
-            // Starts equal to location — the asset is currently at the
-            // lab it was just registered under. Only loans, transfers,
-            // and repairs ever move it away from here.
+            // A new asset is at its home lab. Only loans, transfers, and repairs move it away.
             current_location: [data.location, data.lab].filter(Boolean).join(" — ") || "Unassigned",
+            // TODO(H-10): the first custodian is whatever id the body sends, or user 1. The session user, step 13.
             current_custodian: data.custodianId ?? DEFAULT_CUSTODIAN_ID,
             Asset_Remarks: data.remarks || data.description || data.tsgRemarks || data.itsRemarks || null,
         },
@@ -339,16 +362,26 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
     return { asset, assetTag };
 }
 
-/** Saves an edit to an asset, its monetary row, its newest record, and, with a condition or remarks, a new report. */
+/**
+ * Saves an edit: the assets fields that were sent, the monetary row, and the asset's newest record; and, when the edit
+ * carries a condition or remarks, a new inspection report whose condition the newest record then takes.
+ * The edit queries are kept exactly as they are (issue #8); see the TODOs here and in assets.repository.ts saveEdit.
+ *
+ * @param assetTag the asset's tag, from the URL
+ * @param data the body; every field is optional
+ * @returns the assets row, updated or as it was
+ * @throws AppError 404 if no asset has this tag
+ * @throws AppError 400 if the picture is text but not an image
+ */
 export async function updateAsset(assetTag: string, data: AssetUpdateInput): Promise<assets> {
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // Local demo data identifies a custodian by name (e.g. "Dr. Juan Dela Cruz");
-    // the schema needs a real users.user_id. Best-effort lookup by combined name —
-    // if nothing matches, the existing custodian on the record is left untouched.
+    // The dialog sends the custodian as a display name ("Dr. Juan Dela Cruz"). It is split and matched like the
+    // other typed names; no match leaves the record's custodian as it is (but files the report under user 1).
+    // TODO(H-10): two people with the same name cannot be told apart (issue #32). The session user and an id, step 13.
     let custodianId: number | undefined;
     if (data.custodian) {
         const [first, ...rest] = String(data.custodian).replace(/^Dr\.\s*/i, "").split(" ");
@@ -366,8 +399,8 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
         console.log(`📸 Updating image payload for ${assetTag} (${String(rawImage).slice(0, 30)}... [length: ${String(rawImage).length}])`);
     }
 
-    // Build assets update payload ONLY for fields explicitly provided in req.body.
-    // Inspection reports only send condition/remarks and should NOT modify assets table fields.
+    // Only the assets fields the body sends are written, so a caller that sends only a condition or remarks
+    // leaves the asset's own fields alone.
     const assetUpdateData: any = {};
     if (data.name !== undefined) assetUpdateData.name = data.name;
     if (data.serial !== undefined) assetUpdateData.serial_number = data.serial || null;
@@ -377,6 +410,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
     if (data.procured !== undefined) assetUpdateData.procurement_date = data.procured ? new Date(data.procured) : null;
     if (data.warranty !== undefined) assetUpdateData.warranty_expiry = data.warranty ? new Date(data.warranty) : null;
 
+    // TODO(M-16): an existing monetary row gets only the funding source (reset to "Unspecified" when none is sent); the value is ignored. Its own fix.
     const monetary = (data.funding !== undefined || data.acquisitionValue !== undefined)
         ? {
             update: { funding_source: data.funding || "Unspecified" },
@@ -393,6 +427,8 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
         const rawRemarks = data.remarks ?? data.description ?? data.tsgRemarks ?? data.itsRemarks;
         const remarksVal = remarksProvided ? (rawRemarks || null) : (latestRecord?.Asset_Remarks ?? null);
 
+        // Each record field is the body's value, else the newest record's, else a default.
+        // TODO(H-07): the status is any text upper-cased with its first space as an underscore, not checked against the enum; a bad one fails in the database with a 500. With the status enum.
         const recordData = {
             status: (data.status?.toUpperCase().replace(" ", "_") || latestRecord?.status || "ACTIVE") as any,
             location: [data.location, data.lab].filter(Boolean).join(" — ") || latestRecord?.location || "Unassigned",
@@ -405,6 +441,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
             return { record: recordData, report: null };
         }
 
+        // The report's condition by stored or display name; any other name is stored as PERFECT. (H-07 family, like issue #53 on the inspection route)
         const rawCond = String(data.reportCondition || data.assetCondition || "PERFECT").trim();
         const conditionMap: Record<string, any> = {
             "PERFECT": "PERFECT",
@@ -425,11 +462,13 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
             report: {
                 data: {
                     asset_id: existing.asset_id,
+                    // Filed under the custodian named in the edit, else user 1, not under whoever made the edit.
                     reported_by_id: custodianId ?? DEFAULT_CUSTODIAN_ID,
                     report_condition: condition,
                     report_remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
                     report_img: imageVal || null,
                 },
+                // The newest record takes the newest report's condition and remarks (ties on report_date go to the higher report_id).
                 syncFromReport: (latestReport) => {
                     const latestCondition = latestReport ? latestReport.report_condition : condition;
                     const latestRemarks = latestReport ? latestReport.report_remarks : remarksVal;
@@ -443,7 +482,13 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
     });
 }
 
-/** Deletes an asset and every row that points at it. */
+/**
+ * Deletes an asset and every row that points at it.
+ *
+ * @param assetTag the asset's tag, from the URL
+ * @throws AppError 404 if no asset has this tag
+ */
+// TODO(H-03): a hard delete that destroys the asset's history; and asset_reports is not cleared, so an inspected asset cannot be deleted (500). 01D turns it into "retire", a status change, in its own commit.
 export async function deleteAsset(assetTag: string): Promise<void> {
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {

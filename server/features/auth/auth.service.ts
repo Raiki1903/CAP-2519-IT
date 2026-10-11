@@ -1,3 +1,8 @@
+/**
+ * Auth service: the rules for logging in, the session's profile and app role, account updates, and sign-ups.
+ * Layer: service. Called by auth.controller.ts. Calls auth.repository.ts.
+ * Used by: login for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
+ */
 import type { roles, user_roles, users } from '@prisma/client';
 import type { StaffUnit } from '@shared/enums/role';
 import type {
@@ -13,7 +18,18 @@ import type {
 import * as authRepository from './auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 
-/** Creates a Custodian account directly, with no approval step. */
+// Duplicate email handling is left as it is (issue #14). Today the email check looks at accounts only, not at
+// pending sign-ups, so one email can be requested twice; approving the second then fails with a 500.
+
+/**
+ * Creates a Custodian account directly, with no approval step. No screen calls it.
+ * The account gets the CUSTODIAN role if that role row exists, and a lab link only when a center id is sent.
+ *
+ * @param data the checked body: names, email, password, id number, optional user type and center id
+ * @returns the new account's id, names, and email
+ * @throws AppError 400 if the email or the id number already belongs to an account
+ */
+// TODO(C-03): the password is stored as typed (issue #10). Hashing, Phase 3.
 export async function register(data: RegisterInput): Promise<{ userId: number; firstName: string; lastName: string; email: string }> {
     const { firstName, lastName, email, password, idNumber, userType, centerId } = data;
 
@@ -45,12 +61,23 @@ export async function register(data: RegisterInput): Promise<{ userId: number; f
     return { userId: user.user_id, firstName: user.first_name, lastName: user.last_name, email: user.email };
 }
 
-/** The sign-up requests still waiting for a decision. */
+/**
+ * The sign-up requests still waiting for a decision, newest first.
+ *
+ * @returns the PENDING requests, each with its password (C-04)
+ */
 export function listPendingRegistrations(): PendingRegistration[] {
     return authRepository.listPendingRegistrations().filter(r => r.status === "PENDING");
 }
 
-/** Files a sign-up request for Lab Head approval. */
+/**
+ * Files a sign-up request for a Lab Head to approve. Nothing is written to the database:
+ * the request is kept in memory and in pending_registrations.json until it is approved or rejected. (H-17)
+ *
+ * @param data the checked body: names, email, id number, and the optional user type, role, lab, password, and picture
+ * @returns the stored request, with its REG- id
+ * @throws AppError 400 if the email or the id number already belongs to an account
+ */
 export async function requestRegistration(data: RegistrationRequestInput): Promise<PendingRegistration> {
     const { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl } = data;
 
@@ -65,6 +92,7 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
     }
 
     const newReq: PendingRegistration = {
+        // A random six-digit number: two requests can draw the same id, and approving or rejecting one then drops both.
         id: `REG-${Math.floor(100000 + Math.random() * 900000)}`,
         firstName,
         lastName,
@@ -73,6 +101,7 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
         userType: userType || "STUDENT",
         requestedRole: requestedRole || "Custodian",
         labAffiliation: labAffiliation || "CITe4D",
+        // TODO(C-03): a request without a password gets "password123", stored as plain text (issue #10). Phase 3.
         password: password || "password123",
         avatarUrl,
         submittedAt: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
@@ -83,12 +112,21 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
     return newReq;
 }
 
-/** Approves a sign-up request: creates the user with its role and lab, then drops the request. */
+/**
+ * Approves a sign-up request: creates the account with its role and lab, then drops the request.
+ * The role comes from the requested role's wording, and the lab is matched by name or short code;
+ * a lab that matches nothing is created as a new research center. (C-05 family)
+ *
+ * @param data `requestId`, plus the request's own fields when the caller has them
+ * @returns the created users row, password included (01C 4.1)
+ * @throws AppError 404 if the id matches no request and the body has no email and names to fall back on
+ */
+// TODO(C-05): an unknown request id plus a body with an email and names creates that account, with the role it asks for. Phase 3 removes the fallback.
+// TODO(M-11): "ITS" or "Admin" in the requested role maps to ADMIN, so no ITS_STAFF account can be created here. With the ITS removal branch.
 export async function approveRegistration(data: ApproveRegistrationInput): Promise<users> {
     const { requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password } = data;
     let targetReq = authRepository.findPendingRegistration(requestId);
 
-    // Fallback: Use request body fields directly if provided from frontend
     if (!targetReq && email && firstName && lastName) {
         targetReq = {
             id: requestId || `REG-${Date.now()}`,
@@ -109,6 +147,7 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
         throw new AppError(404, "Pending registration request details not found.");
     }
 
+    // Checked in this order, so "Lab Head" wins over anything else in the text.
     const requested = (targetReq.requestedRole || "").toUpperCase();
     let dbRoleName: any = "CUSTODIAN";
     if (requested.includes("HEAD") || requested.includes("LAB")) dbRoleName = "LAB_HEAD";
@@ -123,6 +162,7 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
 
     let centerRecord = null;
     if (targetReq.labAffiliation && targetReq.labAffiliation !== "Not Affiliated" && targetReq.labAffiliation !== "No affiliation") {
+        // The form sends a full lab name such as "Center for ... (CeLT)"; the code in brackets is tried as a short code.
         const labName = targetReq.labAffiliation.trim();
         const match = labName.match(/\(([^)]+)\)/);
         const extractedCode = match ? match[1].trim() : labName;
@@ -130,6 +170,7 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
         centerRecord = await authRepository.findResearchCenterForLab(labName, extractedCode);
 
         if (!centerRecord) {
+            // A failed create is logged and the account is created without a lab.
             try {
                 centerRecord = await authRepository.createResearchCenter({
                     name: labName,
@@ -156,18 +197,30 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
         centerRecord ? centerRecord.center_id : null,
     );
 
+    // The request is dropped by the id the caller sent, which is also how a fallback approval leaves the list unchanged.
     targetReq.status = "APPROVED";
     authRepository.removePendingRegistration(requestId);
 
     return createdUser;
 }
 
-/** Drops a sign-up request without creating an account. */
+/**
+ * Drops a sign-up request without creating an account. An unknown id changes nothing.
+ *
+ * @param requestId the REG- id
+ */
 export function rejectRegistration(requestId: string): void {
     authRepository.removePendingRegistration(requestId);
 }
 
-/** Maps a user's database roles to the app role and Staff unit. */
+/**
+ * Maps a user's database roles to the app role and Staff unit, for login and /me.
+ * The checks run in a fixed order and the first match wins, so an account with several roles gets only one.
+ *
+ * @param roles the user's user_roles rows, each with its roles row
+ * @returns the app role ("Staff", "AdRICDirector", "LabHead", or "Custodian") and, for Staff, the unit
+ */
+// TODO(M-11): ADRIC_SECRETARY maps to Staff (ITS); the team decided it gets the Director view, on the ITS removal branch.
 function appRoleFor(roles: (user_roles & { roles: roles })[]): { role: string; staffUnit: StaffUnit | null } {
     let determinedRole = "Custodian";
     let staffUnit: StaffUnit | null = null;
@@ -188,7 +241,16 @@ function appRoleFor(roles: (user_roles & { roles: roles })[]): { role: string; s
     return { role: determinedRole, staffUnit };
 }
 
-/** Logs a user in by email and password. */
+/**
+ * Logs a user in by email and password.
+ * The lab is the short code of the account's first lab link, or "CITe4D" when it has none.
+ *
+ * @param email the email as sent; the repository trims it
+ * @param password the password as sent
+ * @returns the app role and the profile the session keeps
+ * @throws AppError 401 if no account has this email and password
+ */
+// TODO(C-03): the password is compared as plain text inside the database query, where the column's collation ignores case, so a password in another letter case also logs in (issue #10). Hashing, Phase 3.
 export async function login(email: string, password: string): Promise<{ role: string; user: LoginUser }> {
     const user = await authRepository.findUserByCredentials(email, password);
 
@@ -217,7 +279,14 @@ export async function login(email: string, password: string): Promise<{ role: st
     };
 }
 
-/** A user's profile and app role, by email. */
+/**
+ * The profile and app role of the account with this email, for the session reload.
+ * Same mapping and lab fallback as login, with the role inside the profile.
+ *
+ * @param email the email from the query; the repository trims it
+ * @returns the profile with its role
+ * @throws AppError 404 if no account has this email
+ */
 export async function getProfile(email: string): Promise<ProfileUser> {
     const user = await authRepository.findUserProfileByEmail(email);
 
@@ -244,7 +313,15 @@ export async function getProfile(email: string): Promise<ProfileUser> {
     };
 }
 
-/** Saves an account's name, picture, and lab. */
+/**
+ * Saves an account's name, picture, and lab.
+ * The account is looked up by the email as sent, then in lower case, then by comparing every account's email in lower case.
+ * The picture is changed only when one is sent. A lab code that matches no research center is created as one first.
+ *
+ * @param data the checked body: email, names, and the optional picture (under three names) and lab code
+ * @returns the updated users row, for the log line, and the profile the answer sends
+ * @throws AppError 404 if no account matches the email
+ */
 export async function updateAccount(data: AccountUpdateInput): Promise<{ updatedUser: users; user: AccountUser }> {
     const { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = data;
 
@@ -254,6 +331,7 @@ export async function updateAccount(data: AccountUpdateInput): Promise<{ updated
         user = await authRepository.findFirstUserByEmail(targetEmail.toLowerCase());
     }
     if (!user) {
+        // TODO(M-01): the last resort loads every account to compare emails in code. Goes with the session user, step 13.
         const allUsers = await authRepository.findAllUsers();
         user = allUsers.find(u => u.email.toLowerCase() === targetEmail.toLowerCase()) || null;
     }
@@ -278,6 +356,9 @@ export async function updateAccount(data: AccountUpdateInput): Promise<{ updated
     if (labAffiliation && labAffiliation !== "Not Affiliated") {
         let center = await authRepository.findResearchCenterByCode(labAffiliation);
         if (!center) {
+            // MANILA_CAMPUS is not a research_centers location, so this create always fails, the empty catch
+            // swallows it, and the account keeps its old lab while the answer names the new one.
+            // TODO(M-03): a lab code is turned into a new research center instead of being refused. A fixed lab list, Phase 3.
             try {
                 center = await authRepository.createResearchCenter({ name: `${labAffiliation} Research Laboratory`, short_code: labAffiliation, location: "MANILA_CAMPUS" });
             } catch (e) { }
@@ -304,6 +385,7 @@ export async function updateAccount(data: AccountUpdateInput): Promise<{ updated
             userImg: updatedUser.user_img,
             profilePicture: updatedUser.user_img,
             avatarUrl: updatedUser.user_img,
+            // The lab sent, not the account's lab: with no lab sent this says CITe4D whatever the account's lab is.
             labAffiliation: labAffiliation || "CITe4D"
         }
     };
