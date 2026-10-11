@@ -6,12 +6,6 @@
 import type { Prisma, asset_records, asset_reports } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
-// Reads the assets feature's table, with the same query as assets.repository.ts findById.
-/** The asset with this id, or null. */
-export function findAssetById(assetId: number) {
-    return prisma.assets.findUnique({ where: { asset_id: assetId } });
-}
-
 /** How a new report changes the asset's records: update the newest record in place, or create the first one. */
 export type RecordSync =
     | { update: { assetRecordId: number; data: Prisma.asset_recordsUncheckedUpdateInput } }

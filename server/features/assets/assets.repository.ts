@@ -64,6 +64,17 @@ export function findLatestRecordStatus(assetId: number) {
     });
 }
 
+// It is not the custody request guard's reader above: that one breaks ties on asset_record_id, this one does not,
+// so the two can disagree. (M-09)
+/** The asset's newest record, or null if it has none. Read by the transfer request. */
+// TODO(M-09): no tie-break on asset_record_id, unlike the custody request guard and GET /api/assets, so two records logged in the same second can disagree with them. Later in step 12 or Phase 3, with the shared asset state rule.
+export function findLatestRecord(assetId: number) {
+    return prisma.asset_records.findFirst({
+        where: { asset_id: assetId },
+        orderBy: { date_logged: "desc" },
+    });
+}
+
 /** The asset's records, oldest first, each with its custodian. */
 export function findRecordsWithCustodian(assetId: number) {
     return prisma.asset_records.findMany({
