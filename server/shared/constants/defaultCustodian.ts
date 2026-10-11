@@ -1,6 +1,6 @@
 /**
  * The user id the backend records when it cannot tell who is acting.
- * Layer: shared (server constant). Imported by remainingRoutes.ts and the services of features/loans, returns, transfers, and disposals. Imports nothing.
+ * Layer: shared (server constant). Imported by remainingRoutes.ts and the services of features/loans, returns, transfers, disposals, repairs, and inspections. Imports nothing.
  * Used by: every workflow that records a person: intake, edit, inspection, repair, return, transfer, disposal, borrow.
  */
 

@@ -1,6 +1,6 @@
 /**
  * The five asset condition values, best to worst.
- * Layer: shared. Imported by server/remainingRoutes.ts, server/features/returns/returns.validation.ts, and web/ (EditAssetDialog, ReturnForm). Imports nothing.
+ * Layer: shared. Imported by server/remainingRoutes.ts, server/features/returns/returns.validation.ts, server/features/repairs/repairs.service.ts, and web/ (EditAssetDialog, ReturnForm). Imports nothing.
  * Used by: asset edit, repair progress, return, and inspection workflows.
  */
 

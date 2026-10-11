@@ -1,8 +1,8 @@
 /**
  * An error that carries the HTTP status it should be answered with.
- * Layer: shared (server errors). Thrown by the validation and service files of features/loans, returns, transfers, and disposals;
- * caught by each of those features' controllers. Imports nothing.
- * Used by: every workflow those four features serve (borrow, return, transfer, disposal, and their decisions).
+ * Layer: shared (server errors). Thrown by the validation and service files of features/loans, returns, transfers, disposals,
+ * repairs, and inspections; caught by each of those features' controllers. Imports nothing.
+ * Used by: every workflow those six features serve (borrow, return, transfer, disposal, repair, inspection, and their decisions).
  */
 
 /**

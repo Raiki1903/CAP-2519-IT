@@ -1,6 +1,7 @@
 /**
  * Builds the Express app: the middleware, in order, then the routes.
- * Layer: server app. Called by main.ts. Calls the routes files of features/loans, returns, transfers, and disposals, and remainingRoutes.ts.
+ * Layer: server app. Called by main.ts. Calls the routes files of features/loans, returns, transfers, disposals, repairs,
+ * and inspections, and remainingRoutes.ts.
  * Used by: every request to the API.
  */
 import express from 'express';
@@ -9,12 +10,14 @@ import { loansRouter } from './features/loans/loans.routes';
 import { returnsRouter } from './features/returns/returns.routes';
 import { transfersRouter } from './features/transfers/transfers.routes';
 import { disposalsRouter } from './features/disposals/disposals.routes';
+import { repairsRouter } from './features/repairs/repairs.routes';
+import { inspectionsRouter } from './features/inspections/inspections.routes';
 import { router as remainingRoutes } from './remainingRoutes';
 
 /**
  * The Express app, configured but not listening. main.ts starts it.
  * Feature routers (server/features/<process>/) are mounted here as they are extracted: loans, returns, transfers,
- * and disposals so far, the rest later in step 12. No feature path overlaps another or a path in remainingRoutes.ts,
+ * disposals, repairs, and inspections so far, the rest later in step 12. No feature path overlaps another or a path in remainingRoutes.ts,
  * so the mounting order does not change which handler answers.
  */
 export const app = express();
@@ -29,4 +32,6 @@ app.use(loansRouter);
 app.use(returnsRouter);
 app.use(transfersRouter);
 app.use(disposalsRouter);
+app.use(repairsRouter);
+app.use(inspectionsRouter);
 app.use(remainingRoutes);

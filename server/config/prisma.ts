@@ -1,6 +1,6 @@
 /**
  * The Prisma client: the one database connection pool for the whole backend.
- * Layer: config. Imported by the repositories in features/ (loans, returns, transfers, disposals, and auth so far),
+ * Layer: config. Imported by the repositories in features/ (loans, returns, transfers, disposals, repairs, inspections, and auth so far),
  * shared/services/custodyRequestGuard.ts, remainingRoutes.ts, jobs/backup.ts, and test-user.ts; by each further
  * feature's repository as step 12 extracts them. Calls config/env.ts and the MariaDB adapter.
  * Used by: every workflow that reads or writes the database.
