@@ -1,7 +1,7 @@
 /**
- * Backend entry point: starts the backup timer and the HTTP listener, then runs the startup check.
+ * Backend entry point: starts the HTTP listener, then runs the default custodian startup check.
  * Layer: server entry. Run by `npm run server` (also `server:watch`, `dev:all`, and the API tests in tests/setup/testServer.ts).
- * Calls config/env.ts, app.ts, remainingRoutes.ts (startup check), and jobs/backup.ts.
+ * Calls config/env.ts, app.ts, and shared/services/defaultCustodianCheck.ts.
  * Used by: every role, through the web app.
  */
 import { env } from './config/env';

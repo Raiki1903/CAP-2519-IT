@@ -1,6 +1,7 @@
 /**
  * Asset row access: every database read and write the asset registry endpoints make, plus the asset reads other
- * features need (an asset by tag, and the newest record's status for the custody request guard).
+ * features need (an asset by tag or by id, the newest record for a transfer request, and the newest record's status
+ * for the custody request guard).
  * Layer: repository. Called by assets.service.ts, the services of features/loans, returns, transfers, disposals, repairs,
  * and inspections, and shared/services/custodyRequestGuard.ts. Calls config/prisma.ts.
  * Used by: every role's inventory view, Staff registration, editing, and deletion, and every workflow that starts from an asset tag.
@@ -47,7 +48,7 @@ export function findByTag(assetTag: string) {
     return prisma.assets.findUnique({ where: { asset_tag: assetTag } });
 }
 
-/** The asset with this id, or null. The custodian history's fallback when the tag is a number. */
+/** The asset with this id, or null. The fallback of the custodian history and the inspection report when the tag is a number. */
 export function findById(assetId: number) {
     return prisma.assets.findUnique({
         where: { asset_id: assetId }
@@ -67,7 +68,7 @@ export function findLatestRecordStatus(assetId: number) {
 // It is not the custody request guard's reader above: that one breaks ties on asset_record_id, this one does not,
 // so the two can disagree. (M-09)
 /** The asset's newest record, or null if it has none. Read by the transfer request. */
-// TODO(M-09): no tie-break on asset_record_id, unlike the custody request guard and GET /api/assets, so two records logged in the same second can disagree with them. Later in step 12 or Phase 3, with the shared asset state rule.
+// TODO(M-09): no tie-break on asset_record_id, unlike the custody request guard and GET /api/assets, so two records logged in the same second can disagree with them. Phase 3, with the shared asset state rule.
 export function findLatestRecord(assetId: number) {
     return prisma.asset_records.findFirst({
         where: { asset_id: assetId },

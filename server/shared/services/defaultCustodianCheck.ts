@@ -1,3 +1,8 @@
+/**
+ * The default custodian startup check: does user DEFAULT_CUSTODIAN_ID exist?
+ * Layer: shared service. Called by server/main.ts once the server listens. Calls features/auth/auth.repository.ts.
+ * Used by: no workflow directly; every workflow that logs under user 1 when it cannot resolve a person needs that user.
+ */
 import * as authRepository from '../../features/auth/auth.repository';
 import { DEFAULT_CUSTODIAN_ID } from '../constants/defaultCustodian';
 

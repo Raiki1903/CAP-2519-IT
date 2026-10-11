@@ -37,7 +37,7 @@ export function saveReport(
             orderBy: [{ report_date: "desc" }, { report_id: "desc" }],
         });
 
-        // TODO(M-09): no tie-break on asset_record_id, so two records logged in the same second can be read in the wrong order. Later in step 12 or Phase 3, with the shared asset state rule.
+        // TODO(M-09): no tie-break on asset_record_id, so two records logged in the same second can be read in the wrong order. Phase 3, with the shared asset state rule.
         const latestRecord = await tx.asset_records.findFirst({
             where: { asset_id: data.asset_id },
             orderBy: { date_logged: "desc" },

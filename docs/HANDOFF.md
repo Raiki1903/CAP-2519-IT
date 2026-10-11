@@ -931,3 +931,31 @@ Answered on 2026-10-10 (see the log): **all 9 step 12 batch 2 hand checks passed
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 12, batch 4: analytics.`
 
 Answered on 2026-10-11 (see the log): **all 11 step 12 batch 3 hand checks passed.** Checks 1 and 2 passed without their reload part, which issue #49 blocks (a reload logs you out; pre-existing; `/me` itself answers). Two pre-existing bugs were found, neither caused by batch 3 (the web bundle is identical to `main`): after a sign-up, `Register.tsx` lists its own copy with its own id (`REG-<timestamp>`), so approving it in the same tab goes through the C-05 fallback and leaves the request in the file, and rejecting it removes nothing on the server (issue #68; with matching ids, after a restart, the file was read and written correctly); and deleting an asset that has an `asset_reports` row fails with a foreign key 500 and rolls back (H-03, issue #69). **The open questions:** issue #8 is Prisma's interactive transaction timeout (P2028, "expired transaction") on the slow CCS Cloud link, seen on asset edits; #10 is password hashing; #14 is registration accepting the same email more than once. The nine proposals are now issues: #70 (delete `/register`), #71 (the C-05 fallback; corrected: the web app's same-tab id is the Register page's, so #71 needs #68 first), #72 (passwords in answers, and the custodian history's email and id number), #73 (lab handling), #74 (edit appends), #69 (retire), #75 (tag in the transaction), #76 (list rewrite). They are named in the TODOs at their lines, and the issue #8 and #14 comments now say what those issues are (comments only; every changed file compiles to the same JavaScript). The two small folds (`findAssetById`, `findLatestRecord`) are done in batch 4, as their own move commit.
+
+## Phase 1C, restructure step 12 batch 4, 2026-10-11
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 12, batch 4 only (the last batch): analytics, the default custodian check, two folds, and the backup job. Branch: `refactor/feature-based-structure`, created fresh from the PR #77 merge (`c407a232`). Nothing pushed.
+
+### What was produced
+
+- **Commits:** `9265911f` (move: the 8 live analytics routes into `server/features/analytics/`, five files, and `shared/types/analytics.ts`); `c5ff5d27` (**behavior change**, decided 2026-10-08: the 22 old analytics routes moved unchanged to `legacy/analytics-endpoints/` with a README, unregistered, so they answer 404); `94374139` (move: the default custodian check to `server/shared/services/defaultCustodianCheck.ts`, its query to `auth.repository.ts` `findUserById`; `server/remainingRoutes.ts` deleted with its mount); `13c33c2c` (move: the two folds, `findAssetById` gone, `findLatestRecord` in the assets repository on its own, M-09); `1a3b3bbd` (**behavior change**, F-39, decided 2026-10-09: the backup job, its timer and startup call, `backupDir`, and `BACKUP_DIR` in `.env.example` deleted; `tests/` left as it is).
+- **Comment commit** (`docs(step 12): add file headers and TSDoc`, after `1a3b3bbd`): headers, TSDoc, and TODOs on the 7 new files; stale headers and comments in 9 existing files, the root README, and the two sibling legacy READMEs; six `TODO(M-09)` lines that promised step 12 work now say Phase 3.
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#batch-4-analytics-the-startup-check-two-folds-and-the-backup-job-2026-10-11): the batch 4 detail with 10 numbered hand checks and eight proposals; five new notes, fifteen updated.
+- **Checks after every commit:** `npm test` **305 passed**; build passes; typecheck **71, then 68** from `c5ff5d27` on (the three `is_documented` errors, H-12, moved into the excluded `legacy/` folder; none fixed, none added). `main` and each commit, side by side on the test database with extra rows, gave the same answers and log lines for 62 analytics requests, apart from the file path in Prisma's raw 500 text (H-16) and, as decided, 404 for the 22 old routes; 10 requests on the folded transfer and inspection reads were identical apart from row timestamps; the startup lines matched with user 1 present and absent, and lost only the backup line after `1a3b3bbd`. The comment commit compiles to the same JavaScript as before it.
+
+### Key findings
+
+- **Step 12 is complete.** Every route is in a feature router, and in `server/` only the nine repositories import `config/prisma`. Outside it, the root `test-user.ts` (`npm run seed`, broken, L-04) still does; step 14 replaces it.
+- The analytics defects moved unchanged with TODOs or "known defect" comments: the Director lab filter narrows one chart, labs are matched by text (M-03), the Lab Head overdue list counts pending requests and route-returned loans (H-04), inspection progress reads no report, invented values (H-09), M-09 orderings, and raw 500 text (H-16).
+- Eight 01D or test-log changes for analytics alter what charts show; they are proposed as separate commits in the log, with the tests each would update.
+
+### Open questions
+
+- **The eight batch 4 proposals,** with the earlier ones (batch 2: M-07, H-06, L-07; batch 3: issues #69 to #76): which, and when? Proposal 5 (labs from data) needs a Phase 3 schema decision first.
+- **The three kept endpoints** (`idle-time`, `idle-frequency`, `loan-recommender`) still have no live caller; their fate is still the later team decision of 2026-10-07.
+
+### Exact next step
+
+1. Run the 10 batch 4 hand checks in the log, then push and open the pull request. Mention in it that teammates can drop `BACKUP_DIR` from their `.env`.
+2. Then step 13, for example:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 13.`

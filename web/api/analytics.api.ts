@@ -29,7 +29,7 @@ export function getLabHeadAnalyticsRaw(query: string): Promise<Response> {
 }
 
 // The next three have no live caller: their widgets are in legacy/analytics-widgets/.
-// The team keeps the functions and the endpoints for now, outside the step 12 deletion.
+// The team keeps the functions and the endpoints for now (2026-10-07); they were not among the 22 that step 12 unregistered.
 
 /**
  * Loads the idle-time histogram for a lab's assets.
@@ -62,7 +62,7 @@ export function getLoanRecommenderRaw(): Promise<Response> {
 
 /**
  * Loads the Staff analytics dashboard data. The endpoint, and so this function,
- * still carry the `tsg` name: renaming the URL is a backend change, left for step 12.
+ * still carry the `tsg` name: renaming the URL changes the API, so step 12 moved it as it was.
  *
  * @param query the query string without "?", built by the caller (optionally startDate, endDate)
  * @returns the raw Response

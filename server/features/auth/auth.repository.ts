@@ -1,8 +1,9 @@
 /**
  * Account, role, and lab row access, and the pending sign-up file: every database read and write the auth endpoints
- * make, plus the user lookups other features need (who to email, a user by email, a user by typed name).
+ * make, plus the user lookups other features need (who to email, a user by email, by typed name, or by id).
  * Layer: repository. Called by auth.service.ts, the services of features/loans, returns, transfers, disposals, repairs,
- * inspections, and assets. Calls config/prisma.ts and Node's fs (pending_registrations.json).
+ * inspections, and assets, and shared/services/defaultCustodianCheck.ts. Calls config/prisma.ts and Node's fs
+ * (pending_registrations.json).
  * Used by: login, the session reload, the account page, sign-ups and their approval, the transfer and disposal emails,
  * and every workflow that names a person by typed name or email.
  */
@@ -42,7 +43,7 @@ export async function getRoleEmails(roleName: string): Promise<string[]> {
     return users.map(u => u.email).filter(Boolean);
 }
 
-/** The user with this id, or null. */
+/** The user with this id, or null. Used by the default custodian startup check. */
 export function findUserById(userId: number) {
     return prisma.users.findUnique({ where: { user_id: userId } });
 }
