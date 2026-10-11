@@ -13,8 +13,7 @@ export function findAllNewestFirst() {
     });
 }
 
-// The next five read other features' tables. They live here until the assets and auth
-// repositories exist (step 12), so that no loan code calls Prisma outside this file.
+// The next three read other features' tables, for the H-08 seed and the loan list only.
 
 /** The first asset row, for the H-08 seed in listLoans. */
 export function findFirstAsset() {
@@ -42,16 +41,9 @@ export function findListLookups() {
     ]);
 }
 
-/** The asset with this tag, or null. */
-export function findAssetByTag(assetTag: string) {
-    return prisma.assets.findUnique({ where: { asset_tag: assetTag } });
-}
-
-/** The first user whose first and last name match exactly, or null. (H-10) */
-export function findUserByName(firstName: string, lastName: string) {
-    return prisma.users.findFirst({
-        where: { first_name: firstName, last_name: lastName },
-    });
+/** The asset's pending loan (its id only), or null. Read by the custody request guard. (H-05) */
+export function findPendingLoanId(assetId: number) {
+    return prisma.asset_loans.findFirst({ where: { asset_id: assetId, status: "pending" }, select: { loan_id: true } });
 }
 
 /** Inserts an asset_loans row and returns it. */

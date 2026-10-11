@@ -6,14 +6,8 @@
 import type { Prisma, asset_records, asset_transfers } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
-// The next three read other features' tables. They live here until the assets and auth
-// repositories are extracted (later in step 12), so that no transfer code calls Prisma outside this file.
-
-/** The asset with this tag, or null. */
-export function findAssetByTag(assetTag: string) {
-    return prisma.assets.findUnique({ where: { asset_tag: assetTag } });
-}
-
+// Reads the assets feature's table. It is not the custody request guard's reader in assets.repository.ts:
+// that one breaks ties on asset_record_id, this one does not, so the two can disagree. (M-09)
 /** The asset's newest record, or null if it has none. */
 // TODO(M-09): no tie-break on asset_record_id, unlike the custody request guard and GET /api/assets, so two records logged in the same second can disagree with them. Later in step 12 or Phase 3, with the shared asset state rule.
 export function findLatestRecord(assetId: number) {
@@ -23,9 +17,9 @@ export function findLatestRecord(assetId: number) {
     });
 }
 
-/** The user with this email, or null. */
-export function findUserByEmail(email: string) {
-    return prisma.users.findUnique({ where: { email } });
+/** The asset's pending transfer (its id only), or null. Read by the custody request guard. (H-05) */
+export function findPendingTransferId(assetId: number) {
+    return prisma.asset_transfers.findFirst({ where: { asset_id: assetId, status: "pending" }, select: { transfer_id: true } });
 }
 
 /** Inserts an asset_transfers row and returns it. */

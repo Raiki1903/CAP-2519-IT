@@ -51,6 +51,16 @@ export function findById(assetId: number) {
     });
 }
 
+/** The status of the asset's newest record, or null if it has none. Read by the custody request guard. (H-05) */
+export function findLatestRecordStatus(assetId: number) {
+    // Same ordering GET /api/assets uses, so this agrees with the status the screens show.
+    return prisma.asset_records.findFirst({
+        where: { asset_id: assetId },
+        orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }],
+        select: { status: true },
+    });
+}
+
 /** The asset's records, oldest first, each with its custodian. */
 export function findRecordsWithCustodian(assetId: number) {
     return prisma.asset_records.findMany({
@@ -109,13 +119,6 @@ export async function createWithRecords(
         return { asset };
     });
     return asset;
-}
-
-/** The first user whose first and last name match exactly, or null. (H-10) */
-export function findUserByName(firstName: string, lastName: string) {
-    return prisma.users.findFirst({
-        where: { first_name: firstName, last_name: lastName },
-    });
 }
 
 /** What an edit writes once the newest record is known: the record values, and the inspection report if any. */

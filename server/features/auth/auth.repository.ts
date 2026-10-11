@@ -45,6 +45,13 @@ export function findUserByEmail(email: string) {
     return prisma.users.findUnique({ where: { email } });
 }
 
+/** The first user whose first and last name match exactly, or null. (H-10) */
+export function findUserByName(firstName: string, lastName: string) {
+    return prisma.users.findFirst({
+        where: { first_name: firstName, last_name: lastName },
+    });
+}
+
 /** The user with this id number, or null. */
 export function findUserByIdNumber(idNumber: number) {
     return prisma.users.findUnique({ where: { id_number: idNumber } });

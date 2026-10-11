@@ -7,6 +7,7 @@
 import type { Prisma, asset_disposals, asset_records, assets } from '@prisma/client';
 import type { DisposalDecision, DisposalListItem, DisposalRequestInput } from '@shared/types/disposals';
 import * as disposalsRepository from './disposals.repository';
+import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
@@ -27,7 +28,7 @@ export async function requestDisposal(
     assetTag: string,
     data: DisposalRequestInput,
 ): Promise<{ disposal: asset_disposals; asset: assets }> {
-    const existing = await disposalsRepository.findAssetByTag(assetTag);
+    const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
@@ -38,7 +39,7 @@ export async function requestDisposal(
     let disposedById = DEFAULT_CUSTODIAN_ID;
     if (data.requestedBy) {
         const [first, ...rest] = String(data.requestedBy).replace(/^Dr\.\s*/i, "").split(" ");
-        const match = await disposalsRepository.findUserByName(first, rest.join(" "));
+        const match = await authRepository.findUserByName(first, rest.join(" "));
         if (match) disposedById = match.user_id;
     }
 

@@ -3,6 +3,7 @@ import type { AssetCreateInput, AssetListItem, AssetUpdateInput, CustodianHistor
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import * as assetsRepository from './assets.repository';
+import * as authRepository from '../auth/auth.repository';
 import { checkAssetImage } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
 import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
@@ -351,7 +352,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
     let custodianId: number | undefined;
     if (data.custodian) {
         const [first, ...rest] = String(data.custodian).replace(/^Dr\.\s*/i, "").split(" ");
-        const match = await assetsRepository.findUserByName(first, rest.join(" "));
+        const match = await authRepository.findUserByName(first, rest.join(" "));
         if (match) custodianId = match.user_id;
     }
 

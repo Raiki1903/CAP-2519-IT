@@ -7,6 +7,7 @@
 import type { Prisma, asset_records, asset_transfers, assets, users } from '@prisma/client';
 import type { TransferDecision, TransferListItem, TransferRequestInput } from '@shared/types/transfers';
 import * as transfersRepository from './transfers.repository';
+import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
@@ -34,7 +35,7 @@ export async function requestTransfer(
     assetTag: string,
     data: TransferRequestInput,
 ): Promise<{ transfer: asset_transfers; asset: assets; recipient: users }> {
-    const existing = await transfersRepository.findAssetByTag(assetTag);
+    const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
@@ -52,7 +53,7 @@ export async function requestTransfer(
 
     // The recipient is looked up by email and must exist, unlike the typed-name lookups elsewhere
     // that fall back to user 1: the recipient becomes the asset's custodian on approval.
-    const recipient = await transfersRepository.findUserByEmail(data.toEmail);
+    const recipient = await authRepository.findUserByEmail(data.toEmail);
     if (!recipient) {
         throw new AppError(404, `No user found with email ${data.toEmail}.`);
     }
