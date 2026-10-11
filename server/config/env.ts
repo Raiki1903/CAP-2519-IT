@@ -49,6 +49,4 @@ export const env = {
     mailgunApiKey: process.env.MAILGUN_API_KEY || '',
     mailgunDomain: process.env.MAILGUN_DOMAIN || '',
     mailgunFrom: process.env.MAILGUN_FROM || '',
-    /** Backup folder. Optional: empty switches the backup off. Must be outside the repository. (C-01) */
-    backupDir: process.env.BACKUP_DIR || '',
 };

@@ -7,10 +7,6 @@
 import { env } from './config/env';
 import { app } from './app';
 import { assertDefaultCustodianExists } from './shared/services/defaultCustodianCheck';
-import { performDatabaseBackup } from './jobs/backup';
-
-// Run backup every 6 hours
-setInterval(performDatabaseBackup, 6 * 60 * 60 * 1000);
 
 const PORT = env.port;
 app.listen(PORT, async () => {
@@ -21,5 +17,4 @@ app.listen(PORT, async () => {
     // The check only logs. The server keeps running even when user 1 is missing.
     // TODO(H-10): goes when nothing is logged under DEFAULT_CUSTODIAN_ID any more. After step 13, once the session gives the acting user.
     await assertDefaultCustodianExists();
-    performDatabaseBackup();
 });
