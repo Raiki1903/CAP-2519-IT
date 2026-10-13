@@ -15,6 +15,7 @@ import { inspectionsRouter } from './features/inspections/inspections.routes';
 import { authRouter } from './features/auth/auth.routes';
 import { assetsRouter } from './features/assets/assets.routes';
 import { analyticsRouter } from './features/analytics/analytics.routes';
+import { errorHandler } from './shared/middleware/errorHandler';
 
 /**
  * The Express app, configured but not listening. main.ts starts it.
@@ -38,3 +39,6 @@ app.use(inspectionsRouter);
 app.use(authRouter);
 app.use(assetsRouter);
 app.use(analyticsRouter);
+
+// Last, so it receives the errors of every router and of the body parsers above.
+app.use(errorHandler);
