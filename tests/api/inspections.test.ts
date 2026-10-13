@@ -180,15 +180,17 @@ describe("POST /api/assets/:tag/inspection", () => {
     expect(res.body.report.reported_by_id).toBe(USERS.admin.userId);
   });
 
-  it("answers 500 with the raw database error for a reportedById that is no account, and writes nothing (known defect H-16)", async () => {
+  it("answers 500 with a generic message and no database text for a reportedById that is no account, and writes nothing (H-16 fixed)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0507", condition: "PERFECT" });
 
     const res = await api.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reporterEmail: undefined, reportedById: 9999 }));
 
     expect(res.status).toBe(500);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toMatch(/tx\.asset_reports\.create/);
-    expect(res.body.error).toMatch(/Foreign key constraint violated/);
+    expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });
+    const text = JSON.stringify(res.body);
+    expect(text).not.toMatch(/prisma/i);
+    expect(text).not.toContain("Invalid `");
+    expect(text).not.toMatch(/[A-Za-z]:\\|\.ts\b/);
     expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(0);
     expect((await newestRecord(asset.assetId)).asset_condition).toBe("PERFECT");
   });
