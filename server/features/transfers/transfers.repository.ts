@@ -6,17 +6,6 @@
 import type { Prisma, asset_records, asset_transfers } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
-// Reads the assets feature's table. It is not the custody request guard's reader in assets.repository.ts:
-// that one breaks ties on asset_record_id, this one does not, so the two can disagree. (M-09)
-/** The asset's newest record, or null if it has none. */
-// TODO(M-09): no tie-break on asset_record_id, unlike the custody request guard and GET /api/assets, so two records logged in the same second can disagree with them. Later in step 12 or Phase 3, with the shared asset state rule.
-export function findLatestRecord(assetId: number) {
-    return prisma.asset_records.findFirst({
-        where: { asset_id: assetId },
-        orderBy: { date_logged: "desc" },
-    });
-}
-
 /** The asset's pending transfer (its id only), or null. Read by the custody request guard. (H-05) */
 export function findPendingTransferId(assetId: number) {
     return prisma.asset_transfers.findFirst({ where: { asset_id: assetId, status: "pending" }, select: { transfer_id: true } });
@@ -71,7 +60,7 @@ export function saveDecision(
         });
 
         if (buildHandoverRecord) {
-            // TODO(M-09): no tie-break on asset_record_id, so two records logged in the same second can be read in the wrong order. Later in step 12 or Phase 3, with the shared asset state rule.
+            // TODO(M-09): no tie-break on asset_record_id, so two records logged in the same second can be read in the wrong order. Phase 3, with the shared asset state rule.
             const latestRecord = await tx.asset_records.findFirst({
                 where: { asset_id: transfer.asset_id },
                 orderBy: { date_logged: "desc" },

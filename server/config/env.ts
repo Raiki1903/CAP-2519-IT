@@ -1,6 +1,6 @@
 /**
  * Server configuration: loads .env and checks every variable the server reads, once, at startup.
- * Layer: config. Imported by main.ts, config/prisma.ts, shared/services/mailer.ts, and jobs/backup.ts. Calls dotenv.
+ * Layer: config. Imported by main.ts, config/prisma.ts, and shared/services/mailer.ts. Calls dotenv.
  * Used by: the whole backend. Variable names and what each one is for: .env.example.
  */
 import 'dotenv/config';
@@ -49,6 +49,4 @@ export const env = {
     mailgunApiKey: process.env.MAILGUN_API_KEY || '',
     mailgunDomain: process.env.MAILGUN_DOMAIN || '',
     mailgunFrom: process.env.MAILGUN_FROM || '',
-    /** Backup folder. Optional: empty switches the backup off. Must be outside the repository. (C-01) */
-    backupDir: process.env.BACKUP_DIR || '',
 };

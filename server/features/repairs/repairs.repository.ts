@@ -67,7 +67,7 @@ export function saveProgress(
         });
 
         if (buildCompletion) {
-            // TODO(M-09): this read and the two below order by date_logged only, with no tie-break on asset_record_id, so two records logged in the same second can be read in the wrong order. Later in step 12 or Phase 3, with the shared asset state rule.
+            // TODO(M-09): this read and the two below order by date_logged only, with no tie-break on asset_record_id, so two records logged in the same second can be read in the wrong order. Phase 3, with the shared asset state rule.
             const preMaintenanceRecord = await tx.asset_records.findFirst({
                 where: { asset_id: assetId, status: { not: "MAINTENANCE" } },
                 orderBy: { date_logged: "desc" },

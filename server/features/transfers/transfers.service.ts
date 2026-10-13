@@ -48,7 +48,7 @@ export async function requestTransfer(
     }
 
     // The custodian the asset leaves is whoever holds it in its latest record, not anyone named in the request.
-    const latestRecord = await transfersRepository.findLatestRecord(existing.asset_id);
+    const latestRecord = await assetsRepository.findLatestRecord(existing.asset_id);
     const fromCustodianId = latestRecord?.current_custodian ?? DEFAULT_CUSTODIAN_ID;
 
     // The recipient is looked up by email and must exist, unlike the typed-name lookups elsewhere

@@ -16,12 +16,12 @@ AdRIC_System/
     main.ts             Starts the server (npm run server)
     app.ts              Express app: middleware, then the routes
     features/           One folder per workflow (loans, returns, transfers, disposals, repairs, inspections, auth,
-                        assets), each in five layers: routes, validation, controller, service, repository
-    remainingRoutes.ts  The analytics routes, not yet split into server/features/ (restructure step 12)
+                        assets, analytics), each in five layers: routes, validation, controller, service, repository
     config/env.ts       Reads and checks .env; the server will not start without the DATABASE_* variables
-    config/prisma.ts    Prisma client wired to the MariaDB adapter
-    shared/             errors/AppError.ts, services/ (mailer.ts, custodyRequestGuard.ts), utils/, constants/
-    jobs/backup.ts      Optional backup, switched off unless BACKUP_DIR is set
+    config/prisma.ts    Prisma client wired to the MariaDB adapter (only the repositories import it)
+    shared/             errors/AppError.ts, services/ (mailer.ts, custodyRequestGuard.ts, defaultCustodianCheck.ts),
+                        utils/, constants/
+  legacy/               Quarantined code, not built or imported: old analytics screens, widgets, and endpoints
   prisma.config.ts      Prisma CLI config
   prisma/schema.prisma  Authoritative database schema
   generated/prisma/     Generated Prisma client (imported by server/config/prisma.ts)

@@ -29,7 +29,7 @@ export async function fileReport(assetTag: string, data: InspectionReportInput):
     // A tag that is a number is also tried as an asset_id.
     let asset = await assetsRepository.findByTag(assetTag);
     if (!asset && !isNaN(Number(assetTag))) {
-        asset = await inspectionsRepository.findAssetById(Number(assetTag));
+        asset = await assetsRepository.findById(Number(assetTag));
     }
 
     if (!asset) {
