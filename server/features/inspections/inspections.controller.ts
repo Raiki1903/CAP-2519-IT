@@ -2,6 +2,8 @@
  * Inspection controller: unpacks inspection requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by inspections.routes.ts. Calls inspections.service.ts.
  * Used by: Custodian condition report, Staff inspection finalize, the Staff inspection log, and state/serverData.tsx.
+ * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
+ * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as inspectionsService from './inspections.service';
@@ -12,7 +14,6 @@ import * as inspectionsService from './inspections.service';
  * Answers `{ success, report }` with the new row, 404 for an unknown asset, or 500.
  * No validation runs here: the body is read by the service, after the asset lookup.
  */
-// TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function fileReport(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = req.body;
@@ -27,7 +28,7 @@ export async function fileReport(req: Request<{ assetTag: string }>, res: Respon
 
 /**
  * Handles GET /api/asset_reports: every report, newest first, in the short shape, as `{ success, reports }`.
- * A failure answers 500 with the raw message and prints nothing, as before.
+ * A failure answers errorHandler's generic 500.
  */
 export async function listReportSummaries(req: Request, res: Response): Promise<void> {
     const reports = await inspectionsService.listReportSummaries();
@@ -36,7 +37,7 @@ export async function listReportSummaries(req: Request, res: Response): Promise<
 
 /**
  * Handles GET /api/asset-reports: every report, newest first, in the detailed shape, as `{ success, reports }`.
- * A failure answers 500 with the raw message.
+ * A failure answers errorHandler's generic 500.
  */
 export async function listInspectionReports(_req: Request, res: Response): Promise<void> {
     const reports = await inspectionsService.listInspectionReports();

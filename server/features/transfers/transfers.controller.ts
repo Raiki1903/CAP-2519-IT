@@ -2,6 +2,8 @@
  * Transfer controller: unpacks transfer requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by transfers.routes.ts. Calls transfers.validation.ts and transfers.service.ts.
  * Used by: Custodian transfer request, Lab Head approval.
+ * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
+ * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as transfersService from './transfers.service';
@@ -12,7 +14,6 @@ import { checkTransferDecision, checkTransferRequest } from './transfers.validat
  * Answers `{ success, transfer }` with the new row, or the AppError's status and message
  * (400 missing field, 404 unknown tag or recipient email, 409 refused by the custody request guard), or 500.
  */
-// TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function requestTransfer(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = req.body;
@@ -31,7 +32,7 @@ export async function requestTransfer(req: Request<{ assetTag: string }>, res: R
 
 /**
  * Handles GET /api/asset_transfers: every transfer, newest first, as `{ success, transfers }`.
- * A failure answers 500 with the raw error message.
+ * A failure answers errorHandler's generic 500.
  */
 export async function listTransfers(req: Request, res: Response): Promise<void> {
     const transfers = await transfersService.listTransfers();
@@ -62,8 +63,8 @@ export async function decideTransfer(req: Request<{ transferId: string }>, res: 
 
 /**
  * Handles PUT /api/asset_transfers/:transferId/accept: sets the transfer to pending_approver. (M-12)
- * Answers `{ success, transfer }`, 404 for an unknown transfer, or 500 with the raw message
- * (including a non-number id). Unlike the other transfer endpoints it logs nothing.
+ * Answers `{ success, transfer }`, 404 for an unknown transfer, or errorHandler's generic 500
+ * (including a non-number id, which reaches the database). Unlike the other transfer endpoints it prints no line of its own.
  */
 export async function acceptTransfer(req: Request<{ transferId: string }>, res: Response): Promise<void> {
     const transferId = parseInt(req.params.transferId, 10);

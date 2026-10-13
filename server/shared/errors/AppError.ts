@@ -1,16 +1,16 @@
 /**
  * An error that carries the HTTP status it should be answered with.
  * Layer: shared (server errors). Thrown by the validation and service files of features/loans, returns, transfers, disposals,
- * repairs, inspections, auth, and assets; caught by each of those features' controllers. Imports nothing.
+ * repairs, inspections, auth, and assets; answered by shared/middleware/errorHandler.ts. Imports nothing.
  * Used by: every workflow those eight features serve (borrow, return, transfer, disposal, repair, inspection, their decisions,
  * login, sign-ups, the account page, and the asset registry).
  */
 
 /**
  * A refusal meant for the user: a 400, 404, or 409 whose message the screen shows.
- * Services throw it instead of writing a response, so they know nothing about HTTP;
- * the controller answers `{ success: false, error: message }` with this status.
- * Any other error is unexpected, and the controller answers 500.
+ * Services throw it instead of writing a response, so they know nothing about HTTP; the controllers do not catch it,
+ * and errorHandler answers `{ success: false, error: message }` with this status.
+ * Any other error is unexpected: errorHandler logs it and answers a generic 500.
  */
 export class AppError extends Error {
     /** The HTTP status to answer with, for example 404. */

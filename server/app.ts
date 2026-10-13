@@ -1,7 +1,7 @@
 /**
- * Builds the Express app: the middleware, in order, then the routes.
+ * Builds the Express app: the middleware, in order, then the routes, then the error handler.
  * Layer: server app. Called by main.ts. Calls the routes files of features/loans, returns, transfers, disposals, repairs,
- * inspections, auth, assets, and analytics.
+ * inspections, auth, assets, and analytics, and shared/middleware/errorHandler.ts.
  * Used by: every request to the API.
  */
 import express from 'express';
@@ -20,7 +20,8 @@ import { errorHandler } from './shared/middleware/errorHandler';
 /**
  * The Express app, configured but not listening. main.ts starts it.
  * Every route lives in a feature router (server/features/<process>/). No feature path overlaps another, so the mounting
- * order does not change which handler answers; a path no router knows gets Express's 404.
+ * order does not change which handler answers; a path no router knows gets Express's 404. errorHandler, mounted last,
+ * answers every error a router or body parser passes on.
  */
 export const app = express();
 

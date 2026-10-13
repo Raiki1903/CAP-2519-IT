@@ -2,6 +2,8 @@
  * Disposal controller: unpacks disposal requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by disposals.routes.ts. Calls disposals.validation.ts and disposals.service.ts.
  * Used by: Staff disposal filing, Director approval.
+ * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
+ * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as disposalsService from './disposals.service';
@@ -12,7 +14,6 @@ import { checkDisposalDecision, checkDisposalRequest } from './disposals.validat
  * Answers `{ success, disposal }` with the new row, or the AppError's status and message
  * (400 missing field, 404 unknown tag), or 500.
  */
-// TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function requestDisposal(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = req.body;
@@ -31,7 +32,7 @@ export async function requestDisposal(req: Request<{ assetTag: string }>, res: R
 
 /**
  * Handles GET /api/asset_disposals: every disposal request, newest first, as `{ success, disposals }`.
- * A failure answers 500 with the raw error message.
+ * A failure answers errorHandler's generic 500.
  */
 export async function listDisposals(req: Request, res: Response): Promise<void> {
     const disposals = await disposalsService.listDisposals();

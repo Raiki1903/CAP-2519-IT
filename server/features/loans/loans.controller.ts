@@ -2,6 +2,8 @@
  * Loan controller: unpacks loan requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by loans.routes.ts. Calls loans.validation.ts and loans.service.ts.
  * Used by: Custodian borrow request, Lab Head approval.
+ * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
+ * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as loansService from './loans.service';
@@ -9,9 +11,8 @@ import { checkLoanDecision, checkLoanRequest } from './loans.validation';
 
 /**
  * Handles GET /api/asset_loans: every loan, newest first, as `{ success, loans }`.
- * A failure answers 500 with the raw error message.
+ * A failure answers errorHandler's generic 500.
  */
-// TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function listLoans(req: Request, res: Response): Promise<void> {
     const loans = await loansService.listLoans();
     res.json({ success: true, loans });

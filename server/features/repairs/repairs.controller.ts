@@ -2,6 +2,8 @@
  * Repair controller: unpacks repair requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by repairs.routes.ts. Calls repairs.validation.ts and repairs.service.ts.
  * Used by: Custodian repair request, Staff repair queue and progress updates (repair dialog and analytics board).
+ * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
+ * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as repairsService from './repairs.service';
@@ -12,7 +14,6 @@ import { checkRepairRequest, checkRepairStatus, checkRepairUpdate } from './repa
  * Answers `{ success, repair }` with the new row, or the AppError's status and message
  * (400 no description, 409 same ticket within 8 seconds, 404 unknown tag), or 500.
  */
-// TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function requestRepair(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = req.body;
@@ -28,7 +29,7 @@ export async function requestRepair(req: Request<{ assetTag: string }>, res: Res
 
 /**
  * Handles GET /api/asset_repairs: every repair ticket, newest first, as `{ success, repairs }`
- * (read by the Staff repair queue and by state/serverData.tsx). A failure answers 500 with the raw error message.
+ * (read by the Staff repair queue and by state/serverData.tsx). A failure answers errorHandler's generic 500.
  */
 export async function listRepairs(req: Request, res: Response): Promise<void> {
     const repairs = await repairsService.listRepairs();

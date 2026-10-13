@@ -13,7 +13,7 @@ export interface InspectionReportInput {
   /** The reporter's account email. Wins over reportedById; an unknown email becomes user 1. */
   // TODO(H-10): the reporter is whoever the browser names, by email or by id (issue #32). The session user after step 13.
   reporterEmail?: string;
-  /** The reporter's user id, used only when there is no reporterEmail. An id that is no account answers 500. (H-16) */
+  /** The reporter's user id, used only when there is no reporterEmail. An id that is no account is not checked and answers a generic 500. */
   reportedById?: number;
   /** A condition name ("Minor Drift") or value ("MINOR_DRIFT") from ASSET_CONDITIONS. Anything else is saved as PERFECT. */
   reportCondition?: string;

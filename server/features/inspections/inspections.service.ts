@@ -40,7 +40,7 @@ export async function fileReport(assetTag: string, data: InspectionReportInput):
     // even when a valid reportedById is also sent. The body is first read here, after the asset lookup,
     // so a request with no body answers 404 for an unknown asset and 500 otherwise.
     // TODO(H-10): the reporter is whoever the browser names (issue #32). The session user after step 13.
-    // TODO(H-16): a reportedById that is no account fails the insert and answers 500 with Prisma's raw message. Step 13 (errorHandler), or its own check.
+    // TODO: a reportedById that is no account fails the insert, which errorHandler answers with its generic 500, not a 400 or 404. Its own check.
     let reporterId = DEFAULT_CUSTODIAN_ID;
     if (data.reporterEmail) {
         const u = await authRepository.findUserByEmail(data.reporterEmail);

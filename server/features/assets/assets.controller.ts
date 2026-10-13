@@ -2,6 +2,8 @@
  * Asset controller: unpacks asset registry requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by assets.routes.ts. Calls assets.validation.ts and assets.service.ts.
  * Used by: every role's inventory view, the asset detail modal, Staff asset registration, editing, and deletion.
+ * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
+ * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as assetsService from './assets.service';
@@ -9,9 +11,8 @@ import { checkAssetCreate } from './assets.validation';
 
 /**
  * Handles GET /api/assets: every asset with its current state, as `{ success, assets }`.
- * A failure answers 500 with the raw error message.
+ * A failure answers errorHandler's generic 500.
  */
-// TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function listAssets(req: Request, res: Response): Promise<void> {
     const formatted = await assetsService.listAssets();
     res.json({ success: true, assets: formatted });

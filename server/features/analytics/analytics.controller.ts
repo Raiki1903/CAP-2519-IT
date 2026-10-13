@@ -2,15 +2,15 @@
  * Analytics controller: reads the query, calls the service, and writes the JSON answers.
  * Layer: controller. Called by analytics.routes.ts. Calls analytics.validation.ts and analytics.service.ts.
  * Used by: the Director, Lab Head, and Staff analytics views.
- * Every route answers `{ success: true, data }`, or 500 with `{ success: false, error }`. None refuses with 400 or 404,
- * so no AppError is thrown here. Only the three dashboards log their failures.
+ * Every route answers `{ success: true, data }`. None refuses with 400 or 404, so no AppError is thrown here.
+ * Errors are not caught here: any failure falls through to shared/middleware/errorHandler.ts, which answers a generic 500
+ * and logs the detail on the server.
  */
 import type { Request, Response } from 'express';
 import * as analyticsService from './analytics.service';
 import { readCategoryQuery, readDirectorFilters, readLabHeadFilters, readLabQuery } from './analytics.validation';
 
 /** Handles GET /api/analytics/advanced/idle-time: how long the ACTIVE assets have been idle, in three groups. Optional `?lab`. */
-// TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function getIdleTime(req: Request, res: Response): Promise<void> {
     const lab = readLabQuery(req.query);
     const data = await analyticsService.idleTime(lab);
@@ -53,7 +53,7 @@ export async function getDirectorAnalytics(req: Request, res: Response): Promise
 
 /**
  * Handles GET /api/analytics/lab-head: the Lab Head dashboard. Optional `?labPrefix` (or `?lab`), `?startDate`, `?endDate`.
- * The query is read inside the try, so a repeated prefix answers 500 with the TypeError's text, as before.
+ * A repeated prefix makes the query reading throw a TypeError, which errorHandler answers with its generic 500.
  */
 export async function getLabHeadAnalytics(req: Request, res: Response): Promise<void> {
     const filters = readLabHeadFilters(req.query);

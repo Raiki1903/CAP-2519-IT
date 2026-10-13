@@ -2,20 +2,22 @@
  * Auth controller: unpacks login, profile, account, and sign-up requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by auth.routes.ts. Calls auth.validation.ts and auth.service.ts.
  * Used by: login for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
+ * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
+ * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as authService from './auth.service';
 import { checkAccountUpdate, checkLogin, checkProfileQuery, checkRegistration, checkRegistrationRequest } from './auth.validation';
 
-// Each handler reads req.body in one destructuring statement, as before. A request with no JSON body
-// (Express 5 leaves req.body undefined) therefore fails there with the same TypeError text, and answers 500.
+// Each handler reads req.body in one destructuring statement. A request with no JSON body (Express 5 leaves
+// req.body undefined) therefore throws a TypeError there, which errorHandler answers with its generic 500.
+// TODO: a missing body should answer 400, not 500. A body check, its own small fix (not part of step 13a).
 
 /**
  * Handles POST /api/auth/register: creates a Custodian account directly, with no approval step. No screen calls it (deleting it is issue #70).
  * Answers `{ success, user }` with the new account's id, names, and email, or the AppError's status and message
  * (400 missing field, email taken, or id number taken), or 500.
  */
-// TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function register(req: Request, res: Response): Promise<void> {
     const { firstName, lastName, email, password, idNumber, userType, centerId } = req.body;
     const data = { firstName, lastName, email, password, idNumber, userType, centerId };
@@ -87,7 +89,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 
 /**
  * Handles POST /api/auth/reject-registration: drops a sign-up request.
- * Answers 200 even for an id no request has, and 500 with the raw message otherwise. Logs nothing.
+ * Answers 200 even for an id no request has, or errorHandler's generic 500. Prints no line of its own.
  */
 export async function rejectRegistration(req: Request, res: Response): Promise<void> {
     const { requestId } = req.body;
