@@ -27,7 +27,8 @@
 > 2026-10-10 on a fresh `refactor/feature-based-structure` from that merge and merged in PR #64. Batch 3 (auth with
 > registrations, assets, and the borrowed reads) was done on 2026-10-11 on a fresh `refactor/feature-based-structure` from that merge
 > and merged in PR #77. Batch 4 (analytics, the last batch, with the startup check, two folds, and the backup job deletion) was done on
-> 2026-10-11 on a fresh `refactor/feature-based-structure` from that merge.
+> 2026-10-11 on a fresh `refactor/feature-based-structure` from that merge and merged in PR #90. Step 13 runs as 13a, 13b, and 13c;
+> 13a (`errorHandler`) was done on 2026-10-14 on a fresh `refactor/feature-based-structure` from that merge.
 
 ---
 
