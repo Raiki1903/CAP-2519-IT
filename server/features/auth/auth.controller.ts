@@ -6,7 +6,6 @@
 import type { Request, Response } from 'express';
 import * as authService from './auth.service';
 import { checkAccountUpdate, checkLogin, checkProfileQuery, checkRegistration, checkRegistrationRequest } from './auth.validation';
-import { AppError } from '../../shared/errors/AppError';
 
 // Each handler reads req.body in one destructuring statement, as before. A request with no JSON body
 // (Express 5 leaves req.body undefined) therefore fails there with the same TypeError text, and answers 500.
@@ -18,22 +17,13 @@ import { AppError } from '../../shared/errors/AppError';
  */
 // TODO(H-16): the 500 answers here and below send the database's own error text to the browser. errorHandler, step 13.
 export async function register(req: Request, res: Response): Promise<void> {
-    try {
-        const { firstName, lastName, email, password, idNumber, userType, centerId } = req.body;
-        const data = { firstName, lastName, email, password, idNumber, userType, centerId };
+    const { firstName, lastName, email, password, idNumber, userType, centerId } = req.body;
+    const data = { firstName, lastName, email, password, idNumber, userType, centerId };
 
-        checkRegistration(data);
-        const user = await authService.register(data);
+    checkRegistration(data);
+    const user = await authService.register(data);
 
-        res.json({ success: true, user });
-    } catch (error: any) {
-        if (error instanceof AppError) {
-            res.status(error.status).json({ success: false, error: error.message });
-            return;
-        }
-        console.error("❌ Registration error:", error);
-        res.status(500).json({ success: false, error: error.message || "Registration failed." });
-    }
+    res.json({ success: true, user });
 }
 
 /**
@@ -51,24 +41,15 @@ export async function listPendingRegistrations(req: Request, res: Response): Pro
  * or the AppError's status and message (400 missing field, email taken, or id number taken), or 500.
  */
 export async function requestRegistration(req: Request, res: Response): Promise<void> {
-    try {
-        const { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl } = req.body;
-        const data = { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl };
+    const { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl } = req.body;
+    const data = { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl };
 
-        checkRegistrationRequest(data);
-        const newReq = await authService.requestRegistration(data);
+    checkRegistrationRequest(data);
+    const newReq = await authService.requestRegistration(data);
 
-        console.log(`📝 Registration request created for ${email} (Pending Lab Head Approval). ID: ${newReq.id}`);
+    console.log(`📝 Registration request created for ${email} (Pending Lab Head Approval). ID: ${newReq.id}`);
 
-        res.json({ success: true, registration: newReq });
-    } catch (error: any) {
-        if (error instanceof AppError) {
-            res.status(error.status).json({ success: false, error: error.message });
-            return;
-        }
-        console.error("❌ Register request error:", error);
-        res.status(500).json({ success: false, error: error.message || "Failed to submit registration request." });
-    }
+    res.json({ success: true, registration: newReq });
 }
 
 /**
@@ -77,21 +58,12 @@ export async function requestRegistration(req: Request, res: Response): Promise<
  * 404 when neither the request id nor the body describes an account, or 500 (for example an email already taken).
  */
 export async function approveRegistration(req: Request, res: Response): Promise<void> {
-    try {
-        const { requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password } = req.body;
+    const { requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password } = req.body;
 
-        const createdUser = await authService.approveRegistration({ requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password });
+    const createdUser = await authService.approveRegistration({ requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password });
 
-        console.log(`✅ Lab Head Approved User Registration! Created user in MySQL DB: ID ${createdUser.user_id} (${createdUser.email})`);
-        res.json({ success: true, user: createdUser, message: `Account approved and created in database for ${createdUser.email}.` });
-    } catch (error: any) {
-        if (error instanceof AppError) {
-            res.status(error.status).json({ success: false, error: error.message });
-            return;
-        }
-        console.error("❌ Approve registration error:", error);
-        res.status(500).json({ success: false, error: error.message || "Failed to approve registration." });
-    }
+    console.log(`✅ Lab Head Approved User Registration! Created user in MySQL DB: ID ${createdUser.user_id} (${createdUser.email})`);
+    res.json({ success: true, user: createdUser, message: `Account approved and created in database for ${createdUser.email}.` });
 }
 
 /**
@@ -101,25 +73,16 @@ export async function approveRegistration(req: Request, res: Response): Promise<
  */
 // TODO(C-06): the answer is the whole session; the browser keeps only the email, in an unsigned cookie. Session issuing, step 13.
 export async function login(req: Request, res: Response): Promise<void> {
-    try {
-        const { email, password } = req.body;
+    const { email, password } = req.body;
 
-        checkLogin({ email, password });
-        const { role, user } = await authService.login(email, password);
+    checkLogin({ email, password });
+    const { role, user } = await authService.login(email, password);
 
-        res.json({
-            success: true,
-            role,
-            user
-        });
-    } catch (error: any) {
-        if (error instanceof AppError) {
-            res.status(error.status).json({ success: false, error: error.message });
-            return;
-        }
-        console.error("❌ Login authentication error:", error);
-        res.status(500).json({ success: false, error: error.message || "Authentication error." });
-    }
+    res.json({
+        success: true,
+        role,
+        user
+    });
 }
 
 /**
@@ -127,13 +90,9 @@ export async function login(req: Request, res: Response): Promise<void> {
  * Answers 200 even for an id no request has, and 500 with the raw message otherwise. Logs nothing.
  */
 export async function rejectRegistration(req: Request, res: Response): Promise<void> {
-    try {
-        const { requestId } = req.body;
-        authService.rejectRegistration(requestId);
-        res.json({ success: true, message: "Registration request rejected." });
-    } catch (error: any) {
-        res.status(500).json({ success: false, error: error.message });
-    }
+    const { requestId } = req.body;
+    authService.rejectRegistration(requestId);
+    res.json({ success: true, message: "Registration request rejected." });
 }
 
 /**
@@ -142,24 +101,15 @@ export async function rejectRegistration(req: Request, res: Response): Promise<v
  */
 // TODO(C-06): any email works; nothing checks that the caller is that person. Step 13 (the session user).
 export async function getProfile(req: Request, res: Response): Promise<void> {
-    try {
-        const email = req.query.email as string;
+    const email = req.query.email as string;
 
-        checkProfileQuery(email);
-        const user = await authService.getProfile(email);
+    checkProfileQuery(email);
+    const user = await authService.getProfile(email);
 
-        res.json({
-            success: true,
-            user
-        });
-    } catch (error: any) {
-        if (error instanceof AppError) {
-            res.status(error.status).json({ success: false, error: error.message });
-            return;
-        }
-        console.error("❌ Fetch profile error:", error);
-        res.status(500).json({ success: false, error: error.message || "Failed to fetch user profile." });
-    }
+    res.json({
+        success: true,
+        user
+    });
 }
 
 /**
@@ -168,24 +118,15 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
  */
 // TODO(C-06): the account is chosen by the email in the body, so anyone can rename anyone (C-02). Step 13 (the session user).
 export async function updateAccount(req: Request, res: Response): Promise<void> {
-    try {
-        const { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = req.body;
-        const data = { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture };
+    const { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = req.body;
+    const data = { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture };
 
-        checkAccountUpdate(data);
-        const { updatedUser, user } = await authService.updateAccount(data);
+    checkAccountUpdate(data);
+    const { updatedUser, user } = await authService.updateAccount(data);
 
-        console.log(`👤 Updated user credentials in MySQL DB: ${updatedUser.email} -> ${firstName} ${lastName} (${labAffiliation}) [img length: ${updatedUser.user_img ? updatedUser.user_img.length : 0}]`);
-        res.json({
-            success: true,
-            user
-        });
-    } catch (error: any) {
-        if (error instanceof AppError) {
-            res.status(error.status).json({ success: false, error: error.message });
-            return;
-        }
-        console.error("❌ Update account error:", error);
-        res.status(500).json({ success: false, error: error.message || "Failed to update account details." });
-    }
+    console.log(`👤 Updated user credentials in MySQL DB: ${updatedUser.email} -> ${firstName} ${lastName} (${labAffiliation}) [img length: ${updatedUser.user_img ? updatedUser.user_img.length : 0}]`);
+    res.json({
+        success: true,
+        user
+    });
 }
