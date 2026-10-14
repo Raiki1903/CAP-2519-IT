@@ -32,7 +32,7 @@ export function readLabQuery(query: Query): string | undefined {
 }
 
 /** The optional `category` query value of the loan recommender. */
-// TODO(H-16): an unknown category is not checked here; Prisma refuses it and the answer is a 500 with Prisma's raw message. errorHandler and a check against ASSET_CATEGORIES, step 13.
+// TODO: an unknown category is not checked here; Prisma refuses it and the answer is errorHandler's generic 500, not a 400. A check against ASSET_CATEGORIES (step 12 batch 4, proposal 8).
 export function readCategoryQuery(query: Query): string | undefined {
     return query.category as string | undefined;
 }
@@ -57,8 +57,8 @@ export function readDirectorFilters(query: Query): DirectorFilters {
 /**
  * Reads the Lab Head dashboard's lab prefix and date filters. `labPrefix` is read before `lab`; with neither,
  * the prefix is CITe4D. "ALL" and "All Labs" mean every lab.
- * The variable names are kept, because a repeated query value (an array) makes `labParam.trim` throw, and the
- * 500 answer carries that TypeError's text.
+ * A repeated query value (an array) makes `labParam.trim` throw; errorHandler answers it with its generic 500 and logs
+ * the TypeError on the server.
  *
  * @throws TypeError if labPrefix or lab is sent more than once
  */

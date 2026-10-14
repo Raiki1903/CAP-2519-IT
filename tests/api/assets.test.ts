@@ -423,14 +423,17 @@ describe("DELETE /api/assets/:tag", () => {
     expect((await api.get("/api/assets")).body.assets.map((a: { id: string }) => a.id)).not.toContain(ASSETS.disposed.tag);
   });
 
-  it("cannot delete an asset that has an inspection report: answers 500 with the raw database error and deletes nothing (known defects H-03, H-16)", async () => {
+  it("cannot delete an asset that has an inspection report: answers 500 with a generic message and no database text, and deletes nothing (known defect H-03; H-16 fixed)", async () => {
     const recordsBefore = await db.asset_records.count({ where: { asset_id: ASSETS.inspected.assetId } });
 
     const res = await api.delete(`/api/assets/${ASSETS.inspected.tag}`);
 
     expect(res.status).toBe(500);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toMatch(/foreign key/i);
+    expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });
+    const text = JSON.stringify(res.body);
+    expect(text).not.toMatch(/prisma|foreign key/i);
+    expect(text).not.toContain("Invalid `");
+    expect(text).not.toMatch(/[A-Za-z]:\\|\.ts\b/);
     expect(await db.assets.count({ where: { asset_id: ASSETS.inspected.assetId } })).toBe(1);
     expect(await db.asset_records.count({ where: { asset_id: ASSETS.inspected.assetId } })).toBe(recordsBefore);
   });

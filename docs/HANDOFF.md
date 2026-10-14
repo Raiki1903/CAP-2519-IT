@@ -961,3 +961,35 @@ Answered on 2026-10-11 (see the log): **all 11 step 12 batch 3 hand checks passe
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 13.`
 
 Answered on 2026-10-13 (see the log): **all 10 step 12 batch 4 hand checks passed**, and the pull request is next. Check 6 was run in full (the transfer request and the Lab Head's approval worked). For check 9, Raiki removed `BACKUP_DIR` from their own `.env`; teammates still need to do the same after pulling. Two pre-existing bugs were found, neither caused by batch 4 (it changed `web/` only in two comments): the asset detail modal shows an old status until a reload, because `AssetDetailModal.tsx` prefers the shared `serverData` list while `CustodianPortal.tsx` refreshes only its own (issue #89, same family as #57); and Send Inspection Report lists the custodian's assets under maintenance, falls back to every asset when the custodian holds none, and the server accepts a report for an asset in any status (issue #88). Both are in the log's notes.
+
+## Phase 1C, restructure step 13a, 2026-10-14
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 13, part 13a only (`errorHandler`), with the scope given in the first message (PROMPT-2 had no step 13 section). Branch: `refactor/feature-based-structure`, fresh from the PR #90 merge (`c8f50cfb`). Nothing pushed.
+
+### What was produced
+
+- **Decisions commit** `4f7bd647`: the step 13 decisions (Raiki, 2026-10-13) in the PROMPT-2 decisions table, and a "Step 13 plan" paragraph: step 13 runs as 13a (`errorHandler`), 13b (signed session cookie, `requireAuth`, `requireRole`; starts with a role table to approve), and 13c (the session user for issue #32, `/me`, `DEFAULT_CUSTODIAN_ID`), each its own session and pull request. Password hashing (issue #10) is not part of step 13.
+- **`9c462ac9`** (**behavior change**): `server/shared/middleware/errorHandler.ts`, mounted last in `server/app.ts`; a body the parsers cannot read answers JSON (`code: "BAD_REQUEST"`) with its old status (400, 413, 415) instead of Express's HTML page with a stack. `tests/api/errorHandler.test.ts` (4 tests).
+- **Nine feature commits** (**behavior changes**, one per feature: `62350584` loans, `45b8f107` returns, `41bd744b` transfers, `2be1025c` disposals, `9ffbb4b6` repairs, `332fff11` inspections, `d378809d` auth, `91baedc8` assets, `7f56a1f8` analytics): the 39 controller catch blocks are gone; Express 5 hands a rejected promise to errorHandler. A 500 now answers "Something went wrong on the server. Please try again." with `code: "SERVER_ERROR"`; the detail (Prisma's text or the TypeError, with the stack) goes to the terminal in one `❌ <METHOD> <URL> failed:` line, which replaces 30 feature `❌` lines (listed in the log). The five tests that pinned the raw text were updated in their feature's commit.
+- **Comment commit** `b72cf6c3`: the errorHandler header and TSDoc; `AppError.ts`, `app.ts`, and the controller headers say errorHandler answers errors; the nine `TODO(H-16)` lines removed; two TODOs that also named a missing input check rewritten to name only the check.
+- [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md#step-13-detail): a step 13 detail section with the 13a commits, what changed, the checks, and 9 numbered hand checks; the status table; nine notes rows updated and two added.
+- **Checks after every commit:** typecheck **68**, same list; build passes; `npm test` **305**, then **309** from `9c462ac9` on. `main` and each code commit, side by side on the local test database, answered 112 requests: the 76 that did not answer 500 on `main` answer identically (the unknown-path 404 and the undecodable-parameter 400 included); all 32 forced 500s (at least one per feature) now answer the generic body, with the old error text and a stack in the terminal; the 4 unreadable bodies answer JSON. The comment commit compiles to the same JavaScript as before it.
+
+### Key findings
+
+- **No message meant for the user was lost.** Before any code, every non-AppError message that reached the browser on purpose was listed: no plain `Error` with a user message on the request path, and 25 fallback texts in 500 branches that showed only when an error had no message. Raiki decided on 2026-10-14 that the generic message replaces them.
+- **One case not in the brief:** Express's own client errors (a path parameter that cannot be decoded answers 400) are handed back to Express, so they answer exactly as before instead of becoming a 500. Their HTML page still shows a stack outside production; noted in the log.
+- **Still 500, now generic:** a request with no JSON body (20 routes), an unknown `?category`, and an unknown `reportedById`. Each should be a 400; each is a `TODO` or note, not part of 13a.
+
+### Open questions
+
+- **The web side of H-16:** typed errors in `web/api/client.ts` and removing its 15 `Raw` functions, which would fix the bell, the condition report, and the account page notes. Not part of 13b or 13c; noted for later, and when is not decided yet.
+- **Express's own HTML pages** (404, and the undecodable-parameter 400 with its stack outside production): JSON for them, or `NODE_ENV=production` on the deployed server?
+
+### Exact next step
+
+1. Run the 9 step 13a hand checks in the log (check 2 forces a 500 by deleting an inspected asset, issue #69), then push and open the 13a pull request.
+2. Then step 13b, on a fresh branch from that merge, with a first message that gives its scope, for example:
+`Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 13, part 13b only: the session, requireAuth, and requireRole.`
+
+Answered on 2026-10-15 (see the log): **all 9 step 13a hand checks passed**, and the pull request is next. Check 2 was run on an asset with an inspection report: the dialog showed the generic message, the asset stayed, and the terminal showed the full Prisma error. **Correction:** the web side of H-16 (typed errors in `web/api/client.ts` and removing the `Raw` calls), the 400 for a missing body, and JSON for Express's own 404 and 400 pages were noted for later, not decided; when they happen is not decided yet. The log, its notes, and the open question above now say so. Next after the merge: `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 13b.`

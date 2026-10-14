@@ -444,18 +444,25 @@ describe("PUT /api/asset_repairs/:id/status", () => {
     expect(res.body.success).toBe(false);
   });
 
-  it("answers 500 with the raw Prisma error for an unknown id (known defect H-16)", async () => {
+  it("answers 500 with a generic message and no database text for an unknown id (H-16 fixed)", async () => {
     const res = await api.put("/api/asset_repairs/9999/status", { progressStatus: "Inspection Phase" });
 
     expect(res.status).toBe(500);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toMatch(/prisma\.asset_repairs\.update/);
+    expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });
+    const text = JSON.stringify(res.body);
+    expect(text).not.toMatch(/prisma/i);
+    expect(text).not.toContain("Invalid `");
+    expect(text).not.toMatch(/[A-Za-z]:\\|\.ts\b/);
   });
 
-  it("answers 500 with the raw Prisma error for an id that is not a number (known defect H-16)", async () => {
+  it("answers 500 with a generic message and no database text for an id that is not a number (H-16 fixed)", async () => {
     const res = await api.put("/api/asset_repairs/MNT-1/status", { progressStatus: "Inspection Phase" });
 
     expect(res.status).toBe(500);
-    expect(res.body.error).toMatch(/prisma\.asset_repairs\.update/);
+    expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });
+    const text = JSON.stringify(res.body);
+    expect(text).not.toMatch(/prisma/i);
+    expect(text).not.toContain("Invalid `");
+    expect(text).not.toMatch(/[A-Za-z]:\\|\.ts\b/);
   });
 });
