@@ -983,7 +983,7 @@ Answered on 2026-10-13 (see the log): **all 10 step 12 batch 4 hand checks passe
 
 ### Open questions
 
-- **The web side of H-16:** typed errors in `web/api/client.ts` and removing its 15 `Raw` functions, which would fix the bell, the condition report, and the account page notes. Not part of 13b or 13c as decided: when?
+- **The web side of H-16:** typed errors in `web/api/client.ts` and removing its 15 `Raw` functions, which would fix the bell, the condition report, and the account page notes. Not part of 13b or 13c; noted for later, and when is not decided yet.
 - **Express's own HTML pages** (404, and the undecodable-parameter 400 with its stack outside production): JSON for them, or `NODE_ENV=production` on the deployed server?
 
 ### Exact next step
@@ -991,3 +991,5 @@ Answered on 2026-10-13 (see the log): **all 10 step 12 batch 4 hand checks passe
 1. Run the 9 step 13a hand checks in the log (check 2 forces a 500 by deleting an inspected asset, issue #69), then push and open the 13a pull request.
 2. Then step 13b, on a fresh branch from that merge, with a first message that gives its scope, for example:
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 13, part 13b only: the session, requireAuth, and requireRole.`
+
+Answered on 2026-10-15 (see the log): **all 9 step 13a hand checks passed**, and the pull request is next. Check 2 was run on an asset with an inspection report: the dialog showed the generic message, the asset stayed, and the terminal showed the full Prisma error. **Correction:** the web side of H-16 (typed errors in `web/api/client.ts` and removing the `Raw` calls), the 400 for a missing body, and JSON for Express's own 404 and 400 pages were noted for later, not decided; when they happen is not decided yet. The log, its notes, and the open question above now say so. Next after the merge: `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 13b.`
