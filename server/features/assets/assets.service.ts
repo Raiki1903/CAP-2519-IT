@@ -236,13 +236,16 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
 /**
  * Who has held an asset, oldest first: one entry per asset record, with its custodian.
  * The tag is tried as an asset id when no asset has it, as the inspection route does.
+ * A Custodian gets the name and email only of their own entries; another holder's entry has neither and is marked
+ * `custodianHidden` (answer 6 of the 13c questions).
  *
  * @param assetTag the asset's tag, or its numeric id
+ * @param viewer the session user
  * @returns the asset's tag and name and the entries, numbered from 1
  * @throws AppError 404 if neither the tag nor the id matches an asset
  */
-// TODO(C-02): each entry carries the custodian's email, sent to any signed-in user (01C 4.2). Strip it (issue #72).
-export async function custodianHistory(assetTag: string): Promise<CustodianHistory> {
+// TODO(C-02): each entry carries the custodian's email, sent to a Lab Head, Staff, or Director (01C 4.2). Strip it (issue #72).
+export async function custodianHistory(assetTag: string, viewer: SessionIdentity): Promise<CustodianHistory> {
     let asset = await assetsRepository.findByTag(assetTag);
 
     if (!asset && !isNaN(Number(assetTag))) {
@@ -262,14 +265,16 @@ export async function custodianHistory(assetTag: string): Promise<CustodianHisto
         // An entry held by the placeholder ("nobody holds it") names no one: no name and no email.
         // No entry carries the holder's id number: no screen shows it (answer 6 of the 13c questions).
         const holder = r.current_custodian === POOL_CUSTODIAN_ID ? null : r.users;
-        const custodianName = holder ? `${holder.first_name} ${holder.last_name}` : (r.users ? undefined : "Unknown Custodian");
-        const custodianEmail = holder ? holder.email : (r.users ? undefined : "");
+        const hidden = !!holder && viewer.role === "Custodian" && holder.user_id !== viewer.userId;
+        const custodianName = hidden ? undefined : holder ? `${holder.first_name} ${holder.last_name}` : (r.users ? undefined : "Unknown Custodian");
+        const custodianEmail = hidden ? undefined : holder ? holder.email : (r.users ? undefined : "");
 
         history.push({
             sequence: i + 1,
             recordId: r.asset_record_id,
             custodianName,
             custodianEmail,
+            custodianHidden: hidden ? (true as const) : undefined,
             status: r.status,
             location: r.location,
             currentLocation: r.current_location || undefined,

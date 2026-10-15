@@ -181,10 +181,12 @@ export interface AssetListItem {
 export interface CustodianHistoryEntry {
   sequence: number;
   recordId?: number;
-  /** Left out when the placeholder custodian holds the asset at this entry (nobody holds it). */
+  /** Left out when the placeholder custodian holds the asset at this entry (nobody holds it), and when it is hidden. */
   custodianName?: string;
-  // TODO(C-02): the custodian's email goes to any signed-in user (01C 4.2). Strip it (issue #72).
+  // TODO(C-02): the custodian's email goes to a Lab Head, Staff, or Director (01C 4.2). Strip it (issue #72).
   custodianEmail?: string;
+  /** True when a Custodian asks and this entry's holder is someone else: no name, no email. (answer 6) */
+  custodianHidden?: true;
   status: string;
   location: string;
   currentLocation?: string;

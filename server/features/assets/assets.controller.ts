@@ -20,13 +20,14 @@ export async function listAssets(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * Handles GET /api/assets/:assetTag/custodian-history: who has held the asset, oldest first.
+ * Handles GET /api/assets/:assetTag/custodian-history: who has held the asset, oldest first. A Custodian gets no
+ * other holder's name or email (answer 6 of the 13c questions).
  * Answers `{ success, assetTag, assetName, historyCount, custodianHistory }`, 404 for an unknown tag, or 500.
  */
 export async function getCustodianHistory(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
 
-    const history = await assetsService.custodianHistory(assetTag);
+    const history = await assetsService.custodianHistory(assetTag, sessionUserOf(req));
 
     res.json({
         success: true,
