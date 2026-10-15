@@ -5,10 +5,20 @@
  * Workflow: every signed-in screen; the table is the specification, so this file restates it on purpose.
  * Fixtures: the seeded accounts (USERS) and ROLE_IDS. Requests use ids and tags that do not exist and empty bodies, so an
  * allowed request is refused by its handler (400 or 404) and writes nothing. The role-change test puts Custodian B's role back;
- * the deleted-account test creates and removes its own account.
+ * the deleted-account test creates and removes its own account. The server's 60-second lookup cache runs in the server's
+ * process, out of the tests' reach: the cache tests use the module directly with their own clock, and the server tests
+ * show the cache through a second login, which gets a new cookie and so a fresh lookup.
  */
 import { describe, expect, it } from "vitest";
 import { signSessionToken, SESSION_COOKIE_NAME, SESSION_LIFETIME_SECONDS } from "../../server/shared/services/session";
+import {
+  clearIdentityCache,
+  forgetIdentity,
+  recallIdentity,
+  rememberedCount,
+  rememberIdentity,
+  SESSION_CACHE_SECONDS,
+} from "../../server/shared/services/sessionCache";
 import { ROLE_IDS, USERS, type TestUser } from "../setup/fixtures";
 import { useApiHarness, type ApiClient } from "../setup/harness";
 import { loadTestDatabaseConfig } from "../setup/testDatabase";
@@ -198,34 +208,41 @@ describe("requireAuth: who gets a 401", () => {
     expect((await withCookie("some_other_cookie=1").get("/api/assets")).body.error).toBe(NOT_LOGGED_IN);
   });
 
-  it("refuses the cookie of an account deleted after login", async () => {
+  it("keeps accepting the cookie of an account deleted after login for up to 60 seconds (the lookup cache), and a new login fails", async () => {
     const temp = await db.users.create({
       data: { first_name: "Test", last_name: "Temporary", email: "temporary@example.test", password: "test-password-temporary", id_number: 90009999, user_type: "STUDENT" },
     });
+    const tempUser = { ...USERS.custodianA, userId: temp.user_id, email: temp.email, password: "test-password-temporary" };
     try {
-      const cookie = await logIn({ ...USERS.custodianA, userId: temp.user_id, email: temp.email, password: "test-password-temporary" });
+      const cookie = await logIn(tempUser);
       expect((await withCookie(cookie).get("/api/assets")).status).toBe(200);
 
       await db.users.delete({ where: { user_id: temp.user_id } });
-      expect((await withCookie(cookie).get("/api/assets")).status).toBe(401);
+      expect((await withCookie(cookie).get("/api/assets")).status, "remembered for up to 60 seconds").toBe(200);
+      const relogin = await rawLogin(tempUser);
+      expect(relogin.status).toBe(401);
+      expect(relogin.headers.getSetCookie()).toEqual([]);
     } finally {
       await db.users.deleteMany({ where: { user_id: temp.user_id } });
     }
   });
 });
 
-describe("requireRole: the role is read from the database on every request", () => {
-  it("gives a session the new role at its next request after the account's role changes", async () => {
+describe("requireRole: the role is read from the database, at most once a minute per cookie", () => {
+  it("keeps a cookie's role for up to 60 seconds after the account's role changes, while a new login gets the new role at once", async () => {
     const cookie = await logIn(USERS.custodianB);
     expect((await withCookie(cookie).get("/api/auth/pending-registrations")).status).toBe(403);
 
     await db.user_roles.updateMany({ where: { user_id: USERS.custodianB.userId }, data: { role_id: ROLE_IDS.LAB_HEAD } });
     try {
-      expect((await withCookie(cookie).get("/api/auth/pending-registrations")).status).toBe(200);
+      expect((await withCookie(cookie).get("/api/auth/pending-registrations")).status, "the old cookie, remembered").toBe(403);
+      const fresh = await logIn(USERS.custodianB);
+      expect((await withCookie(fresh).get("/api/auth/pending-registrations")).status, "a new cookie, looked up").toBe(200);
     } finally {
       await db.user_roles.updateMany({ where: { user_id: USERS.custodianB.userId }, data: { role_id: ROLE_IDS.CUSTODIAN } });
     }
-    expect((await withCookie(cookie).get("/api/auth/pending-registrations")).status).toBe(403);
+    const after = await logIn(USERS.custodianB);
+    expect((await withCookie(after).get("/api/auth/pending-registrations")).status).toBe(403);
   });
 
   it.each([USERS.admin, USERS.staffIts, USERS.secretary])(
@@ -241,6 +258,41 @@ describe("requireRole: the role is read from the database on every request", () 
       expect((await client.get("/api/analytics/director")).status).toBe(403);
     },
   );
+});
+
+describe("the session lookup cache (server/shared/services/sessionCache.ts), with a test clock", () => {
+  const identity = { userId: 6, role: "Custodian" as const, staffUnit: null };
+  const T0 = 1_000_000_000_000;
+
+  it("remembers a lookup for just under 60 seconds and forgets it at 60", () => {
+    clearIdentityCache();
+    rememberIdentity("token-a", identity, T0);
+
+    expect(SESSION_CACHE_SECONDS).toBe(60);
+    expect(recallIdentity("token-a", T0 + 59_999)).toEqual(identity);
+    expect(recallIdentity("token-a", T0 + 60_000)).toBeUndefined();
+    expect(recallIdentity("token-a", T0 + 1)).toBeUndefined();
+  });
+
+  it("keeps tokens apart, and forgets one at logout without touching the others", () => {
+    clearIdentityCache();
+    rememberIdentity("token-a", identity, T0);
+    rememberIdentity("token-b", { ...identity, userId: 7 }, T0);
+
+    forgetIdentity("token-a");
+    expect(recallIdentity("token-a", T0 + 1)).toBeUndefined();
+    expect(recallIdentity("token-b", T0 + 1)?.userId).toBe(7);
+  });
+
+  it("drops entries older than 60 seconds whenever it remembers a new one, so it stays small", () => {
+    clearIdentityCache();
+    rememberIdentity("old-1", identity, T0);
+    rememberIdentity("old-2", identity, T0 + 1_000);
+    rememberIdentity("new", identity, T0 + 61_000);
+
+    expect(rememberedCount()).toBe(1);
+    expect(recallIdentity("new", T0 + 61_001)).toEqual(identity);
+  });
 });
 
 describe("every route of the approved role table", () => {

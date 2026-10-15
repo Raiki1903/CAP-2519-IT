@@ -145,7 +145,7 @@ export function findUserProfileByEmail(email: string) {
     });
 }
 
-/** The user with this id and their roles, or null. Read on every request that carries a session. */
+/** The user with this id and their roles, or null. Read for a session at most once a minute per cookie (sessionCache.ts). */
 export function findUserRolesById(userId: number) {
     return prisma.users.findUnique({
         where: { user_id: userId },

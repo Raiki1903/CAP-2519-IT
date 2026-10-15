@@ -21,6 +21,7 @@ import * as authRepository from './auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { env } from '../../config/env';
 import { createSessionToken, isLoggedOut, markLoggedOut, verifySessionToken } from '../../shared/services/session';
+import { forgetIdentity, recallIdentity, rememberIdentity } from '../../shared/services/sessionCache';
 
 // Registration accepts the same email more than once (issue #14), kept as is: the email check looks at accounts only,
 // not at pending sign-ups, so one email can be requested twice; approving the second then fails with a 500.
@@ -294,35 +295,45 @@ export function startSession(userId: number): string {
 }
 
 /**
- * Logs a session out: its token is refused from now until it would have expired.
+ * Logs a session out: its token is refused from now until it would have expired, and its cached lookup is dropped.
  *
  * @param token the cookie's value, or undefined when the request had none
  */
 // A token that does not verify (tampered, expired, or from another secret) is not listed: it is refused anyway.
 export function endSession(token: string | undefined): void {
     if (!token) return;
+    forgetIdentity(token);
     const claims = verifySessionToken(token, env.sessionSecret);
     if (claims) markLoggedOut(token, claims.expiresAt);
 }
 
 /**
  * Who a session token belongs to, for requireAuth: the token must verify, must not have logged out, and its account
- * must still exist. The app role comes from appRoleFor, as for login and /me.
+ * must exist. The app role comes from appRoleFor, as for login and /me.
+ * The signature, expiry, and logged-out checks run on every request without the database, so a logout or a
+ * tampered cookie is refused at once. The account and its roles are read from the database at most once a minute
+ * per token (shared/services/sessionCache.ts), so a changed role or a removed account takes effect within
+ * 60 seconds, not at the next request.
  *
  * @param token the cookie's value
  * @returns the user id, app role, and Staff unit, or null when the session is refused
  */
-// The role is read from the database on every request, not kept in the cookie, so a changed role
-// or a removed account takes effect at the next request.
+// The cache keeps the session check from adding a query to every request on the slow CCS Cloud link (issue #8).
+// A refused lookup (no such account) is not remembered.
 export async function sessionIdentityFor(token: string): Promise<SessionIdentity | null> {
     const claims = verifySessionToken(token, env.sessionSecret);
     if (!claims || isLoggedOut(token)) return null;
+
+    const remembered = recallIdentity(token);
+    if (remembered) return remembered;
 
     const user = await authRepository.findUserRolesById(claims.userId);
     if (!user) return null;
 
     const { role, staffUnit } = appRoleFor(user.user_roles || []);
-    return { userId: user.user_id, role: role as Role, staffUnit };
+    const identity: SessionIdentity = { userId: user.user_id, role: role as Role, staffUnit };
+    rememberIdentity(token, identity);
+    return identity;
 }
 
 /**

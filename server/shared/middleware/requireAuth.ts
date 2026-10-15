@@ -27,8 +27,9 @@ export const SESSION_ENDED_MESSAGE = "Your session has ended. Please log in agai
 
 /**
  * Checks the adric_session cookie and sets `req.sessionUser` ({ userId, role, staffUnit }).
- * The account's roles are read from the database on every request (accepted 2026-10-15), so a changed role or a
- * removed account takes effect at once. The 401 is an AppError, which errorHandler answers.
+ * A logout or a tampered or expired cookie is refused at once. The account's roles are read from the database at
+ * most once a minute per cookie (shared/services/sessionCache.ts), so a changed role or a removed account takes
+ * effect within 60 seconds. The 401 is an AppError, which errorHandler answers.
  *
  * @throws AppError 401 NOT_LOGGED_IN_MESSAGE with no cookie, SESSION_ENDED_MESSAGE when the cookie is refused
  */
