@@ -1,7 +1,7 @@
 /**
  * Server data state: the lists that several screens share, loaded from the server and kept in memory.
  * Layer: shared (web state). Called by App.tsx (the provider) and by screens through useServerData().
- * Calls the web/api files and browserOnly.tsx. Never reads or writes localStorage itself.
+ * Calls the web/api files, browserOnly.tsx, and session.tsx (the role). Never reads or writes localStorage itself.
  * Used by: every role (asset lists, the notification bell, repairs, loan and registration approvals).
  *
  * Temporary home. 01D gives each page its own data loading; these lists move out as the
@@ -110,7 +110,7 @@ export interface PendingDisposal {
 }
 
 /** A sign-up request waiting for a Lab Head. */
-// TODO(C-04): the server sends each applicant's password in this list (issue #72). Step 13 and Phase 3.
+// TODO(C-04): the server sends each applicant's password in this list (issue #72). Phase 3.
 export interface PendingRegistration {
   id: string;
   firstName: string;
@@ -149,8 +149,9 @@ interface ServerDataContextType {
 const ServerDataContext = createContext<ServerDataContextType | null>(null);
 
 /**
- * Loads the shared lists once when the app starts, shares them through useServerData(),
- * and reloads them whenever a screen calls `syncFromDb()` after saving something.
+ * Loads the shared lists when someone is logged in (after login, or when a page load restores the session),
+ * shares them through useServerData(), reloads them whenever a screen calls `syncFromDb()` after saving
+ * something, and empties them on logout. Each role loads only the lists the server lets it read.
  *
  * What it shares, and the api function behind each:
  * - `assets`: assetsApi.listAssets.

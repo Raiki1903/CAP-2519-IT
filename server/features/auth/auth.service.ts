@@ -1,6 +1,7 @@
 /**
- * Auth service: the rules for logging in, the session's profile and app role, account updates, and sign-ups.
- * Layer: service. Called by auth.controller.ts. Calls auth.repository.ts.
+ * Auth service: the rules for logging in and out, the session's profile and app role, account updates, and sign-ups.
+ * Layer: service. Called by auth.controller.ts and shared/middleware/requireAuth.ts. Calls auth.repository.ts,
+ * shared/services/session.ts, and config/env.ts (the session secret).
  * Used by: login for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
  */
 import type { roles, user_roles, users } from '@prisma/client';
@@ -217,7 +218,7 @@ export function rejectRegistration(requestId: string): void {
 }
 
 /**
- * Maps a user's database roles to the app role and Staff unit, for login and /me.
+ * Maps a user's database roles to the app role and Staff unit, for login, /me, and every session check (requireRole).
  * The checks run in a fixed order and the first match wins, so an account with several roles gets only one.
  *
  * @param roles the user's user_roles rows, each with its roles row
@@ -282,10 +283,21 @@ export async function login(email: string, password: string): Promise<{ role: st
     };
 }
 
+/**
+ * A signed session token for an account that just logged in, valid for 8 hours.
+ *
+ * @param userId the account's users.user_id
+ * @returns the token for the adric_session cookie
+ */
 export function startSession(userId: number): string {
     return createSessionToken(userId, env.sessionSecret);
 }
 
+/**
+ * Logs a session out: its token is refused from now until it would have expired.
+ *
+ * @param token the cookie's value, or undefined when the request had none
+ */
 // A token that does not verify (tampered, expired, or from another secret) is not listed: it is refused anyway.
 export function endSession(token: string | undefined): void {
     if (!token) return;
@@ -293,6 +305,13 @@ export function endSession(token: string | undefined): void {
     if (claims) markLoggedOut(token, claims.expiresAt);
 }
 
+/**
+ * Who a session token belongs to, for requireAuth: the token must verify, must not have logged out, and its account
+ * must still exist. The app role comes from appRoleFor, as for login and /me.
+ *
+ * @param token the cookie's value
+ * @returns the user id, app role, and Staff unit, or null when the session is refused
+ */
 // The role is read from the database on every request, not kept in the cookie, so a changed role
 // or a removed account takes effect at the next request.
 export async function sessionIdentityFor(token: string): Promise<SessionIdentity | null> {

@@ -11,7 +11,7 @@ import { requireRole } from '../../shared/middleware/requireRole';
 /** The three disposal endpoints. Paths are written out in full, so app.ts mounts the router at the root. */
 export const disposalsRouter = express.Router();
 
-// TODO(C-02): anyone who can reach the server can list, request, and decide disposals; no session or role is checked. requireAuth and requireRole, step 13.
+// Every route needs a session; the roles are the approved 13b role table (rows 14 to 16).
 disposalsRouter.post('/api/assets/:assetTag/disposal', requireAuth, requireRole('Staff'), disposalsController.requestDisposal);
 disposalsRouter.get('/api/asset_disposals', requireAuth, requireRole('Staff', 'AdRICDirector', 'LabHead'), disposalsController.listDisposals);
 disposalsRouter.put('/api/asset_disposals/:disposalId/decision', requireAuth, requireRole('AdRICDirector'), disposalsController.decideDisposal);

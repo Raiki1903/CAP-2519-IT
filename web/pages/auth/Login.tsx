@@ -1,7 +1,7 @@
 /**
  * Login screen: email and password sign-in for every role.
  * Layer: page. Called by app/routes.tsx at /login.
- * Calls: api/auth.api.ts login(), state/session.tsx setRole() and setCookie().
+ * Calls: api/auth.api.ts login(), state/session.tsx setRole(), setCookie(), and sessionEnded.
  * Used by: every role.
  */
 import { useState } from "react";
@@ -16,8 +16,9 @@ import { Label } from "@web/components/ui/label";
 
 /**
  * Checks the email is a @dlsu.edu.ph address, signs in through authApi.login(), stores the
- * session cookies, and opens the role's dashboard. Any refusal, server error, or network
- * failure shows a message and stays on this page. Takes no props.
+ * display cookies, and opens the role's dashboard; the server's own session cookie arrives with the login answer.
+ * Any refusal, server error, or network failure shows a message and stays on this page. After the server ended
+ * a session (a 401), it says so above the form. Takes no props.
  */
 export function Login() {
   const navigate = useNavigate();
@@ -71,7 +72,8 @@ export function Login() {
       }
 
       // 3. Session Handling and Cookies
-      // TODO(C-06): the session is this unsigned email cookie; anyone can set it to any address. Step 13 (requireAuth).
+      // Display only: the server trusts the HttpOnly adric_session cookie the login answer set, never these three.
+      // TODO(C-06): the email still picks whose profile /me answers with on a reload. 13c (the session user).
       setCookie("session_user_email", authUserEmail, 30);
       const now = String(Date.now());
       setCookie("session_last_activity", now, 1);

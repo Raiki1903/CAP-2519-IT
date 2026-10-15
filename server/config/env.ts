@@ -1,6 +1,7 @@
 /**
  * Server configuration: loads .env and checks every variable the server reads, once, at startup.
- * Layer: config. Imported by main.ts, config/prisma.ts, and shared/services/mailer.ts. Calls dotenv.
+ * Layer: config. Imported by main.ts, app.ts (CORS), config/prisma.ts, shared/services/mailer.ts, and
+ * features/auth/auth.service.ts (the session secret). Calls dotenv.
  * Used by: the whole backend. Variable names and what each one is for: .env.example.
  */
 import 'dotenv/config';

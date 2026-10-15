@@ -36,7 +36,7 @@ import {
 /**
  * Builds the role's notifications from the shared lists and offers the decisions that role
  * may make from the bell: Lab Heads approve or decline transfers, the Director authorizes or
- * rejects disposals, Lab Heads and Staff authorize loans, Staff acknowledge repair tickets.
+ * rejects disposals, Lab Heads authorize loans, Staff acknowledge repair tickets.
  * Each decision calls the API and then reloads the shared lists. Clicking a card opens the
  * matching tab. Takes no props.
  */

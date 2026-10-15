@@ -1,7 +1,7 @@
 /**
  * Builds the Express app: the middleware, in order, then the routes, then the error handler.
  * Layer: server app. Called by main.ts. Calls the routes files of features/loans, returns, transfers, disposals, repairs,
- * inspections, auth, assets, and analytics, and shared/middleware/errorHandler.ts.
+ * inspections, auth, assets, and analytics, shared/middleware/errorHandler.ts, and config/env.ts (the web origin for CORS).
  * Used by: every request to the API.
  */
 import express from 'express';

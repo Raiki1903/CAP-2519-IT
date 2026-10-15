@@ -1,7 +1,7 @@
 /**
  * Session state: who is logged in, their role and profile, and their display preferences.
  * Layer: shared (web state). Called by App.tsx (the provider) and by every screen through useSession().
- * Calls api/auth.api.ts. Holds no asset, loan, or other workflow data: that is serverData.tsx.
+ * Calls api/auth.api.ts and api/client.ts (the 401 handler). Holds no asset, loan, or other workflow data: that is serverData.tsx.
  * Used by: every role.
  */
 import { createContext, useContext, useState, useEffect } from "react";
@@ -101,7 +101,10 @@ const SessionContext = createContext<SessionContextType | null>(null);
  *
  * What it shares:
  * - `role`, `currentUser`: null while logged out.
- * - `setRole(role)`: logs in (loads the profile with authApi.getMe) or, with null, logs out and clears the session cookies.
+ * - `setRole(role)`: logs in (loads the profile with authApi.getMe) or, with null, logs out on the server
+ *   (authApi.logout) and clears the display cookies.
+ * - `sessionEnded`: true after the server refused the session (any 401), until the next login.
+ * - `restoring`: true while a page load waits for /me, so RootLayout does not redirect yet (issue #49).
  * - `updateProfile(...)`: saves name, picture, and lab with authApi.updateAccount.
  * - `cycleMode`, `theme`, `sidebarCollapsed` and their setters.
  *
@@ -160,7 +163,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   // Restores the session on page load.
-  // TODO(C-06): the session is an unsigned cookie holding an email, and the server returns whatever role that email has. Step 13 (requireAuth).
+  // The server's session is the HttpOnly adric_session cookie, which page scripts cannot read; the email cookie only says
+  // whose profile to ask /me for. A 401 here means that session is gone, and the 401 handler logs the person out.
+  // TODO(C-06): /me answers for whatever email it is sent. 13c asks for the session user's own profile instead.
   useEffect(() => {
     const sessionEmail = getCookie("session_user_email");
     const lastActivityStr = getCookie("session_last_activity");
@@ -205,7 +210,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
               } as any);
             } else {
               // The server does not know this email, so the person is logged out.
-              // The cookies are left in place and the same check runs on the next load.
+              // The cookies are left in place and the same check runs on the next load (a 401 has cleared them already).
               setRoleState(null);
               setCurrentUser(null);
             }

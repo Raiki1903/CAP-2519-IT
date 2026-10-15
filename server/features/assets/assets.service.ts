@@ -223,7 +223,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
  * @returns the asset's tag and name and the entries, numbered from 1
  * @throws AppError 404 if neither the tag nor the id matches an asset
  */
-// TODO(C-02): each entry carries the custodian's email and id number, sent to anyone who asks (01C 4.2). Step 13, then strip them (issue #72).
+// TODO(C-02): each entry carries the custodian's email and id number, sent to any signed-in user (01C 4.2). Strip them (issue #72).
 export async function custodianHistory(assetTag: string): Promise<CustodianHistory> {
     let asset = await assetsRepository.findByTag(assetTag);
 

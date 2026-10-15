@@ -15,7 +15,7 @@ import { requireRole } from '../../shared/middleware/requireRole';
  */
 export const inspectionsRouter = express.Router();
 
-// TODO(C-02): anyone who can reach the server can file and list reports, including every reporter's email; no session or role is checked. requireAuth and requireRole, step 13.
+// Every route needs a session; the roles are the approved 13b role table (rows 17 to 19).
 inspectionsRouter.post('/api/assets/:assetTag/inspection', requireAuth, requireRole('Custodian', 'Staff'), inspectionsController.fileReport);
 // The same reports under two spellings and two shapes (L-07). Both kept in step 12, as decided.
 inspectionsRouter.get('/api/asset_reports', requireAuth, requireRole('Staff', 'AdRICDirector'), inspectionsController.listReportSummaries);

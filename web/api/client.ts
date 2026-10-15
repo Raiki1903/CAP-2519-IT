@@ -13,6 +13,12 @@ const LOGIN_PATH = "/api/auth/login";
 
 let onUnauthorized: (() => void) | null = null;
 
+/**
+ * Registers what happens when the server answers 401 to any call but login: the session ends here too.
+ * state/session.tsx registers it; there is one at a time.
+ *
+ * @param handler called once per 401 answer, or null to remove it
+ */
 export function setUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorized = handler;
 }

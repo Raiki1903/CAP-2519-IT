@@ -13,7 +13,8 @@ import { requireRole } from '../../shared/middleware/requireRole';
 /** The eight live analytics endpoints. Paths are written out in full, so app.ts mounts the router at the root. */
 export const analyticsRouter = express.Router();
 
-// TODO(C-02): anyone who can reach the server can read these figures, including names, emails, and asset values; no session or role is checked. requireAuth and requireRole, step 13 (01C section 4.4).
+// Every route needs a session and one role (the approved 13b role table, rows 33 to 40). idle-time, idle-frequency, and
+// loan-recommender are called only by legacy widgets and stay registered (2026-10-07), for the Lab Head.
 analyticsRouter.get('/api/analytics/advanced/idle-time', requireAuth, requireRole('LabHead'), analyticsController.getIdleTime);
 analyticsRouter.get('/api/analytics/advanced/idle-frequency', requireAuth, requireRole('LabHead'), analyticsController.getIdleFrequency);
 analyticsRouter.get('/api/analytics/advanced/loan-recommender', requireAuth, requireRole('LabHead'), analyticsController.getLoanRecommendations);

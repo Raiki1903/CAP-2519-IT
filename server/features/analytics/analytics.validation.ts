@@ -62,7 +62,7 @@ export function readDirectorFilters(query: Query): DirectorFilters {
  *
  * @throws TypeError if labPrefix or lab is sent more than once
  */
-// TODO(C-02): any prefix is accepted, so anyone can read any lab's loans, borrowers, and overdue list (01C section 4.4), and an unknown prefix gives empty data rather than an error (M-14). The lab should come from the session, step 13.
+// TODO(C-02): any prefix is accepted, so any Lab Head can read any lab's loans, borrowers, and overdue list (01C section 4.4), and an unknown prefix gives empty data rather than an error (M-14). The lab should come from the session user, 13c or later.
 export function readLabHeadFilters(query: Query): LabHeadFilters {
     const labParam = (query.labPrefix as string) || (query.lab as string) || "CITe4D";
     const cleanPrefix = labParam.trim();

@@ -14,11 +14,10 @@ import { NotificationCenter } from "@web/features/notifications/NotificationCent
 import { Menu, Shield } from "lucide-react";
 
 /**
- * Wraps every signed-in screen. Sends a visitor with no role to /login, and
- * sends a signed-in user who opens another role's URL to their own default page.
+ * Wraps every signed-in screen. Waits while a page load restores the session, then sends a visitor
+ * with no role to /login, and a signed-in user who opens another role's URL to their own default page.
+ * These redirects only choose screens: the server refuses another role's data by itself (requireRole).
  */
-// TODO(C-02): this redirect is the only thing keeping a role out of another role's
-// screens. The server checks nothing, so it hides screens but protects no data. Step 13 (requireAuth).
 export function RootLayout() {
   const { role, setRole, currentUser, restoring } = useSession();
   const { isDbLoading } = useServerData();

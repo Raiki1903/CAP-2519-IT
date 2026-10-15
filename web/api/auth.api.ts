@@ -1,5 +1,5 @@
 /**
- * Auth API: login, the current user's profile, and sign-up requests.
+ * Auth API: login, logout, the current user's profile, and sign-up requests.
  * Layer: api. Called by Login, Register, AccountDetailsPage, state/session.tsx, and state/serverData.tsx. Calls client.ts; types from @shared/types/auth.
  * Used by: login for every role, self-registration, approval of sign-ups, account page.
  */
@@ -17,6 +17,11 @@ export function login(email: string, password: string): Promise<ApiResult> {
   return apiPost("/api/auth/login", { email, password });
 }
 
+/**
+ * Ends the session on the server: the cookie is refused from now on, and the browser deletes it.
+ *
+ * @returns `success` (always true)
+ */
 export function logout(): Promise<ApiResult> {
   return apiPost("/api/auth/logout", {});
 }
@@ -27,7 +32,7 @@ export function logout(): Promise<ApiResult> {
  * @param email the email from the session cookie
  * @returns `success` and `user`
  */
-// TODO(C-06): any email works, there is no session check on the server. Step 13 (requireAuth).
+// TODO(C-06): the server needs a session but answers for any email it is sent, not only the caller's. 13c (the session user).
 export function getMe(email: string): Promise<ApiResult> {
   return apiGet(`/api/auth/me?email=${encodeURIComponent(email)}`);
 }
@@ -59,7 +64,7 @@ export function requestRegistrationRaw(registration: RegistrationRequestInput): 
  *
  * @returns `success` and `pendingRegistrations`
  */
-// TODO(C-04): the answer includes each applicant's password and needs no login (issue #72). Step 13 and Phase 3.
+// TODO(C-04): the answer includes each applicant's password, sent to the Lab Head (issue #72). Phase 3.
 export function listPendingRegistrations(): Promise<ApiResult> {
   return apiGet("/api/auth/pending-registrations");
 }
