@@ -13,7 +13,7 @@ import { requireRole } from '../../shared/middleware/requireRole';
 export const authRouter = express.Router();
 
 // Public, with no session: register-request, login, and logout. Every other route needs a session; the roles are the
-// approved 13b role table (rows 3 to 8). /me and /account still act on the email they are sent, not the session user (C-06, 13c).
+// approved 13b role table (rows 3 to 8). /me and /account act on the session user's own account, whatever email is sent (C-06).
 // No screen calls /register; sign-ups go through register-request and a Lab Head's approval. Lab Head only until 01D deletes it, in its own commit (issue #70).
 authRouter.post('/api/auth/register', requireAuth, requireRole('LabHead'), authController.register);
 authRouter.get('/api/auth/pending-registrations', requireAuth, requireRole('LabHead'), authController.listPendingRegistrations);

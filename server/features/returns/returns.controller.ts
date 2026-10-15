@@ -1,6 +1,7 @@
 /**
  * Return controller: unpacks return requests, calls the service, and writes the JSON answers.
- * Layer: controller. Called by returns.routes.ts. Calls returns.validation.ts and returns.service.ts.
+ * Layer: controller. Called by returns.routes.ts. Calls returns.validation.ts, returns.service.ts, and shared/middleware/requireAuth.ts
+ * (sessionUserOf: who is acting).
  * Used by: Staff return finalization, and the return list.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
@@ -8,6 +9,7 @@
 import type { Request, Response } from 'express';
 import * as returnsService from './returns.service';
 import { checkReturnInput } from './returns.validation';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
  * Handles POST /api/assets/:assetTag/return: finalizes a return.
@@ -21,7 +23,7 @@ export async function finalizeReturn(req: Request<{ assetTag: string }>, res: Re
     console.log(`🚀 Server received return finalization for ${assetTag}:`, data);
 
     checkReturnInput(data);
-    const ret = await returnsService.finalizeReturn(assetTag, data);
+    const ret = await returnsService.finalizeReturn(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Return finalized in MySQL successfully:", ret.return_id, assetTag);
     res.json({ success: true, return: ret });

@@ -1024,3 +1024,31 @@ Both are in the log ("Questions for Raiki (stop 2)"), with options and a recomme
 3. Then step 13c, on a fresh branch from that merge: `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 13c.`
 
 Answered on 2026-10-15 (see the log, "Hand checks: results"): **13b hand checks 1 to 5 passed on CCS Cloud** (off the DLSU network). They also showed P2039 pool timeouts (dashboards 10 to 90 seconds, some lists 500) and valid sessions sent to the login page after a reload. Two fixes followed on the same branch: `128896fb` keeps the session lookup per cookie for 60 seconds (a role change or removed account now takes effect within 60 seconds; logout and tampering still at once), and `4c6bbc83` makes a page load log out only on a 401, retrying a slow or failing `/me` 3 times and then offering Retry. 375 tests. Raiki's answers: keep the 32-character `SESSION_SECRET` minimum; leave the Staff bell badge for the bell rewrite (issues #55 and #57). New note for teammates: a browser holds one login at a time, so two roles at once need two browsers or a private window. Next: re-run checks 2 and 5 on CCS Cloud, run 6 to 13 in a browser on the local test database, then the 13b pull request.
+
+## Phase 1C, restructure step 13c, 2026-10-15
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 13, part 13c only (the session user), in two stops: the plan (`f42292b4`), answered by Raiki with the team leader the same day, then the build. On a fresh `refactor/feature-based-structure` from the PR #93 merge (`5ac94dcd`).
+
+### What was produced
+
+- **Stop 1** `f42292b4`: every place the caller decided who acted (nine routes), `/me` and the account page, every `DEFAULT_CUSTODIAN_ID` use, the name-hiding plan (D2), the record-level checks, the tests, the commit plan, and eight questions. **Answers** `3d618e05`.
+- **Server** (labelled behavior changes): who acted is the session user for loans, repairs, inspections, disposals, and the asset edit's report, and a return is recorded under the asset's holder (`99325ed5` to `f4baa8c8`); `/me` and the account update act on the caller only (`c31dabfa`, `4d04801a`); `DEFAULT_CUSTODIAN_ID` becomes `POOL_CUSTODIAN_ID`, the placeholder for "nobody holds it" (`0f63e4ea`), named for no one (`edbc0bda`); no id numbers in the custodian history (`4d0facb5`); only the holder may request a transfer (`652a95e7`); a Custodian gets no other person's name in the loan, transfer, and asset lists or the custodian history (`c918992c`, `96f4147d`, `aecbc9fa`, `5a3a4411`).
+- **Web** (labelled behavior changes): stop sending who acted, and a read-only Borrower field (`03a4bb20`); "None" and "Not shown" (`c57fa1c6`); the transfer button only on the Custodian's own asset (`c7c9e7db`); "Reported by" on the Repairs page (`0e4bcc14`); one login marker cookie instead of three (`a77424ab`).
+- **Tests:** 56 changed and 3 removed in the behavior commits; `tests/api/sessionUser.test.ts`, 13 new (`85818f81`, `5456eeed`): **385**.
+- **Comment commit** `22f8bf17`; this docs commit.
+
+### Key findings
+
+- **A typecheck slip:** `85818f81` added 13 type errors (a test helper's inferred row type); my check printed the count but did not stop. Fixed in `5456eeed`, history not rewritten.
+- **"Nobody holds it" needed a mark of its own on screen.** With other holders hidden from a Custodian, a missing name can mean either; the server marks hidden holders `custodianHidden`, so screens say "Not shown" or "None".
+- **The returner rule needed the placeholder rule:** when the asset's holder is the placeholder, the Staff member finalizing the return is recorded.
+
+### Open questions
+
+None new. The log lists what 13c leaves for later (lab scoping after step 14, a custodian picker, the rest of issue #72).
+
+### Exact next step
+
+1. Everyone pulls, restarts `npm run dev:all`, and logs in once.
+2. The advisor reviews the push. Then the 13c hand checks in the log: Raiki runs 1 to 5 on CCS Cloud (read-only); the agent runs 6 to 17 in a browser on the local test database when asked.
+3. Then the 13c pull request, and step 14 (baseline migrations), on a fresh branch from that merge, with Raiki's explicit go-ahead.

@@ -23,7 +23,7 @@ const INVENTED_ASSET_NAME = "ASUS TUF Gaming A15";
 
 const inDays = (days: number) => new Date(Date.now() + days * DAY_MS).toISOString().slice(0, 10);
 
-/** What LoanForm sends: the borrower's typed name, the destination lab, the purpose, and the due date. */
+/** What LoanForm sends: the borrower's typed name (not read since 13c: the borrower is the session user), the destination lab, the purpose, and the due date. */
 const borrowBody = (borrower: TestUser | string, extra: Record<string, unknown> = {}) => ({
   borrower: typeof borrower === "string" ? borrower : borrower.fullName,
   lab: LAB.shortCode,
@@ -37,9 +37,9 @@ const recordCount = (assetId: number) => db.asset_records.count({ where: { asset
 const newestRecord = (assetId: number) =>
   db.asset_records.findFirstOrThrow({ where: { asset_id: assetId }, orderBy: [{ date_logged: "desc" }, { asset_record_id: "desc" }] });
 
-/** Files a borrow request through the API and answers the new loan's id. */
+/** Files a borrow request through the API, signed in as the borrower, and answers the new loan's id. */
 async function requestLoan(tag: string, borrower: TestUser, extra: Record<string, unknown> = {}): Promise<number> {
-  const res = await asCustodian.post(`/api/assets/${tag}/borrow`, borrowBody(borrower, extra));
+  const res = await as(borrower).post(`/api/assets/${tag}/borrow`, borrowBody(borrower, extra));
   expect(res.status, JSON.stringify(res.body)).toBe(200);
   return res.body.loan.loan_id;
 }
@@ -132,11 +132,11 @@ describe("GET /api/asset_loans", () => {
 });
 
 describe("POST /api/assets/:tag/borrow", () => {
-  it("files a pending loan under the borrower found by typed name, with the destination lab written into the purpose, and leaves custody alone", async () => {
+  it("files a pending loan under the session user, with the destination lab written into the purpose, and leaves custody alone (issue #32 fixed)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0101" });
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianB));
+    const res = await as(USERS.custodianB).post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianB));
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -148,7 +148,8 @@ describe("POST /api/assets/:tag/borrow", () => {
     });
     expect(await db.asset_loans.count({ where: { asset_id: asset.assetId, status: "pending" } })).toBe(1);
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active", custodian: USERS.admin.fullName });
+    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active" });
+    expect((await listedAsset(asset.tag)).custodian).toBeUndefined();
   });
 
   it("stores the purpose as typed when no lab is sent", async () => {
@@ -160,24 +161,34 @@ describe("POST /api/assets/:tag/borrow", () => {
     expect(res.body.loan.purpose).toBe("Test borrow purpose");
   });
 
-  it("drops a leading 'Dr.' from the typed name before matching it", async () => {
+  it("ignores a borrower name that names someone else: the loan is still the session user's (issue #32 fixed)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0103" });
 
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(`Dr. ${USERS.custodianA.fullName}`));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(`Dr. ${USERS.custodianB.fullName}`));
 
+    expect(res.status).toBe(200);
     expect(res.body.loan.borrower_id).toBe(USERS.custodianA.userId);
   });
 
-  it("files the loan under user 1 when the typed name matches nobody (known defect H-10)", async () => {
+  it("files the loan under the session user when the typed name matches nobody, not under user 1 (H-10 fixed)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0104" });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody("Nobody Known"));
 
     expect(res.status).toBe(200);
-    expect(res.body.loan.borrower_id).toBe(USERS.admin.userId);
+    expect(res.body.loan.borrower_id).toBe(USERS.custodianA.userId);
   });
 
-  it.each(["borrower", "purpose", "dueDate"])("answers 400 without %s, and writes nothing", async (field) => {
+  it("accepts a request with no borrower field, for the session user", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0105" });
+
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA, { borrower: undefined }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.loan.borrower_id).toBe(USERS.custodianA.userId);
+  });
+
+  it.each(["purpose", "dueDate"])("answers 400 without %s, and writes nothing", async (field) => {
     const before = await db.asset_loans.count();
 
     const res = await asCustodian.post(`/api/assets/${ASSETS.available.tag}/borrow`, borrowBody(USERS.custodianB, { [field]: undefined }));
@@ -202,7 +213,7 @@ describe("POST /api/assets/:tag/borrow: one pending request per asset (issue #25
     const first = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA));
     expect(first.status).toBe(200);
 
-    const second = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianB));
+    const second = await as(USERS.custodianB).post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianB));
     expect(second.status).toBe(409);
     expect(second.body.error).toContain(`LOAN-${first.body.loan.loan_id}`);
 
@@ -290,7 +301,8 @@ describe("PUT /api/asset_loans/:id/decision", () => {
     expect(res.status).toBe(200);
     expect(res.body.loan.status).toBe("declined");
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active", custodian: USERS.admin.fullName });
+    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active" });
+    expect((await listedAsset(asset.tag)).custodian, "still the placeholder's: nobody holds it").toBeUndefined();
   });
 
   it("after an approval the asset is on loan, so a new borrow request answers 409 (issue #25)", async () => {

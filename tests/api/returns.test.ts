@@ -16,7 +16,7 @@ const asStaff = as(USERS.staffTsg);
 
 /** What ReturnForm sends: who returned it, the condition, and the inspection notes. */
 const returnBody = (extra: Record<string, unknown> = {}) => ({
-  returnedBy: USERS.custodianA.fullName,
+  returnedBy: USERS.custodianA.fullName, // not read since 13c
   condition: "OPERATIONAL",
   comments: "Test return comment",
   ...extra,
@@ -78,7 +78,7 @@ describe("GET /api/asset_returns", () => {
 });
 
 describe("POST /api/assets/:tag/return", () => {
-  it("records the return and puts the asset back in the pool: ACTIVE, the reported condition, user 1, back at its home lab", async () => {
+  it("records the return and puts the asset back in the pool: ACTIVE, the reported condition, the placeholder custodian (user 1), back at its home lab", async () => {
     const asset = await addExtraAsset(db, {
       tag: "TEST-0201",
       status: "ON_LOAN",
@@ -106,7 +106,8 @@ describe("POST /api/assets/:tag/return", () => {
       current_location: LAB.homeLocation,
       Asset_Remarks: "Test return comment",
     });
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active", custodian: USERS.admin.fullName });
+    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active" });
+    expect((await listedAsset(asset.tag)).custodian, "nobody holds it: no name").toBeUndefined();
   });
 
   it("finalizing a return leaves the loan open (known defect H-04)", async () => {
@@ -157,13 +158,13 @@ describe("POST /api/assets/:tag/return", () => {
   it.each([
     { returnedBy: "Nobody Known", case: "a typed name that matches nobody", tag: "TEST-0231" },
     { returnedBy: undefined, case: "no name", tag: "TEST-0232" },
-  ])("files the return under user 1 for $case (known defect H-10)", async ({ returnedBy, tag }) => {
-    const asset = await addExtraAsset(db, { tag, status: "ON_LOAN" });
+  ])("files the return under the asset's current custodian for $case, not under user 1 (H-10 fixed)", async ({ returnedBy, tag }) => {
+    const asset = await addExtraAsset(db, { tag, status: "ON_LOAN", custodianId: USERS.custodianB.userId });
 
     const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody({ returnedBy }));
 
     expect(res.status).toBe(200);
-    expect(res.body.return.returned_by_id).toBe(USERS.admin.userId);
+    expect(res.body.return.returned_by_id).toBe(USERS.custodianB.userId);
   });
 
   it("accepts a return for an asset that is not on loan, and makes a disposed asset ACTIVE again (known defect H-05)", async () => {

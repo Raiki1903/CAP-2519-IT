@@ -96,34 +96,29 @@ describe("POST /api/auth/login", () => {
 
 describe("GET /api/auth/me", () => {
   it.each(EXPECTED_ROLES)(
-    "answers the $user.role account's profile with role $role inside user",
+    "answers the $user.role account's own profile with role $role inside user",
     async ({ user, role, staffUnit }) => {
-      const res = await asCustodian.get(`/api/auth/me?email=${encodeURIComponent(user.email)}`);
+      const res = await as(user).get("/api/auth/me");
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({ success: true, user: { ...profileOf(user), role, staffUnit } });
     },
   );
 
-  it("answers any account's profile from the email alone, to any signed-in user (known defect C-06, until 13c)", async () => {
-    const res = await asCustodian.get(`/api/auth/me?email=${encodeURIComponent(USERS.director.email)}`);
+  it("ignores ?email= and answers the caller's own profile (C-06 fixed)", async () => {
+    for (const email of [USERS.director.email, "nobody@example.test"]) {
+      const res = await asCustodian.get(`/api/auth/me?email=${encodeURIComponent(email)}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.user.role).toBe("AdRICDirector");
+      expect(res.status, email).toBe(200);
+      expect(res.body.user, email).toMatchObject({ userId: USERS.custodianA.userId, email: USERS.custodianA.email, role: "Custodian" });
+    }
   });
 
-  it("answers 400 without an email", async () => {
+  it("needs no email", async () => {
     const res = await asCustodian.get("/api/auth/me");
 
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-  });
-
-  it("answers 404 for an unknown email", async () => {
-    const res = await asCustodian.get("/api/auth/me?email=nobody%40example.test");
-
-    expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
+    expect(res.status).toBe(200);
+    expect(res.body.user.userId).toBe(USERS.custodianA.userId);
   });
 });
 
@@ -131,9 +126,8 @@ describe("PUT /api/auth/account", () => {
   const userRow = (userId: number) => db.users.findUniqueOrThrow({ where: { user_id: userId } });
   const labLinks = (userId: number) => db.user_centers.findMany({ where: { user_id: userId } });
 
-  it("saves the new first and last name and answers the updated profile", async () => {
-    const res = await asCustodian.put("/api/auth/account", {
-      email: USERS.custodianB.email,
+  it("saves the new first and last name of the caller's own account and answers the updated profile", async () => {
+    const res = await as(USERS.custodianB).put("/api/auth/account", {
       firstName: "  Renamed  ",
       lastName: "Custodian B",
       labAffiliation: LAB.shortCode,
@@ -149,27 +143,15 @@ describe("PUT /api/auth/account", () => {
     expect(row.last_name).toBe("Custodian B");
   });
 
-  it("finds the account by email in any letter case", async () => {
-    const res = await asCustodian.put("/api/auth/account", {
-      email: USERS.custodianB.email.toUpperCase(),
-      firstName: "Test",
-      lastName: "Custodian B",
-    });
-
-    expect(res.status).toBe(200);
-    expect(res.body.user.userId).toBe(USERS.custodianB.userId);
-    expect((await userRow(USERS.custodianB.userId)).first_name).toBe("Test");
-  });
-
   it("saves the picture when one is sent and keeps it when none is sent", async () => {
     const picture = "data:image/png;base64,iVBORw0KGgo=";
-    const withPicture = await asCustodian.put("/api/auth/account", {
-      email: USERS.custodianB.email,
+    const asCustodianB = as(USERS.custodianB);
+    const withPicture = await asCustodianB.put("/api/auth/account", {
       firstName: "Test",
       lastName: "Custodian B",
       avatarUrl: picture,
     });
-    const withoutPicture = await asCustodian.put("/api/auth/account", { email: USERS.custodianB.email, firstName: "Test", lastName: "Custodian B" });
+    const withoutPicture = await asCustodianB.put("/api/auth/account", { firstName: "Test", lastName: "Custodian B" });
 
     expect(withPicture.body.user).toMatchObject({ userImg: picture, profilePicture: picture, avatarUrl: picture });
     expect(withoutPicture.body.user.userImg).toBe(picture);
@@ -177,8 +159,7 @@ describe("PUT /api/auth/account", () => {
   });
 
   it("links an account with no lab to a known lab code", async () => {
-    const res = await asCustodian.put("/api/auth/account", {
-      email: USERS.director.email,
+    const res = await as(USERS.director).put("/api/auth/account", {
       firstName: USERS.director.firstName,
       lastName: USERS.director.lastName,
       labAffiliation: LAB.shortCode,
@@ -192,8 +173,7 @@ describe("PUT /api/auth/account", () => {
   it("moves an account's existing lab link to another known lab code, without adding a second link", async () => {
     const otherLab = await db.research_centers.create({ data: { name: "Test Other Lab", short_code: "TESTB", location: "LAGUNA" } });
 
-    const res = await asCustodian.put("/api/auth/account", {
-      email: USERS.labHead.email,
+    const res = await as(USERS.labHead).put("/api/auth/account", {
       firstName: USERS.labHead.firstName,
       lastName: USERS.labHead.lastName,
       labAffiliation: "TESTB",
@@ -206,7 +186,6 @@ describe("PUT /api/auth/account", () => {
 
   it("answers an unknown lab code as saved, but creates no lab and keeps the old link (new finding: MANILA_CAMPUS is not a valid location)", async () => {
     const res = await asCustodian.put("/api/auth/account", {
-      email: USERS.custodianA.email,
       firstName: USERS.custodianA.firstName,
       lastName: USERS.custodianA.lastName,
       labAffiliation: "NOLAB",
@@ -221,7 +200,6 @@ describe("PUT /api/auth/account", () => {
 
   it("answers labAffiliation CITe4D when no lab is sent, whatever the account's lab is (new finding)", async () => {
     const res = await asCustodian.put("/api/auth/account", {
-      email: USERS.custodianA.email,
       firstName: USERS.custodianA.firstName,
       lastName: USERS.custodianA.lastName,
     });
@@ -232,28 +210,28 @@ describe("PUT /api/auth/account", () => {
     expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
   });
 
-  it("renames whichever account the body names, for any signed-in user (known defects C-02 and C-06, until 13c)", async () => {
-    const res = await asCustodian.put("/api/auth/account", { email: USERS.admin.email, firstName: "Changed", lastName: "By Anyone" });
+  it("changes only the caller's account, whatever email the body names (C-02 and C-06 fixed)", async () => {
+    const adminBefore = await userRow(USERS.admin.userId);
+
+    const res = await asCustodian.put("/api/auth/account", { email: USERS.admin.email, firstName: "Changed", lastName: "By Body Email" });
 
     expect(res.status).toBe(200);
-    const row = await userRow(USERS.admin.userId);
-    expect(`${row.first_name} ${row.last_name}`).toBe("Changed By Anyone");
+    expect(res.body.user).toMatchObject({ userId: USERS.custodianA.userId, email: USERS.custodianA.email });
+    const admin = await userRow(USERS.admin.userId);
+    expect(`${admin.first_name} ${admin.last_name}`).toBe(`${adminBefore.first_name} ${adminBefore.last_name}`);
+    const own = await userRow(USERS.custodianA.userId);
+    expect(`${own.first_name} ${own.last_name}`).toBe("Changed By Body Email");
+
+    await asCustodian.put("/api/auth/account", { firstName: USERS.custodianA.firstName, lastName: USERS.custodianA.lastName });
   });
 
-  it("answers 400 when the email, first name, or last name is missing", async () => {
-    const full = { email: USERS.custodianA.email, firstName: "Test", lastName: "Custodian A" };
-    for (const missing of ["email", "firstName", "lastName"] as const) {
+  it("answers 400 when the first name or last name is missing", async () => {
+    const full = { firstName: "Test", lastName: "Custodian A" };
+    for (const missing of ["firstName", "lastName"] as const) {
       const body: Record<string, string> = { ...full };
       delete body[missing];
       const res = await asCustodian.put("/api/auth/account", body);
       expect(res.status, missing).toBe(400);
     }
-  });
-
-  it("answers 404 for an unknown email", async () => {
-    const res = await asCustodian.put("/api/auth/account", { email: "nobody@example.test", firstName: "No", lastName: "Body" });
-
-    expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
   });
 });

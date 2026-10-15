@@ -1,12 +1,14 @@
 /**
  * Disposal controller: unpacks disposal requests, calls the service, and writes the JSON answers.
- * Layer: controller. Called by disposals.routes.ts. Calls disposals.validation.ts and disposals.service.ts.
+ * Layer: controller. Called by disposals.routes.ts. Calls disposals.validation.ts, disposals.service.ts, and shared/middleware/requireAuth.ts
+ * (sessionUserOf: who is acting).
  * Used by: Staff disposal filing, Director approval.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as disposalsService from './disposals.service';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 import { checkDisposalDecision, checkDisposalRequest } from './disposals.validation';
 
 /**
@@ -21,13 +23,14 @@ export async function requestDisposal(req: Request<{ assetTag: string }>, res: R
     console.log(`🚀 Server received disposal request for ${assetTag}:`, data);
 
     checkDisposalRequest(data);
-    const { disposal, asset } = await disposalsService.requestDisposal(assetTag, data);
+    const requesterId = sessionUserOf(req).userId;
+    const { disposal, asset } = await disposalsService.requestDisposal(assetTag, data, requesterId);
 
     console.log("✅ Disposal request logged in MySQL successfully:", disposal.disposal_id, assetTag);
     res.json({ success: true, disposal });
 
     // Sent after the answer and not awaited, so a slow mail service never delays it. sendEmail catches its own send failures.
-    disposalsService.notifyDirector(asset, assetTag, data);
+    disposalsService.notifyDirector(asset, assetTag, data, requesterId);
 }
 
 /**

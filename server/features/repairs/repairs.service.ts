@@ -1,7 +1,7 @@
 /**
  * Repairs service: the business rules for repair tickets, their progress, and the asset status that follows them.
  * Layer: service. Called by repairs.controller.ts. Calls repairs.repository.ts, features/assets/assets.repository.ts,
- * features/auth/auth.repository.ts, shared/constants/defaultCustodian.ts, and @shared/enums/assetCondition.
+ * shared/constants/poolCustodian.ts, and @shared/enums/assetCondition.
  * Used by: Custodian repair request (RepairForm, and ReturnForm's "flag for repair"), Staff repair queue,
  * repair dialog, and the Staff analytics board.
  */
@@ -10,9 +10,8 @@ import type { RepairListItem, RepairRequestInput } from '@shared/types/repairs';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import * as repairsRepository from './repairs.repository';
 import * as assetsRepository from '../assets/assets.repository';
-import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
-import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
+import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 
 // A safety net against the same ticket arriving twice within a few seconds (same tag, same
 // description), from when RepairForm posted every ticket twice. The form posts once since step 8 part 2.
@@ -26,13 +25,14 @@ const DUPLICATE_WINDOW_MS = 8000;
  * status until Staff move the ticket into a maintenance status (updateRepair).
  *
  * @param assetTag the asset's tag, from the URL
- * @param data the checked body: description, optional reporter name and urgency
+ * @param data the checked body: description and optional urgency
+ * @param reporterId the session user, who reports the fault; any reporter name in the body is ignored (issue #32)
  * @returns the created asset_repairs row
  * @throws AppError 409 if the same tag and description arrived less than 8 seconds ago (M-07)
  * @throws AppError 404 if no asset has this tag
  */
 // TODO(H-05): no status check, so a disposed asset, or one already under repair, takes a new ticket. Its own fix; tests/api/repairs.test.ts pins it.
-export async function requestRepair(assetTag: string, data: RepairRequestInput): Promise<asset_repairs> {
+export async function requestRepair(assetTag: string, data: RepairRequestInput, reporterId: number): Promise<asset_repairs> {
     const dedupeKey = `${assetTag}::${data.description}`;
     const lastSeen = recentRepairSubmissions.get(dedupeKey);
     if (lastSeen && Date.now() - lastSeen < DUPLICATE_WINDOW_MS) {
@@ -44,16 +44,6 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput):
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
-    }
-
-    // The form sends the reporter as a typed name, split and matched the same way as the borrower
-    // of a loan. reported_by_id is a required foreign key, so no name or no match becomes DEFAULT_CUSTODIAN_ID.
-    // TODO(H-10): two people with the same name cannot be told apart, and a typo files the ticket under user 1 (issue #32). The reporter comes from the session after step 13.
-    let reporterId = DEFAULT_CUSTODIAN_ID;
-    if (data.reportedBy) {
-        const [first, ...rest] = String(data.reportedBy).replace(/^Dr\.\s*/i, "").split(" ");
-        const match = await authRepository.findUserByName(first, rest.join(" "));
-        if (match) reporterId = match.user_id;
     }
 
     return repairsRepository.create({
@@ -190,12 +180,12 @@ function completionRows(
             asset_condition: conditionVal,
             location: latestRecord?.location ?? "Unassigned",
             current_location: preMaintenanceRecord?.current_location ?? preMaintenanceRecord?.location ?? latestRecord?.location ?? "Unassigned",
-            current_custodian: preMaintenanceRecord?.current_custodian ?? DEFAULT_CUSTODIAN_ID,
+            current_custodian: preMaintenanceRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
             Asset_Remarks: remarksVal,
         },
         report: {
             asset_id: existing.asset_id,
-            reported_by_id: existing.reported_by_id || DEFAULT_CUSTODIAN_ID,
+            reported_by_id: existing.reported_by_id,
             report_condition: conditionVal,
             report_remarks: remarksVal.slice(0, 255),
         },
@@ -218,7 +208,7 @@ function maintenanceRecord(
             asset_condition: latestRecord?.asset_condition ?? "PERFECT",
             location: latestRecord?.location ?? "Unassigned",
             current_location: TSG_OFFICE_LOCATION,
-            current_custodian: latestRecord?.current_custodian ?? DEFAULT_CUSTODIAN_ID,
+            current_custodian: latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
         };
     }
     return null;

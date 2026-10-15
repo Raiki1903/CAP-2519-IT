@@ -97,7 +97,7 @@ export function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommissio
           </div>
         ) : (
           <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border mt-1">
-            <span>{eq.custodian || "No custodian"}</span>
+            <span>{eq.custodian || "None"}</span>
             <ConditionState value={eq.assetCondition} />
           </div>
         )}

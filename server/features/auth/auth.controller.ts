@@ -1,6 +1,7 @@
 /**
  * Auth controller: unpacks login, profile, account, and sign-up requests, calls the service, and writes the JSON answers.
- * Layer: controller. Called by auth.routes.ts. Calls auth.validation.ts and auth.service.ts.
+ * Layer: controller. Called by auth.routes.ts. Calls auth.validation.ts, auth.service.ts, and shared/middleware/requireAuth.ts
+ * (sessionUserOf: who is acting).
  * Used by: login and logout for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
@@ -8,7 +9,8 @@
 import type { Request, Response } from 'express';
 import * as authService from './auth.service';
 import { clearedSessionCookieHeader, readCookie, SESSION_COOKIE_NAME, sessionCookieHeader } from '../../shared/services/session';
-import { checkAccountUpdate, checkLogin, checkProfileQuery, checkRegistration, checkRegistrationRequest } from './auth.validation';
+import { checkAccountUpdate, checkLogin, checkRegistration, checkRegistrationRequest } from './auth.validation';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 // Each handler reads req.body in one destructuring statement. A request with no JSON body (Express 5 leaves
 // req.body undefined) therefore throws a TypeError there, which errorHandler answers with its generic 500.
@@ -110,15 +112,12 @@ export async function rejectRegistration(req: Request, res: Response): Promise<v
 }
 
 /**
- * Handles GET /api/auth/me?email=...: the profile and app role of the account with that email.
- * Answers `{ success, user }`, or the AppError's status and message (400 no email, 404 no account), or 500.
+ * Handles GET /api/auth/me: the profile and app role of the session's own account. An `email` in the query,
+ * which older pages still send, is ignored, so no one can read another account's profile. (C-06)
+ * Answers `{ success, user }`, or 404 if the account no longer exists, or 500.
  */
-// TODO(C-06): any signed-in user gets any account's profile by its email; nothing checks that the caller is that person. 13c (the session user).
 export async function getProfile(req: Request, res: Response): Promise<void> {
-    const email = req.query.email as string;
-
-    checkProfileQuery(email);
-    const user = await authService.getProfile(email);
+    const user = await authService.getProfile(sessionUserOf(req).userId);
 
     res.json({
         success: true,
@@ -127,16 +126,16 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * Handles PUT /api/auth/account: saves the name, picture, and lab of the account the body's email names.
- * Answers `{ success, user }`, or the AppError's status and message (400 missing field, 404 no account), or 500.
+ * Handles PUT /api/auth/account: saves the name, picture, and lab of the session's own account. An `email` in the
+ * body, which older pages still send, is ignored, so no one can change another account. (C-06)
+ * Answers `{ success, user }`, or the AppError's status and message (400 missing name, 404 account gone), or 500.
  */
-// TODO(C-06): the account is chosen by the email in the body, so any signed-in user can rename anyone (C-02). 13c (the session user).
 export async function updateAccount(req: Request, res: Response): Promise<void> {
-    const { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = req.body;
-    const data = { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture };
+    const { firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = req.body;
+    const data = { firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture };
 
     checkAccountUpdate(data);
-    const { updatedUser, user } = await authService.updateAccount(data);
+    const { updatedUser, user } = await authService.updateAccount(sessionUserOf(req).userId, data);
 
     console.log(`👤 Updated user credentials in MySQL DB: ${updatedUser.email} -> ${firstName} ${lastName} (${labAffiliation}) [img length: ${updatedUser.user_img ? updatedUser.user_img.length : 0}]`);
     res.json({

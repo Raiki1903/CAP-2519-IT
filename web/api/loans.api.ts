@@ -10,7 +10,7 @@ import { apiGet, apiPost, apiPut, type ApiResult } from "./client";
  * Files a pending borrow request for an asset.
  *
  * @param assetTag the asset's tag, for example from the asset detail modal
- * @param input borrower, destination lab, purpose, and due date
+ * @param input destination lab, purpose, and due date (the borrower is the session user)
  * @returns `success`, and `error` when the asset or a required field is missing
  */
 export function requestLoan(assetTag: string, input: LoanRequestInput): Promise<ApiResult> {

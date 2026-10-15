@@ -6,9 +6,6 @@
 
 /** The body of POST /api/assets/:assetTag/repair, as RepairForm and ReturnForm send it. */
 export interface RepairRequestInput {
-  /** Display name of the person reporting the fault. */
-  // TODO(H-10): the server resolves this name to a user by matching text, and an unknown or missing name becomes user 1 (issue #32). The session user after step 13.
-  reportedBy?: string;
   /** Required, and not only spaces. With the tag, it is also the key of the 8-second duplicate guard. (M-07) */
   description: string;
   /** True when the fault needs immediate attention: the ticket opens as "Awaiting Immediate Dispatch". */

@@ -31,13 +31,14 @@ export interface TransferListItem {
   assetId: string;
   /** The asset's name. */
   asset: string;
-  /** Full name of the custodian the asset leaves, or "Unknown". */
-  from: string;
+  /** Full name of the custodian the asset leaves, or "Unknown". Left out for a Custodian not part of the transfer. (D2) */
+  from?: string;
   /** Lets the custodian screen tell its own requests from others'. (issue #25, D2) */
   fromCustodianId: number;
-  /** Full name of the recipient, or "Unknown". */
-  to: string;
-  toEmail: string;
+  /** Full name of the recipient, or "Unknown". Left out like `from`. */
+  to?: string;
+  /** Left out like `from`. */
+  toEmail?: string;
   /** The reason as typed, without the destination lab line. */
   justification: string;
   /** The destination lab picked on the form, read back out of the stored justification. (H-19) */

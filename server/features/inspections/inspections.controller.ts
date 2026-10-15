@@ -1,12 +1,14 @@
 /**
  * Inspection controller: unpacks inspection requests, calls the service, and writes the JSON answers.
- * Layer: controller. Called by inspections.routes.ts. Calls inspections.service.ts.
+ * Layer: controller. Called by inspections.routes.ts. Calls inspections.service.ts and shared/middleware/requireAuth.ts
+ * (sessionUserOf: who is acting).
  * Used by: Custodian condition report, Staff inspection finalize, the Staff inspection log, and state/serverData.tsx.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as inspectionsService from './inspections.service';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
  * Handles POST /api/assets/:assetTag/inspection: saves a condition report to asset_reports and
@@ -20,7 +22,7 @@ export async function fileReport(req: Request<{ assetTag: string }>, res: Respon
     // Printed before the lookups, so a refused report still shows in the server terminal.
     console.log(`📋 Server received inspection report for ${assetTag}:`, data);
 
-    const newReport = await inspectionsService.fileReport(assetTag, data);
+    const newReport = await inspectionsService.fileReport(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Inspection report saved under asset_reports in DB:", newReport.report_id);
     res.json({ success: true, report: newReport });

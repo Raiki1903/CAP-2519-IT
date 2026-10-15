@@ -98,7 +98,7 @@ Defined in [setup/fixtures.ts](setup/fixtures.ts). Everything is invented. Never
 
 | Accounts (all `@example.test`) | Role |
 |---|---|
-| `admin` (user 1, the server's default custodian) | ADMIN |
+| `admin` (user 1, the server's placeholder custodian: "nobody holds it") | ADMIN |
 | `director` | ADRIC_DIRECTOR |
 | `staff.tsg`, `staff.its` | TSG_STAFF, ITS_STAFF |
 | `labhead` | LAB_HEAD |
@@ -124,7 +124,7 @@ const asCustodian = as(USERS.custodianA);   // logs in once, then sends that ses
 describe("loans", () => {
   it("refuses a second request on an asset that already has a pending loan, with 409 (issue #25)", async () => {
     const res = await asCustodian.post(`/api/assets/${ASSETS.pendingLoan.tag}/borrow`, {
-      borrower: USERS.custodianA.fullName, purpose: "Test purpose", dueDate: "2030-01-01",
+      purpose: "Test purpose", dueDate: "2030-01-01",
     });
     expect(res.status).toBe(409);
     expect(await db.asset_loans.count({ where: { asset_id: ASSETS.pendingLoan.assetId, status: "pending" } })).toBe(1);
@@ -134,6 +134,7 @@ describe("loans", () => {
 
 - `as(USERS.x).get/post/put/delete(path, body)` returns `{ status, body }`, sent with that account's session. Every route but login, the sign-up request, and logout needs one, and the role the approved table in the restructure log gives it: Staff `USERS.staffTsg`, Lab Head `USERS.labHead`, Custodian `USERS.custodianA` (or `custodianB`), Director `USERS.director`. The first call logs the account in; the cookie is reused for the rest of the file.
 - `api` sends no session: use it for login, the sign-up request, logout, and to check that a route refuses a visitor (401). `logIn(user)` gives a fresh cookie and `withCookie(cookie)` sends it, for tests that log out or change a cookie (see [api/session.test.ts](api/session.test.ts)).
+- **Who acted is whoever the client logs in as.** Since step 13c the server ignores names, emails, and ids in the body that once said who borrowed, reported, requested, or returned; a test that checks who filed something sends as that account (for example `as(USERS.custodianB)`). A Custodian gets no other person's name in the lists; [api/sessionUser.test.ts](api/sessionUser.test.ts) checks what each role sees.
 - `db` is Prisma on the test database, for reading back what a request wrote.
 - Name each test after what it checks. If it pins a known defect, put the finding ID in the name, for example `"finalizing a return leaves the loan open (known defect H-04)"`.
 - These are **characterization tests**: they record what the API does **today**, even where that is wrong, so that a later change that alters it by accident makes a test fail. Do not "fix" the expected value to what it should be.

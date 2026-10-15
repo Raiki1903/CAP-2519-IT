@@ -15,7 +15,7 @@ const { db, as } = useApiHarness();
 const asCustodian = as(USERS.custodianA);
 const asStaff = as(USERS.staffTsg);
 
-/** What InspectionQueue sends: the signed-in reporter's email, the condition, the remarks, and one image or null. */
+/** What InspectionQueue sends: the signed-in reporter's email (not read since 13c), the condition, the remarks, and one image or null. */
 const inspectionBody = (extra: Record<string, unknown> = {}) => ({
   reporterEmail: USERS.staffTsg.email,
   reportCondition: "MINOR_DRIFT",
@@ -126,7 +126,7 @@ describe("GET /api/asset_reports", () => {
 });
 
 describe("POST /api/assets/:tag/inspection", () => {
-  it("files a report under the reporter found by email, with the condition and remarks sent", async () => {
+  it("files a report under the session user, whatever reporterEmail names, with the condition and remarks sent (issue #32 fixed)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0501" });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody());
@@ -135,7 +135,7 @@ describe("POST /api/assets/:tag/inspection", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.report).toMatchObject({
       asset_id: asset.assetId,
-      reported_by_id: USERS.staffTsg.userId,
+      reported_by_id: USERS.custodianA.userId,
       report_condition: "MINOR_DRIFT",
       report_remarks: "Test inspection: loose hinge",
       report_img: null,
@@ -161,40 +161,36 @@ describe("POST /api/assets/:tag/inspection", () => {
     expect(after.date_logged).toEqual(before.date_logged);
   });
 
-  it("takes the reporter from reportedById when no email is sent", async () => {
+  it("ignores reportedById: the report is the session user's (issue #32 fixed)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0503" });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reporterEmail: undefined, reportedById: USERS.custodianB.userId }));
 
-    expect(res.body.report.reported_by_id).toBe(USERS.custodianB.userId);
+    expect(res.body.report.reported_by_id).toBe(USERS.custodianA.userId);
   });
 
   it.each([
     { reporter: { reporterEmail: undefined }, case: "no reporter", tag: "TEST-0504" },
     { reporter: { reporterEmail: "nobody@example.test" }, case: "an email that matches nobody", tag: "TEST-0505" },
     { reporter: { reporterEmail: "nobody@example.test", reportedById: USERS.custodianB.userId }, case: "an unknown email even with reportedById", tag: "TEST-0506" },
-  ])("files the report under user 1 for $case (known defect H-10)", async ({ reporter, tag }) => {
+  ])("files the report under the session user for $case, not under user 1 (H-10 fixed)", async ({ reporter, tag }) => {
     const asset = await addExtraAsset(db, { tag });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody(reporter));
 
     expect(res.status).toBe(200);
-    expect(res.body.report.reported_by_id).toBe(USERS.admin.userId);
+    expect(res.body.report.reported_by_id).toBe(USERS.custodianA.userId);
   });
 
-  it("answers 500 with a generic message and no database text for a reportedById that is no account, and writes nothing (H-16 fixed)", async () => {
+  it("ignores a reportedById that is no account, and files the report under the session user (it answered a generic 500 before 13c)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0507", condition: "PERFECT" });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reporterEmail: undefined, reportedById: 9999 }));
 
-    expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });
-    const text = JSON.stringify(res.body);
-    expect(text).not.toMatch(/prisma/i);
-    expect(text).not.toContain("Invalid `");
-    expect(text).not.toMatch(/[A-Za-z]:\\|\.ts\b/);
-    expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(0);
-    expect((await newestRecord(asset.assetId)).asset_condition).toBe("PERFECT");
+    expect(res.status).toBe(200);
+    expect(res.body.report.reported_by_id).toBe(USERS.custodianA.userId);
+    expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(1);
+    expect((await newestRecord(asset.assetId)).asset_condition).toBe("MINOR_DRIFT");
   });
 
   it.each([
@@ -274,7 +270,7 @@ describe("POST /api/assets/:tag/inspection", () => {
     expect(res.body.report.asset_id).toBe(asset.assetId);
   });
 
-  it("gives an asset with no records a first ACTIVE record at 'DLSU Campus' under the reporter", async () => {
+  it("gives an asset with no records a first ACTIVE record at 'DLSU Campus' under the reporter, the session user", async () => {
     const asset = await db.assets.create({ data: { asset_tag: "TEST-0542", name: "Test Asset Without Records", category: "DEV_KIT" } });
 
     const res = await asCustodian.post(`/api/assets/${asset.asset_tag}/inspection`, inspectionBody());
@@ -287,7 +283,7 @@ describe("POST /api/assets/:tag/inspection", () => {
       asset_condition: "MINOR_DRIFT",
       location: "DLSU Campus",
       current_location: null,
-      current_custodian: USERS.staffTsg.userId,
+      current_custodian: USERS.custodianA.userId,
       Asset_Remarks: "Test inspection: loose hinge",
     });
   });

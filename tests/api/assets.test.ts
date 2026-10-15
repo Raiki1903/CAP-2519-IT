@@ -38,7 +38,6 @@ describe("GET /api/assets", () => {
       location: "Manila",
       lab: LAB.shortCode,
       currentLocation: LAB.homeLocation,
-      custodian: USERS.admin.fullName,
       condition: 100,
       assetCondition: "PERFECT",
       cost: ASSETS.available.acquisitionValue,
@@ -47,6 +46,8 @@ describe("GET /api/assets", () => {
       procured: "2025-06-01",
       warranty: "2027-06-01",
     });
+    // Held by the placeholder custodian: nobody holds it, so no name is sent. (answer 1)
+    expect((await listedAsset(ASSETS.available.tag)).custodian).toBeUndefined();
   });
 
   it("shows each seeded asset in its seeded state", async () => {
@@ -92,7 +93,7 @@ describe("GET /api/assets", () => {
     expect(listed.status).toBe("Disposed");
     expect(listed.disposalId).toBe(`DISP-${SEEDED_ROWS.disposalId}`);
     expect(listed.disposalDetails).toMatchObject({
-      lastCustodian: USERS.admin.fullName,
+      lastCustodian: "No Custodian",
       disposalPathway: "Test pathway",
       breakdownReasons: "Test breakdown: the board is burnt",
       decommissionedBy: USERS.staffTsg.fullName,
@@ -156,7 +157,6 @@ describe("GET /api/assets/:tag/custodian-history", () => {
     expect(res.body.custodianHistory).toMatchObject([
       {
         sequence: 1,
-        custodianName: USERS.admin.fullName,
         status: "ACTIVE",
         location: LAB.homeLocation,
         condition: "PERFECT",
@@ -173,12 +173,17 @@ describe("GET /api/assets/:tag/custodian-history", () => {
         isCurrent: true,
       },
     ]);
+    // The first entry is the placeholder custodian's: no name, email, or id number. (answer 1)
+    expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianName");
+    expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianEmail");
+    expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianId");
   });
 
-  it("includes each custodian's email and id number (known defect, 01C 4.2)", async () => {
+  it("includes each custodian's email (known defect, 01C 4.2) but no id number, for any role (answer 6)", async () => {
     const res = await asStaff.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
 
-    expect(res.body.custodianHistory[1]).toMatchObject({ custodianEmail: USERS.custodianA.email, custodianId: USERS.custodianA.idNumber });
+    expect(res.body.custodianHistory[1]).toMatchObject({ custodianEmail: USERS.custodianA.email });
+    for (const entry of res.body.custodianHistory) expect(entry).not.toHaveProperty("custodianId");
   });
 
   it("looks a numeric tag up as an asset id", async () => {
@@ -246,7 +251,7 @@ describe("POST /api/assets", () => {
     });
   });
 
-  it("files the new asset under user 1 when no custodian id is sent (known defect H-10)", async () => {
+  it("files the new asset under the placeholder custodian, user 1 (nobody holds it), when no custodian id is sent", async () => {
     const res = await asStaff.post("/api/assets", intake());
 
     const record = await newestRecord(res.body.asset.asset_id);
@@ -337,7 +342,7 @@ describe("PUT /api/assets/:tag", () => {
     expect(recordAfter.location).toBe(`Laguna${LOCATION_SEPARATOR}TESTL`);
   });
 
-  it("finds the custodian by typed name and files the remark as a report under them", async () => {
+  it("finds the new custodian by typed name, and files the remark as a report under the session user who edited (issue #32 fixed)", async () => {
     const res = await asStaff.put(`/api/assets/${ASSETS.pendingLoan.tag}`, {
       custodian: USERS.custodianB.fullName,
       remarks: "Test edit remark",
@@ -349,10 +354,10 @@ describe("PUT /api/assets/:tag", () => {
     expect(record).toMatchObject({ current_custodian: USERS.custodianB.userId, asset_condition: "MINOR_DRIFT", Asset_Remarks: "Test edit remark" });
     const reports = await db.asset_reports.findMany({ where: { asset_id: ASSETS.pendingLoan.assetId } });
     expect(reports).toHaveLength(1);
-    expect(reports[0]).toMatchObject({ reported_by_id: USERS.custodianB.userId, report_condition: "MINOR_DRIFT", report_remarks: "Test edit remark" });
+    expect(reports[0]).toMatchObject({ reported_by_id: USERS.staffTsg.userId, report_condition: "MINOR_DRIFT", report_remarks: "Test edit remark" });
   });
 
-  it("files the report under user 1 and keeps the custodian when the typed name matches nobody (known defect H-10)", async () => {
+  it("keeps the custodian when the typed name matches nobody, and files the report under the session user, not user 1 (H-10 fixed)", async () => {
     const recordBefore = await newestRecord(ASSETS.inRepair.assetId);
 
     await asStaff.put(`/api/assets/${ASSETS.inRepair.tag}`, { custodian: "Nobody Known", remarks: "Test remark from an unknown name" });
@@ -360,7 +365,7 @@ describe("PUT /api/assets/:tag", () => {
     const recordAfter = await newestRecord(ASSETS.inRepair.assetId);
     expect(recordAfter.current_custodian).toBe(recordBefore.current_custodian);
     const report = await db.asset_reports.findFirstOrThrow({ where: { asset_id: ASSETS.inRepair.assetId } });
-    expect(report.reported_by_id).toBe(USERS.admin.userId);
+    expect(report.reported_by_id).toBe(USERS.staffTsg.userId);
   });
 
   it("ignores a new acquisition value when the asset already has one (known defect M-16)", async () => {

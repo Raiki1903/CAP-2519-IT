@@ -6,7 +6,7 @@
  */
 import { useState, useEffect } from "react";
 import { useSession } from "@web/state/session";
-import { useServerData, type DisposalDetails } from "@web/state/serverData";
+import { useServerData, holderLabel, type DisposalDetails } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -44,6 +44,7 @@ export interface AssetDetail {
   condition?: number;
   assetCondition?: string;
   custodian?: string;
+  custodianHidden?: boolean;
   disposalId?: string;
   disposalDetails?: DisposalDetails;
   description?: string;
@@ -108,6 +109,10 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
       ? { kind: "transfer", requesterId: pendingTransfer.fromCustodianId, requesterName: pendingTransfer.from }
       : null;
   const isOwnPendingRequest = !!pendingRequest && currentUser?.userId === pendingRequest.requesterId;
+  // The server lets only the asset's current custodian request its transfer (answer 3 of the 13c questions), so the
+  // Transfer and Return buttons show only on an asset the Custodian holds, matched by name as My Assets matches it.
+  // The server sends a Custodian no other holder's name, so this matches only their own assets. Repair stays for all.
+  const holdsThisAsset = !!asset && !!currentUser && asset.custodian === `${currentUser.firstName} ${currentUser.lastName}`;
   const [view, setView] = useState<FormView>("detail");
 
   const [custodianHistoryList, setCustodianHistoryList] = useState<any[]>([]);
@@ -349,8 +354,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           {asset.disposalDetails && (
                             <div className="mt-3 text-left border-t border-red-200/30 pt-2.5 space-y-1 font-mono text-[10px] text-red-800">
                               <p><strong>Disposal ID:</strong> {asset.disposalId}</p>
-                              <p><strong>Decommissioned By:</strong> {asset.disposalDetails.decommissionedBy}</p>
-                              <p><strong>Last Custodian:</strong> {asset.disposalDetails.lastCustodian}</p>
+                              <p><strong>Decommissioned By:</strong> {asset.disposalDetails.decommissionedBy ?? "Not shown"}</p>
+                              <p><strong>Last Custodian:</strong> {asset.disposalDetails.lastCustodian ?? "Not shown"}</p>
                               <p><strong>Pathway:</strong> {asset.disposalDetails.disposalPathway}</p>
                               <p><strong>Justification:</strong> {asset.disposalDetails.breakdownReasons}</p>
                             </div>
@@ -380,15 +385,15 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           ) : (
                             <>
                               <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                                <span>Current Custodian: <strong className="text-emerald-700">{currentHistoryEntry?.custodianName || asset.custodian || "Unassigned"}</strong></span>
+                                <span>Current Custodian: <strong className="text-emerald-700">{currentHistoryEntry ? holderLabel(currentHistoryEntry.custodianName, currentHistoryEntry.custodianHidden) : holderLabel(asset.custodian, asset.custodianHidden)}</strong></span>
                                 <span className="text-[10px] text-slate-400">Present</span>
                               </div>
                               <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                                <span>Prior Custodian: <strong>{priorHistoryEntry?.custodianName || "No prior custodian on record"}</strong></span>
+                                <span>Prior Custodian: <strong>{priorHistoryEntry ? holderLabel(priorHistoryEntry.custodianName, priorHistoryEntry.custodianHidden) : "No prior custodian on record"}</strong></span>
                                 <span className="text-[10px] text-slate-400">{priorHistoryEntry?.dateLogged || "—"}</span>
                               </div>
                               <div className="flex justify-between items-center py-1">
-                                <span>Original Intake: <strong>{originalHistoryEntry?.custodianName || "Staff Tagging Registry"}</strong></span>
+                                <span>Original Intake: <strong>{originalHistoryEntry ? holderLabel(originalHistoryEntry.custodianName, originalHistoryEntry.custodianHidden) : "Staff Tagging Registry"}</strong></span>
                                 <span className="text-[10px] text-slate-400">{originalHistoryEntry?.dateLogged || asset.procured || "—"}</span>
                               </div>
                             </>
@@ -505,10 +510,10 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 </div>
                               </div>
                             ) : (
-                              <div className={cn("grid gap-2.5", role === "Custodian" ? "grid-cols-3" : "grid-cols-1")}>
-                                {/* 1 — Custodianship Transfer */}
-                                {role === "Custodian" && pendingRequest && requestPendingTile}
-                                {role === "Custodian" && !pendingRequest && (
+                              <div className={cn("grid gap-2.5", role === "Custodian" && holdsThisAsset ? "grid-cols-3" : "grid-cols-1")}>
+                                {/* 1: Custodianship Transfer, only for the asset's holder */}
+                                {role === "Custodian" && holdsThisAsset && pendingRequest && requestPendingTile}
+                                {role === "Custodian" && holdsThisAsset && !pendingRequest && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       variant="outline"
@@ -564,8 +569,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                   </motion.div>
                                 )}
 
-                                {/* 3 — Return Asset */}
-                                {role === "Custodian" && (
+                                {/* 3: Return Asset, only for the asset's holder */}
+                                {role === "Custodian" && holdsThisAsset && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       className="w-full h-auto flex-col py-4 px-2 gap-2 text-white"
@@ -691,7 +696,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                     )}>
                                       {entry.isCurrent ? `#${entry.sequence} (Current Custodian)` : `#${entry.sequence} (Prior Custodian)`}
                                     </Badge>
-                                    <span className="font-bold text-slate-800 text-sm">{entry.custodianName}</span>
+                                    <span className="font-bold text-slate-800 text-sm">{holderLabel(entry.custodianName, entry.custodianHidden)}</span>
                                   </div>
                                   <span className="text-[10px] font-mono text-slate-500">{entry.dateLogged}</span>
                                 </div>

@@ -43,8 +43,8 @@ export function AccountDetailsPage() {
 
   // Fetch live user credentials directly from MySQL Database in Prisma Studio
   useEffect(() => {
-    if (!currentUser?.email) return;
-    authApi.getMe(currentUser.email)
+    if (!currentUser) return;
+    authApi.getMe()
       .then(data => {
         if (data.success && data.user) {
           setDbUser(data.user);

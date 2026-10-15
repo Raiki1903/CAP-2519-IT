@@ -16,7 +16,7 @@ const { db, as } = useApiHarness();
 const asDirector = as(USERS.director);
 const asStaff = as(USERS.staffTsg);
 
-/** What DisposalFormDialog sends: who files it, the last custodian, the reasons, the pathway, and the target date. */
+/** What DisposalFormDialog sends: who files it (not read since 13c), the last custodian, the reasons, the pathway, and the target date. */
 const disposalBody = (extra: Record<string, unknown> = {}) => ({
   requestedBy: USERS.staffTsg.fullName,
   lastCustodian: "Test Typed Custodian",
@@ -98,7 +98,7 @@ describe("GET /api/asset_disposals", () => {
 });
 
 describe("POST /api/assets/:tag/disposal", () => {
-  it("files a pending disposal under the requester found by typed name, and leaves the asset as it is", async () => {
+  it("files a pending disposal under the session user, and leaves the asset as it is (issue #32 fixed)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0601", custodianId: USERS.custodianA.userId });
     const recordsBefore = await recordCount(asset.assetId);
 
@@ -140,13 +140,13 @@ describe("POST /api/assets/:tag/disposal", () => {
   it.each([
     { requestedBy: "Nobody Known", case: "a typed name that matches nobody", tag: "TEST-0604" },
     { requestedBy: undefined, case: "no name", tag: "TEST-0605" },
-  ])("files the disposal under user 1 for $case (known defect H-10)", async ({ requestedBy, tag }) => {
+  ])("files the disposal under the session user for $case, not under user 1 (H-10 fixed)", async ({ requestedBy, tag }) => {
     const asset = await addExtraAsset(db, { tag });
 
     const res = await asStaff.post(`/api/assets/${asset.tag}/disposal`, disposalBody({ requestedBy }));
 
     expect(res.status).toBe(200);
-    expect(res.body.disposal.disposed_by_id).toBe(USERS.admin.userId);
+    expect(res.body.disposal.disposed_by_id).toBe(USERS.staffTsg.userId);
   });
 
   it.each([

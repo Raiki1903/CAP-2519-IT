@@ -111,7 +111,7 @@ describe("GET /api/asset_transfers", () => {
       });
     });
 
-    it("includes the recipient's email, for any caller (known issue, 01C 4.3)", async () => {
+    it("includes the recipient's email, for a Lab Head, Staff, or Director (known issue, 01C 4.3)", async () => {
       await withTransfers(async () => {
         const res = await asLabHead.get("/api/asset_transfers");
 
@@ -151,7 +151,7 @@ describe("POST /api/assets/:tag/transfer", () => {
   });
 
   it("packs the destination lab into the justification and stores the effective date nowhere (known defect H-19)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0302" });
+    const asset = await addExtraAsset(db, { tag: "TEST-0302", custodianId: USERS.custodianA.userId });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
 
     const row = await db.asset_transfers.findUniqueOrThrow({ where: { transfer_id: transferId } });
@@ -160,7 +160,7 @@ describe("POST /api/assets/:tag/transfer", () => {
   });
 
   it("stores the reason as typed when no lab is sent", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0303" });
+    const asset = await addExtraAsset(db, { tag: "TEST-0303", custodianId: USERS.custodianA.userId });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB, { lab: undefined });
 
     expect((await db.asset_transfers.findUniqueOrThrow({ where: { transfer_id: transferId } })).justification).toBe("Test transfer reason");
@@ -184,9 +184,10 @@ describe("POST /api/assets/:tag/transfer", () => {
   });
 
   it("answers 404 for an email that matches no account, and writes nothing", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0304", custodianId: USERS.custodianA.userId });
     const before = await db.asset_transfers.count();
 
-    const res = await asCustodian.post(`/api/assets/${ASSETS.available.tag}/transfer`, transferBody(USERS.custodianB, { toEmail: "nobody@example.test" }));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB, { toEmail: "nobody@example.test" }));
 
     expect(res.status).toBe(404);
     expect(res.body.error).toContain("nobody@example.test");
@@ -256,7 +257,7 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
   });
 
   it("approve: keeps the asset's current location when the request named no lab", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0322", currentLocation: `Manila${LOCATION_SEPARATOR}Test Elsewhere` });
+    const asset = await addExtraAsset(db, { tag: "TEST-0322", custodianId: USERS.custodianA.userId, currentLocation: `Manila${LOCATION_SEPARATOR}Test Elsewhere` });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB, { lab: undefined });
 
     await asLabHead.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
@@ -278,7 +279,7 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
   });
 
   it("answers 400 on a transfer that is already decided, and changes nothing", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0324" });
+    const asset = await addExtraAsset(db, { tag: "TEST-0324", custodianId: USERS.custodianA.userId });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
     await asLabHead.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
     const recordsBefore = await recordCount(asset.assetId);
@@ -325,7 +326,7 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
 
 describe("PUT /api/asset_transfers/:id/accept", () => {
   it("sets the transfer to pending_approver and appends the remarks to the justification", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0331" });
+    const asset = await addExtraAsset(db, { tag: "TEST-0331", custodianId: USERS.custodianA.userId });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
 
     const res = await asCustodian.put(`/api/asset_transfers/${transferId}/accept`, { remarks: "Test destination remark" });
@@ -339,7 +340,7 @@ describe("PUT /api/asset_transfers/:id/accept", () => {
   });
 
   it("leaves the justification as it is when no remarks are sent", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0332" });
+    const asset = await addExtraAsset(db, { tag: "TEST-0332", custodianId: USERS.custodianA.userId });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB, { lab: undefined });
 
     const res = await asCustodian.put(`/api/asset_transfers/${transferId}/accept`, {});
@@ -349,7 +350,7 @@ describe("PUT /api/asset_transfers/:id/accept", () => {
   });
 
   it("leaves the transfer stuck: afterwards the decision answers 400 (known defect M-12)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0333" });
+    const asset = await addExtraAsset(db, { tag: "TEST-0333", custodianId: USERS.custodianA.userId });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
     await asCustodian.put(`/api/asset_transfers/${transferId}/accept`, {});
 
@@ -361,7 +362,7 @@ describe("PUT /api/asset_transfers/:id/accept", () => {
   });
 
   it("lets the asset take a second transfer request once the first is pending_approver, because the issue #25 guard counts only 'pending' (new finding, M-12 family)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0334" });
+    const asset = await addExtraAsset(db, { tag: "TEST-0334", custodianId: USERS.custodianA.userId });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
     await asCustodian.put(`/api/asset_transfers/${transferId}/accept`, {});
 
@@ -372,7 +373,7 @@ describe("PUT /api/asset_transfers/:id/accept", () => {
   });
 
   it("changes a transfer in any status, even an approved one, back to pending_approver (new finding, M-12 family)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0335" });
+    const asset = await addExtraAsset(db, { tag: "TEST-0335", custodianId: USERS.custodianA.userId });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
     await asLabHead.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
 

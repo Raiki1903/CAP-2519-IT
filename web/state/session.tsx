@@ -10,6 +10,16 @@ import * as authApi from "../api/auth.api";
 import { setUnauthorizedHandler } from "../api/client";
 
 /**
+ * The one readable cookie a login leaves: "1", meaning "a login exists", with no personal data. A page load asks /me
+ * only when it is there; the server reads the HttpOnly adric_session cookie, which page scripts cannot see.
+ */
+export const SESSION_MARKER_COOKIE = "session_active";
+/** The marker lasts as long as the server's session: 8 hours. */
+export const SESSION_MARKER_DAYS = 8 / 24;
+/** The three display cookies before 13c (email, login time, last activity). Erased on every page load. */
+const OLD_SESSION_COOKIES = ["session_user_email", "session_last_activity", "session_created"];
+
+/**
  * Writes a browser cookie for the whole site.
  *
  * @param name cookie name
@@ -114,14 +124,13 @@ type RestoreOutcome =
 /**
  * Asks /me once who the session cookie belongs to, giving up after RESTORE_TIMEOUT_MS.
  *
- * @param email the display cookie's email
  * @returns "user" with the profile; "loggedOut" for a 401 (the 401 handler has already cleared the session) or a 400 or
  *   404 (the server answered: it does not know this email); "unreachable" for a 5xx, no answer, or a network error
  */
-async function askWhoIsLoggedIn(email: string): Promise<RestoreOutcome> {
+async function askWhoIsLoggedIn(): Promise<RestoreOutcome> {
   try {
     const res = await Promise.race([
-      authApi.getMeRaw(email),
+      authApi.getMeRaw(),
       wait(RESTORE_TIMEOUT_MS).then((): never => { throw new Error("timeout"); }),
     ]);
     if (res.status === 401 || res.status === 400 || res.status === 404) return { kind: "loggedOut" };
@@ -137,19 +146,19 @@ const SessionContext = createContext<SessionContextType | null>(null);
 
 /**
  * Holds the session and the preferences, and shares them through useSession().
- * On page load it restores the session from three cookies and asks
- * authApi.getMe for the role and profile. Preferences are kept in cookies too.
+ * On page load, when the login marker cookie is there, it asks authApi.getMe for the role and profile
+ * of the session's own account. Preferences are kept in cookies too.
  *
  * What it shares:
  * - `role`, `currentUser`: null while logged out.
  * - `setRole(role)`: logs in (loads the profile with authApi.getMe) or, with null, logs out on the server
- *   (authApi.logout) and clears the display cookies.
+ *   (authApi.logout) and clears the login marker.
  * - `sessionEnded`: true after the server refused the session (a 401 while this tab was logged in or restoring),
  *   until the next login.
  * - `restoring`: true while a page load waits for /me, so RootLayout does not redirect yet (issue #49).
  *   `restoreAttempt` says which try it is on.
  * - `restoreFailed`, `retryRestore()`: every try failed for a reason other than a 401 (a 500, no answer, a network
- *   error). The person stays where they are, with the display cookies kept, and RootLayout offers Retry.
+ *   error). The person stays where they are, with the login marker kept, and RootLayout offers Retry.
  * - `updateProfile(...)`: saves name, picture, and lab with authApi.updateAccount.
  * - `cycleMode`, `theme`, `sidebarCollapsed` and their setters.
  *
@@ -160,25 +169,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
   // Starts true exactly when the effect below will ask /me, so the first render already waits.
-  const [restoring, setRestoring] = useState<boolean>(() =>
-    !!(getCookie("session_user_email") && getCookie("session_last_activity") && getCookie("session_created"))
-  );
+  const [restoring, setRestoring] = useState<boolean>(() => !!getCookie(SESSION_MARKER_COOKIE));
   const [restoreAttempt, setRestoreAttempt] = useState(1);
   const [restoreFailed, setRestoreFailed] = useState(false);
 
   // Whether this tab has a session to lose: someone logged in here, or a page load restoring one. The 401 handler
-  // reads it to decide on the notice. Not the display cookies: every tab shares them, and a logout in another tab
-  // has already erased them. A ref, because the handler is registered once and must see the latest value.
+  // reads it to decide on the notice. Not the login marker: every tab shares it, and a logout in another tab
+  // has already erased it. A ref, because the handler is registered once and must see the latest value.
   const hasSessionHere = useRef(false);
   hasSessionHere.current = role !== null || currentUser !== null || restoring;
 
-  // Keeps the display cookies on a failure: the server's session cookie may well still be valid.
-  const restoreSession = async (email: string) => {
+  // Keeps the login marker on a failure: the server's session cookie may well still be valid.
+  const restoreSession = async () => {
     setRestoreFailed(false);
     setRestoring(true);
     for (let attempt = 1; attempt <= RESTORE_ATTEMPTS; attempt++) {
       setRestoreAttempt(attempt);
-      const outcome = await askWhoIsLoggedIn(email);
+      const outcome = await askWhoIsLoggedIn();
       if (outcome.kind === "user") {
         const img = outcome.user.userImg || outcome.user.profilePicture || outcome.user.avatarUrl;
         setRoleState(outcome.user.role as Role);
@@ -187,7 +194,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (outcome.kind === "loggedOut") {
-        // The display cookies are left in place for a 400 or 404, as before; a 401 has cleared them already.
+        // A 401 has cleared the session already; a 404 (the account is gone) clears the marker here.
+        eraseCookie(SESSION_MARKER_COOKIE);
         setRoleState(null);
         setCurrentUser(null);
         setRestoring(false);
@@ -200,8 +208,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const retryRestore = () => {
-    const email = getCookie("session_user_email");
-    if (email) restoreSession(email);
+    if (getCookie(SESSION_MARKER_COOKIE)) restoreSession();
     else setRestoreFailed(false);
   };
 
@@ -209,9 +216,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     hasSessionHere.current = false;
     setRoleState(null);
     setCurrentUser(null);
-    eraseCookie("session_user_email");
-    eraseCookie("session_last_activity");
-    eraseCookie("session_created");
+    eraseCookie(SESSION_MARKER_COOKIE);
   };
 
   // Any 401 means the server no longer accepts the session cookie (expired, logged out elsewhere,
@@ -250,42 +255,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   // Restores the session on page load.
-  // The server's session is the HttpOnly adric_session cookie, which page scripts cannot read; the email cookie only says
-  // whose profile to ask /me for. A 401 here means that session is gone, and the 401 handler logs the person out.
-  // TODO(C-06): /me answers for whatever email it is sent. 13c asks for the session user's own profile instead.
+  // The server's session is the HttpOnly adric_session cookie, which page scripts cannot read; the marker only says a
+  // login exists, so /me is worth asking. /me answers for the session cookie's own account. A 401 here means that
+  // session is gone, and the 401 handler logs the person out.
+  // The three display cookies from before 13c are erased if present, so a browser that has only those (logged in
+  // before the update) is sent to /login once.
   useEffect(() => {
-    const sessionEmail = getCookie("session_user_email");
-    const lastActivityStr = getCookie("session_last_activity");
-    const sessionCreatedStr = getCookie("session_created");
-
-    if (sessionEmail && lastActivityStr && sessionCreatedStr) {
-      const now = Date.now();
-      const lastActivity = parseInt(lastActivityStr, 10);
-      const sessionCreated = parseInt(sessionCreatedStr, 10);
-
-      const oneDayMs = 24 * 60 * 60 * 1000;
-      const thirtyDaysMs = 30 * oneDayMs;
-
-      // Two limits: 24 hours without a page load, and 30 days in total.
-      if (now - lastActivity > oneDayMs) {
-        setRoleState(null);
-        eraseCookie("session_user_email");
-        eraseCookie("session_last_activity");
-        eraseCookie("session_created");
-        setRestoring(false);
-        alert("Session expired due to 24 hours of inactivity. Please log in again.");
-      } else if (now - sessionCreated > thirtyDaysMs) {
-        setRoleState(null);
-        eraseCookie("session_user_email");
-        eraseCookie("session_last_activity");
-        eraseCookie("session_created");
-        setRestoring(false);
-        alert("Your session has reached its 30-day limit. Please log in again.");
-      } else {
-        setCookie("session_last_activity", String(now), 1);
-        restoreSession(sessionEmail);
-      }
-    }
+    OLD_SESSION_COOKIES.forEach(eraseCookie);
+    if (getCookie(SESSION_MARKER_COOKIE)) restoreSession();
   }, []);
 
   const setCycleMode = (mode: "Annual" | "Trimestral") => {
@@ -301,24 +278,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } else {
       setRoleState(newRole);
       setSessionEnded(false);
-      setCookie("session_last_activity", String(Date.now()), 1);
-      // Login.tsx writes the email cookie before it calls setRole, so the profile can be loaded here.
-      const email = getCookie("session_user_email");
-      if (email) {
-        authApi.getMe(email)
-          .then(data => {
-            if (data.success && data.user) {
-              const img = data.user.userImg || data.user.profilePicture || data.user.avatarUrl;
-              setCurrentUser({
-                ...data.user,
-                profilePicture: img,
-                userImg: img,
-                avatarUrl: img
-              } as any);
-            }
-          })
-          .catch(() => { });
-      }
+      // The server answers /me for the session cookie login just set: the logged-in user's own profile.
+      authApi.getMe()
+        .then(data => {
+          if (data.success && data.user) {
+            const img = data.user.userImg || data.user.profilePicture || data.user.avatarUrl;
+            setCurrentUser({
+              ...data.user,
+              profilePicture: img,
+              userImg: img,
+              avatarUrl: img
+            } as any);
+          }
+        })
+        .catch(() => { });
     }
   };
 
@@ -327,7 +300,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (!currentUser) return;
     try {
       const data = await authApi.updateAccount({
-        email: currentUser.email,
         firstName,
         lastName,
         avatarUrl: profilePicture,

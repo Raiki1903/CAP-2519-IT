@@ -19,12 +19,11 @@ import { Archive } from "lucide-react";
  *
  * @param asset the asset to dispose of
  * @param onClose closes the dialog
- * @param requestedBy the signed-in Staff member's display name, sent as the requester
  * @param onSubmitted optional, called after the request is saved
  */
 // TODO(H-05): the server accepts a disposal for an asset that is on loan or already has a pending one (issue #54). Its own fix.
 // TODO(M-13): pathway, last custodian, and date are packed into one text column and parsed back with regex. Phase 3.
-export function DisposalFormDialog({ asset, onClose, requestedBy, onSubmitted }: { asset: any; onClose: () => void; requestedBy: string; onSubmitted?: () => void }) {
+export function DisposalFormDialog({ asset, onClose, onSubmitted }: { asset: any; onClose: () => void; onSubmitted?: () => void }) {
   const [form, setForm] = useState({
     lastCustodian: asset?.custodian || "",
     breakdownReasons: "",
@@ -40,7 +39,6 @@ export function DisposalFormDialog({ asset, onClose, requestedBy, onSubmitted }:
     setSubmitError(null);
     try {
       const data = await disposalsApi.requestDisposal(asset.id, {
-        requestedBy,
         lastCustodian: form.lastCustodian || "Unassigned",
         breakdownReasons: form.breakdownReasons.trim() || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
         disposalPathway: form.disposalPathway,

@@ -83,7 +83,7 @@ export function RepairsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  {["Priority", "Ticket ID", "Asset", "Custodian", "Submitted At", "Dispatched To", "Acknowledge State", "Actions"].map(h => (
+                  {["Priority", "Ticket ID", "Asset", "Reported by", "Submitted At", "Dispatched To", "Acknowledge State", "Actions"].map(h => (
                     <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>
                   ))}
                 </TableRow>
@@ -210,7 +210,7 @@ export function RepairsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  {["Priority", "Ticket ID", "Asset", "Custodian", "Submitted At", "Dispatched To", "Completion State", "Actions"].map(h => (
+                  {["Priority", "Ticket ID", "Asset", "Reported by", "Submitted At", "Dispatched To", "Completion State", "Actions"].map(h => (
                     <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>
                   ))}
                 </TableRow>

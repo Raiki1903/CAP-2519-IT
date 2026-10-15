@@ -470,7 +470,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
   // A lab may be stored as a full name, a short code, or "Name (CODE)", so this compares
   // all three forms loosely.
-  // TODO(M-02): scoping to the Lab Head's branch happens only here, in the browser; the server sends every lab's rows. Moves to the server (01D section 7) once requireAuth gives it the acting user, step 13 or later.
+  // TODO(M-02): scoping to the Lab Head's branch happens only here, in the browser; the server sends every lab's rows. Moves to the server (01D section 7) with lab scoping, after step 14 (a lab_id on assets).
   const matchesBranch = (lab: string | undefined | null) => {
     if (!lab) return false;
     const target = userLab.toLowerCase().trim();
@@ -806,7 +806,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                 <p className="text-[10px] font-bold text-primary mb-1">{eq.id}</p>
                 <p className="text-sm font-bold text-foreground leading-snug mb-2">{eq.name}</p>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{eq.custodian}</span>
+                  <span>{eq.custodian || "None"}</span>
                   <ConditionState value={eq.assetCondition} />
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">{eq.category} · {eq.location}</p>
@@ -832,7 +832,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                   <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{eq.category}</TableCell>
                   <TableCell><Badge className={cn("text-[10px]", statusClass[eq.status] ?? statusClass["Active"])}>{eq.status}</Badge></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{eq.custodian}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{eq.custodian || "None"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{eq.currentLocation || eq.location}</TableCell>
                   <TableCell><ConditionState value={eq.assetCondition} /></TableCell>
                   <TableCell><Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">{eq.funding}</Badge></TableCell>
@@ -908,7 +908,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                         <TableCell className="font-bold">{(a.assetCondition || "PERFECT").replace(/_/g, " ")}</TableCell>
                         <TableCell>{a.currentLocation || a.location}</TableCell>
                         <TableCell>{a.status}</TableCell>
-                        <TableCell className="font-medium text-emerald-950">{a.custodian || "Unassigned"}</TableCell>
+                        <TableCell className="font-medium text-emerald-950">{a.custodian || "None"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

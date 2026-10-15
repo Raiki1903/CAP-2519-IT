@@ -1,6 +1,7 @@
 /**
  * Repair controller: unpacks repair requests, calls the service, and writes the JSON answers.
- * Layer: controller. Called by repairs.routes.ts. Calls repairs.validation.ts and repairs.service.ts.
+ * Layer: controller. Called by repairs.routes.ts. Calls repairs.validation.ts, repairs.service.ts, and shared/middleware/requireAuth.ts
+ * (sessionUserOf: who is acting).
  * Used by: Custodian repair request, Staff repair queue and progress updates (repair dialog and analytics board).
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
@@ -8,9 +9,10 @@
 import type { Request, Response } from 'express';
 import * as repairsService from './repairs.service';
 import { checkRepairRequest, checkRepairStatus, checkRepairUpdate } from './repairs.validation';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles POST /api/assets/:assetTag/repair: opens a repair ticket.
+ * Handles POST /api/assets/:assetTag/repair: opens a repair ticket, reported by the session user.
  * Answers `{ success, repair }` with the new row, or the AppError's status and message
  * (400 no description, 409 same ticket within 8 seconds, 404 unknown tag), or 500.
  */
@@ -21,7 +23,7 @@ export async function requestRepair(req: Request<{ assetTag: string }>, res: Res
     console.log(`🚀 Server received repair request for ${assetTag}:`, data);
 
     checkRepairRequest(data);
-    const repair = await repairsService.requestRepair(assetTag, data);
+    const repair = await repairsService.requestRepair(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Repair request logged in MySQL successfully:", repair.repair_id, assetTag);
     res.json({ success: true, repair });

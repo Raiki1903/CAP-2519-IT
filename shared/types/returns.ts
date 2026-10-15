@@ -6,9 +6,6 @@
 
 /** The body of POST /api/assets/:assetTag/return, as ReturnForm sends it when Staff finalize a return. */
 export interface ReturnInput {
-  /** Display name of the person returning the asset. */
-  // TODO(H-10): the server resolves this name to a user by matching text, and an unknown or missing name becomes user 1 (issue #32). The session user after step 13.
-  returnedBy?: string;
   /** One of ASSET_CONDITIONS from shared/enums/assetCondition.ts. The server refuses any other value. */
   condition: string;
   /** Inspection notes. Stored on the return and as the asset's new remarks. */

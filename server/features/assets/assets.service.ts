@@ -1,29 +1,37 @@
 /**
  * Assets service: the rules for the asset list, the custodian history, registration (with its tag), edits, and deletion.
  * Layer: service. Called by assets.controller.ts. Calls assets.repository.ts, features/auth/auth.repository.ts,
- * assets.validation.ts, shared/constants/defaultCustodian.ts, and @shared/enums.
+ * assets.validation.ts, shared/constants/poolCustodian.ts, and @shared/enums.
  * Used by: every role's inventory view and the bell, the asset detail modal, Staff asset registration, editing, and deletion.
  */
 import type { asset_records, assets } from '@prisma/client';
 import type { AssetCreateInput, AssetListItem, AssetUpdateInput, CustodianHistory } from '@shared/types/assets';
+import type { SessionIdentity } from '@shared/types/auth';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import * as assetsRepository from './assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { checkAssetImage } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
-import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
+import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 
 /**
  * Lists every asset with its current state, shaped for the screens.
  * Each asset's state is read from its newest record (ties on date_logged go to the higher asset_record_id),
  * its due date from the newest approved loan, and its disposal details from the disposal's packed reason text.
+ * A Custodian gets no other person's name (D2): not the holder of an asset they do not hold (which is marked
+ * `custodianHidden` instead), not the disposal's last custodian or requester, and inside each asset not the
+ * custodian of a record, the people of a transfer they are not part of, or the reporter of a report.
  *
+ * @param viewer the session user
  * @returns one AssetListItem per assets row, with its records, transfers, and reports
  */
 // TODO(M-01): nine whole tables are loaded and joined in code on every call, and most screens call it. 01D rewrites it as targeted queries, in its own commit (issue #76).
 // TODO(H-13): reporterRole reads a `role` field users does not have, so it is always "Inspection Inspector"; and the condition score checks spellings the condition enum does not have. A small fix.
-export async function listAssets(): Promise<AssetListItem[]> {
+export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem[]> {
+    // Whether this caller may see the name of the person with this id: everyone but a Custodian sees every name. (D2)
+    const nameShown = (userId: number) => viewer.role !== "Custodian" || userId === viewer.userId;
+
     const [dbAssets, dbMonetaries, dbRecords, dbUsers, dbLoans, dbDisposals, dbTransfers, dbReports, dbProjects] = await assetsRepository.findListTables();
 
     const formatDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -37,6 +45,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
         const latestRecord = records[0];
 
         let custodianName = "";
+        let custodianHidden = false;
         let status = "Active";
         let location = "Manila";
         let lab = "CITe4D";
@@ -45,8 +54,13 @@ export async function listAssets(): Promise<AssetListItem[]> {
         let daysLeft: number | undefined;
 
         if (latestRecord) {
-            const custodian = dbUsers.find(u => u.user_id === latestRecord.current_custodian);
-            if (custodian) {
+            // The placeholder stands for "nobody holds it", so it is not named. (answer 1 of the 13c questions)
+            const custodian = latestRecord.current_custodian === POOL_CUSTODIAN_ID
+                ? undefined
+                : dbUsers.find(u => u.user_id === latestRecord.current_custodian);
+            if (custodian && !nameShown(custodian.user_id)) {
+                custodianHidden = true;
+            } else if (custodian) {
                 custodianName = `${custodian.first_name} ${custodian.last_name}`;
             }
 
@@ -82,6 +96,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
             (d.asset_id === asset.asset_id && d.status === "approved")
         );
         const disposerUser = disposal ? dbUsers.find(u => u.user_id === disposal.disposed_by_id) : null;
+        const disposerHidden = !!disposerUser && !nameShown(disposerUser.user_id);
 
         let disposalDetails: any = undefined;
         if (disposal) {
@@ -92,11 +107,11 @@ export async function listAssets(): Promise<AssetListItem[]> {
             const justification = justificationMatch ? justificationMatch[1].trim() : reasonText;
 
             disposalDetails = {
-                lastCustodian: custodianName || "No Custodian",
+                lastCustodian: custodianHidden ? undefined : (custodianName || "No Custodian"),
                 breakdownReasons: justification || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
                 disposalPathway: pathway,
                 decommissionDate: formatDate(disposal.disposal_date),
-                decommissionedBy: disposerUser ? `${disposerUser.first_name} ${disposerUser.last_name}` : "AdRIC Director",
+                decommissionedBy: disposerHidden ? undefined : (disposerUser ? `${disposerUser.first_name} ${disposerUser.last_name}` : "AdRIC Director"),
             };
         }
 
@@ -121,7 +136,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
                 condition: r.asset_condition,
                 location: r.location,
                 currentLocation: r.current_location || undefined,
-                custodian: cUser ? `${cUser.first_name} ${cUser.last_name}` : "System Custodian",
+                custodian: cUser ? (nameShown(cUser.user_id) ? `${cUser.first_name} ${cUser.last_name}` : undefined) : "System Custodian",
                 remarks: r.Asset_Remarks || "Log entry recorded in asset lifecycle registry."
             };
         });
@@ -130,6 +145,8 @@ export async function listAssets(): Promise<AssetListItem[]> {
         const mappedTransfers = assetTransfers.map(t => {
             const fromUser = dbUsers.find(u => u.user_id === t.from_custodian_id);
             const toUser = dbUsers.find(u => u.user_id === t.to_custodian_id);
+            // As in GET /api/asset_transfers: a Custodian sees both names only on a transfer they are part of.
+            const namesShown = nameShown(t.from_custodian_id) || nameShown(t.to_custodian_id);
             return {
                 transfer_id: t.transfer_id,
                 id: `TR-${t.transfer_id}`,
@@ -137,8 +154,8 @@ export async function listAssets(): Promise<AssetListItem[]> {
                 assetId: asset.asset_tag,
                 from_custodian_id: t.from_custodian_id,
                 to_custodian_id: t.to_custodian_id,
-                from: fromUser ? `${fromUser.first_name} ${fromUser.last_name}` : `Custodian ID: ${t.from_custodian_id}`,
-                to: toUser ? `${toUser.first_name} ${toUser.last_name}` : `Custodian ID: ${t.to_custodian_id}`,
+                from: !namesShown ? undefined : fromUser ? `${fromUser.first_name} ${fromUser.last_name}` : `Custodian ID: ${t.from_custodian_id}`,
+                to: !namesShown ? undefined : toUser ? `${toUser.first_name} ${toUser.last_name}` : `Custodian ID: ${t.to_custodian_id}`,
                 requested_on: t.requested_on ? formatDate(t.requested_on) : "N/A",
                 initiated: t.requested_on ? formatDate(t.requested_on) : "N/A",
                 created_at: t.requested_on ? t.requested_on.toISOString() : new Date().toISOString(),
@@ -155,7 +172,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
                 id: r.report_id,
                 reportId: `RPT-${r.report_id}`,
                 assetId: asset.asset_tag,
-                reportedBy: rUser ? `${rUser.first_name} ${rUser.last_name}` : "Staff",
+                reportedBy: rUser ? (nameShown(rUser.user_id) ? `${rUser.first_name} ${rUser.last_name}` : undefined) : "Staff",
                 reporterRole: rUser?.role || "Inspection Inspector",
                 reportDate: r.report_date ? formatDate(r.report_date) : "N/A",
                 date_logged: r.report_date ? formatDate(r.report_date) : "N/A",
@@ -186,6 +203,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
             condition: calculatedCondition,
             assetCondition: latestRecord?.asset_condition || "PERFECT",
             custodian: custodianName || undefined,
+            custodianHidden: custodianHidden ? (true as const) : undefined,
             borrowedOn,
             dueDate,
             daysLeft,
@@ -218,13 +236,16 @@ export async function listAssets(): Promise<AssetListItem[]> {
 /**
  * Who has held an asset, oldest first: one entry per asset record, with its custodian.
  * The tag is tried as an asset id when no asset has it, as the inspection route does.
+ * A Custodian gets the name and email only of their own entries; another holder's entry has neither and is marked
+ * `custodianHidden` (answer 6 of the 13c questions).
  *
  * @param assetTag the asset's tag, or its numeric id
+ * @param viewer the session user
  * @returns the asset's tag and name and the entries, numbered from 1
  * @throws AppError 404 if neither the tag nor the id matches an asset
  */
-// TODO(C-02): each entry carries the custodian's email and id number, sent to any signed-in user (01C 4.2). Strip them (issue #72).
-export async function custodianHistory(assetTag: string): Promise<CustodianHistory> {
+// TODO(C-02): each entry carries the custodian's email, sent to a Lab Head, Staff, or Director (01C 4.2). Strip it (issue #72).
+export async function custodianHistory(assetTag: string, viewer: SessionIdentity): Promise<CustodianHistory> {
     let asset = await assetsRepository.findByTag(assetTag);
 
     if (!asset && !isNaN(Number(assetTag))) {
@@ -241,16 +262,19 @@ export async function custodianHistory(assetTag: string): Promise<CustodianHisto
 
     for (let i = 0; i < records.length; i++) {
         const r = records[i];
-        const custodianName = r.users ? `${r.users.first_name} ${r.users.last_name}` : "Unknown Custodian";
-        const custodianEmail = r.users ? r.users.email : "";
-        const custodianId = r.users ? r.users.id_number : "";
+        // An entry held by the placeholder ("nobody holds it") names no one: no name and no email.
+        // No entry carries the holder's id number: no screen shows it (answer 6 of the 13c questions).
+        const holder = r.current_custodian === POOL_CUSTODIAN_ID ? null : r.users;
+        const hidden = !!holder && viewer.role === "Custodian" && holder.user_id !== viewer.userId;
+        const custodianName = hidden ? undefined : holder ? `${holder.first_name} ${holder.last_name}` : (r.users ? undefined : "Unknown Custodian");
+        const custodianEmail = hidden ? undefined : holder ? holder.email : (r.users ? undefined : "");
 
         history.push({
             sequence: i + 1,
             recordId: r.asset_record_id,
             custodianName,
             custodianEmail,
-            custodianId,
+            custodianHidden: hidden ? (true as const) : undefined,
             status: r.status,
             location: r.location,
             currentLocation: r.current_location || undefined,
@@ -353,8 +377,8 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
             location: [data.location, data.lab].filter(Boolean).join(" — ") || "Unassigned",
             // A new asset is at its home lab. Only loans, transfers, and repairs move it away.
             current_location: [data.location, data.lab].filter(Boolean).join(" — ") || "Unassigned",
-            // TODO(H-10): the first custodian is whatever id the body sends, or user 1. The session user, step 13.
-            current_custodian: data.custodianId ?? DEFAULT_CUSTODIAN_ID,
+            // The custodian id the body sends, else the placeholder: a new asset is held by nobody until a loan or transfer.
+            current_custodian: data.custodianId ?? POOL_CUSTODIAN_ID,
             Asset_Remarks: data.remarks || data.description || data.tsgRemarks || data.itsRemarks || null,
         },
     );
@@ -370,19 +394,20 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the body; every field is optional
+ * @param editorId the session user, under whom the edit's condition report is filed
  * @returns the assets row, updated or as it was
  * @throws AppError 404 if no asset has this tag
  * @throws AppError 400 if the picture is text but not an image
  */
-export async function updateAsset(assetTag: string, data: AssetUpdateInput): Promise<assets> {
+export async function updateAsset(assetTag: string, data: AssetUpdateInput, editorId: number): Promise<assets> {
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // The dialog sends the custodian as a display name ("Dr. Juan Dela Cruz"). It is split and matched like the
-    // other typed names; no match leaves the record's custodian as it is (but files the report under user 1).
-    // TODO(H-10): two people with the same name cannot be told apart (issue #32). The session user and an id, step 13.
+    // The dialog sends the new custodian as a display name ("Dr. Juan Dela Cruz"): a target, not the person acting.
+    // It is split at the first space and matched exactly; no match leaves the record's custodian as it is.
+    // TODO(H-10): two people with the same name cannot be told apart, and a two-word first name never matches (issue #32). A person picker, on a branch after step 13 (answer 8).
     let custodianId: number | undefined;
     if (data.custodian) {
         const [first, ...rest] = String(data.custodian).replace(/^Dr\.\s*/i, "").split(" ");
@@ -433,7 +458,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
         const recordData = {
             status: (data.status?.toUpperCase().replace(" ", "_") || latestRecord?.status || "ACTIVE") as any,
             location: [data.location, data.lab].filter(Boolean).join(" — ") || latestRecord?.location || "Unassigned",
-            current_custodian: custodianId ?? latestRecord?.current_custodian ?? DEFAULT_CUSTODIAN_ID,
+            current_custodian: custodianId ?? latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
             asset_condition: (ASSET_CONDITIONS.includes(data.assetCondition) ? data.assetCondition : latestRecord?.asset_condition ?? "PERFECT") as any,
             Asset_Remarks: remarksVal,
         };
@@ -463,8 +488,8 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
             report: {
                 data: {
                     asset_id: existing.asset_id,
-                    // Filed under the custodian named in the edit, else user 1, not under whoever made the edit.
-                    reported_by_id: custodianId ?? DEFAULT_CUSTODIAN_ID,
+                    // Filed under the Staff member who made the edit. (issue #32)
+                    reported_by_id: editorId,
                     report_condition: condition,
                     report_remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
                     report_img: imageVal || null,

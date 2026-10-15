@@ -78,7 +78,8 @@ export interface AssetListRecord {
   condition: string;
   location: string;
   currentLocation?: string;
-  custodian: string;
+  /** The record's custodian. Left out for a Custodian when it is someone else. (D2) */
+  custodian?: string;
   remarks: string;
 }
 
@@ -90,8 +91,9 @@ export interface AssetListTransfer {
   assetId: string;
   from_custodian_id: number;
   to_custodian_id: number;
-  from: string;
-  to: string;
+  /** Left out, with `to`, for a Custodian not part of the transfer. (D2) */
+  from?: string;
+  to?: string;
   requested_on: string;
   initiated: string;
   created_at: string;
@@ -105,7 +107,8 @@ export interface AssetListReport {
   id: number;
   reportId: string;
   assetId: string;
-  reportedBy: string;
+  /** Left out for a Custodian when someone else reported it. (D2) */
+  reportedBy?: string;
   reporterRole: string;
   reportDate: string;
   date_logged: string;
@@ -118,11 +121,13 @@ export interface AssetListReport {
 
 /** The disposal details of a disposed asset in GET /api/assets. */
 export interface AssetDisposalDetails {
-  lastCustodian: string;
+  /** Left out for a Custodian when it is someone else (D2); "No Custodian" when nobody held it. */
+  lastCustodian?: string;
   breakdownReasons: string;
   disposalPathway: string;
   decommissionDate: string;
-  decommissionedBy: string;
+  /** Left out for a Custodian when it is someone else. (D2) */
+  decommissionedBy?: string;
 }
 
 /** One asset of GET /api/assets: the asset with its current state, built from its newest record. */
@@ -148,7 +153,10 @@ export interface AssetListItem {
   condition: number;
   /** The newest record's condition, as stored. */
   assetCondition: string;
+  /** The holder's full name. Left out when nobody holds the asset (the placeholder custodian), and when it is hidden. */
   custodian?: string;
+  /** True when someone holds the asset but the caller, a Custodian, may not see who (D2). Left out otherwise. */
+  custodianHidden?: true;
   borrowedOn?: string;
   dueDate?: string;
   daysLeft?: number;
@@ -173,11 +181,12 @@ export interface AssetListItem {
 export interface CustodianHistoryEntry {
   sequence: number;
   recordId?: number;
-  custodianName: string;
-  // TODO(C-02): the custodian's email and id number go to any signed-in user (01C 4.2). Strip them (issue #72).
-  custodianEmail: string;
-  /** The custodian's id number (users.id_number), not users.user_id. */
-  custodianId?: number | string;
+  /** Left out when the placeholder custodian holds the asset at this entry (nobody holds it), and when it is hidden. */
+  custodianName?: string;
+  // TODO(C-02): the custodian's email goes to a Lab Head, Staff, or Director (01C 4.2). Strip it (issue #72).
+  custodianEmail?: string;
+  /** True when a Custodian asks and this entry's holder is someone else: no name, no email. (answer 6) */
+  custodianHidden?: true;
   status: string;
   location: string;
   currentLocation?: string;

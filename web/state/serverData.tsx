@@ -43,11 +43,25 @@ export interface RepairRequest {
 
 /** How and when a disposed asset left the registry. Present on an asset only once it is disposed. */
 export interface DisposalDetails {
-  lastCustodian: string;
+  /** Left out for a Custodian when it is someone else. (D2) */
+  lastCustodian?: string;
   breakdownReasons: string;
   disposalPathway: string;
   decommissionDate: string;
-  decommissionedBy: string;
+  /** Left out for a Custodian when it is someone else. (D2) */
+  decommissionedBy?: string;
+}
+
+/**
+ * What a screen shows for an asset's holder: the name, "Not shown" when the caller (a Custodian) may not see who
+ * holds it (D2), or "None" when nobody holds it (the server sends no name for its placeholder custodian).
+ *
+ * @param name the holder's name as the server sent it, if any
+ * @param hidden the server's custodianHidden mark
+ * @returns the text to show
+ */
+export function holderLabel(name: string | undefined, hidden?: boolean): string {
+  return name || (hidden ? "Not shown" : "None");
 }
 
 /** One asset as `GET /api/assets` returns it for display. */
@@ -72,6 +86,8 @@ export interface Asset {
   condition: number;
   descriptiveCondition?: string;
   custodian?: string;
+  /** True when someone holds the asset but the caller, a Custodian, may not see who. (D2) */
+  custodianHidden?: boolean;
   borrowedOn?: string;
   dueDate?: string;
   daysLeft?: number;
@@ -264,7 +280,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   const addRepairRequest = async (req: RepairRequest) => {
     try {
       await repairsApi.requestRepairRaw(req.assetId, {
-        reportedBy: req.custodian,
         description: req.description,
         isImmediate: req.priority === "Critical" || req.statusLabel === "Disposal Recommendation",
       });
