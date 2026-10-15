@@ -4,6 +4,7 @@
  * Used by: every API test file, which gets its own server on its own free port.
  */
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
@@ -14,6 +15,11 @@ import { REPO_ROOT, type TestDatabaseConfig } from "./testDatabase";
 
 const STARTUP_TIMEOUT_MS = 60_000;
 const MAX_OUTPUT_CHARS = 20_000;
+
+/** The session secret every test server gets: made fresh for each test file, never the one in .env. */
+export const TEST_SESSION_SECRET = randomBytes(32).toString("hex");
+/** The web origin every test server gets, the default the app uses. */
+export const TEST_WEB_ORIGIN = "http://localhost:5173";
 
 /** A running backend. */
 export interface RunningServer {
@@ -64,6 +70,8 @@ export function buildServerEnv(config: TestDatabaseConfig, port: number): NodeJS
     MAILGUN_API_KEY: "",
     MAILGUN_DOMAIN: "",
     MAILGUN_FROM: "",
+    SESSION_SECRET: TEST_SESSION_SECRET,
+    WEB_ORIGIN: TEST_WEB_ORIGIN,
     PORT: String(port),
     // The server runs from a temporary folder, where tsx would not find tsconfig.json
     // and so could not resolve the @shared/* imports.
