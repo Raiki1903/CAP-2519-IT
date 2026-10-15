@@ -148,6 +148,7 @@ export interface AssetListItem {
   condition: number;
   /** The newest record's condition, as stored. */
   assetCondition: string;
+  /** The holder's full name. Left out when nobody holds the asset (the placeholder custodian). */
   custodian?: string;
   borrowedOn?: string;
   dueDate?: string;
@@ -173,9 +174,10 @@ export interface AssetListItem {
 export interface CustodianHistoryEntry {
   sequence: number;
   recordId?: number;
-  custodianName: string;
+  /** Left out when the placeholder custodian holds the asset at this entry (nobody holds it). */
+  custodianName?: string;
   // TODO(C-02): the custodian's email and id number go to any signed-in user (01C 4.2). Strip them (issue #72).
-  custodianEmail: string;
+  custodianEmail?: string;
   /** The custodian's id number (users.id_number), not users.user_id. */
   custodianId?: number | string;
   status: string;

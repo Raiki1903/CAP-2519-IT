@@ -148,7 +148,8 @@ describe("POST /api/assets/:tag/borrow", () => {
     });
     expect(await db.asset_loans.count({ where: { asset_id: asset.assetId, status: "pending" } })).toBe(1);
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active", custodian: USERS.admin.fullName });
+    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active" });
+    expect((await listedAsset(asset.tag)).custodian).toBeUndefined();
   });
 
   it("stores the purpose as typed when no lab is sent", async () => {
@@ -300,7 +301,8 @@ describe("PUT /api/asset_loans/:id/decision", () => {
     expect(res.status).toBe(200);
     expect(res.body.loan.status).toBe("declined");
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active", custodian: USERS.admin.fullName });
+    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active" });
+    expect((await listedAsset(asset.tag)).custodian, "still the placeholder's: nobody holds it").toBeUndefined();
   });
 
   it("after an approval the asset is on loan, so a new borrow request answers 409 (issue #25)", async () => {

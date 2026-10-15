@@ -45,7 +45,10 @@ export async function listAssets(): Promise<AssetListItem[]> {
         let daysLeft: number | undefined;
 
         if (latestRecord) {
-            const custodian = dbUsers.find(u => u.user_id === latestRecord.current_custodian);
+            // The placeholder stands for "nobody holds it", so it is not named. (answer 1 of the 13c questions)
+            const custodian = latestRecord.current_custodian === POOL_CUSTODIAN_ID
+                ? undefined
+                : dbUsers.find(u => u.user_id === latestRecord.current_custodian);
             if (custodian) {
                 custodianName = `${custodian.first_name} ${custodian.last_name}`;
             }
@@ -241,9 +244,11 @@ export async function custodianHistory(assetTag: string): Promise<CustodianHisto
 
     for (let i = 0; i < records.length; i++) {
         const r = records[i];
-        const custodianName = r.users ? `${r.users.first_name} ${r.users.last_name}` : "Unknown Custodian";
-        const custodianEmail = r.users ? r.users.email : "";
-        const custodianId = r.users ? r.users.id_number : "";
+        // An entry held by the placeholder ("nobody holds it") names no one: no name, email, or id number.
+        const holder = r.current_custodian === POOL_CUSTODIAN_ID ? null : r.users;
+        const custodianName = holder ? `${holder.first_name} ${holder.last_name}` : (r.users ? undefined : "Unknown Custodian");
+        const custodianEmail = holder ? holder.email : (r.users ? undefined : "");
+        const custodianId = holder ? holder.id_number : (r.users ? undefined : "");
 
         history.push({
             sequence: i + 1,

@@ -38,7 +38,6 @@ describe("GET /api/assets", () => {
       location: "Manila",
       lab: LAB.shortCode,
       currentLocation: LAB.homeLocation,
-      custodian: USERS.admin.fullName,
       condition: 100,
       assetCondition: "PERFECT",
       cost: ASSETS.available.acquisitionValue,
@@ -47,6 +46,8 @@ describe("GET /api/assets", () => {
       procured: "2025-06-01",
       warranty: "2027-06-01",
     });
+    // Held by the placeholder custodian: nobody holds it, so no name is sent. (answer 1)
+    expect((await listedAsset(ASSETS.available.tag)).custodian).toBeUndefined();
   });
 
   it("shows each seeded asset in its seeded state", async () => {
@@ -92,7 +93,7 @@ describe("GET /api/assets", () => {
     expect(listed.status).toBe("Disposed");
     expect(listed.disposalId).toBe(`DISP-${SEEDED_ROWS.disposalId}`);
     expect(listed.disposalDetails).toMatchObject({
-      lastCustodian: USERS.admin.fullName,
+      lastCustodian: "No Custodian",
       disposalPathway: "Test pathway",
       breakdownReasons: "Test breakdown: the board is burnt",
       decommissionedBy: USERS.staffTsg.fullName,
@@ -156,7 +157,6 @@ describe("GET /api/assets/:tag/custodian-history", () => {
     expect(res.body.custodianHistory).toMatchObject([
       {
         sequence: 1,
-        custodianName: USERS.admin.fullName,
         status: "ACTIVE",
         location: LAB.homeLocation,
         condition: "PERFECT",
@@ -173,6 +173,10 @@ describe("GET /api/assets/:tag/custodian-history", () => {
         isCurrent: true,
       },
     ]);
+    // The first entry is the placeholder custodian's: no name, email, or id number. (answer 1)
+    expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianName");
+    expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianEmail");
+    expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianId");
   });
 
   it("includes each custodian's email and id number (known defect, 01C 4.2)", async () => {

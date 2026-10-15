@@ -78,7 +78,7 @@ describe("GET /api/asset_returns", () => {
 });
 
 describe("POST /api/assets/:tag/return", () => {
-  it("records the return and puts the asset back in the pool: ACTIVE, the reported condition, user 1, back at its home lab", async () => {
+  it("records the return and puts the asset back in the pool: ACTIVE, the reported condition, the placeholder custodian (user 1), back at its home lab", async () => {
     const asset = await addExtraAsset(db, {
       tag: "TEST-0201",
       status: "ON_LOAN",
@@ -106,7 +106,8 @@ describe("POST /api/assets/:tag/return", () => {
       current_location: LAB.homeLocation,
       Asset_Remarks: "Test return comment",
     });
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active", custodian: USERS.admin.fullName });
+    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active" });
+    expect((await listedAsset(asset.tag)).custodian, "nobody holds it: no name").toBeUndefined();
   });
 
   it("finalizing a return leaves the loan open (known defect H-04)", async () => {
