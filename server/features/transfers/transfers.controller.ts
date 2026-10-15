@@ -7,12 +7,14 @@
  */
 import type { Request, Response } from 'express';
 import * as transfersService from './transfers.service';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 import { checkTransferDecision, checkTransferRequest } from './transfers.validation';
 
 /**
  * Handles POST /api/assets/:assetTag/transfer: files a pending transfer request, then emails the recipient.
  * Answers `{ success, transfer }` with the new row, or the AppError's status and message
- * (400 missing field, 404 unknown tag or recipient email, 409 refused by the custody request guard), or 500.
+ * (400 missing field, 404 unknown tag or recipient email, 409 refused by the custody request guard, 403 the caller
+ * does not hold the asset), or 500.
  */
 export async function requestTransfer(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
@@ -21,7 +23,7 @@ export async function requestTransfer(req: Request<{ assetTag: string }>, res: R
     console.log(`🚀 Server received transfer request for ${assetTag}:`, data);
 
     checkTransferRequest(data);
-    const { transfer, asset, recipient } = await transfersService.requestTransfer(assetTag, data);
+    const { transfer, asset, recipient } = await transfersService.requestTransfer(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Transfer request logged in MySQL successfully:", transfer.transfer_id, assetTag);
     res.json({ success: true, transfer });

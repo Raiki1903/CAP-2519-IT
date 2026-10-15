@@ -1,7 +1,7 @@
 /**
  * Transfers service: the business rules for custodianship transfer requests, decisions, and the transfer list.
  * Layer: service. Called by transfers.controller.ts. Calls transfers.repository.ts, features/assets/assets.repository.ts,
- * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/services/mailer.ts, shared/utils/campus.ts, and shared/constants/poolCustodian.ts.
+ * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/services/mailer.ts, and shared/utils/campus.ts.
  * Used by: Custodian transfer request, Lab Head approval (Custody tab and the bell), and the screens that list transfers.
  */
 import type { Prisma, asset_records, asset_transfers, assets, users } from '@prisma/client';
@@ -10,7 +10,6 @@ import * as transfersRepository from './transfers.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
-import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 import { campusForLab } from '../../shared/utils/campus';
 import { findCustodyRequestConflict } from '../../shared/services/custodyRequestGuard';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
@@ -18,6 +17,11 @@ import { sendEmail, emailTemplate } from '../../shared/services/mailer';
 // Transfers are kept exactly as they are until the custodianship queue replaces them (issue #22,
 // decided 2026-10-04): the custodian will release the asset to Staff, and Staff assign the next one.
 // That is why no Lab Head approval rule is added here, though the screens give the decision to the Lab Head.
+// The one rule added since (13c, answer 3): only the asset's current custodian may request its transfer. The team
+// replaces asset_transfers with the queue after step 14, so the rule is there for UAT until then.
+
+/** The 403 message when the caller does not hold the asset. */
+export const NOT_THE_HOLDER_MESSAGE = "Only the asset's current custodian can request its transfer.";
 
 /**
  * Files a pending transfer request for an asset.
@@ -27,13 +31,16 @@ import { sendEmail, emailTemplate } from '../../shared/services/mailer';
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the checked transfer body: recipient email, reason, optional destination lab
+ * @param requesterId the session user, who must hold the asset in its latest record (01C 4.3, "current custodian only")
  * @returns the created row, plus the asset and recipient for the email the controller sends after answering
  * @throws AppError 404 if no asset has this tag, or no account has the recipient email
  * @throws AppError 409 if the guard refuses the request
+ * @throws AppError 403 if the caller does not hold the asset (an asset nobody holds included)
  */
 export async function requestTransfer(
     assetTag: string,
     data: TransferRequestInput,
+    requesterId: number,
 ): Promise<{ transfer: asset_transfers; asset: assets; recipient: users }> {
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
@@ -47,9 +54,13 @@ export async function requestTransfer(
         throw new AppError(409, conflict);
     }
 
-    // The custodian the asset leaves is whoever holds it in its latest record, not anyone named in the request.
+    // The custodian the asset leaves is whoever holds it in its latest record, and only they may ask. An asset held
+    // by the placeholder (nobody holds it) or with no record is refused the same way. (answer 3 of the 13c questions)
     const latestRecord = await assetsRepository.findLatestRecord(existing.asset_id);
-    const fromCustodianId = latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID;
+    if (!latestRecord || latestRecord.current_custodian !== requesterId) {
+        throw new AppError(403, NOT_THE_HOLDER_MESSAGE);
+    }
+    const fromCustodianId = requesterId;
 
     // The recipient is looked up by email and must exist, unlike the typed-name lookups elsewhere
     // that fall back to user 1: the recipient becomes the asset's custodian on approval.
