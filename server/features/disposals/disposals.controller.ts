@@ -7,6 +7,7 @@
  */
 import type { Request, Response } from 'express';
 import * as disposalsService from './disposals.service';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 import { checkDisposalDecision, checkDisposalRequest } from './disposals.validation';
 
 /**
@@ -21,13 +22,14 @@ export async function requestDisposal(req: Request<{ assetTag: string }>, res: R
     console.log(`🚀 Server received disposal request for ${assetTag}:`, data);
 
     checkDisposalRequest(data);
-    const { disposal, asset } = await disposalsService.requestDisposal(assetTag, data);
+    const requesterId = sessionUserOf(req).userId;
+    const { disposal, asset } = await disposalsService.requestDisposal(assetTag, data, requesterId);
 
     console.log("✅ Disposal request logged in MySQL successfully:", disposal.disposal_id, assetTag);
     res.json({ success: true, disposal });
 
     // Sent after the answer and not awaited, so a slow mail service never delays it. sendEmail catches its own send failures.
-    disposalsService.notifyDirector(asset, assetTag, data);
+    disposalsService.notifyDirector(asset, assetTag, data, requesterId);
 }
 
 /**

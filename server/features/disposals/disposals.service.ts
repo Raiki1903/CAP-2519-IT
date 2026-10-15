@@ -19,7 +19,8 @@ import { sendEmail, emailTemplate } from '../../shared/services/mailer';
  * approves (decideDisposal), so it keeps its status and custodian while the request is pending.
  *
  * @param assetTag the asset's tag, from the URL
- * @param data the checked disposal body: requester name, pathway, justification, optional last custodian and date
+ * @param data the checked disposal body: pathway, justification, optional last custodian and date
+ * @param disposedById the session user, who requests the disposal; any requester name in the body is ignored (issue #32)
  * @returns the created row, plus the asset for the email the controller sends after answering
  * @throws AppError 404 if no asset has this tag
  */
@@ -27,20 +28,11 @@ import { sendEmail, emailTemplate } from '../../shared/services/mailer';
 export async function requestDisposal(
     assetTag: string,
     data: DisposalRequestInput,
+    disposedById: number,
 ): Promise<{ disposal: asset_disposals; asset: assets }> {
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
-    }
-
-    // The form sends the requester as a typed name, split and matched the same way as the borrower
-    // of a loan. disposed_by_id is a required foreign key, so no name or no match becomes DEFAULT_CUSTODIAN_ID.
-    // TODO(H-10): two people with the same name cannot be told apart, and a typo files the request under user 1 (issue #32). The requester comes from the session after step 13.
-    let disposedById = DEFAULT_CUSTODIAN_ID;
-    if (data.requestedBy) {
-        const [first, ...rest] = String(data.requestedBy).replace(/^Dr\.\s*/i, "").split(" ");
-        const match = await authRepository.findUserByName(first, rest.join(" "));
-        if (match) disposedById = match.user_id;
     }
 
     // asset_disposals has one text column for all of this, so the fields are written as labelled
@@ -66,20 +58,24 @@ export async function requestDisposal(
 }
 
 /**
- * Emails every holder of the ADRIC_DIRECTOR role that a disposal was filed. With nobody in the role,
- * or mail off, the mailer logs and skips it.
+ * Emails every holder of the ADRIC_DIRECTOR role that a disposal was filed, naming the requester. With nobody in
+ * the role, or mail off, the mailer logs and skips it.
  *
+ * @param requesterId the session user who filed it; "Staff" is named if that account is gone
  * @returns when the send was attempted or skipped; the controller does not wait for it
  */
-// The role lookup runs after the answer was sent, and nothing catches it: if that database read fails,
+// The role and requester lookups run after the answer was sent, and nothing catches them: if a database read fails,
 // the rejection is unhandled, which stops the Node process by default. A small fix (catch and log it), outside the restructure.
 // TODO(H-20): the asset name, requester, and pathway go into the email HTML unescaped. Step 13 (shared escaping).
-export function notifyDirector(asset: assets, assetTag: string, data: DisposalRequestInput): Promise<void> {
-    return authRepository.getRoleEmails("ADRIC_DIRECTOR").then(emails => sendEmail(
+export function notifyDirector(asset: assets, assetTag: string, data: DisposalRequestInput, requesterId: number): Promise<void> {
+    return Promise.all([
+        authRepository.getRoleEmails("ADRIC_DIRECTOR"),
+        authRepository.findUserById(requesterId),
+    ]).then(([emails, requester]) => sendEmail(
         emails,
         `New Disposal Request — ${asset.name} (${assetTag})`,
         emailTemplate("New Disposal Approval Request", `
-                <p><strong>${data.requestedBy || "Staff"}</strong> has requested to decommission <strong>${asset.name}</strong> (${assetTag}).</p>
+                <p><strong>${requester ? `${requester.first_name} ${requester.last_name}` : "Staff"}</strong> has requested to decommission <strong>${asset.name}</strong> (${assetTag}).</p>
                 <p><strong>Disposal Pathway:</strong> ${data.disposalPathway}</p>
                 <p>Please review this request in the Clearance & Disposal tab of your dashboard.</p>
             `)
