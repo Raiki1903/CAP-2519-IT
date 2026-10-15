@@ -4,7 +4,7 @@
  * Calls api/auth.api.ts and api/client.ts (the 401 handler). Holds no asset, loan, or other workflow data: that is serverData.tsx.
  * Used by: every role.
  */
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import type { Role, StaffUnit } from "@shared/enums/role";
 import * as authApi from "../api/auth.api";
 import { setUnauthorizedHandler } from "../api/client";
@@ -144,7 +144,8 @@ const SessionContext = createContext<SessionContextType | null>(null);
  * - `role`, `currentUser`: null while logged out.
  * - `setRole(role)`: logs in (loads the profile with authApi.getMe) or, with null, logs out on the server
  *   (authApi.logout) and clears the display cookies.
- * - `sessionEnded`: true after the server refused the session (any 401), until the next login.
+ * - `sessionEnded`: true after the server refused the session (a 401 while this tab was logged in or restoring),
+ *   until the next login.
  * - `restoring`: true while a page load waits for /me, so RootLayout does not redirect yet (issue #49).
  *   `restoreAttempt` says which try it is on.
  * - `restoreFailed`, `retryRestore()`: every try failed for a reason other than a 401 (a 500, no answer, a network
@@ -164,6 +165,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
   const [restoreAttempt, setRestoreAttempt] = useState(1);
   const [restoreFailed, setRestoreFailed] = useState(false);
+
+  // Whether this tab has a session to lose: someone logged in here, or a page load restoring one. The 401 handler
+  // reads it to decide on the notice. Not the display cookies: every tab shares them, and a logout in another tab
+  // has already erased them. A ref, because the handler is registered once and must see the latest value.
+  const hasSessionHere = useRef(false);
+  hasSessionHere.current = role !== null || currentUser !== null || restoring;
 
   // Keeps the display cookies on a failure: the server's session cookie may well still be valid.
   const restoreSession = async (email: string) => {
@@ -199,6 +206,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const clearSession = () => {
+    hasSessionHere.current = false;
     setRoleState(null);
     setCurrentUser(null);
     eraseCookie("session_user_email");
@@ -210,7 +218,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // or the secret changed), so the person is logged out here too and RootLayout sends them to /login.
   useEffect(() => {
     setUnauthorizedHandler(() => {
-      if (getCookie("session_user_email")) setSessionEnded(true);
+      if (hasSessionHere.current) setSessionEnded(true);
       clearSession();
     });
     return () => setUnauthorizedHandler(null);
