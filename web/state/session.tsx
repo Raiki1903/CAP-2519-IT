@@ -90,6 +90,47 @@ interface SessionContextType {
   sessionEnded: boolean;
   /** True while a page load is asking the server who is logged in. RootLayout waits instead of sending the person to /login. (issue #49) */
   restoring: boolean;
+  /** Which of the RESTORE_ATTEMPTS the restore is on, from 1. RootLayout says so after the first. */
+  restoreAttempt: number;
+  /** True when every restore attempt failed for a reason other than a 401. The session is kept; RootLayout offers Retry. */
+  restoreFailed: boolean;
+  /** Runs the restore again, after restoreFailed. */
+  retryRestore: () => void;
+}
+
+// A page load asks /me up to three times before it gives up, because the CCS Cloud link can be slow or fail for a
+// moment (issue #8). Only a 401 means the session is gone; a 500, no answer, or a network error is retried.
+const RESTORE_ATTEMPTS = 3;
+const RESTORE_RETRY_DELAY_MS = 3000;
+const RESTORE_TIMEOUT_MS = 20000;
+
+const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+type RestoreOutcome =
+  | { kind: "user"; user: any }
+  | { kind: "loggedOut" }
+  | { kind: "unreachable" };
+
+/**
+ * Asks /me once who the session cookie belongs to, giving up after RESTORE_TIMEOUT_MS.
+ *
+ * @param email the display cookie's email
+ * @returns "user" with the profile; "loggedOut" for a 401 (the 401 handler has already cleared the session) or a 400 or
+ *   404 (the server answered: it does not know this email); "unreachable" for a 5xx, no answer, or a network error
+ */
+async function askWhoIsLoggedIn(email: string): Promise<RestoreOutcome> {
+  try {
+    const res = await Promise.race([
+      authApi.getMeRaw(email),
+      wait(RESTORE_TIMEOUT_MS).then((): never => { throw new Error("timeout"); }),
+    ]);
+    if (res.status === 401 || res.status === 400 || res.status === 404) return { kind: "loggedOut" };
+    if (!res.ok) return { kind: "unreachable" };
+    const data = await res.json();
+    return data?.success && data.user ? { kind: "user", user: data.user } : { kind: "unreachable" };
+  } catch {
+    return { kind: "unreachable" };
+  }
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -105,6 +146,9 @@ const SessionContext = createContext<SessionContextType | null>(null);
  *   (authApi.logout) and clears the display cookies.
  * - `sessionEnded`: true after the server refused the session (any 401), until the next login.
  * - `restoring`: true while a page load waits for /me, so RootLayout does not redirect yet (issue #49).
+ *   `restoreAttempt` says which try it is on.
+ * - `restoreFailed`, `retryRestore()`: every try failed for a reason other than a 401 (a 500, no answer, a network
+ *   error). The person stays where they are, with the display cookies kept, and RootLayout offers Retry.
  * - `updateProfile(...)`: saves name, picture, and lab with authApi.updateAccount.
  * - `cycleMode`, `theme`, `sidebarCollapsed` and their setters.
  *
@@ -118,6 +162,41 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [restoring, setRestoring] = useState<boolean>(() =>
     !!(getCookie("session_user_email") && getCookie("session_last_activity") && getCookie("session_created"))
   );
+  const [restoreAttempt, setRestoreAttempt] = useState(1);
+  const [restoreFailed, setRestoreFailed] = useState(false);
+
+  // Keeps the display cookies on a failure: the server's session cookie may well still be valid.
+  const restoreSession = async (email: string) => {
+    setRestoreFailed(false);
+    setRestoring(true);
+    for (let attempt = 1; attempt <= RESTORE_ATTEMPTS; attempt++) {
+      setRestoreAttempt(attempt);
+      const outcome = await askWhoIsLoggedIn(email);
+      if (outcome.kind === "user") {
+        const img = outcome.user.userImg || outcome.user.profilePicture || outcome.user.avatarUrl;
+        setRoleState(outcome.user.role as Role);
+        setCurrentUser({ ...outcome.user, profilePicture: img, userImg: img, avatarUrl: img } as any);
+        setRestoring(false);
+        return;
+      }
+      if (outcome.kind === "loggedOut") {
+        // The display cookies are left in place for a 400 or 404, as before; a 401 has cleared them already.
+        setRoleState(null);
+        setCurrentUser(null);
+        setRestoring(false);
+        return;
+      }
+      if (attempt < RESTORE_ATTEMPTS) await wait(RESTORE_RETRY_DELAY_MS);
+    }
+    setRestoring(false);
+    setRestoreFailed(true);
+  };
+
+  const retryRestore = () => {
+    const email = getCookie("session_user_email");
+    if (email) restoreSession(email);
+    else setRestoreFailed(false);
+  };
 
   const clearSession = () => {
     setRoleState(null);
@@ -196,30 +275,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         alert("Your session has reached its 30-day limit. Please log in again.");
       } else {
         setCookie("session_last_activity", String(now), 1);
-
-        authApi.getMe(sessionEmail)
-          .then(data => {
-            if (data.success && data.user) {
-              setRoleState(data.user.role as Role);
-              const img = data.user.userImg || data.user.profilePicture || data.user.avatarUrl;
-              setCurrentUser({
-                ...data.user,
-                profilePicture: img,
-                userImg: img,
-                avatarUrl: img
-              } as any);
-            } else {
-              // The server does not know this email, so the person is logged out.
-              // The cookies are left in place and the same check runs on the next load (a 401 has cleared them already).
-              setRoleState(null);
-              setCurrentUser(null);
-            }
-          })
-          .catch(() => {
-            setRoleState(null);
-            setCurrentUser(null);
-          })
-          .finally(() => setRestoring(false));
+        restoreSession(sessionEmail);
       }
     }
   }, []);
@@ -306,7 +362,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         cycleMode, setCycleMode,
         theme, setTheme,
         sidebarCollapsed, setSidebarCollapsed,
-        sessionEnded, restoring
+        sessionEnded, restoring, restoreAttempt, restoreFailed, retryRestore
       }}
     >
       {children}

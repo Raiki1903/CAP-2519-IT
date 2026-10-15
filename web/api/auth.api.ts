@@ -4,7 +4,7 @@
  * Used by: login for every role, self-registration, approval of sign-ups, account page.
  */
 import type { AccountUpdateInput, ApproveRegistrationInput, RegistrationRequestInput } from "@shared/types/auth";
-import { apiGet, apiPost, apiPostRaw, apiPut, type ApiResult } from "./client";
+import { apiGet, apiGetRaw, apiPost, apiPostRaw, apiPut, type ApiResult } from "./client";
 
 /**
  * Checks an email and password.
@@ -35,6 +35,18 @@ export function logout(): Promise<ApiResult> {
 // TODO(C-06): the server needs a session but answers for any email it is sent, not only the caller's. 13c (the session user).
 export function getMe(email: string): Promise<ApiResult> {
   return apiGet(`/api/auth/me?email=${encodeURIComponent(email)}`);
+}
+
+/**
+ * Like getMe, but returns the untouched Response, so the session restore can tell a refused session (401)
+ * from a server that failed (500) or answered nothing.
+ *
+ * @param email the email from the session cookie
+ * @returns the raw Response; `success` and `user` in its JSON body
+ * @throws if the server cannot be reached
+ */
+export function getMeRaw(email: string): Promise<Response> {
+  return apiGetRaw(`/api/auth/me?email=${encodeURIComponent(email)}`);
 }
 
 /**
