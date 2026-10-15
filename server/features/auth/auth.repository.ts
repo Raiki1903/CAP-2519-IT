@@ -1,10 +1,10 @@
 /**
  * Account, role, and lab row access, and the pending sign-up file: every database read and write the auth endpoints
  * make, plus the user lookups other features need (who to email, a user by email, by typed name, or by id).
- * Layer: repository. Called by auth.service.ts, the services of features/loans, returns, transfers, disposals, repairs,
+ * Layer: repository. Called by auth.service.ts (also on behalf of shared/middleware/requireAuth.ts), the services of features/loans, returns, transfers, disposals, repairs,
  * inspections, and assets, and shared/services/defaultCustodianCheck.ts. Calls config/prisma.ts and Node's fs
  * (pending_registrations.json).
- * Used by: login, the session reload, the account page, sign-ups and their approval, the transfer and disposal emails,
+ * Used by: login, every request with a session (its account and roles), the session reload, the account page, sign-ups and their approval, the transfer and disposal emails,
  * and every workflow that names a person by typed name or email.
  */
 import fs from 'fs';
@@ -142,6 +142,14 @@ export function findUserProfileByEmail(email: string) {
             user_roles: { include: { roles: true } },
             user_centers: { include: { research_centers: true } }
         }
+    });
+}
+
+/** The user with this id and their roles, or null. Read for a session at most once a minute per cookie (sessionCache.ts). */
+export function findUserRolesById(userId: number) {
+    return prisma.users.findUnique({
+        where: { user_id: userId },
+        include: { user_roles: { include: { roles: true } } }
     });
 }
 

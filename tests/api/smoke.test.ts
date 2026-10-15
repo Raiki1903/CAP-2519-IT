@@ -7,11 +7,12 @@ import { describe, expect, it } from "vitest";
 import { ASSETS, LAB, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api } = useApiHarness();
+const { api, as } = useApiHarness();
+const asStaff = as(USERS.staffTsg);
 
 describe("smoke", () => {
   it("answers GET /api/assets with 200 and success true", async () => {
-    const res = await api.get("/api/assets");
+    const res = await asStaff.get("/api/assets");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -19,7 +20,7 @@ describe("smoke", () => {
   });
 
   it("lists every seeded asset by tag, with its name and status", async () => {
-    const res = await api.get("/api/assets");
+    const res = await asStaff.get("/api/assets");
     const seeded = Object.values(ASSETS);
 
     expect(res.body.assets).toHaveLength(seeded.length);

@@ -68,7 +68,7 @@ export interface InspectionReportItem {
   assetName: string;
   /** The reporter's full name. */
   reportedBy: string;
-  // TODO(C-02): every reporter's email goes to anyone who calls this list (01C section 4.2). requireAuth and a role check, step 13.
+  /** The reporter's email. Sent to Staff only (the 13b role table, row 19). */
   reporterEmail: string;
   /** The report time as "Oct 9, 2026, 02:15 PM", in the server's time zone. */
   reportDate: string;

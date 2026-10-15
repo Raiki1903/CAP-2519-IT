@@ -1,6 +1,6 @@
 /**
  * The roles the web app routes and renders by, and the Staff unit.
- * Layer: shared. Imported by server/features/auth/auth.service.ts (login and /me), shared/types/auth.ts, and web/ (state/session.tsx, app shell, Login, NotificationCenter, and the screens that check the role). Imports nothing.
+ * Layer: shared. Imported by server/features/auth/auth.service.ts (login, /me, and the session check), server/shared/middleware/requireRole.ts, shared/types/auth.ts, and web/ (state/session.tsx, app shell, Login, NotificationCenter, and the screens that check the role). Imports nothing.
  * Used by: login, navigation, and every role dashboard.
  */
 

@@ -13,7 +13,10 @@ import { addExtraAsset } from "../setup/extraAssets";
 import { ASSETS, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, USERS, type TestUser } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, db } = useApiHarness();
+const { db, as } = useApiHarness();
+const asCustodian = as(USERS.custodianA);
+const asLabHead = as(USERS.labHead);
+const asStaff = as(USERS.staffTsg);
 
 const EFFECTIVE_DATE = "2026-11-02";
 
@@ -35,19 +38,19 @@ const transferStatus = async (transferId: number) => (await db.asset_transfers.f
 
 /** Files a transfer request through the API and answers the new transfer's id. */
 async function requestTransfer(tag: string, to: TestUser, extra: Record<string, unknown> = {}): Promise<number> {
-  const res = await api.post(`/api/assets/${tag}/transfer`, transferBody(to, extra));
+  const res = await asCustodian.post(`/api/assets/${tag}/transfer`, transferBody(to, extra));
   expect(res.status, JSON.stringify(res.body)).toBe(200);
   return res.body.transfer.transfer_id;
 }
 
 async function listedAsset(tag: string) {
-  const res = await api.get("/api/assets");
+  const res = await asStaff.get("/api/assets");
   return res.body.assets.find((a: { id: string }) => a.id === tag);
 }
 
 describe("GET /api/asset_transfers", () => {
   it("answers an empty list when there are no transfers", async () => {
-    const res = await api.get("/api/asset_transfers");
+    const res = await asLabHead.get("/api/asset_transfers");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true, transfers: [] });
@@ -82,7 +85,7 @@ describe("GET /api/asset_transfers", () => {
 
     it("lists them newest first with the fields the screens read, the destination lab moved out of the justification", async () => {
       await withTransfers(async (ids) => {
-        const res = await api.get("/api/asset_transfers");
+        const res = await asLabHead.get("/api/asset_transfers");
 
         expect(res.status).toBe(200);
         expect(res.body.transfers.map((t: { id: string }) => t.id)).toEqual(
@@ -110,7 +113,7 @@ describe("GET /api/asset_transfers", () => {
 
     it("includes the recipient's email, for any caller (known issue, 01C 4.3)", async () => {
       await withTransfers(async () => {
-        const res = await api.get("/api/asset_transfers");
+        const res = await asLabHead.get("/api/asset_transfers");
 
         expect(res.body.transfers[0].toEmail).toBe(USERS.custodianB.email);
       });
@@ -118,7 +121,7 @@ describe("GET /api/asset_transfers", () => {
 
     it("shows a transfer stuck in pending_approver as Pending (M-12)", async () => {
       await withTransfers(async (ids) => {
-        const res = await api.get("/api/asset_transfers");
+        const res = await asLabHead.get("/api/asset_transfers");
 
         const stuck = res.body.transfers.find((t: { transferId: number }) => t.transferId === ids.pending_approver);
         expect(stuck.status).toBe("Pending");
@@ -132,7 +135,7 @@ describe("POST /api/assets/:tag/transfer", () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0301", custodianId: USERS.custodianA.userId });
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB));
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -166,7 +169,7 @@ describe("POST /api/assets/:tag/transfer", () => {
   it.each(["toEmail", "reason"])("answers 400 without %s, and writes nothing", async (field) => {
     const before = await db.asset_transfers.count();
 
-    const res = await api.post(`/api/assets/${ASSETS.available.tag}/transfer`, transferBody(USERS.custodianB, { [field]: undefined }));
+    const res = await asCustodian.post(`/api/assets/${ASSETS.available.tag}/transfer`, transferBody(USERS.custodianB, { [field]: undefined }));
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -174,7 +177,7 @@ describe("POST /api/assets/:tag/transfer", () => {
   });
 
   it("answers 404 for an unknown tag", async () => {
-    const res = await api.post("/api/assets/TEST-9999/transfer", transferBody(USERS.custodianB));
+    const res = await asCustodian.post("/api/assets/TEST-9999/transfer", transferBody(USERS.custodianB));
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
@@ -183,7 +186,7 @@ describe("POST /api/assets/:tag/transfer", () => {
   it("answers 404 for an email that matches no account, and writes nothing", async () => {
     const before = await db.asset_transfers.count();
 
-    const res = await api.post(`/api/assets/${ASSETS.available.tag}/transfer`, transferBody(USERS.custodianB, { toEmail: "nobody@example.test" }));
+    const res = await asCustodian.post(`/api/assets/${ASSETS.available.tag}/transfer`, transferBody(USERS.custodianB, { toEmail: "nobody@example.test" }));
 
     expect(res.status).toBe(404);
     expect(res.body.error).toContain("nobody@example.test");
@@ -195,10 +198,10 @@ describe("POST /api/assets/:tag/transfer: one pending request per asset (issue #
   it("rejects a second transfer request on the same asset with 409 (issue #25)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0311", custodianId: USERS.custodianA.userId });
 
-    const first = await api.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB));
+    const first = await asCustodian.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB));
     expect(first.status).toBe(200);
 
-    const second = await api.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.labHead));
+    const second = await asCustodian.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.labHead));
     expect(second.status).toBe(409);
     expect(second.body.error).toContain(`TRF-${first.body.transfer.transfer_id}`);
 
@@ -208,21 +211,21 @@ describe("POST /api/assets/:tag/transfer: one pending request per asset (issue #
   it("accepts an asset that is on loan, as a transfer from its borrower", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0312", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
 
-    const res = await api.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB));
 
     expect(res.status).toBe(200);
     expect(res.body.transfer.from_custodian_id).toBe(USERS.custodianA.userId);
   });
 
   it("answers 409 for the seeded asset whose loan request is still pending", async () => {
-    const res = await api.post(`/api/assets/${ASSETS.pendingLoan.tag}/transfer`, transferBody(USERS.custodianB));
+    const res = await asCustodian.post(`/api/assets/${ASSETS.pendingLoan.tag}/transfer`, transferBody(USERS.custodianB));
 
     expect(res.status).toBe(409);
     expect(res.body.error).toContain(`LOAN-${SEEDED_ROWS.pendingLoanId}`);
   });
 
   it.each([ASSETS.inRepair, ASSETS.disposed])("answers 409 for $tag, which is $listStatus, and writes nothing", async (asset) => {
-    const res = await api.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB));
 
     expect(res.status).toBe(409);
     expect(res.body.success).toBe(false);
@@ -236,7 +239,7 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
+    const res = await asLabHead.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true, transfer: { transfer_id: transferId, status: "approved" } });
@@ -256,7 +259,7 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0322", currentLocation: `Manila${LOCATION_SEPARATOR}Test Elsewhere` });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB, { lab: undefined });
 
-    await api.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
+    await asLabHead.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
 
     expect((await newestRecord(asset.assetId)).current_location).toBe(`Manila${LOCATION_SEPARATOR}Test Elsewhere`);
   });
@@ -266,7 +269,7 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.put(`/api/asset_transfers/${transferId}/decision`, { decision: "decline" });
+    const res = await asLabHead.put(`/api/asset_transfers/${transferId}/decision`, { decision: "decline" });
 
     expect(res.status).toBe(200);
     expect(res.body.transfer.status).toBe("declined");
@@ -277,10 +280,10 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
   it("answers 400 on a transfer that is already decided, and changes nothing", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0324" });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
-    await api.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
+    await asLabHead.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.put(`/api/asset_transfers/${transferId}/decision`, { decision: "decline" });
+    const res = await asLabHead.put(`/api/asset_transfers/${transferId}/decision`, { decision: "decline" });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/already been approved/);
@@ -297,7 +300,7 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
       data: { asset_id: ASSETS.inspected.assetId, from_custodian_id: USERS.custodianA.userId, to_custodian_id: USERS.custodianB.userId, justification: "Test word check", status: "pending" },
     });
     try {
-      const res = await api.put(`/api/asset_transfers/${transfer.transfer_id}/decision`, { decision });
+      const res = await asLabHead.put(`/api/asset_transfers/${transfer.transfer_id}/decision`, { decision });
 
       expect(res.status).toBe(400);
       expect(await transferStatus(transfer.transfer_id)).toBe("pending");
@@ -307,13 +310,13 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
   });
 
   it("answers 400 for an id that is not a number, such as the TRF-n id the list shows", async () => {
-    const res = await api.put("/api/asset_transfers/TRF-1/decision", { decision: "approve" });
+    const res = await asLabHead.put("/api/asset_transfers/TRF-1/decision", { decision: "approve" });
 
     expect(res.status).toBe(400);
   });
 
   it("answers 404 for an unknown id", async () => {
-    const res = await api.put("/api/asset_transfers/9999/decision", { decision: "approve" });
+    const res = await asLabHead.put("/api/asset_transfers/9999/decision", { decision: "approve" });
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
@@ -325,7 +328,7 @@ describe("PUT /api/asset_transfers/:id/accept", () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0331" });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
 
-    const res = await api.put(`/api/asset_transfers/${transferId}/accept`, { remarks: "Test destination remark" });
+    const res = await asCustodian.put(`/api/asset_transfers/${transferId}/accept`, { remarks: "Test destination remark" });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -339,7 +342,7 @@ describe("PUT /api/asset_transfers/:id/accept", () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0332" });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB, { lab: undefined });
 
-    const res = await api.put(`/api/asset_transfers/${transferId}/accept`, {});
+    const res = await asCustodian.put(`/api/asset_transfers/${transferId}/accept`, {});
 
     expect(res.status).toBe(200);
     expect(res.body.transfer.justification).toBe("Test transfer reason");
@@ -348,9 +351,9 @@ describe("PUT /api/asset_transfers/:id/accept", () => {
   it("leaves the transfer stuck: afterwards the decision answers 400 (known defect M-12)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0333" });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
-    await api.put(`/api/asset_transfers/${transferId}/accept`, {});
+    await asCustodian.put(`/api/asset_transfers/${transferId}/accept`, {});
 
-    const res = await api.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
+    const res = await asLabHead.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/already been pending_approver/);
@@ -360,9 +363,9 @@ describe("PUT /api/asset_transfers/:id/accept", () => {
   it("lets the asset take a second transfer request once the first is pending_approver, because the issue #25 guard counts only 'pending' (new finding, M-12 family)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0334" });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
-    await api.put(`/api/asset_transfers/${transferId}/accept`, {});
+    await asCustodian.put(`/api/asset_transfers/${transferId}/accept`, {});
 
-    const res = await api.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.labHead));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.labHead));
 
     expect(res.status).toBe(200);
     expect(await db.asset_transfers.count({ where: { asset_id: asset.assetId, status: { in: ["pending", "pending_approver"] } } })).toBe(2);
@@ -371,9 +374,9 @@ describe("PUT /api/asset_transfers/:id/accept", () => {
   it("changes a transfer in any status, even an approved one, back to pending_approver (new finding, M-12 family)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0335" });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);
-    await api.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
+    await asLabHead.put(`/api/asset_transfers/${transferId}/decision`, { decision: "approve" });
 
-    const res = await api.put(`/api/asset_transfers/${transferId}/accept`, {});
+    const res = await asCustodian.put(`/api/asset_transfers/${transferId}/accept`, {});
 
     expect(res.status).toBe(200);
     expect(await transferStatus(transferId)).toBe("pending_approver");
@@ -381,14 +384,14 @@ describe("PUT /api/asset_transfers/:id/accept", () => {
   });
 
   it("answers 404 for an unknown id", async () => {
-    const res = await api.put("/api/asset_transfers/9999/accept", {});
+    const res = await asCustodian.put("/api/asset_transfers/9999/accept", {});
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
   });
 
   it("answers 500 with a generic message and no database text for an id that is not a number (H-16 fixed)", async () => {
-    const res = await api.put("/api/asset_transfers/TRF-1/accept", {});
+    const res = await asCustodian.put("/api/asset_transfers/TRF-1/accept", {});
 
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });

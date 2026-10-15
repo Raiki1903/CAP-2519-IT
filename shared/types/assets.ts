@@ -174,7 +174,7 @@ export interface CustodianHistoryEntry {
   sequence: number;
   recordId?: number;
   custodianName: string;
-  // TODO(C-02): the custodian's email and id number go to anyone who asks (01C 4.2). Step 13, then strip them (issue #72).
+  // TODO(C-02): the custodian's email and id number go to any signed-in user (01C 4.2). Strip them (issue #72).
   custodianEmail: string;
   /** The custodian's id number (users.id_number), not users.user_id. */
   custodianId?: number | string;

@@ -1,12 +1,13 @@
 /**
  * Auth controller: unpacks login, profile, account, and sign-up requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by auth.routes.ts. Calls auth.validation.ts and auth.service.ts.
- * Used by: login for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
+ * Used by: login and logout for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as authService from './auth.service';
+import { clearedSessionCookieHeader, readCookie, SESSION_COOKIE_NAME, sessionCookieHeader } from '../../shared/services/session';
 import { checkAccountUpdate, checkLogin, checkProfileQuery, checkRegistration, checkRegistrationRequest } from './auth.validation';
 
 // Each handler reads req.body in one destructuring statement. A request with no JSON body (Express 5 leaves
@@ -32,7 +33,7 @@ export async function register(req: Request, res: Response): Promise<void> {
  * Handles GET /api/auth/pending-registrations: `{ success, pendingRegistrations }`, newest first.
  * It has no error handling of its own, as before: it reads only the in-memory list.
  */
-// TODO(C-04): each request is sent with its password, to anyone who asks (issue #72). Step 13 (requireAuth) and Phase 3 (the table, H-17).
+// TODO(C-04): each request is sent with its password, to the Lab Head who lists them (issue #72). Phase 3 (the table, H-17).
 export async function listPendingRegistrations(req: Request, res: Response): Promise<void> {
     res.json({ success: true, pendingRegistrations: authService.listPendingRegistrations() });
 }
@@ -69,22 +70,33 @@ export async function approveRegistration(req: Request, res: Response): Promise<
 }
 
 /**
- * Handles POST /api/auth/login: checks an email and password.
- * Answers `{ success, role, user }` with the app role and the profile, or the AppError's status and message
- * (400 missing email or password, 401 no match), or 500.
+ * Handles POST /api/auth/login: checks an email and password, and starts a session.
+ * Answers `{ success, role, user }` with the app role and the profile, plus a Set-Cookie header with the signed
+ * adric_session cookie (8 hours, HttpOnly); or the AppError's status and message (400 missing email or password,
+ * 401 no match, no cookie), or 500.
  */
-// TODO(C-06): the answer is the whole session; the browser keeps only the email, in an unsigned cookie. Session issuing, step 13.
 export async function login(req: Request, res: Response): Promise<void> {
     const { email, password } = req.body;
 
     checkLogin({ email, password });
     const { role, user } = await authService.login(email, password);
 
+    res.setHeader('Set-Cookie', sessionCookieHeader(authService.startSession(user.userId)));
     res.json({
         success: true,
         role,
         user
     });
+}
+
+/**
+ * Handles POST /api/auth/logout, a public route: refuses the request's session cookie from now until it would have
+ * expired, and tells the browser to delete it. Answers `{ success: true }` with or without a cookie, so it never fails.
+ */
+export async function logout(req: Request, res: Response): Promise<void> {
+    authService.endSession(readCookie(req.headers.cookie, SESSION_COOKIE_NAME));
+    res.setHeader('Set-Cookie', clearedSessionCookieHeader());
+    res.json({ success: true });
 }
 
 /**
@@ -101,7 +113,7 @@ export async function rejectRegistration(req: Request, res: Response): Promise<v
  * Handles GET /api/auth/me?email=...: the profile and app role of the account with that email.
  * Answers `{ success, user }`, or the AppError's status and message (400 no email, 404 no account), or 500.
  */
-// TODO(C-06): any email works; nothing checks that the caller is that person. Step 13 (the session user).
+// TODO(C-06): any signed-in user gets any account's profile by its email; nothing checks that the caller is that person. 13c (the session user).
 export async function getProfile(req: Request, res: Response): Promise<void> {
     const email = req.query.email as string;
 
@@ -118,7 +130,7 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
  * Handles PUT /api/auth/account: saves the name, picture, and lab of the account the body's email names.
  * Answers `{ success, user }`, or the AppError's status and message (400 missing field, 404 no account), or 500.
  */
-// TODO(C-06): the account is chosen by the email in the body, so anyone can rename anyone (C-02). Step 13 (the session user).
+// TODO(C-06): the account is chosen by the email in the body, so any signed-in user can rename anyone (C-02). 13c (the session user).
 export async function updateAccount(req: Request, res: Response): Promise<void> {
     const { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = req.body;
     const data = { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture };

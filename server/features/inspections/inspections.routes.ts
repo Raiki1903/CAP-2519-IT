@@ -6,6 +6,8 @@
  */
 import express from 'express';
 import * as inspectionsController from './inspections.controller';
+import { requireAuth } from '../../shared/middleware/requireAuth';
+import { requireRole } from '../../shared/middleware/requireRole';
 
 /**
  * The three inspection endpoints. Paths are written out in full, so app.ts mounts the router at the root.
@@ -13,8 +15,8 @@ import * as inspectionsController from './inspections.controller';
  */
 export const inspectionsRouter = express.Router();
 
-// TODO(C-02): anyone who can reach the server can file and list reports, including every reporter's email; no session or role is checked. requireAuth and requireRole, step 13.
-inspectionsRouter.post('/api/assets/:assetTag/inspection', inspectionsController.fileReport);
+// Every route needs a session; the roles are the approved 13b role table (rows 17 to 19).
+inspectionsRouter.post('/api/assets/:assetTag/inspection', requireAuth, requireRole('Custodian', 'Staff'), inspectionsController.fileReport);
 // The same reports under two spellings and two shapes (L-07). Both kept in step 12, as decided.
-inspectionsRouter.get('/api/asset_reports', inspectionsController.listReportSummaries);
-inspectionsRouter.get('/api/asset-reports', inspectionsController.listInspectionReports);
+inspectionsRouter.get('/api/asset_reports', requireAuth, requireRole('Staff', 'AdRICDirector'), inspectionsController.listReportSummaries);
+inspectionsRouter.get('/api/asset-reports', requireAuth, requireRole('Staff'), inspectionsController.listInspectionReports);

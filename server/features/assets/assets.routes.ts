@@ -6,13 +6,16 @@
  */
 import express from 'express';
 import * as assetsController from './assets.controller';
+import { requireAuth } from '../../shared/middleware/requireAuth';
+import { requireRole } from '../../shared/middleware/requireRole';
 
 /** The five asset registry endpoints. Paths are written out in full, so app.ts mounts the router at the root. */
 export const assetsRouter = express.Router();
 
-// TODO(C-02): anyone who can reach the server can register, edit, or delete assets; no session or role is checked. requireAuth and requireRole, step 13.
-assetsRouter.get('/api/assets', assetsController.listAssets);
-assetsRouter.get('/api/assets/:assetTag/custodian-history', assetsController.getCustodianHistory);
-assetsRouter.post('/api/assets', assetsController.registerAsset);
-assetsRouter.put('/api/assets/:assetTag', assetsController.updateAsset);
-assetsRouter.delete('/api/assets/:assetTag', assetsController.deleteAsset);
+// Every route needs a session; the roles are the approved 13b role table (rows 9 to 13). Any Staff account may delete
+// until issue #41 decides who may (TSG or a future Admin).
+assetsRouter.get('/api/assets', requireAuth, assetsController.listAssets);
+assetsRouter.get('/api/assets/:assetTag/custodian-history', requireAuth, assetsController.getCustodianHistory);
+assetsRouter.post('/api/assets', requireAuth, requireRole('Staff'), assetsController.registerAsset);
+assetsRouter.put('/api/assets/:assetTag', requireAuth, requireRole('Staff'), assetsController.updateAsset);
+assetsRouter.delete('/api/assets/:assetTag', requireAuth, requireRole('Staff'), assetsController.deleteAsset);

@@ -18,7 +18,7 @@ import { Button } from "@web/components/ui/button";
  * @param onClose closes the dialog (Cancel, outside click, or after a successful delete)
  * @param onDeleted reloads the caller's own asset list
  */
-// TODO(H-03): a delete either wipes the asset's whole history or, if it has an inspection report, fails on a foreign key. Anyone can call it (C-02). Step 12 and step 13.
+// TODO(H-03): a delete either wipes the asset's whole history or, if it has an inspection report, fails on a foreign key. Any Staff account can call it until issue #41 decides who may. Retiring instead of deleting is issue #69.
 export function DeleteAssetDialog({ assetToDelete, onClose, onDeleted }: { assetToDelete: string | null; onClose: () => void; onDeleted: () => Promise<void> }) {
   const { syncFromDb } = useServerData();
   const [deleting, setDeleting] = useState(false);

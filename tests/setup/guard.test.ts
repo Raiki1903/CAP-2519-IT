@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { parseTestDatabaseUrl, TestDatabaseRefused } from "./testDatabase";
-import { buildServerEnv } from "./testServer";
+import { buildServerEnv, TEST_SESSION_SECRET } from "./testServer";
 
 const LOCAL_URL = "mysql://root:fake-password@localhost:3306/AdRIC_DB_test";
 
@@ -77,6 +77,14 @@ describe("buildServerEnv", () => {
     });
     expect(env.DATABASE_URL).toBeUndefined();
     expect(env.TEST_DATABASE_URL).toBeUndefined();
+  });
+
+  it("gives the server its own session secret and the default web origin, never the ones in .env", () => {
+    const env = buildServerEnv(parseTestDatabaseUrl(LOCAL_URL), 45678);
+
+    expect(env.SESSION_SECRET).toBe(TEST_SESSION_SECRET);
+    expect(env.SESSION_SECRET!.length).toBeGreaterThanOrEqual(32);
+    expect(env.WEB_ORIGIN).toBe("http://localhost:5173");
   });
 
   it("switches off mail and backups with explicit empty values", () => {

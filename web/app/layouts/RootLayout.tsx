@@ -14,17 +14,50 @@ import { NotificationCenter } from "@web/features/notifications/NotificationCent
 import { Menu, Shield } from "lucide-react";
 
 /**
- * Wraps every signed-in screen. Sends a visitor with no role to /login, and
- * sends a signed-in user who opens another role's URL to their own default page.
+ * Wraps every signed-in screen. Waits while a page load restores the session, then sends a visitor
+ * with no role to /login, and a signed-in user who opens another role's URL to their own default page.
+ * These redirects only choose screens: the server refuses another role's data by itself (requireRole).
  */
-// TODO(C-02): this redirect is the only thing keeping a role out of another role's
-// screens. The server checks nothing, so it hides screens but protects no data. Step 13 (requireAuth).
 export function RootLayout() {
-  const { role, setRole, currentUser } = useSession();
+  const { role, setRole, currentUser, restoring, restoreAttempt, restoreFailed, retryRestore } = useSession();
   const { isDbLoading } = useServerData();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // After a reload or a typed URL the role is not known until /me answers. Redirecting before that
+  // sent every reload to /login. (issue #49)
+  if (restoring) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-center">
+          <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Restoring your session...</p>
+          {restoreAttempt > 1 && (
+            <p className="text-xs text-slate-400 mt-2">The server is slow to answer. Still trying ({restoreAttempt} of 3).</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Every try failed, but not with a 401: the session may still be valid, so the person is not sent to /login.
+  if (restoreFailed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div className="text-center space-y-3">
+          <p className="text-sm font-semibold text-slate-700">Can't reach the server right now.</p>
+          <p className="text-xs text-slate-500">You are still logged in. Try again in a moment.</p>
+          <button
+            type="button"
+            onClick={retryRestore}
+            className="text-xs font-bold text-white bg-[#005A36] hover:bg-[#004225] px-4 py-2 rounded-lg cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!role) {
     return <Navigate to="/login" state={{ from: location }} replace />;

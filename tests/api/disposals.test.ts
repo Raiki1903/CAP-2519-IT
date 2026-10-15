@@ -12,7 +12,9 @@ import { addExtraAsset } from "../setup/extraAssets";
 import { ASSETS, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, db } = useApiHarness();
+const { db, as } = useApiHarness();
+const asDirector = as(USERS.director);
+const asStaff = as(USERS.staffTsg);
 
 /** What DisposalFormDialog sends: who files it, the last custodian, the reasons, the pathway, and the target date. */
 const disposalBody = (extra: Record<string, unknown> = {}) => ({
@@ -33,19 +35,19 @@ const disposalStatus = async (disposalId: number) => (await db.asset_disposals.f
 
 /** Files a disposal request through the API and answers the new disposal's id. */
 async function requestDisposal(tag: string, extra: Record<string, unknown> = {}): Promise<number> {
-  const res = await api.post(`/api/assets/${tag}/disposal`, disposalBody(extra));
+  const res = await asStaff.post(`/api/assets/${tag}/disposal`, disposalBody(extra));
   expect(res.status, JSON.stringify(res.body)).toBe(200);
   return res.body.disposal.disposal_id;
 }
 
 async function listedAsset(tag: string) {
-  const res = await api.get("/api/assets");
+  const res = await asStaff.get("/api/assets");
   return res.body.assets.find((a: { id: string }) => a.id === tag);
 }
 
 describe("GET /api/asset_disposals", () => {
   it("lists the seeded disposal with the fields the Director's queue reads", async () => {
-    const res = await api.get("/api/asset_disposals");
+    const res = await asStaff.get("/api/asset_disposals");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -79,7 +81,7 @@ describe("GET /api/asset_disposals", () => {
       );
     }
     try {
-      const res = await api.get("/api/asset_disposals");
+      const res = await asStaff.get("/api/asset_disposals");
 
       expect(res.body.disposals.map((d: { disposalId: number }) => d.disposalId)).toEqual([
         rows[2].disposal_id,
@@ -100,7 +102,7 @@ describe("POST /api/assets/:tag/disposal", () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0601", custodianId: USERS.custodianA.userId });
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.post(`/api/assets/${asset.tag}/disposal`, disposalBody());
+    const res = await asStaff.post(`/api/assets/${asset.tag}/disposal`, disposalBody());
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -141,7 +143,7 @@ describe("POST /api/assets/:tag/disposal", () => {
   ])("files the disposal under user 1 for $case (known defect H-10)", async ({ requestedBy, tag }) => {
     const asset = await addExtraAsset(db, { tag });
 
-    const res = await api.post(`/api/assets/${asset.tag}/disposal`, disposalBody({ requestedBy }));
+    const res = await asStaff.post(`/api/assets/${asset.tag}/disposal`, disposalBody({ requestedBy }));
 
     expect(res.status).toBe(200);
     expect(res.body.disposal.disposed_by_id).toBe(USERS.admin.userId);
@@ -154,7 +156,7 @@ describe("POST /api/assets/:tag/disposal", () => {
   ])("accepts a disposal request for an asset that is $status (known defect H-05)", async ({ status, tag }) => {
     const asset = await addExtraAsset(db, { tag, status });
 
-    const res = await api.post(`/api/assets/${asset.tag}/disposal`, disposalBody());
+    const res = await asStaff.post(`/api/assets/${asset.tag}/disposal`, disposalBody());
 
     expect(res.status).toBe(200);
     expect(res.body.disposal.status).toBe("pending");
@@ -164,7 +166,7 @@ describe("POST /api/assets/:tag/disposal", () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0614" });
 
     await requestDisposal(asset.tag);
-    const second = await api.post(`/api/assets/${asset.tag}/disposal`, disposalBody());
+    const second = await asStaff.post(`/api/assets/${asset.tag}/disposal`, disposalBody());
 
     expect(second.status).toBe(200);
     expect(await db.asset_disposals.count({ where: { asset_id: asset.assetId, status: "pending" } })).toBe(2);
@@ -173,7 +175,7 @@ describe("POST /api/assets/:tag/disposal", () => {
   it.each(["breakdownReasons", "disposalPathway"])("answers 400 without %s, and writes nothing", async (field) => {
     const before = await db.asset_disposals.count();
 
-    const res = await api.post(`/api/assets/${ASSETS.available.tag}/disposal`, disposalBody({ [field]: undefined }));
+    const res = await asStaff.post(`/api/assets/${ASSETS.available.tag}/disposal`, disposalBody({ [field]: undefined }));
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -181,7 +183,7 @@ describe("POST /api/assets/:tag/disposal", () => {
   });
 
   it("answers 404 for an unknown tag", async () => {
-    const res = await api.post("/api/assets/TEST-9999/disposal", disposalBody());
+    const res = await asStaff.post("/api/assets/TEST-9999/disposal", disposalBody());
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
@@ -194,7 +196,7 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
     const disposalId = await requestDisposal(asset.tag);
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "approve" });
+    const res = await asDirector.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "approve" });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true, disposal: { disposal_id: disposalId, status: "approved" } });
@@ -215,7 +217,7 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0622", custodianId: USERS.custodianA.userId });
     const disposalId = await requestDisposal(asset.tag);
 
-    await api.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "approve" });
+    await asDirector.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "approve" });
 
     const listed = await listedAsset(asset.tag);
     expect(listed.status).toBe("Disposed");
@@ -236,7 +238,7 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
     });
     const disposalId = await requestDisposal(asset.tag);
 
-    const res = await api.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "approve" });
+    const res = await asDirector.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "approve" });
 
     expect(res.status).toBe(200);
     expect(await newestRecord(asset.assetId)).toMatchObject({ status: "DISPOSED", current_custodian: USERS.custodianB.userId });
@@ -248,8 +250,8 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
     const second = await requestDisposal(asset.tag);
 
     const answers = [
-      await api.put(`/api/asset_disposals/${first}/decision`, { decision: "approve" }),
-      await api.put(`/api/asset_disposals/${second}/decision`, { decision: "approve" }),
+      await asDirector.put(`/api/asset_disposals/${first}/decision`, { decision: "approve" }),
+      await asDirector.put(`/api/asset_disposals/${second}/decision`, { decision: "approve" }),
     ];
 
     expect(answers.map((a) => a.status)).toEqual([200, 200]);
@@ -261,7 +263,7 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
     const disposalId = await requestDisposal(asset.tag);
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "reject" });
+    const res = await asDirector.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "reject" });
 
     expect(res.status).toBe(200);
     expect(res.body.disposal.status).toBe("rejected");
@@ -273,7 +275,7 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
   it("answers 400 on a disposal that is already decided, and changes nothing", async () => {
     const recordsBefore = await recordCount(ASSETS.disposed.assetId);
 
-    const res = await api.put(`/api/asset_disposals/${SEEDED_ROWS.disposalId}/decision`, { decision: "reject" });
+    const res = await asDirector.put(`/api/asset_disposals/${SEEDED_ROWS.disposalId}/decision`, { decision: "reject" });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/already been approved/);
@@ -290,7 +292,7 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
       data: { asset_id: ASSETS.available.assetId, disposed_by_id: USERS.staffTsg.userId, disposal_reason: "Test word check", status: "pending" },
     });
     try {
-      const res = await api.put(`/api/asset_disposals/${disposal.disposal_id}/decision`, { decision });
+      const res = await asDirector.put(`/api/asset_disposals/${disposal.disposal_id}/decision`, { decision });
 
       expect(res.status).toBe(400);
       expect(await disposalStatus(disposal.disposal_id)).toBe("pending");
@@ -300,13 +302,13 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
   });
 
   it("answers 400 for an id that is not a number, such as the DISP-n id the list shows", async () => {
-    const res = await api.put("/api/asset_disposals/DISP-1/decision", { decision: "approve" });
+    const res = await asDirector.put("/api/asset_disposals/DISP-1/decision", { decision: "approve" });
 
     expect(res.status).toBe(400);
   });
 
   it("answers 404 for an unknown id", async () => {
-    const res = await api.put("/api/asset_disposals/9999/decision", { decision: "approve" });
+    const res = await asDirector.put("/api/asset_disposals/9999/decision", { decision: "approve" });
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);

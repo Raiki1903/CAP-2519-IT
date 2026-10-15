@@ -12,7 +12,8 @@ import { describe, expect, it } from "vitest";
 import { LAB, USERS, type RoleName } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, db, server } = useApiHarness();
+const { api, db, server, as } = useApiHarness();
+const asLabHead = as(USERS.labHead);
 
 let applicantCount = 0;
 
@@ -36,7 +37,7 @@ async function requestSignUp(extra: Record<string, unknown> = {}) {
 }
 
 const pendingIds = async (): Promise<string[]> =>
-  (await api.get("/api/auth/pending-registrations")).body.pendingRegistrations.map((r: { id: string }) => r.id);
+  (await asLabHead.get("/api/auth/pending-registrations")).body.pendingRegistrations.map((r: { id: string }) => r.id);
 
 const pendingFile = (): { id: string; status: string }[] =>
   JSON.parse(fs.readFileSync(path.join(server().workDir, "pending_registrations.json"), "utf-8"));
@@ -101,7 +102,7 @@ describe("GET /api/auth/pending-registrations", () => {
     const older = await requestSignUp();
     const newer = await requestSignUp();
 
-    const res = await api.get("/api/auth/pending-registrations");
+    const res = await asLabHead.get("/api/auth/pending-registrations");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -113,7 +114,7 @@ describe("GET /api/auth/pending-registrations", () => {
   it("includes each applicant's password, to any caller (known defect C-04)", async () => {
     const { registration } = await requestSignUp({ password: "test-password-visible" });
 
-    const res = await api.get("/api/auth/pending-registrations");
+    const res = await asLabHead.get("/api/auth/pending-registrations");
 
     const listed = res.body.pendingRegistrations.find((r: { id: string }) => r.id === registration.id);
     expect(listed.password).toBe("test-password-visible");
@@ -124,7 +125,7 @@ describe("POST /api/auth/approve-registration", () => {
   it("creates the account with its role and lab link, and removes the request from the list and the file", async () => {
     const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode, userType: "FACULTY", password: "test-password-approved" });
 
-    const res = await api.post("/api/auth/approve-registration", { requestId: registration.id });
+    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -140,7 +141,7 @@ describe("POST /api/auth/approve-registration", () => {
   it("answers with the created row, password included (known defect, 01C 4.1)", async () => {
     const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode, password: "test-password-echoed" });
 
-    const res = await api.post("/api/auth/approve-registration", { requestId: registration.id });
+    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
 
     expect(res.body.user).toMatchObject({ email: body.email, password: "test-password-echoed" });
   });
@@ -153,7 +154,7 @@ describe("POST /api/auth/approve-registration", () => {
   ])("gives a request for role %s the database role %s (M-11: ITS becomes ADMIN)", async (requestedRole, expectedRole) => {
     const { body, registration } = await requestSignUp({ requestedRole, labAffiliation: LAB.shortCode });
 
-    await api.post("/api/auth/approve-registration", { requestId: registration.id });
+    await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
 
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
     expect(await roleNamesOf(created.user_id)).toEqual([expectedRole]);
@@ -162,7 +163,7 @@ describe("POST /api/auth/approve-registration", () => {
   it("creates a new research center for a lab it does not know, and links the account to it (new finding)", async () => {
     const { body, registration } = await requestSignUp({ labAffiliation: "Test Unknown Lab (TESTX)" });
 
-    const res = await api.post("/api/auth/approve-registration", { requestId: registration.id });
+    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
 
     expect(res.status).toBe(200);
     const center = await db.research_centers.findUniqueOrThrow({ where: { short_code: "TESTX" } });
@@ -173,7 +174,7 @@ describe("POST /api/auth/approve-registration", () => {
   });
 
   it("answers 404 for an unknown request id with no applicant details", async () => {
-    const res = await api.post("/api/auth/approve-registration", { requestId: "REG-000000" });
+    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: "REG-000000" });
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
@@ -182,7 +183,7 @@ describe("POST /api/auth/approve-registration", () => {
   it("creates an account with the requested role from the body alone when the request id is unknown (known defect C-05)", async () => {
     const body = applicant({ requestId: "REG-000000", requestedRole: "ITS", labAffiliation: LAB.shortCode });
 
-    const res = await api.post("/api/auth/approve-registration", body);
+    const res = await asLabHead.post("/api/auth/approve-registration", body);
 
     expect(res.status).toBe(200);
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email as string } });
@@ -194,7 +195,7 @@ describe("POST /api/auth/reject-registration", () => {
   it("removes the request from the list and the file, and creates no account", async () => {
     const { body, registration } = await requestSignUp();
 
-    const res = await api.post("/api/auth/reject-registration", { requestId: registration.id });
+    const res = await asLabHead.post("/api/auth/reject-registration", { requestId: registration.id });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -204,7 +205,7 @@ describe("POST /api/auth/reject-registration", () => {
   });
 
   it("answers 200 for an unknown request id as well", async () => {
-    const res = await api.post("/api/auth/reject-registration", { requestId: "REG-000000" });
+    const res = await asLabHead.post("/api/auth/reject-registration", { requestId: "REG-000000" });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -215,7 +216,7 @@ describe("POST /api/auth/register (no caller)", () => {
   it("creates a CUSTODIAN account at once, with no approval step (C-05 family)", async () => {
     const body = applicant({ password: "test-password-direct" });
 
-    const res = await api.post("/api/auth/register", body);
+    const res = await asLabHead.post("/api/auth/register", body);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true, user: { firstName: body.firstName, lastName: body.lastName, email: body.email } });
@@ -228,7 +229,7 @@ describe("POST /api/auth/register (no caller)", () => {
   it("links the account to the lab named by centerId", async () => {
     const body = applicant({ password: "test-password-direct", centerId: LAB.centerId, userType: "FACULTY" });
 
-    await api.post("/api/auth/register", body);
+    await asLabHead.post("/api/auth/register", body);
 
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
     expect(created.user_type).toBe("FACULTY");
@@ -240,15 +241,15 @@ describe("POST /api/auth/register (no caller)", () => {
     for (const missing of ["firstName", "lastName", "email", "password", "idNumber"] as const) {
       const body: Record<string, unknown> = applicant({ password: "test-password-direct" });
       delete body[missing];
-      const res = await api.post("/api/auth/register", body);
+      const res = await asLabHead.post("/api/auth/register", body);
       expect(res.status, missing).toBe(400);
     }
   });
 
   it("answers 400 for an email or an id number that already belongs to an account", async () => {
     const usersBefore = await db.users.count();
-    const sameEmail = await api.post("/api/auth/register", applicant({ password: "x", email: USERS.custodianA.email }));
-    const sameIdNumber = await api.post("/api/auth/register", applicant({ password: "x", idNumber: USERS.custodianA.idNumber }));
+    const sameEmail = await asLabHead.post("/api/auth/register", applicant({ password: "x", email: USERS.custodianA.email }));
+    const sameIdNumber = await asLabHead.post("/api/auth/register", applicant({ password: "x", idNumber: USERS.custodianA.idNumber }));
 
     expect(sameEmail.status).toBe(400);
     expect(sameIdNumber.status).toBe(400);
