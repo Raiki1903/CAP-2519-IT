@@ -6,6 +6,7 @@
  */
 import type { Prisma, asset_records, asset_transfers, assets, users } from '@prisma/client';
 import type { TransferDecision, TransferListItem, TransferRequestInput } from '@shared/types/transfers';
+import type { SessionIdentity } from '@shared/types/auth';
 import * as transfersRepository from './transfers.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
@@ -111,11 +112,14 @@ export function notifyRecipient(asset: assets, recipient: users, assetTag: strin
  * Lists every transfer, newest first, shaped for the screens.
  * Every transfer goes to every caller, with each recipient's email; the Lab Head screen keeps
  * its own lab's rows by `lab`. (M-02)
+ * A Custodian gets `from`, `to`, and `toEmail` only on a transfer they are part of, from either side (D2).
+ * `fromCustodianId` stays on every row: the asset modal needs to know a transfer is pending on the asset.
  *
+ * @param viewer the session user
  * @returns one TransferListItem per asset_transfers row
  */
 // TODO(M-02): scoping by lab happens only in the browser. Server-side, once requireAuth gives the acting user (step 13 or later).
-export async function listTransfers(): Promise<TransferListItem[]> {
+export async function listTransfers(viewer: SessionIdentity): Promise<TransferListItem[]> {
     const [dbTransfers, dbAssets, dbUsers, dbRecords] = await transfersRepository.findListLookups();
 
     return dbTransfers.map(t => {
@@ -143,15 +147,20 @@ export async function listTransfers(): Promise<TransferListItem[]> {
         if (t.status === "approved") status = "Approved";
         else if (t.status === "declined") status = "Declined";
 
+        // Other people's names stay out of a Custodian's list unless the transfer is theirs. (D2)
+        const namesShown = viewer.role !== "Custodian"
+            || t.from_custodian_id === viewer.userId
+            || t.to_custodian_id === viewer.userId;
+
         return {
             id: `TRF-${t.transfer_id}`,
             transferId: t.transfer_id,
             assetId: asset?.asset_tag || "",
             asset: asset?.name || "Unknown Asset",
-            from: fromUser ? `${fromUser.first_name} ${fromUser.last_name}` : "Unknown",
+            from: namesShown ? (fromUser ? `${fromUser.first_name} ${fromUser.last_name}` : "Unknown") : undefined,
             fromCustodianId: t.from_custodian_id,
-            to: toUser ? `${toUser.first_name} ${toUser.last_name}` : "Unknown",
-            toEmail: toUser?.email || "",
+            to: namesShown ? (toUser ? `${toUser.first_name} ${toUser.last_name}` : "Unknown") : undefined,
+            toEmail: namesShown ? (toUser?.email || "") : undefined,
             justification: cleanJustification,
             destinationLab,
             requestedOn: t.requested_on.toISOString().split("T")[0],

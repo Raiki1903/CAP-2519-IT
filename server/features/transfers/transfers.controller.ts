@@ -33,11 +33,11 @@ export async function requestTransfer(req: Request<{ assetTag: string }>, res: R
 }
 
 /**
- * Handles GET /api/asset_transfers: every transfer, newest first, as `{ success, transfers }`.
- * A failure answers errorHandler's generic 500.
+ * Handles GET /api/asset_transfers: every transfer, newest first, as `{ success, transfers }`. A Custodian gets no
+ * names or recipient email on a transfer they are not part of (D2). A failure answers errorHandler's generic 500.
  */
 export async function listTransfers(req: Request, res: Response): Promise<void> {
-    const transfers = await transfersService.listTransfers();
+    const transfers = await transfersService.listTransfers(sessionUserOf(req));
     res.json({ success: true, transfers });
 }
 

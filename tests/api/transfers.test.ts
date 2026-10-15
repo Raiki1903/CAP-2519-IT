@@ -111,7 +111,7 @@ describe("GET /api/asset_transfers", () => {
       });
     });
 
-    it("includes the recipient's email, for any caller (known issue, 01C 4.3)", async () => {
+    it("includes the recipient's email, for a Lab Head, Staff, or Director (known issue, 01C 4.3)", async () => {
       await withTransfers(async () => {
         const res = await asLabHead.get("/api/asset_transfers");
 
