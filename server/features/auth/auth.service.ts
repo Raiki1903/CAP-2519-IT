@@ -337,15 +337,15 @@ export async function sessionIdentityFor(token: string): Promise<SessionIdentity
 }
 
 /**
- * The profile and app role of the account with this email, for the session reload.
+ * The profile and app role of the session's own account, for the session reload and the account page.
  * Same mapping and lab fallback as login, with the role inside the profile.
  *
- * @param email the email from the query; the repository trims it
+ * @param userId the session user (C-06: never an email the caller sends)
  * @returns the profile with its role
- * @throws AppError 404 if no account has this email
+ * @throws AppError 404 if the account no longer exists (deleted within the 60-second session cache)
  */
-export async function getProfile(email: string): Promise<ProfileUser> {
-    const user = await authRepository.findUserProfileByEmail(email);
+export async function getProfile(userId: number): Promise<ProfileUser> {
+    const user = await authRepository.findUserProfileById(userId);
 
     if (!user) {
         throw new AppError(404, "User profile not found in database.");

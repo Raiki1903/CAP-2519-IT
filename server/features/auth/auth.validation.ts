@@ -45,18 +45,6 @@ export function checkLogin(data: any): asserts data is LoginInput {
 }
 
 /**
- * Checks that the profile request names an email.
- *
- * @param email the `email` query parameter
- * @throws AppError 400 if it is missing or empty
- */
-export function checkProfileQuery(email: string): void {
-    if (!email) {
-        throw new AppError(400, "Email query param required.");
-    }
-}
-
-/**
  * Checks that an account update has an email, a first name, and a last name.
  * The picture and the lab are optional.
  *

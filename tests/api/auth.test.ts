@@ -96,34 +96,29 @@ describe("POST /api/auth/login", () => {
 
 describe("GET /api/auth/me", () => {
   it.each(EXPECTED_ROLES)(
-    "answers the $user.role account's profile with role $role inside user",
+    "answers the $user.role account's own profile with role $role inside user",
     async ({ user, role, staffUnit }) => {
-      const res = await asCustodian.get(`/api/auth/me?email=${encodeURIComponent(user.email)}`);
+      const res = await as(user).get("/api/auth/me");
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({ success: true, user: { ...profileOf(user), role, staffUnit } });
     },
   );
 
-  it("answers any account's profile from the email alone, to any signed-in user (known defect C-06, until 13c)", async () => {
-    const res = await asCustodian.get(`/api/auth/me?email=${encodeURIComponent(USERS.director.email)}`);
+  it("ignores ?email= and answers the caller's own profile (C-06 fixed)", async () => {
+    for (const email of [USERS.director.email, "nobody@example.test"]) {
+      const res = await asCustodian.get(`/api/auth/me?email=${encodeURIComponent(email)}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.user.role).toBe("AdRICDirector");
+      expect(res.status, email).toBe(200);
+      expect(res.body.user, email).toMatchObject({ userId: USERS.custodianA.userId, email: USERS.custodianA.email, role: "Custodian" });
+    }
   });
 
-  it("answers 400 without an email", async () => {
+  it("needs no email", async () => {
     const res = await asCustodian.get("/api/auth/me");
 
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-  });
-
-  it("answers 404 for an unknown email", async () => {
-    const res = await asCustodian.get("/api/auth/me?email=nobody%40example.test");
-
-    expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
+    expect(res.status).toBe(200);
+    expect(res.body.user.userId).toBe(USERS.custodianA.userId);
   });
 });
 

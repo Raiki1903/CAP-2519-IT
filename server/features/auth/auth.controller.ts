@@ -8,7 +8,8 @@
 import type { Request, Response } from 'express';
 import * as authService from './auth.service';
 import { clearedSessionCookieHeader, readCookie, SESSION_COOKIE_NAME, sessionCookieHeader } from '../../shared/services/session';
-import { checkAccountUpdate, checkLogin, checkProfileQuery, checkRegistration, checkRegistrationRequest } from './auth.validation';
+import { checkAccountUpdate, checkLogin, checkRegistration, checkRegistrationRequest } from './auth.validation';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 // Each handler reads req.body in one destructuring statement. A request with no JSON body (Express 5 leaves
 // req.body undefined) therefore throws a TypeError there, which errorHandler answers with its generic 500.
@@ -110,15 +111,12 @@ export async function rejectRegistration(req: Request, res: Response): Promise<v
 }
 
 /**
- * Handles GET /api/auth/me?email=...: the profile and app role of the account with that email.
- * Answers `{ success, user }`, or the AppError's status and message (400 no email, 404 no account), or 500.
+ * Handles GET /api/auth/me: the profile and app role of the session's own account. An `email` in the query,
+ * which older pages still send, is ignored, so no one can read another account's profile. (C-06)
+ * Answers `{ success, user }`, or 404 if the account no longer exists, or 500.
  */
-// TODO(C-06): any signed-in user gets any account's profile by its email; nothing checks that the caller is that person. 13c (the session user).
 export async function getProfile(req: Request, res: Response): Promise<void> {
-    const email = req.query.email as string;
-
-    checkProfileQuery(email);
-    const user = await authService.getProfile(email);
+    const user = await authService.getProfile(sessionUserOf(req).userId);
 
     res.json({
         success: true,

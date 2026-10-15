@@ -134,10 +134,10 @@ export function findUserByCredentials(email: string, password: string) {
     });
 }
 
-/** The first user with this email (trimmed), with their roles and labs, or null. */
-export function findUserProfileByEmail(email: string) {
-    return prisma.users.findFirst({
-        where: { email: email.trim() },
+/** The user with this id, with their roles and labs, or null. */
+export function findUserProfileById(userId: number) {
+    return prisma.users.findUnique({
+        where: { user_id: userId },
         include: {
             user_roles: { include: { roles: true } },
             user_centers: { include: { research_centers: true } }
