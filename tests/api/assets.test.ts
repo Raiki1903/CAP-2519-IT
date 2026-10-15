@@ -179,10 +179,11 @@ describe("GET /api/assets/:tag/custodian-history", () => {
     expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianId");
   });
 
-  it("includes each custodian's email and id number (known defect, 01C 4.2)", async () => {
+  it("includes each custodian's email (known defect, 01C 4.2) but no id number, for any role (answer 6)", async () => {
     const res = await asStaff.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
 
-    expect(res.body.custodianHistory[1]).toMatchObject({ custodianEmail: USERS.custodianA.email, custodianId: USERS.custodianA.idNumber });
+    expect(res.body.custodianHistory[1]).toMatchObject({ custodianEmail: USERS.custodianA.email });
+    for (const entry of res.body.custodianHistory) expect(entry).not.toHaveProperty("custodianId");
   });
 
   it("looks a numeric tag up as an asset id", async () => {

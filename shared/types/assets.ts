@@ -176,10 +176,8 @@ export interface CustodianHistoryEntry {
   recordId?: number;
   /** Left out when the placeholder custodian holds the asset at this entry (nobody holds it). */
   custodianName?: string;
-  // TODO(C-02): the custodian's email and id number go to any signed-in user (01C 4.2). Strip them (issue #72).
+  // TODO(C-02): the custodian's email goes to any signed-in user (01C 4.2). Strip it (issue #72).
   custodianEmail?: string;
-  /** The custodian's id number (users.id_number), not users.user_id. */
-  custodianId?: number | string;
   status: string;
   location: string;
   currentLocation?: string;

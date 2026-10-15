@@ -226,7 +226,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
  * @returns the asset's tag and name and the entries, numbered from 1
  * @throws AppError 404 if neither the tag nor the id matches an asset
  */
-// TODO(C-02): each entry carries the custodian's email and id number, sent to any signed-in user (01C 4.2). Strip them (issue #72).
+// TODO(C-02): each entry carries the custodian's email, sent to any signed-in user (01C 4.2). Strip it (issue #72).
 export async function custodianHistory(assetTag: string): Promise<CustodianHistory> {
     let asset = await assetsRepository.findByTag(assetTag);
 
@@ -244,18 +244,17 @@ export async function custodianHistory(assetTag: string): Promise<CustodianHisto
 
     for (let i = 0; i < records.length; i++) {
         const r = records[i];
-        // An entry held by the placeholder ("nobody holds it") names no one: no name, email, or id number.
+        // An entry held by the placeholder ("nobody holds it") names no one: no name and no email.
+        // No entry carries the holder's id number: no screen shows it (answer 6 of the 13c questions).
         const holder = r.current_custodian === POOL_CUSTODIAN_ID ? null : r.users;
         const custodianName = holder ? `${holder.first_name} ${holder.last_name}` : (r.users ? undefined : "Unknown Custodian");
         const custodianEmail = holder ? holder.email : (r.users ? undefined : "");
-        const custodianId = holder ? holder.id_number : (r.users ? undefined : "");
 
         history.push({
             sequence: i + 1,
             recordId: r.asset_record_id,
             custodianName,
             custodianEmail,
-            custodianId,
             status: r.status,
             location: r.location,
             currentLocation: r.current_location || undefined,
