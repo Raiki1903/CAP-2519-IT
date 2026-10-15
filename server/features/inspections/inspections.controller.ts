@@ -7,6 +7,7 @@
  */
 import type { Request, Response } from 'express';
 import * as inspectionsService from './inspections.service';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
  * Handles POST /api/assets/:assetTag/inspection: saves a condition report to asset_reports and
@@ -20,7 +21,7 @@ export async function fileReport(req: Request<{ assetTag: string }>, res: Respon
     // Printed before the lookups, so a refused report still shows in the server terminal.
     console.log(`📋 Server received inspection report for ${assetTag}:`, data);
 
-    const newReport = await inspectionsService.fileReport(assetTag, data);
+    const newReport = await inspectionsService.fileReport(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Inspection report saved under asset_reports in DB:", newReport.report_id);
     res.json({ success: true, report: newReport });
