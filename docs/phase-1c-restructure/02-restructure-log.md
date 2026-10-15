@@ -3,7 +3,7 @@
 Running record of the migration in [01D section 9](../phase-1b-deep-map/01D-restructure-plan.md#9-ordered-migration-steps).
 Decision and comment standard: [01-restructure-decision.md](01-restructure-decision.md), [../guides/CODE-COMMENTS.md](../guides/CODE-COMMENTS.md).
 
-Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16. The fixes for issues #25 and #26 were merged in PR #33 (their own branch); step 8 continues from that merge. Step 8 part 1 was merged in PR #45, and part 2 continues from that merge (`9db4a4d7`). Step 8 part 2 was merged in PR #46, and step 9 continues from that merge (`8db5a88f`). Step 9 was merged in PR #50 and the Phase 2 API tests in PR #52; step 10 starts from that merge (`dd6db809`), on a fresh `refactor/feature-based-structure`. Step 10 was merged in PR #56; step 11 starts from that merge (`2256e0ad`), again on a fresh `refactor/feature-based-structure`. Step 11 was merged in PR #58; step 12 starts from that merge (`6cf95b29`), again on a fresh `refactor/feature-based-structure`, and runs in batches (batch 1: returns, transfers, disposals). Batch 1 was merged in PR #61; batch 2 (repairs, inspections) starts from that merge (`d571d697`), again on a fresh `refactor/feature-based-structure`. Batch 2 was merged in PR #64; batch 3 (auth, assets, and the borrowed reads) starts from that merge (`e3ac3e3f`), again on a fresh `refactor/feature-based-structure`. Batch 3 was merged in PR #77; batch 4 (analytics, the last batch) starts from that merge (`c407a232`), again on a fresh `refactor/feature-based-structure`. Batch 4 was merged in PR #90; step 13 runs in three parts (13a, 13b, 13c), each its own session and pull request, and 13a starts from that merge (`c8f50cfb`), again on a fresh `refactor/feature-based-structure`. 13a was merged in PR #91; 13b starts from that merge (`2c107afc`), again on a fresh `refactor/feature-based-structure`. 13b was merged in PR #93; 13c starts from that merge (`5ac94dcd`), again on a fresh `refactor/feature-based-structure`. From step 10 on, `npm test` runs after every commit and must stay at 305 passed; from step 13a on, at 309 (4 errorHandler tests added). Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
+Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16. The fixes for issues #25 and #26 were merged in PR #33 (their own branch); step 8 continues from that merge. Step 8 part 1 was merged in PR #45, and part 2 continues from that merge (`9db4a4d7`). Step 8 part 2 was merged in PR #46, and step 9 continues from that merge (`8db5a88f`). Step 9 was merged in PR #50 and the Phase 2 API tests in PR #52; step 10 starts from that merge (`dd6db809`), on a fresh `refactor/feature-based-structure`. Step 10 was merged in PR #56; step 11 starts from that merge (`2256e0ad`), again on a fresh `refactor/feature-based-structure`. Step 11 was merged in PR #58; step 12 starts from that merge (`6cf95b29`), again on a fresh `refactor/feature-based-structure`, and runs in batches (batch 1: returns, transfers, disposals). Batch 1 was merged in PR #61; batch 2 (repairs, inspections) starts from that merge (`d571d697`), again on a fresh `refactor/feature-based-structure`. Batch 2 was merged in PR #64; batch 3 (auth, assets, and the borrowed reads) starts from that merge (`e3ac3e3f`), again on a fresh `refactor/feature-based-structure`. Batch 3 was merged in PR #77; batch 4 (analytics, the last batch) starts from that merge (`c407a232`), again on a fresh `refactor/feature-based-structure`. Batch 4 was merged in PR #90; step 13 runs in three parts (13a, 13b, 13c), each its own session and pull request, and 13a starts from that merge (`c8f50cfb`), again on a fresh `refactor/feature-based-structure`. 13a was merged in PR #91; 13b starts from that merge (`2c107afc`), again on a fresh `refactor/feature-based-structure`. 13b was merged in PR #93; 13c starts from that merge (`5ac94dcd`), again on a fresh `refactor/feature-based-structure`. From step 10 on, `npm test` runs after every commit and must stay at 305 passed; from step 13a on, at 309 (4 errorHandler tests added); from 13c on, at 385. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
 
 ---
 
@@ -25,10 +25,10 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 10 | Create the `server/` skeleton | Done (hand checks passed; 4 skipped, no Mailgun; 6 a team action) | `584d0c5f`, `7a40911b`, `5fd47ff0` (moves); `bd242d15` (behavior change, C-07) | `77f68fa7` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 11 | Extract one backend feature end to end (loans) | Done (all 8 hand checks passed), merged in PR #58 | `0ba5feda`, `b3212304`, `2261a0dd` (moves and types) | `4a51c67a` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 12 | Extract the remaining backend features | Batch 1 done (returns, transfers, disposals; all 9 hand checks passed), merged in PR #61. Batch 2 done (repairs, inspections; all 9 hand checks passed), merged in PR #64. Batch 3 done (auth with registrations, assets, and the borrowed reads folded; all 11 hand checks passed, 1 and 2 without their reload part, blocked by issue #49), merged in PR #77. Batch 4 done (analytics, the startup check, two folds, the backup job; `remainingRoutes.ts` deleted; all 10 hand checks passed, 2026-10-13), merged in PR #90. **Step 12 complete** | Batch 1: `86d166ee` (email lookups), `02147897` (returns), `574ded38` (transfers), `9e81ffc6` (disposals). Batch 2: `d4a473d6` (repairs), `3d8d4547` (inspections). Batch 3: `5b94aa9b` (auth), `c6cf958f` (assets), `569a175d` (borrowed reads). Batch 4: `9265911f` (analytics), `c5ff5d27` (behavior change: 22 old endpoints to legacy, unregistered), `94374139` (startup check), `13c33c2c` (two folds), `1a3b3bbd` (behavior change: backup job deleted, F-39) | Batch 1: `5dc2f47a`. Batch 2: `e30282a5`, `edad3003` (issue #53). Batch 3: `39bc37eb`; the hand checks and issue numbers recorded in a later docs commit. Batch 4: `1c83c84d`; the hand checks recorded in a later docs commit | Batches 1 to 3: **71** (unchanged, same errors). Batch 4: **68** (the three `is_documented` errors moved into `legacy/`, see detail); `npm test` **305 passed** after every commit | 2026-10-09, 2026-10-10, 2026-10-11 |
-| 13 | Add `errorHandler` and `requireAuth` (in three parts: 13a `errorHandler`, 13b session and roles, 13c the session user) | 13a and 13b done; 13c plan proposed, waiting for approval; step 14 not started | 13a: `9c462ac9` (behavior change: body parser errors answer JSON), `62350584` to `7f56a1f8` (9 behavior changes, one per feature: generic 500s, H-16); docs `4f7bd647` (decisions). 13b: `fab7825a` to `680cd60a`, and `a984ffb2` (15 labelled behavior changes, among them the issue #49 fix and nine per-feature enforcement commits; see detail), tests `076490b7` and `68b5e20b`; docs `50889595`, `b4c83a76` (role table); after the hand checks, `128896fb` and `4c6bbc83` (2 more behavior changes), and after hand check 9, `4b5386d8` (1 more) | 13a: `b72cf6c3`. 13b: `50f33ac3` | 13a: **68** (unchanged, same errors); `npm test` **309 passed** (305 plus 4 new errorHandler tests) from `9c462ac9` on. 13b: **68** (unchanged, same errors); **309**, then **372** from `68b5e20b` (63 new tests), **375** from `128896fb` (3 cache tests) | 2026-10-14, 2026-10-15 |
+| 13 | Add `errorHandler` and `requireAuth` (in three parts: 13a `errorHandler`, 13b session and roles, 13c the session user) | 13a and 13b done (merged in PR #91 and PR #93); 13c built 2026-10-15 (stop 2), hand checks not run yet (1 to 5 Raiki's, on CCS Cloud; 6 to 17 the agent's, in a browser on the local test database); step 14 not started | 13a: `9c462ac9` (behavior change: body parser errors answer JSON), `62350584` to `7f56a1f8` (9 behavior changes, one per feature: generic 500s, H-16); docs `4f7bd647` (decisions). 13b: `fab7825a` to `680cd60a`, and `a984ffb2` (15 labelled behavior changes, among them the issue #49 fix and nine per-feature enforcement commits; see detail), tests `076490b7` and `68b5e20b`; docs `50889595`, `b4c83a76` (role table); after the hand checks, `128896fb` and `4c6bbc83` (2 more behavior changes), and after hand check 9, `4b5386d8` (1 more). 13c: docs `f42292b4` (plan), `3d618e05` (answers); `99325ed5` to `a77424ab` (21 labelled behavior changes, see detail); tests `85818f81`, `5456eeed` | 13a: `b72cf6c3`. 13b: `50f33ac3`. 13c: `22f8bf17` | 13a: **68** (unchanged, same errors); `npm test` **309 passed** (305 plus 4 new errorHandler tests) from `9c462ac9` on. 13b: **68** (unchanged, same errors); **309**, then **372** from `68b5e20b` (63 new tests), **375** from `128896fb` (3 cache tests). 13c: **68** to **66** at `03a4bb20` (two H-13 errors removed with their lines; `85818f81` alone showed 79, fixed in `5456eeed`); **375**, **374** from `c31dabfa`, **372** from `4d04801a`, **385** from `85818f81` (13 new tests) | 2026-10-14, 2026-10-15 |
 | 14 | Baseline the migrations | Not started | | | | |
 
-Steps 6, 7, 9, and 13 change behavior on purpose, and so do step 8 part 2 in five labelled commits (team decisions H-18 and F-28, and M-07) and step 10 in one (C-07, the database fallbacks that 01D section 6 deletes). Every other step is a move or an addition. Step 11 has no behavior change, and neither have step 12 batches 1, 2, and 3. Step 12 batch 4 has two labelled behavior-change commits, both team decisions: the 22 old analytics endpoints answer 404 (`c5ff5d27`, 2026-10-08), and the backup job is deleted (`1a3b3bbd`, F-39, 2026-10-09). Step 13a has ten, all part of the step 13 decisions (2026-10-13): a body the parsers cannot read answers JSON (`9c462ac9`), and each feature's 500s answer a generic message instead of the raw error text (H-16, one commit per feature). Step 13b has eighteen, all from the 13b decisions (2026-10-13 and 2026-10-15): the session cookie, logout, CORS, the web changes, the issue #49 fix, one enforcement commit per feature, the per-login token, and, after the hand checks, the 60-second session lookup cache, a restore that survives a slow server, and the "session ended" notice in a tab logged out from another tab.
+Steps 6, 7, 9, and 13 change behavior on purpose, and so do step 8 part 2 in five labelled commits (team decisions H-18 and F-28, and M-07) and step 10 in one (C-07, the database fallbacks that 01D section 6 deletes). Every other step is a move or an addition. Step 11 has no behavior change, and neither have step 12 batches 1, 2, and 3. Step 12 batch 4 has two labelled behavior-change commits, both team decisions: the 22 old analytics endpoints answer 404 (`c5ff5d27`, 2026-10-08), and the backup job is deleted (`1a3b3bbd`, F-39, 2026-10-09). Step 13a has ten, all part of the step 13 decisions (2026-10-13): a body the parsers cannot read answers JSON (`9c462ac9`), and each feature's 500s answer a generic message instead of the raw error text (H-16, one commit per feature). Step 13b has eighteen, all from the 13b decisions (2026-10-13 and 2026-10-15): the session cookie, logout, CORS, the web changes, the issue #49 fix, one enforcement commit per feature, the per-login token, and, after the hand checks, the 60-second session lookup cache, a restore that survives a slow server, and the "session ended" notice in a tab logged out from another tab. Step 13c has twenty-one, all from the 13c decisions and answers (2026-10-13 and 2026-10-15): who acted comes from the session (six commits, one per feature), `/me` and the account update act on the caller only, user 1 becomes the named-for-no-one placeholder `POOL_CUSTODIAN_ID`, no id numbers in the custodian history, only the holder may request a transfer, four D2 commits hiding other people's names from a Custodian, and five web commits.
 
 ---
 
@@ -1169,7 +1169,7 @@ Step 13 runs in three parts, each its own session, its own run on a fresh `refac
 
 - **13a:** `errorHandler` only (H-16). Done, below.
 - **13b:** a real session (a signed cookie) plus `requireAuth` and `requireRole` (C-02, C-06, 01C tier 2 items 9, 10, 12). Its first commit is a route-by-route role table for Raiki to approve. Role table approved 2026-10-15 and built the same day (below); all 13 hand checks passed; merged in PR #93.
-- **13c:** the session user replaces the typed-name and email lookups (issue #32, H-10), `/me` stops trusting `?email=` (C-06), and `DEFAULT_CUSTODIAN_ID` goes (01C tier 2 item 11). Also, decided 2026-10-15: the server stops sending other people's names to a Custodian in the asset, loan, and transfer lists (D2; answer 1 of the 13b questions). Stop 1 (the plan) proposed 2026-10-15, waiting for approval (below).
+- **13c:** the session user replaces the typed-name and email lookups (issue #32, H-10), `/me` stops trusting `?email=` (C-06), and `DEFAULT_CUSTODIAN_ID` goes (01C tier 2 item 11). Also, decided 2026-10-15: the server stops sending other people's names to a Custodian in the asset, loan, and transfer lists (D2; answer 1 of the 13b questions). Plan proposed and answered 2026-10-15, built the same day (below); hand checks next.
 
 Password hashing (issue #10, C-03) is not part of step 13; it gets its own security branch afterward.
 
@@ -1812,6 +1812,115 @@ Expected after stop 2: 375 minus 3 plus about 12, about **384**; exact count in 
    **Answer (2026-10-15): (a).** Tickets are filed under the session user. The web commit renames the "Custodian" column header to "Reported by" in both tables of `web/pages/staff/RepairsPage.tsx`.
 8. **The custodian name typed in the Edit Asset dialog.** Staff can change an asset's custodian by typing a name, which the server matches like the other typed names; this names a target, not the person acting, so the session cannot replace it. It affects Staff (Inventory, Edit). (a) Keep the name lookup in 13c; a proper person picker comes later, and issue #32 stays open for this one field. (b) Refuse a name that matches nobody with an error. **Recommendation: (a)**, because the dialog fills the field with the current custodian's name, and for anyone whose first name is two words that name never matches, so (b) would block every edit of their assets.
    **Answer (2026-10-15): (a).** The name lookup stays for the Edit Asset custodian field. A dropdown, and appending a record instead of overwriting (H-14), come on a separate branch after 13c.
+
+#### Stop 2: what was built (2026-10-15)
+
+On the same branch, after Raiki's answers. Every commit that changes behavior has `!` in its title. Nothing was pushed.
+
+| Commit | Kind | What it does |
+|---|---|---|
+| `3d618e05` | Docs | Raiki's eight answers, and items 2, 3, 6, and 7 revised to match |
+| `99325ed5` | **Behavior change** | Loans: the borrower is the session user; `borrower` no longer required or read. Adds `sessionUserOf(req)` next to `requireAuth`. The three tests that pinned the typed-name lookup (issue #32) now check the session user |
+| `62d6cf0b` | **Behavior change** | Repairs: the reporter is the session user, so a ticket Staff file is under the Staff member (answer 7) |
+| `60c61116` | **Behavior change** | Inspections: the reporter is the session user; `reporterEmail` and `reportedById` ignored |
+| `ff62fd58` | **Behavior change** | Disposals: the requester is the session user; the Director's email names that account, looked up by id |
+| `f1c36ec9` | **Behavior change** | Returns: the returner is the asset's current custodian, by id (answer 2); the Staff member when nobody holds it |
+| `f4baa8c8` | **Behavior change** | Asset edit: the condition report is filed under the Staff member who edited; the typed name still sets the new custodian (answer 8) |
+| `c31dabfa` | **Behavior change** | `GET /api/auth/me` answers the caller's own profile and ignores `?email=` (C-06) |
+| `4d04801a` | **Behavior change** | `PUT /api/auth/account` changes only the caller's account; the body's email is ignored (C-06). The three email lookups, one of which loaded every account (M-01), are gone |
+| `0f63e4ea` | **Behavior change** (terminal only) | `DEFAULT_CUSTODIAN_ID` becomes `POOL_CUSTODIAN_ID`, the placeholder for "nobody holds it" (answer 1): `server/shared/constants/poolCustodian.ts` and `server/shared/services/poolCustodianCheck.ts`, kept; the startup line reads "✅ Pool custodian check passed: user_id 1 (...) stands for "nobody holds it"" |
+| `edbc0bda` | **Behavior change** | The placeholder's name is not sent: no `custodian` in the asset list for an asset it holds ("No Custodian" in disposal details), and no name, email, or id number in its custodian history entries |
+| `4d0facb5` | **Behavior change** | The custodian history sends no id number, to any role (answer 6) |
+| `652a95e7` | **Behavior change** | Only the asset's current custodian may request its transfer: 403 otherwise (answer 3; for UAT until the custodianship queue replaces `asset_transfers` after step 14) |
+| `c918992c`, `96f4147d`, `aecbc9fa`, `5a3a4411` | **Behavior change** (4) | D2, Custodian only: no other person's name in the loan list, the transfer list (nor the recipient's email), the asset list (with the nested records, transfers, reports, and disposal details), and the custodian history (nor the email) |
+| `03a4bb20` | **Behavior change** | Web: stop sending who acted (the fields in item 1, `/me` and the account update's email); the loan form's Borrower field is read-only and shows the logged-in name; the fields leave the shared types |
+| `c57fa1c6` | **Behavior change** | Web: "None" for an asset nobody holds, "Not shown" for a holder hidden from a Custodian, everywhere a screen shows an asset's holder |
+| `c7c9e7db` | **Behavior change** | Web: the Custodianship Transfer button only on an asset the Custodian holds (answer 3) |
+| `0e4bcc14` | **Behavior change** | Web: "Reported by" instead of "Custodian" in both tables of the Staff Repairs page (answer 7) |
+| `a77424ab` | **Behavior change** | Web: one login marker cookie, `session_active=1`, instead of three; the old three erased on every page load (answer 5) |
+| `85818f81` | Tests | `tests/api/sessionUser.test.ts`, 13 tests: **385** |
+| `5456eeed` | Tests | Types the new file's row lookup: `85818f81` had added 13 typecheck errors (see "Differences") |
+| `22f8bf17` | Comments | `docs(step 13c): add file headers and TSDoc` |
+| (this commit) | Docs | This log, `docs/README.md`, `docs/HANDOFF.md`, the prompt's history line and a decision row, `tests/README.md` |
+
+#### Differences from the plan, and why
+
+1. **A typecheck slip, fixed in a second commit.** `85818f81` (the new tests) added 13 typecheck errors: its row lookup inferred the type `{ id: string }` from the untyped JSON. My check script printed the count but did not stop on it, and I committed. `5456eeed` fixes the helper; no test changed. As instructed, history was not rewritten, so `85818f81` is the one commit with a typecheck count other than 66. The script now flags a changed count.
+2. **`sessionUserOf(req)`** (in `requireAuth.ts`), not in the plan: controllers read the acting user through it, which throws the 401 if a route ever lacks `requireAuth`, instead of a `!` assertion in eight places.
+3. **A `custodianHidden: true` mark**, not in the plan, on an asset (in the list) and on a history entry that is hidden from a Custodian. Without it a screen cannot tell "someone holds it, but not you" ("Not shown") from "nobody holds it" ("None"), because both have no name. It carries no personal data.
+4. **Returns: the placeholder counts as nobody.** Answer 2 says the returner is the asset's current custodian. When that is the placeholder (an asset nobody holds), the Staff member finalizing it is recorded, by answer 1's rule that "who acted" fallbacks become the session user. Tested.
+5. **Inspections: an H-16 test changed meaning.** The test that forced a generic 500 with a `reportedById` that is no account now checks that the field is ignored (200); the route can no longer be made to fail that way. The other features keep their generic-500 tests.
+6. **Loans: one test added, one case removed.** The `borrower` case of "answers 400 without %s" became its own test, "accepts a request with no borrower field".
+7. **Dead code removed with its behavior:** the profile lookup by email (`findUserProfileByEmail`, now by id), the account update's `findFirstUserByEmail` and `findAllUsers`, `checkProfileQuery`, and the completion report's `|| user 1`, which a required foreign key never reached.
+8. **Typecheck 68 to 66** at `03a4bb20`: the two removed `currentUser?.user_id` reads (CustodianPortal, InspectionQueue) were known H-13 errors. Compared by message: exactly those two went, none added.
+9. **Not changed, on purpose:** the nested `asset_records` list in `GET /api/assets` still names the placeholder for Lab Head, Staff, and Director (no screen reads it; for a Custodian it is hidden with every other name). The Repair and Return buttons on someone else's asset are as before (only the transfer button was asked). The wording "Step 13" in the H-16 and H-20 TODOs (web typed errors, email escaping) is not 13c's and stays.
+10. **Test count:** planned about 384; it is **385**: 375, 374 after `/me`, 372 after the account update, then 13 new.
+
+#### What changed in behavior
+
+- **Who acted is the session user** for a loan request, a repair ticket (Staff included), an inspection report, a disposal request, and an asset edit's condition report. Names, emails, and ids in the body are ignored, not refused, so an open tab from before the update keeps working. A finalized return records the asset's current custodian (by id), or the Staff member when nobody holds it. Nothing is filed under user 1 because a name did not match (issue #32, H-10).
+- **`/me` and the account page act on your own account only** (C-06). `/me` needs no email; the account update needs only the two names.
+- **User 1 now means "nobody holds it"** and is named nowhere: the asset list sends no custodian for it, its history entries carry no name, email, or id number, and the screens show "None". The startup line says "Pool custodian check passed".
+- **No id numbers** in the custodian history, for any role.
+- **A Custodian sees no other person's name** in the loan, transfer, and asset lists or the custodian history, nor emails in the transfers and history; screens show "Not shown". Their own name, and both sides of their own transfers, stay. Lab Head, Staff, and Director see what they saw.
+- **Only the holder may request a transfer** (403 otherwise); the button shows only on the Custodian's own asset.
+- **Web:** the Borrower field is read-only; "Reported by" on the Repairs page; one `session_active` cookie instead of three, so **everyone logs in once after this update**; the 24-hour and 30-day pop-ups and the Sidebar's "Session Created" and "Last Activity" lines are gone; the Sidebar shows the email from the profile.
+
+#### What stayed the same, on purpose
+
+- The asset edit's new custodian is still a typed name (answer 8; a picker on a branch after 13c).
+- Lab checks for Lab Heads (answer 4), password hashing (issue #10), an approver on decisions (no column), the other endpoints of issue #72, and the custodian history's emails for Lab Head, Staff, and Director.
+- No schema change and no data change: assets held by user 1 stay held by user 1.
+
+#### Typecheck: 68 to 66
+
+66 after `03a4bb20` and every commit after it, except `85818f81` (79, fixed in `5456eeed`, above). Compared by message, not only by count.
+
+#### Verified
+
+- **After every commit:** `npm run typecheck`, `npm run build` (passes), `npm test`: 375 up to `f4baa8c8`, **374** from `c31dabfa`, **372** from `4d04801a`, **385** from `85818f81`. One build failed once and passed on the rerun with no change (a Windows file lock on `dist/`, it seems).
+- **The new tests catch what they test:** with the loan-list hiding or the transfer holder check turned off, 3 of the 13 fail.
+- **A probe against the real server** (a script outside the repository, using the test harness to reseed the local `AdRIC_DB_test` and start `server/main.ts`): the startup line; `/me?email=<the Director's>` answers each caller's own profile; a borrow naming the Director is filed under Custodian A; Staff requesting a transfer gets 403 (the role table); Custodian B requesting a transfer of Custodian A's asset gets 403 with the new message; an account update naming the admin changes only Custodian B; a repair Staff file naming Custodian A is under Staff TSG; and per role, how many names each list sends (a Custodian 1 of 2 loans; every other role 2 of 2; no id numbers anywhere).
+- **The comment commit** changes comment lines only (checked line by line in its diff).
+- `.env` and `pending_registrations.json` were not opened. Nothing was sent to CCS Cloud.
+
+**Not verified in the agent session:** nothing was clicked in a browser (Raiki asked for the browser checks to wait until the advisor reviews the push). The hand checks below cover it.
+
+#### What every teammate must do
+
+1. Pull, restart `npm run dev:all`, and **log in once**: the page erases the old session cookies, so the first page load after the update goes to the login page.
+2. Nothing new in `.env`.
+
+#### Hand checks
+
+Not run yet. **Raiki's, on CCS Cloud (`npm run dev:all`), all read-only:** 1 to 5. **The agent's, in a browser (Playwright MCP) on the local test database, when Raiki asks:** 6 to 17.
+
+**Raiki on CCS Cloud (5, nothing submitted):**
+
+1. **Startup.** `npm run server` (or `dev:all`) prints "✅ Pool custodian check passed: user_id 1 (...) stands for "nobody holds it"" instead of the old "Default custodian check passed".
+2. **Log in once, then a reload keeps you in.** Open `http://localhost:5173` with the browser you used before: you land on the login page (the old cookies are erased). Log in as any role. DevTools, Application, Cookies, `http://localhost:5173`: `session_active` (value 1) and `adric_session`; no `session_user_email`, `session_created`, or `session_last_activity`. Press F5: you stay on the page. The sidebar's account panel shows your email, and no "Session Created" or "Last Activity" lines.
+3. **A Custodian sees no one else's name.** Log in as a Custodian. Available Equipment and My Assets list as before. Open an available asset: "Current Custodian: None". DevTools, Network, `asset_loans`, Response: a loan that is not yours has `borrower_id` but no `borrower`. If an asset someone else holds is reachable (QR Scan, by its tag), its modal shows "Current Custodian: Not shown" and **no** Custodianship Transfer button.
+4. **Staff screens.** Log in as Staff. Repairs: both tables have a "Reported by" column. Inventory: an asset nobody holds shows "None" as custodian.
+5. **Every role, every tab.** Each role, each sidebar tab once and the bell once, as in 13b. Everything loads; nothing submitted.
+
+**The agent, on the local test database (12, may write to the test database only):**
+
+6. **Loan request.** As Custodian A, open an available asset, Request Loan: the Borrower field is read-only with Custodian A's name; submit. The bell shows Custodian A's own card; the tile says "Your request is pending". As Custodian B, the same asset says "Requested by another user". As the Lab Head, Custody lists the request with Custodian A's name.
+7. **Transfer button.** As Custodian A, on an On Loan asset A holds: Custodianship Transfer shows; submit one to Custodian B; it is listed for the Lab Head. On an asset Custodian B holds (QR Scan by tag): no transfer button.
+8. **Hidden holders.** As Custodian A, on an asset Custodian B holds: Current Custodian "Not shown", the history list "Not shown" with no email; on an available asset, "None".
+9. **A disposed asset** (QR Scan by tag) as Custodian A: "Decommissioned By: Not shown", "Last Custodian: No Custodian".
+10. **Send to Maintenance as Staff**, from an asset a Custodian holds: Repairs lists the ticket with the Staff member under "Reported by"; the Custodian's bell gets no repair card for it.
+11. **Return finalize as Staff:** the return is recorded under the asset's holder (`returned_by_id` in the test database); the asset then shows "None" as custodian.
+12. **Condition report as Custodian A:** the Staff inspection log lists it under Custodian A.
+13. **Disposal request as Staff:** the Director's Clearance and Disposal tab says "Proposed by" with that Staff member's name.
+14. **Account page as Custodian A:** rename, reload: the new name stays; Custodian B's name is unchanged.
+15. **Old cookies.** With only the three old cookies set (no `session_active`), a page load erases them and shows the login page; with `session_active` and a valid session, a reload restores.
+16. **A refused session still says so** (13b check 8): a tampered `adric_session` lands on the login page with the notice, and `session_active` is gone.
+17. **Tests.** `npm test`: **385 passed**.
+
+#### Questions for Raiki (stop 2)
+
+None.
 
 ---
 
