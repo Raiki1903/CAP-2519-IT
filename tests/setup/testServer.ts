@@ -79,6 +79,16 @@ export function buildServerEnv(config: TestDatabaseConfig, port: number): NodeJS
   };
 }
 
+// An override of undefined removes the variable, to start a server without it.
+function withOverrides(env: NodeJS.ProcessEnv, overrides: Record<string, string | undefined>): NodeJS.ProcessEnv {
+  const result = { ...env };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) delete result[key];
+    else result[key] = value;
+  }
+  return result;
+}
+
 async function waitUntilAnswering(baseUrl: string, child: ChildProcess, output: () => string): Promise<void> {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -86,7 +96,7 @@ async function waitUntilAnswering(baseUrl: string, child: ChildProcess, output: 
       throw new Error(`[tests] server/main.ts exited during startup (code ${child.exitCode}).\n${output()}`);
     }
     try {
-      // Any HTTP answer means the server is listening. This route answers 400 without touching the database.
+      // Any HTTP answer means the server is listening. With no session cookie this route answers 401 without touching the database.
       await fetch(`${baseUrl}/api/auth/me`);
       return;
     } catch {
@@ -102,17 +112,18 @@ async function waitUntilAnswering(baseUrl: string, child: ChildProcess, output: 
  * Run with `node --import <tsx loader>` rather than the tsx command, so there is one process to stop.
  *
  * @param config the guarded test database
+ * @param envOverrides variables to set on top of buildServerEnv, or to remove with undefined
  * @returns the running server, once it answers HTTP requests
  * @throws Error when the server exits or does not answer within a minute
  */
-export async function startTestServer(config: TestDatabaseConfig): Promise<RunningServer> {
+export async function startTestServer(config: TestDatabaseConfig, envOverrides: Record<string, string | undefined> = {}): Promise<RunningServer> {
   const port = await findFreePort();
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "adric-api-test-"));
   const tsxLoader = pathToFileURL(createRequire(path.join(REPO_ROOT, "package.json")).resolve("tsx")).href;
 
   const child = spawn(process.execPath, ["--import", tsxLoader, path.join(REPO_ROOT, "server", "main.ts")], {
     cwd: workDir,
-    env: buildServerEnv(config, port),
+    env: withOverrides(buildServerEnv(config, port), envOverrides),
     stdio: ["ignore", "pipe", "pipe"],
   });
   runningChildren.add(child);

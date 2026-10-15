@@ -37,6 +37,10 @@ export interface ApiHarness {
    * session cookie is reused for every later call in the file.
    */
   as(user: TestUser): ApiClient;
+  /** Logs the user in afresh, apart from the session as() reuses, and answers the cookie as "name=value". */
+  logIn(user: TestUser): Promise<string>;
+  /** HTTP calls sent with exactly this Cookie header, for a cookie a test made, changed, or logged out. */
+  withCookie(cookie: string): ApiClient;
   /** Prisma on the test database, for reading back what a request wrote. */
   db: PrismaClient;
   /** The running server, for its working directory or its printed output. Available inside tests and hooks. */
@@ -103,10 +107,11 @@ export function useApiHarness(): ApiHarness {
     return cookie;
   };
 
-  const request = async (method: string, path: string, body?: unknown, user?: TestUser): Promise<ApiResponse> => {
+  const request = async (method: string, path: string, body?: unknown, user?: TestUser | string): Promise<ApiResponse> => {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers["Content-Type"] = "application/json";
-    if (user) headers.Cookie = await sessionCookie(user);
+    if (typeof user === "string") headers.Cookie = user;
+    else if (user) headers.Cookie = await sessionCookie(user);
     const response = await fetch(`${server().baseUrl}${path}`, {
       method,
       headers,
@@ -122,7 +127,7 @@ export function useApiHarness(): ApiHarness {
     return { status: response.status, body: parsed };
   };
 
-  const client = (user?: TestUser): ApiClient => ({
+  const client = (user?: TestUser | string): ApiClient => ({
     get: (path) => request("GET", path, undefined, user),
     post: (path, body) => request("POST", path, body, user),
     put: (path, body) => request("PUT", path, body, user),
@@ -132,6 +137,8 @@ export function useApiHarness(): ApiHarness {
   return {
     api: client(),
     as: (user) => client(user),
+    logIn,
+    withCookie: (cookie) => client(cookie),
     db,
     server,
   };
