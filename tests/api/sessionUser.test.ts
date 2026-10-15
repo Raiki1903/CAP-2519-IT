@@ -19,7 +19,8 @@ const asStaff = as(USERS.staffTsg);
 
 const NOT_THE_HOLDER = "Only the asset's current custodian can request its transfer.";
 
-const byId = <T extends { id: string }>(rows: T[], id: string) => rows.find((r) => r.id === id) as T;
+/** The row with this display id, as the JSON came back (untyped, like res.body). */
+const byId = (rows: { id: string }[], id: string): any => rows.find((r) => r.id === id);
 
 describe("GET /api/asset_loans: names for a Custodian (D2)", () => {
   it("leaves another borrower's name out but keeps borrower_id, and keeps the caller's own name", async () => {
