@@ -17,6 +17,7 @@ authRouter.get('/api/auth/pending-registrations', authController.listPendingRegi
 authRouter.post('/api/auth/register-request', authController.requestRegistration);
 authRouter.post('/api/auth/approve-registration', authController.approveRegistration);
 authRouter.post('/api/auth/login', authController.login);
+authRouter.post('/api/auth/logout', authController.logout);
 authRouter.post('/api/auth/reject-registration', authController.rejectRegistration);
 authRouter.get('/api/auth/me', authController.getProfile);
 authRouter.put('/api/auth/account', authController.updateAccount);

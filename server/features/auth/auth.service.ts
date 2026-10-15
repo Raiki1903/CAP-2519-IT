@@ -17,6 +17,8 @@ import type {
 } from '@shared/types/auth';
 import * as authRepository from './auth.repository';
 import { AppError } from '../../shared/errors/AppError';
+import { env } from '../../config/env';
+import { createSessionToken, markLoggedOut, verifySessionToken } from '../../shared/services/session';
 
 // Registration accepts the same email more than once (issue #14), kept as is: the email check looks at accounts only,
 // not at pending sign-ups, so one email can be requested twice; approving the second then fails with a 500.
@@ -277,6 +279,17 @@ export async function login(email: string, password: string): Promise<{ role: st
             staffUnit
         }
     };
+}
+
+export function startSession(userId: number): string {
+    return createSessionToken(userId, env.sessionSecret);
+}
+
+// A token that does not verify (tampered, expired, or from another secret) is not listed: it is refused anyway.
+export function endSession(token: string | undefined): void {
+    if (!token) return;
+    const claims = verifySessionToken(token, env.sessionSecret);
+    if (claims) markLoggedOut(token, claims.expiresAt);
 }
 
 /**

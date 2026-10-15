@@ -7,6 +7,7 @@
  */
 import type { Request, Response } from 'express';
 import * as authService from './auth.service';
+import { clearedSessionCookieHeader, readCookie, SESSION_COOKIE_NAME, sessionCookieHeader } from '../../shared/services/session';
 import { checkAccountUpdate, checkLogin, checkProfileQuery, checkRegistration, checkRegistrationRequest } from './auth.validation';
 
 // Each handler reads req.body in one destructuring statement. A request with no JSON body (Express 5 leaves
@@ -80,11 +81,18 @@ export async function login(req: Request, res: Response): Promise<void> {
     checkLogin({ email, password });
     const { role, user } = await authService.login(email, password);
 
+    res.setHeader('Set-Cookie', sessionCookieHeader(authService.startSession(user.userId)));
     res.json({
         success: true,
         role,
         user
     });
+}
+
+export async function logout(req: Request, res: Response): Promise<void> {
+    authService.endSession(readCookie(req.headers.cookie, SESSION_COOKIE_NAME));
+    res.setHeader('Set-Cookie', clearedSessionCookieHeader());
+    res.json({ success: true });
 }
 
 /**
