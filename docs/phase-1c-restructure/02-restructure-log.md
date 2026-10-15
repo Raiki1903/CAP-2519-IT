@@ -1623,7 +1623,7 @@ Screenshots are kept outside the repository, on the agent's machine (`%TEMP%\adr
 
 ### 13c: the session user
 
-**Stop 1 of 2: the plan, proposed 2026-10-15. No code.** On a fresh `refactor/feature-based-structure` from the PR #93 merge (`5ac94dcd`). Read from the code on that commit; line numbers are from it. Stop 2 builds it after Raiki's answers.
+**Stop 1 of 2: the plan, proposed 2026-10-15 (`f42292b4`). No code. Raiki answered the eight questions the same day, after talking with the team leader; the answers are under each question, and items 2, 3, 6, and 7 are revised to match.** On a fresh `refactor/feature-based-structure` from the PR #93 merge (`5ac94dcd`). Read from the code on that commit; line numbers are from it. Stop 2 builds it after Raiki's answers.
 
 What 13c does (decided 2026-10-13 and 2026-10-15, PROMPT-2 decisions table): the session user (`req.sessionUser = { userId, role, staffUnit }`, set by `requireAuth` since 13b) replaces the typed names and emails that decide who acted (issue #32, H-10), updating the tests that pin them in the same commits; `GET /api/auth/me` stops trusting `?email=` and `PUT /api/auth/account` changes only the caller's account (C-06); the `DEFAULT_CUSTODIAN_ID` fallback and its startup check go (01C tier 2 item 11); and the server stops sending other people's names to a Custodian in `GET /api/assets`, `GET /api/asset_loans`, and `GET /api/asset_transfers` (D2). Not in 13c: password hashing (issue #10).
 
@@ -1665,32 +1665,36 @@ Found by reading every controller and service, and every `findUserByName`, `find
 
 **Proposed (question 5, option a):** the three cookies are replaced by **one marker cookie with no personal data**, for example `session_active=1`, written by `Login.tsx` with an 8-hour lifetime (the server session's), erased where the three are erased today (logout, a 401). A page load with the marker restores (`/me` with no email); without it, `/login` with no request, as now. The 24-hour and 30-day checks and their `alert()`s go: the server's 8 hours always ends a session first. `getMe()` and `getMeRaw()` in `web/api/auth.api.ts` lose their `email` parameter; `web/pages/AccountDetailsPage.tsx:47` and `setRole` call them without one; `updateProfile` stops sending `email`. The Sidebar shows `currentUser.email` instead of the cookie, and its "session created" and "last activity" lines go (after a reload the page no longer knows the login time; the server does not send it). The `TODO(C-06)` lines in `session.tsx`, `auth.api.ts`, and `shared/types/auth.ts` are rewritten. Order: the two server commits first (they accept the old requests), the web commit after.
 
-#### 3. `DEFAULT_CUSTODIAN_ID`
+**Decided (answer 5): the marker cookie, and on every page load the three old cookies are erased if present.** A browser that has only the old cookies (logged in before this update) therefore goes to `/login`: **everyone logs in once after this update.**
 
-`server/shared/constants/defaultCustodian.ts:13` (`= 1`), imported by seven services, with a startup check (`server/shared/services/defaultCustodianCheck.ts`, called at `server/main.ts:18-19`) that prints "✅ Default custodian check passed" or an error. **It is used in two different senses**, and only the first is H-10:
+#### 3. `DEFAULT_CUSTODIAN_ID`, renamed `POOL_CUSTODIAN_ID`
+
+**Revised by answer 1 (2026-10-15).** `server/shared/constants/defaultCustodian.ts:13` (`= 1`), imported by seven services, with a startup check (`server/shared/services/defaultCustodianCheck.ts`, called at `server/main.ts:18-19`) that prints "✅ Default custodian check passed" or an error. **It is used in two different senses**, and only the first is H-10:
 
 - **Who acted, when the typed name or email matches nobody** (item 1): replaced by the session user, feature by feature.
-- **Who holds an asset nobody holds**: a newly registered asset, a returned asset (the pool), and an asset with no record at all (H-09, only assets made outside the app). Here the session user is not automatically right, so question 1 asks.
+- **Who holds an asset nobody holds**: a newly registered asset, a returned asset (the pool), and an asset with no record at all (H-09, only assets made outside the app). **Stays user 1, as a placeholder that means "nobody holds it"** (answer 1). The team wants such an asset to have no custodian at all, but `asset_records.current_custodian` is required and 13c changes no schema. The constant is renamed `POOL_CUSTODIAN_ID` (file `server/shared/constants/poolCustodian.ts`), with a comment that it goes when `current_custodian` may be empty (after step 14), and the startup check stays, renamed to match.
 
-| Use | Falls back to user 1 when | Replaced by (proposed) |
+| Use | Falls back to user 1 when | In 13c |
 |---|---|---|
 | `loans.service.ts:117` borrower | the typed name matches nobody | the session user (item 1, row 1) |
 | `repairs.service.ts:52` reporter | no name, or no match | the session user (row 2) |
 | `inspections.service.ts:44` reporter | no email and no id, or an unknown email | the session user (row 3) |
 | `disposals.service.ts:39` requester | no name, or no match | the session user (row 4) |
-| `returns.service.ts:39` returner | no name, or no match | the asset's current custodian; no record: the session user (row 5, question 2) |
+| `returns.service.ts:39` returner | no name, or no match | the asset's current custodian, by id; no record: the session user (row 5, answer 2) |
 | `assets.service.ts:467` the edit's report | the typed custodian matches nobody | the session user (row 6) |
-| `assets.service.ts:357` first custodian of a registered asset | no `custodianId` (always, from the screen) | the session user, the Staff member who registered it (question 1) |
-| `returns.service.ts:82` custodian after a finalized return (the pool) | always | the session user, the Staff member who finalized it (question 1) |
-| `assets.service.ts:436` the edit's record | no typed match and no record | the session user |
-| `transfers.service.ts:52` "from" custodian | the asset has no record | with question 3 (a): never reached, the request is refused (nobody holds the asset); with (b): the session user |
-| `disposals.service.ts:160` the DISPOSED record's custodian | the asset has no record | the session user (the deciding Director) |
-| `repairs.service.ts:193` the record after "Fixed & Completed" | no record before maintenance | the session user (the Staff member) |
+| `assets.service.ts:357` first custodian of a registered asset | no `custodianId` (always, from the screen) | **the placeholder** (answer 1) |
+| `returns.service.ts:82` custodian after a finalized return (the pool) | always | **the placeholder** |
+| `assets.service.ts:436` the edit's record | no typed match and no record | **the placeholder** |
+| `transfers.service.ts:52` "from" custodian | the asset has no record | never reached: only the current custodian may request a transfer (answer 3), so "from" is the session user |
+| `disposals.service.ts:160` the DISPOSED record's custodian | the asset has no record | **the placeholder** |
+| `repairs.service.ts:193` the record after "Fixed & Completed" | no record before maintenance | **the placeholder** |
 | `repairs.service.ts:198` the completion report's reporter | `reported_by_id` is 0, which a required foreign key never is | the ticket's reporter, with the dead fallback removed |
-| `repairs.service.ts:221` the MAINTENANCE record | the asset has no record | the session user |
-| `main.ts:9`, `18-19`; `defaultCustodianCheck.ts`; `defaultCustodian.ts` | | **Deleted** (01C tier 2 item 11). The startup line "✅ Default custodian check passed" disappears; nothing depends on user 1 existing |
+| `repairs.service.ts:221` the MAINTENANCE record | the asset has no record | **the placeholder** |
+| `main.ts:9`, `18-19`; `defaultCustodianCheck.ts`; `defaultCustodian.ts` | | **Kept, renamed** (`poolCustodianCheck.ts`, `poolCustodian.ts`); the startup line becomes "✅ Pool custodian check passed: ..." |
 
-Also updated: the comment in `tests/setup/fixtures.ts:70` ("ADMIN must be user 1") and `tests/README.md:101` ("the server's default custodian"); the fixture keeps ADMIN as user 1, nothing requires it. **No data changes:** assets held by user 1 today stay held by user 1.
+**The placeholder's name is not sent** (answer 1): `GET /api/assets` sends no `custodian` for an asset whose holder is the placeholder, and the screens show "None" there. The disposal details' `lastCustodian` follows it ("No Custodian", the text it already used for an asset with no holder). The custodian history leaves the placeholder's name and email out of its entries too, so the asset modal's "Current Custodian" shows "None" for an available asset rather than the ADMIN account's name. For every role: the placeholder is not a person. **No data changes:** assets held by user 1 today stay held by user 1, and now read as held by nobody.
+
+`tests/setup/fixtures.ts:70` and `tests/README.md:101` say "the placeholder custodian" instead of "the default custodian".
 
 #### 4. Names for Custodians (D2)
 
@@ -1727,72 +1731,87 @@ From 01C section 4, which 13b left out (answer 11):
 
 #### 6. Tests
 
-Today: **375 tests, 14 files.** Counted from the files (test titles and their assertions), not run. "Changed" means the title, the client, or an expectation changes; it does not count a request body that only loses a field the server now ignores, or a shared helper.
+Today: **375 tests, 14 files.** Counted from the files (test titles and their assertions), not run. "Changed" means the title, the client, or an expectation changes; it does not count a request body that only loses a field the server now ignores, or a shared helper. **Revised by answers 1, 3, and 6 (2026-10-15).**
 
 | File | Changed | Removed | Which, and why |
 |---|---|---|---|
 | `tests/api/auth.test.ts` | 15 | 3 | `/me`: the 7 role cases (each asks for its own profile, signed in as that account), L108 (now "ignores ?email= and answers the caller's own profile, C-06 fixed"), L115 (now "needs no email"); L122 removed (an unknown email is ignored, covered by L108). Account: L134, L164, L179, L192 sign in as the account they rename; L235 becomes "changes only the caller's account, whatever email the body names (C-06 fixed)"; L243 checks only the two names; L152 (letter case of the email) and L253 (unknown email) removed. L207 and L222 lose the body email only |
-| `tests/api/loans.test.ts` | 5 | 0 | L135, L163, L171 (the three pinning tests: the loan is the session user's, whatever name the body sends), the `borrower` case of L180 (400 without `borrower` becomes 200), L199 (the second request is sent as Custodian B, so it still tests "a second custodian"). The `requestLoan` helper sends as the borrower it names, so the decision tests keep their expectations |
-| `tests/api/repairs.test.ts` | 4 | 0 | L122, L151, L159 (2 cases): the ticket is the session user's. `openTicket` sends as Custodian B, so the completion test (L319, report under the ticket's reporter) keeps its expectation |
+| `tests/api/loans.test.ts` | 6 | 0 | L135, L163, L171 (the three pinning tests: the loan is the session user's, whatever name the body sends), the `borrower` case of L180 (400 without `borrower` becomes 200), L199 (the second request is sent as Custodian B); L283 (the declined asset lists no custodian: it is the placeholder's, answer 1). The `requestLoan` helper sends as the borrower it names |
+| `tests/api/repairs.test.ts` | 4 | 0 | L122, L151, L159 (2 cases): the ticket is the session user's. `openTicket` sends as Custodian B, so the completion test (L319) keeps its expectation |
 | `tests/api/inspections.test.ts` | 7 | 0 | L129, L164, L172 (3 cases), L185 (a `reportedById` that is no account is ignored: 200, not 500), L277 (the first record is the session user's) |
 | `tests/api/disposals.test.ts` | 3 | 0 | L101 (title), L141 (2 cases) |
-| `tests/api/returns.test.ts` | 3 | 0 | L81 (the pool: the asset ends up with the finalizing Staff member, not user 1, if question 1 is (a)), L158 (2 cases: the returner is the asset's current custodian, whatever name is sent) |
-| `tests/api/assets.test.ts` | 3 | 0 | L249 (first custodian is the session user), L340 and L355 (the edit's report is the session user's) |
-| `tests/api/transfers.test.ts` | 1, or 11 | 0 | L114 "includes the recipient's email, for any caller" now says for a Lab Head, Staff, or Director. **With question 3 (a), 10 more:** the 9 tests that request a transfer of an extra asset held by user 1 (TEST-0302, 0303, 0322, 0324, 0331 to 0335) give it to Custodian A, and L186 (unknown email) uses an asset Custodian A holds |
+| `tests/api/returns.test.ts` | 3 | 0 | L81 (the returned asset lists no custodian, answer 1; it is still held by the placeholder), L158 (2 cases: the returner is the asset's current custodian, whatever name is sent) |
+| `tests/api/assets.test.ts` | 7 | 0 | L28 and L83 (the placeholder's name not sent, answer 1), L151 (the history's first entry, the placeholder, has no name), L179 (no id number, answer 6), L249 (the new asset is the placeholder's: no longer "known defect H-10"), L340 and L355 (the edit's report is the session user's) |
+| `tests/api/transfers.test.ts` | 11 | 0 | the 9 tests that request a transfer of an extra asset held by user 1 (TEST-0302, 0303, 0322, 0324, 0331 to 0335) give it to Custodian A, and L186 (unknown email) uses an asset Custodian A holds (answer 3); L114 "includes the recipient's email, for any caller" now says for a Lab Head, Staff, or Director |
 | `analytics`, `session`, `registration`, `errorHandler`, `smoke`, `guard` | 0 | 0 | The role table test (row 6, `/me`) answers 200 instead of 400: still "reaches the handler" |
-| **Total** | **41, or 51** | **3** | |
+| **Total** | **56** | **3** | |
 
-**New tests (planned, about 10), in one test commit after the behavior commits, as in 13b:**
+**New tests (planned, about 12), in one test commit after the behavior commits, as in 13b:**
 
 - Loans list as a Custodian: another borrower's row has no `borrower` but keeps `borrower_id`; the caller's own row keeps its name. As a Lab Head: every name, as before.
 - Transfers list as a Custodian: a transfer they are not part of has no `from`, `to`, `toEmail`; one they are part of keeps all three, from either side.
-- Asset list as a Custodian: someone else's asset has no `custodian` and no names in its records, transfers, reports, or disposal details; the caller's own asset keeps its `custodian`.
-- With question 3 (a): a Custodian who does not hold the asset gets 403 and nothing is written.
-- Repairs: a ticket Staff file is under the Staff member.
+- Asset list as a Custodian: someone else's asset has no `custodian` and no names in its records, transfers, reports, or disposal details; the caller's own asset keeps its `custodian`; an asset held by the placeholder lists no custodian for every role.
+- Custodian history as a Custodian: other holders have no name and no email; the caller's own entry keeps both; no entry has an id number, for any role (answer 6).
+- Transfers: a Custodian who does not hold the asset gets 403 and nothing is written; an asset held by the placeholder is refused the same way.
+- Repairs: a ticket Staff file is under the Staff member (answer 7).
 - Returns: an asset with no record is returned under the session user.
 
-Expected after stop 2: 375 minus 3 plus about 10, about **382**; exact count in the stop 2 report.
+Expected after stop 2: 375 minus 3 plus about 12, about **384**; exact count in the stop 2 report.
 
 #### 7. Stop 2 plan
 
-The commits in order. Every behavior commit has `!` in its title, changes one thing, and updates the tests it breaks in the same commit; `npm run typecheck` (68), `npm run build`, and `npm test` after every commit. The server commits come first and accept the old request bodies, so the web keeps working at every commit; the web commits come last.
+**Revised by the answers (2026-10-15).** The commits in order. Every behavior commit has `!` in its title, changes one thing, and updates the tests it breaks in the same commit; `npm run typecheck` (68), `npm run build`, and `npm test` after every commit. The server commits come first and accept the old request bodies, so the web keeps working at every commit; the web commits come last.
 
-1. `docs(step 13c)`: Raiki's answers to the questions below.
+1. `docs(step 13c)`: Raiki's answers, and this revised plan.
 2. `feat(step 13c)!`: **loans**: the borrower is the session user (issue #32, H-10). 5 tests, among them the three pinning ones.
 3. `feat(step 13c)!`: **repairs**: the reporter is the session user. 4 tests.
 4. `feat(step 13c)!`: **inspections**: the reporter is the session user; `reporterEmail` and `reportedById` ignored. 7 tests.
 5. `feat(step 13c)!`: **disposals**: the requester is the session user, and the Director's email names them. 3 tests.
-6. `feat(step 13c)!`: **returns**: the returner is the asset's current custodian (question 2). 2 tests.
+6. `feat(step 13c)!`: **returns**: the returner is the asset's current custodian, by id (answer 2). 2 tests.
 7. `feat(step 13c)!`: **assets**: the edit's condition report is the session user's. 2 tests.
 8. `feat(step 13c)!`: **`/me` answers the caller's own profile** and ignores `?email=` (C-06). 9 tests changed, 1 removed.
 9. `feat(step 13c)!`: **the account update changes only the caller's account** (C-06). 6 tests changed, 2 removed.
-10. `feat(step 13c)!`: **`DEFAULT_CUSTODIAN_ID` and its startup check removed** (01C tier 2 item 11): the "who holds it" fallbacks of item 3 per question 1, the constant, `defaultCustodianCheck.ts`, and the call in `main.ts`; the fixtures comment and `tests/README.md`. 2 tests (returns L81, assets L249).
-11. `feat(step 13c)!`: **transfers: only the current custodian may request a transfer** (only if question 3 is (a)). 10 tests.
-12. `feat(step 13c)!`: **names for Custodians in the loan list** (D2). 0 tests.
-13. `feat(step 13c)!`: **in the transfer list** (D2). 1 test (L114).
-14. `feat(step 13c)!`: **in the asset list** (D2). 0 tests.
-15. `feat(step 13c)!`: **web: stop sending who acted.** The fields in item 1, the read-only Borrower field, `getMe()` with no email, `updateProfile` with no email, the shared types, the "Not shown" in the asset modal.
-16. `feat(step 13c)!`: **web: one marker cookie instead of three** (question 5): restore, login, logout, the 401 handler, the Sidebar.
-17. `test(step 13c)`: the new tests (item 6).
-18. `docs(step 13c)`: file headers and TSDoc; the `TODO(H-10)`, `TODO(C-06)`, and `TODO(C-02)` lines rewritten or removed where 13c fixes them.
-19. `docs(step 13c)`: this log, `docs/README.md`, `docs/HANDOFF.md`, the prompt's history line, `tests/README.md`, and the hand checks.
+10. `refactor(step 13c)!`: **`DEFAULT_CUSTODIAN_ID` becomes `POOL_CUSTODIAN_ID`**, a placeholder for "nobody holds it" (answer 1): files renamed, the startup line reworded, the dead fallback of the completion report removed; the fixtures comment and `tests/README.md`. 1 test title (assets L249).
+11. `feat(step 13c)!`: **the placeholder's name is not sent**: no `custodian` in the asset list for an asset it holds, and no name or email in its custodian history entries (answer 1). 6 tests.
+12. `feat(step 13c)!`: **the custodian history sends no id number**, to any role (answer 6). 1 test.
+13. `feat(step 13c)!`: **transfers: only the asset's current custodian may request its transfer** (answer 3). 10 tests.
+14. `feat(step 13c)!`: **names for Custodians in the loan list** (D2). 0 tests.
+15. `feat(step 13c)!`: **in the transfer list** (D2). 1 test (L114).
+16. `feat(step 13c)!`: **in the asset list** (D2). 0 tests.
+17. `feat(step 13c)!`: **in the custodian history** (answer 6): other holders' names and emails left out for a Custodian. 0 tests.
+18. `feat(step 13c)!`: **web: stop sending who acted.** The fields in item 1, the read-only Borrower field, `getMe()` with no email, `updateProfile` with no email, the shared types.
+19. `feat(step 13c)!`: **web: "None" for an asset nobody holds, "Not shown" for a holder hidden from a Custodian** (answers 1 and 6).
+20. `feat(step 13c)!`: **web: the Custodianship Transfer button only on an asset the Custodian holds** (answer 3), by the name match My Assets uses.
+21. `feat(step 13c)!`: **web: "Reported by" instead of "Custodian"** in both tables of `web/pages/staff/RepairsPage.tsx` (answer 7).
+22. `feat(step 13c)!`: **web: one marker cookie instead of three** (answer 5): restore, login, logout, the 401 handler, the Sidebar; the three old cookies erased on every page load.
+23. `test(step 13c)`: the new tests (item 6).
+24. `docs(step 13c)`: file headers and TSDoc; the `TODO(H-10)`, `TODO(C-06)`, and `TODO(C-02)` lines rewritten or removed where 13c fixes them.
+25. `docs(step 13c)`: this log, `docs/README.md`, `docs/HANDOFF.md`, the prompt's history line, `tests/README.md`, and the hand checks.
 
-**Verification planned, as in 13a and 13b:** a probe of every changed route, as each role, against a server on the local `AdRIC_DB_test` after each commit (only that commit's routes change); a recorded full test run checking that no test sends a name the server still reads; and the web in a real browser (Playwright MCP) on the local test database.
+**Verification planned:** a probe of every changed route, as each role, against a server on the local `AdRIC_DB_test`; a recorded full test run checking that no test depends on a name the server no longer reads. **No browser run in stop 2** (Raiki, 2026-10-15): the browser hand checks wait until the advisor has reviewed the push.
 
-**Hand checks**, split as in 13b; the list comes with stop 2, with Raiki's marked. Proposed for Raiki on CCS Cloud (`npm run dev:all`): the startup no longer prints the default custodian line; one Custodian loan request (the bell card, "Your request is pending", and the Lab Head sees the borrower's name; then Decline it, as in 13b); a second Custodian sees "Requested by another user" and no other person's name in the Network answers; renaming yourself on the Account page, and a reload keeping you logged in; every role, every tab. The rest by the agent on the local test database.
+**Hand checks**, split as in 13b; the list comes with stop 2, with Raiki's marked.
 
-**Not in 13c** (noted, not planned): password hashing (issue #10); recording who approved or declined a decision (no column for it; 01C tier 2 item 15, an audit log); lab scoping (item 5); the bell's own `user_id` and `center_id` reads (H-13); the custodian history's emails and id numbers (issue #72, see question 6); a person picker for the edit dialog's custodian (question 8); the loan list's seeded loan 9 (H-08).
+**Not in 13c** (noted, not planned): password hashing (issue #10); recording who approved or declined a decision (no column for it; 01C tier 2 item 15, an audit log); lab scoping (item 5; needs a `lab_id` on assets, after step 14); the bell's own `user_id` and `center_id` reads (H-13); the other endpoints of issue #72 ("endpoints send passwords, emails, ID numbers"); a person picker for the edit dialog's custodian, and appending a record instead of overwriting (H-14), on a branch after 13c (answer 8); the loan list's seeded loan 9 (H-08); an asset with no custodian at all (a nullable `current_custodian`, after step 14).
 
 #### 8. Questions for Raiki
 
 1. **Who holds an asset that nobody holds.** Today a newly registered asset and every returned asset are put under user 1 (the ADMIN account), which is why the server checks at startup that user 1 exists; the decision removes that check, so something else must hold these assets. It affects Staff (Register, and Returns when finalizing) and what every role sees as the custodian in Inventory. (a) The Staff member who registered or finalized it (the session user): the Inventory shows that Staff member as the custodian until a loan or transfer moves the asset. (b) Keep user 1 as a fixed "pool" account under a clearer name, and keep a startup check for it: only the "who acted" fallback goes, which is less than the decision says. (c) A new `.env` setting naming the pool account: every teammate adds one line. **Recommendation: (a)**, because it needs no special account and matches the planned custodianship queue, where released assets go to Staff (issue #22).
+   **Answer (2026-10-15): (b), changed.** The team wants an available asset to have no custodian at all, but `asset_records.current_custodian` is required and 13c changes no schema. So user 1 stays as a placeholder for "nobody holds it", with its startup check; the constant is renamed (`POOL_CUSTODIAN_ID`) with a comment that it goes when `current_custodian` may be empty (after step 14). Rule: every "who acted" fallback becomes the session user; every "who holds it" fallback (a new asset, a finalized return, an asset with no record) stays the placeholder. And the asset list sends no custodian name for an asset the placeholder holds; the screens show "None" there. Item 3 is revised to match.
 2. **Who is recorded as returning an asset.** When Staff finalize a return on the Returns page, the server stores who returned it; today it matches the custodian's name the screen sends. It affects Staff (Returns) and the return records. (a) The asset's current custodian, read from its record: the same person as today, but by id, so a renamed or same-named account cannot be confused. (b) The Staff member finalizing it (the session user): the record then says Staff returned it, and no longer names the custodian. **Recommendation: (a)**, because the return is the custodian's act and Staff only confirm it.
+   **Answer (2026-10-15): (a).** The returner is the asset's current custodian, by id.
 3. **Only the asset's holder may ask to transfer it.** Today any Custodian can file a transfer request for any asset, including someone else's, from the QR Scan tab (the asset modal shows the transfer button on any asset that is on loan). It affects Custodians, in the asset modal. (a) Add the check in 13c, in its own commit: someone else's asset answers "Only the asset's current custodian can request its transfer."; 10 transfer tests move to assets Custodian A holds. This changes transfers, which the team decided (2026-10-04) to keep as they are until the custodianship queue replaces them. (b) Leave transfers exactly as they are until the queue (issue #22). **Recommendation: (a)**, because it closes a hole 01C lists (anyone can start a transfer of anyone's asset) and the queue will start from the holder too.
+   **Answer (2026-10-15): (a).** The check goes in, in its own commit. The web commit shows the Custodianship Transfer button only on an asset the Custodian holds, by the same name match My Assets uses. **The team will replace `asset_transfers` with a custodianship queue after step 14, so this check is for UAT until then.**
 4. **Lab checks for Lab Heads wait.** 01C says a Lab Head should decide only their own lab's loans and transfers, and approve only their own lab's sign-ups; the server does not check this. It affects Lab Heads (Custody, Health, Approvals, the bell). (a) Wait for lab scoping (01C tier 3 item 21), after step 13. (b) Add both in 13c. **Recommendation: (a)**, because the lab names on accounts and on asset tags have not been checked against each other on CCS Cloud, and a mismatch would lock a Lab Head out of every decision.
+   **Answer (2026-10-15): (a).** Lab checks wait: they need a `lab_id` on assets, planned after step 14.
 5. **What the browser keeps to remember a login.** The page cannot read the login cookie (that is what keeps it safe), so today it keeps three readable cookies (your email, the login time, the last activity) to know whether to restore your session on a reload. It affects every role on every page load, and the account panel in the sidebar. (a) One cookie with no personal data that only says "a login exists", lasting 8 hours like the session; the email shown in the sidebar comes from your profile; the "session created" and "last activity" lines in the sidebar go, and so do the 24-hour and 30-day pop-ups, since the 8-hour session always ends first. (b) Keep the three cookies as they are, only stop sending the email to the server. (c) No cookie: every page load asks the server, so the login and sign-up pages send one request each (13b hand check 7, "no request before login", changes). **Recommendation: (a)**, because it stops storing the email in a readable cookie and changes nothing a person does.
+   **Answer (2026-10-15): (a)**, one marker cookie. Also: every page load erases `session_user_email`, `session_last_activity`, and `session_created` if they are there. A browser with only the old cookies goes to `/login`; everyone logs in once after this update.
 6. **How far name hiding goes for Custodians.** Decided: the asset, loan, and transfer lists stop sending other people's names to a Custodian. But when a Custodian opens any asset, the asset modal also loads its custodian history, which sends every past holder's name, email, and id number (issue #72). It affects Custodians, in the asset modal (Current Custodian, Prior Custodian, the history list). (a) The three lists only, in 13c; the history is stripped with issue #72 after step 13. (b) Also hide other people's names, emails, and id numbers in the history for a Custodian, in 13c: the modal then shows "Not shown" for those holders, and its "prior custodian" line cannot tell holders apart. **Recommendation: (a)**, to keep 13c to what was decided, with issue #72 next, because until then a Custodian can still read the names there.
+   **Answer (2026-10-15): (b), changed.** `GET /api/assets/:tag/custodian-history` stops sending `custodianId` (the ID number) to every role; no screen shows it. For a Custodian, other holders' names and emails are left out, and the modal shows "Not shown" for them. The other endpoints of issue #72 ("endpoints send passwords, emails, ID numbers") stay for later.
 7. **Repair tickets Staff file.** The asset modal's Send to Maintenance (Staff) files the ticket under the asset's custodian today, not under the Staff member. It affects Staff (Repairs page, the "custodian" column) and Custodians (their bell shows repair cards filed under their name). (a) Under the Staff member who filed it (the session user): the Repairs page names the Staff member, and the custodian no longer gets a bell card for it (they still see the asset go to Maintenance in My Assets). (b) Under the asset's custodian, as today, read from the record when a Staff member files it. **Recommendation: (a)**, because "reported by" should name who reported.
+   **Answer (2026-10-15): (a).** Tickets are filed under the session user. The web commit renames the "Custodian" column header to "Reported by" in both tables of `web/pages/staff/RepairsPage.tsx`.
 8. **The custodian name typed in the Edit Asset dialog.** Staff can change an asset's custodian by typing a name, which the server matches like the other typed names; this names a target, not the person acting, so the session cannot replace it. It affects Staff (Inventory, Edit). (a) Keep the name lookup in 13c; a proper person picker comes later, and issue #32 stays open for this one field. (b) Refuse a name that matches nobody with an error. **Recommendation: (a)**, because the dialog fills the field with the current custodian's name, and for anyone whose first name is two words that name never matches, so (b) would block every edit of their assets.
+   **Answer (2026-10-15): (a).** The name lookup stays for the Edit Asset custodian field. A dropdown, and appending a record instead of overwriting (H-14), come on a separate branch after 13c.
 
 ---
 
