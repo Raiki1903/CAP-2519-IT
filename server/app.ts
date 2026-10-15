@@ -16,6 +16,7 @@ import { authRouter } from './features/auth/auth.routes';
 import { assetsRouter } from './features/assets/assets.routes';
 import { analyticsRouter } from './features/analytics/analytics.routes';
 import { errorHandler } from './shared/middleware/errorHandler';
+import { env } from './config/env';
 
 /**
  * The Express app, configured but not listening. main.ts starts it.
@@ -25,8 +26,10 @@ import { errorHandler } from './shared/middleware/errorHandler';
  */
 export const app = express();
 
-// TODO(C-02): CORS allows every origin. Restrict it to the web app's origin. 01C tier 2, with step 13.
-app.use(cors());
+// A list, not a plain string: with a list, cors sends Access-Control-Allow-Origin only when the request's
+// origin is on it, so another site's page gets no CORS headers at all. credentials lets the browser send
+// and store the session cookie on these cross-origin calls (web on port 5173, API on port 4000).
+app.use(cors({ origin: [env.webOrigin], credentials: true }));
 // TODO(M-17): 50 MB bodies, because images are sent as base64 text. Lower it when images move out of the database. Phase 3.
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
