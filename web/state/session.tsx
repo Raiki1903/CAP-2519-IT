@@ -88,6 +88,8 @@ interface SessionContextType {
   setSidebarCollapsed: (v: boolean) => void;
   /** True after the server refused the session (a 401), until the next login. The login page says so. */
   sessionEnded: boolean;
+  /** True while a page load is asking the server who is logged in. RootLayout waits instead of sending the person to /login. (issue #49) */
+  restoring: boolean;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -109,6 +111,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<Role | null>(null);
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
+  // Starts true exactly when the effect below will ask /me, so the first render already waits.
+  const [restoring, setRestoring] = useState<boolean>(() =>
+    !!(getCookie("session_user_email") && getCookie("session_last_activity") && getCookie("session_created"))
+  );
 
   const clearSession = () => {
     setRoleState(null);
@@ -174,12 +180,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         eraseCookie("session_user_email");
         eraseCookie("session_last_activity");
         eraseCookie("session_created");
+        setRestoring(false);
         alert("Session expired due to 24 hours of inactivity. Please log in again.");
       } else if (now - sessionCreated > thirtyDaysMs) {
         setRoleState(null);
         eraseCookie("session_user_email");
         eraseCookie("session_last_activity");
         eraseCookie("session_created");
+        setRestoring(false);
         alert("Your session has reached its 30-day limit. Please log in again.");
       } else {
         setCookie("session_last_activity", String(now), 1);
@@ -205,7 +213,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           .catch(() => {
             setRoleState(null);
             setCurrentUser(null);
-          });
+          })
+          .finally(() => setRestoring(false));
       }
     }
   }, []);
@@ -292,7 +301,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         cycleMode, setCycleMode,
         theme, setTheme,
         sidebarCollapsed, setSidebarCollapsed,
-        sessionEnded
+        sessionEnded, restoring
       }}
     >
       {children}

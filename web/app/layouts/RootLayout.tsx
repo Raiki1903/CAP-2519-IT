@@ -20,11 +20,21 @@ import { Menu, Shield } from "lucide-react";
 // TODO(C-02): this redirect is the only thing keeping a role out of another role's
 // screens. The server checks nothing, so it hides screens but protects no data. Step 13 (requireAuth).
 export function RootLayout() {
-  const { role, setRole, currentUser } = useSession();
+  const { role, setRole, currentUser, restoring } = useSession();
   const { isDbLoading } = useServerData();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // After a reload or a typed URL the role is not known until /me answers. Redirecting before that
+  // sent every reload to /login. (issue #49)
+  if (restoring) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Restoring your session...</p>
+      </div>
+    );
+  }
 
   if (!role) {
     return <Navigate to="/login" state={{ from: location }} replace />;
