@@ -12,7 +12,7 @@ import {
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
   ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck
 } from "lucide-react";
-import { useSession, roleToSlug, getCookie } from "@web/state/session";
+import { useSession, roleToSlug } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import type { Role } from "@shared/enums/role";
 import { Button } from "@web/components/ui/button";
@@ -549,29 +549,17 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                     <div className="space-y-1.5 text-[11px]">
                       <div className="flex justify-between">
                         <span className="text-slate-400">Authorized User:</span>
-                        <span className="font-semibold text-white truncate max-w-[200px]" title={getCookie("session_user_email") || "guest@dlsu.edu.ph"}>
-                          {getCookie("session_user_email") || "guest@dlsu.edu.ph"}
+                        <span className="font-semibold text-white truncate max-w-[200px]" title={currentUser?.email || ""}>
+                          {currentUser?.email || "Loading..."}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Role Context:</span>
                         <span className="font-semibold text-white">{role}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Session Created:</span>
-                        <span className="font-mono text-slate-300">
-                          {getCookie("session_created") ? new Date(parseInt(getCookie("session_created")!, 10)).toLocaleString() : "N/A"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Last Activity:</span>
-                        <span className="font-mono text-slate-300">
-                          {getCookie("session_last_activity") ? new Date(parseInt(getCookie("session_last_activity")!, 10)).toLocaleString() : "N/A"}
-                        </span>
-                      </div>
                       <div className="flex justify-between border-t border-emerald-500/15 pt-2 mt-2">
                         <span className="text-slate-400 font-medium">Session Policy:</span>
-                        <span className="text-emerald-300 font-semibold text-[10px] uppercase">24h Decay / 30d Refresh</span>
+                        <span className="text-emerald-300 font-semibold text-[10px] uppercase">8h, ends at logout</span>
                       </div>
                     </div>
                   </div>

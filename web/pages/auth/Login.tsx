@@ -1,13 +1,13 @@
 /**
  * Login screen: email and password sign-in for every role.
  * Layer: page. Called by app/routes.tsx at /login.
- * Calls: api/auth.api.ts login(), state/session.tsx setRole(), setCookie(), and sessionEnded.
+ * Calls: api/auth.api.ts login(), state/session.tsx setRole(), setCookie() (the login marker), and sessionEnded.
  * Used by: every role.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Shield, Lock } from "lucide-react";
-import { useSession, roleToSlug, setCookie } from "@web/state/session";
+import { useSession, roleToSlug, setCookie, SESSION_MARKER_COOKIE, SESSION_MARKER_DAYS } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
 import type { Role } from "@shared/enums/role";
 import { Button } from "@web/components/ui/button";
@@ -15,8 +15,8 @@ import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 
 /**
- * Checks the email is a @dlsu.edu.ph address, signs in through authApi.login(), stores the
- * display cookies, and opens the role's dashboard; the server's own session cookie arrives with the login answer.
+ * Checks the email is a @dlsu.edu.ph address, signs in through authApi.login(), writes the login
+ * marker cookie, and opens the role's dashboard; the server's own session cookie arrives with the login answer.
  * Any refusal, server error, or network failure shows a message and stays on this page. After the server ended
  * a session (a 401), it says so above the form. Takes no props.
  */
@@ -53,7 +53,6 @@ export function Login() {
     try {
       // 2. Query Express API to authenticate against MySQL Database in Prisma Studio
       let determinedRole: Role;
-      let authUserEmail: string;
 
       try {
         const data = await authApi.login(email.trim(), password);
@@ -63,7 +62,6 @@ export function Login() {
           return;
         }
         determinedRole = data.role as Role;
-        authUserEmail = data.user?.email || email.trim();
       } catch (e) {
         // TODO(H-16): the server could not be reached, but the message blames the password. Step 13 (typed errors).
         setLoading(false);
@@ -71,13 +69,9 @@ export function Login() {
         return;
       }
 
-      // 3. Session Handling and Cookies
-      // Display only: the server trusts the HttpOnly adric_session cookie the login answer set, never these three.
-      // TODO(C-06): the email still picks whose profile /me answers with on a reload. 13c (the session user).
-      setCookie("session_user_email", authUserEmail, 30);
-      const now = String(Date.now());
-      setCookie("session_last_activity", now, 1);
-      setCookie("session_created", now, 30);
+      // 3. The login marker: no personal data, only "a login exists", so a reload knows to ask /me.
+      // The server trusts the HttpOnly adric_session cookie the login answer set, never this one.
+      setCookie(SESSION_MARKER_COOKIE, "1", SESSION_MARKER_DAYS);
 
       setTimeout(() => {
         setRole(determinedRole);
