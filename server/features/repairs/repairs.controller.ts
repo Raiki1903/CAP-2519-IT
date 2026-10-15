@@ -8,9 +8,10 @@
 import type { Request, Response } from 'express';
 import * as repairsService from './repairs.service';
 import { checkRepairRequest, checkRepairStatus, checkRepairUpdate } from './repairs.validation';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles POST /api/assets/:assetTag/repair: opens a repair ticket.
+ * Handles POST /api/assets/:assetTag/repair: opens a repair ticket, reported by the session user.
  * Answers `{ success, repair }` with the new row, or the AppError's status and message
  * (400 no description, 409 same ticket within 8 seconds, 404 unknown tag), or 500.
  */
@@ -21,7 +22,7 @@ export async function requestRepair(req: Request<{ assetTag: string }>, res: Res
     console.log(`🚀 Server received repair request for ${assetTag}:`, data);
 
     checkRepairRequest(data);
-    const repair = await repairsService.requestRepair(assetTag, data);
+    const repair = await repairsService.requestRepair(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Repair request logged in MySQL successfully:", repair.repair_id, assetTag);
     res.json({ success: true, repair });

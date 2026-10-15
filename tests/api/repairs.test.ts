@@ -16,7 +16,7 @@ const { db, as } = useApiHarness();
 const asCustodian = as(USERS.custodianA);
 const asStaff = as(USERS.staffTsg);
 
-/** What RepairForm sends: the reporter's typed name, the fault, and whether it is urgent. */
+/** What RepairForm sends: the reporter's typed name (not read since 13c: the reporter is the session user), the fault, and whether it is urgent. */
 const repairBody = (description: string, extra: Record<string, unknown> = {}) => ({
   reportedBy: USERS.custodianB.fullName,
   description,
@@ -36,11 +36,11 @@ const newestRecord = (assetId: number) =>
 const ticketStatus = async (repairId: number) => (await db.asset_repairs.findUniqueOrThrow({ where: { repair_id: repairId } })).progress_status;
 
 /**
- * Opens a ticket through the API and answers its id. The description names the tag, so no two tests
- * send the same tag and description and trip the 8-second duplicate guard. (M-07)
+ * Opens a ticket through the API, signed in as Custodian B (the reporter), and answers its id. The description
+ * names the tag, so no two tests send the same tag and description and trip the 8-second duplicate guard. (M-07)
  */
 async function openTicket(tag: string): Promise<number> {
-  const res = await asCustodian.post(`/api/assets/${tag}/repair`, repairBody(`Test fault on ${tag}`));
+  const res = await as(USERS.custodianB).post(`/api/assets/${tag}/repair`, repairBody(`Test fault on ${tag}`));
   expect(res.status, JSON.stringify(res.body)).toBe(200);
   return res.body.repair.repair_id;
 }
@@ -119,11 +119,11 @@ describe("GET /api/asset_repairs", () => {
 });
 
 describe("POST /api/assets/:tag/repair", () => {
-  it("opens a ticket in 'Pending TSG Review' under the reporter found by typed name, and leaves the asset's status alone", async () => {
+  it("opens a ticket in 'Pending TSG Review' under the session user, and leaves the asset's status alone (issue #32 fixed)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0401" });
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: the fan is loud"));
+    const res = await as(USERS.custodianB).post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: the fan is loud"));
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -148,24 +148,24 @@ describe("POST /api/assets/:tag/repair", () => {
     expect(res.body.repair).toMatchObject({ is_immediate: true, progress_status: "Awaiting Immediate Dispatch" });
   });
 
-  it("drops a leading 'Dr.' from the typed name before matching the reporter", async () => {
+  it("ignores a reporter name that names someone else: the ticket is still the session user's (issue #32 fixed)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0403" });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: no power", { reportedBy: `Dr. ${USERS.labHead.fullName}` }));
 
-    expect(res.body.repair.reported_by_id).toBe(USERS.labHead.userId);
+    expect(res.body.repair.reported_by_id).toBe(USERS.custodianA.userId);
   });
 
   it.each([
     { reportedBy: "Nobody Known", case: "a typed name that matches nobody", tag: "TEST-0404" },
     { reportedBy: undefined, case: "no name", tag: "TEST-0405" },
-  ])("files the ticket under user 1 for $case (known defect H-10)", async ({ reportedBy, tag }) => {
+  ])("files the ticket under the session user for $case, not under user 1 (H-10 fixed)", async ({ reportedBy, tag }) => {
     const asset = await addExtraAsset(db, { tag });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: unknown reporter", { reportedBy }));
 
     expect(res.status).toBe(200);
-    expect(res.body.repair.reported_by_id).toBe(USERS.admin.userId);
+    expect(res.body.repair.reported_by_id).toBe(USERS.custodianA.userId);
   });
 
   it("accepts a repair request for a disposed asset, and leaves it DISPOSED (known defect H-05)", async () => {
