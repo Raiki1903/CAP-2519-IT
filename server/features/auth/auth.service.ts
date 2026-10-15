@@ -4,7 +4,7 @@
  * Used by: login for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
  */
 import type { roles, user_roles, users } from '@prisma/client';
-import type { StaffUnit } from '@shared/enums/role';
+import type { Role, StaffUnit } from '@shared/enums/role';
 import type {
     AccountUpdateInput,
     AccountUser,
@@ -14,11 +14,12 @@ import type {
     ProfileUser,
     RegisterInput,
     RegistrationRequestInput,
+    SessionIdentity,
 } from '@shared/types/auth';
 import * as authRepository from './auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { env } from '../../config/env';
-import { createSessionToken, markLoggedOut, verifySessionToken } from '../../shared/services/session';
+import { createSessionToken, isLoggedOut, markLoggedOut, verifySessionToken } from '../../shared/services/session';
 
 // Registration accepts the same email more than once (issue #14), kept as is: the email check looks at accounts only,
 // not at pending sign-ups, so one email can be requested twice; approving the second then fails with a 500.
@@ -290,6 +291,19 @@ export function endSession(token: string | undefined): void {
     if (!token) return;
     const claims = verifySessionToken(token, env.sessionSecret);
     if (claims) markLoggedOut(token, claims.expiresAt);
+}
+
+// The role is read from the database on every request, not kept in the cookie, so a changed role
+// or a removed account takes effect at the next request.
+export async function sessionIdentityFor(token: string): Promise<SessionIdentity | null> {
+    const claims = verifySessionToken(token, env.sessionSecret);
+    if (!claims || isLoggedOut(token)) return null;
+
+    const user = await authRepository.findUserRolesById(claims.userId);
+    if (!user) return null;
+
+    const { role, staffUnit } = appRoleFor(user.user_roles || []);
+    return { userId: user.user_id, role: role as Role, staffUnit };
 }
 
 /**

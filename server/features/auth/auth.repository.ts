@@ -145,6 +145,14 @@ export function findUserProfileByEmail(email: string) {
     });
 }
 
+/** The user with this id and their roles, or null. Read on every request that carries a session. */
+export function findUserRolesById(userId: number) {
+    return prisma.users.findUnique({
+        where: { user_id: userId },
+        include: { user_roles: { include: { roles: true } } }
+    });
+}
+
 /** The first user with exactly this email, or null. Used by the account update, which tries it twice before findAllUsers. */
 export function findFirstUserByEmail(email: string) {
     return prisma.users.findFirst({ where: { email } });

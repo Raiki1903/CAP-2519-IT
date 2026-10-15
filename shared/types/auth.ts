@@ -3,7 +3,7 @@
  * Layer: shared. Imported by server/features/auth/ and web/api/auth.api.ts. Imports shared/enums/role.ts.
  * Used by: login, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
  */
-import type { StaffUnit } from '../enums/role';
+import type { Role, StaffUnit } from '../enums/role';
 
 /** The body of POST /api/auth/register. No screen sends it. */
 export interface RegisterInput {
@@ -129,4 +129,11 @@ export interface AccountUser {
   avatarUrl: string | null;
   /** The lab code the request sent, or "CITe4D" when it sent none, whatever the account's lab is. */
   labAffiliation: string;
+}
+
+/** Who a valid session cookie belongs to, as requireAuth finds them on each request. Server only; never sent. */
+export interface SessionIdentity {
+  userId: number;
+  role: Role;
+  staffUnit: StaffUnit | null;
 }
