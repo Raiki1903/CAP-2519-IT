@@ -993,3 +993,32 @@ Answered on 2026-10-13 (see the log): **all 10 step 12 batch 4 hand checks passe
 `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 13, part 13b only: the session, requireAuth, and requireRole.`
 
 Answered on 2026-10-15 (see the log): **all 9 step 13a hand checks passed**, and the pull request is next. Check 2 was run on an asset with an inspection report: the dialog showed the generic message, the asset stayed, and the terminal showed the full Prisma error. **Correction:** the web side of H-16 (typed errors in `web/api/client.ts` and removing the `Raw` calls), the 400 for a missing body, and JSON for Express's own 404 and 400 pages were noted for later, not decided; when they happen is not decided yet. The log, its notes, and the open question above now say so. Next after the merge: `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 13b.`
+
+## Phase 1C, restructure step 13b, 2026-10-15
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 13, part 13b only (the session, `requireAuth`, `requireRole`), in two stops: the role table (approved by Raiki the same day), then the build. On a fresh `refactor/feature-based-structure` from the PR #91 merge (`2c107afc`).
+
+### What was produced
+
+- **Stop 1** `50889595` and `b4c83a76`: the route role table for all 40 routes (plus logout), the twelve questions and Raiki's answers, the calls made before login, the test count, the web changes, and the plan.
+- **Server** (labelled behavior changes): `server/shared/services/session.ts` and a required `SESSION_SECRET` (`fab7825a`); login sets a signed `HttpOnly`, `SameSite=Lax` cookie for 8 hours and a new public `POST /api/auth/logout` (`e3309f04`); CORS for `WEB_ORIGIN` only, with credentials (`b8dac95c`); `requireAuth` and `requireRole` (`de4fff7c`), then one enforcement commit per feature (`15814e51` to `680cd60a`); every login gets its own token (`a984ffb2`).
+- **Web** (labelled behavior changes): `credentials: "include"`, logout on the server, a 401 logs the person out with a notice, the lists load after login and only for the roles that may read them, Authorize Loan hidden for Staff in the bell (`3f10cb28`); **issue #49 fixed**, a reload or typed URL keeps you logged in (`8965f432`).
+- **Tests:** the harness logs in (`as(user)`), and every test sends an allowed role (`076490b7`); 63 new tests, `tests/api/session.test.ts` and one guard test (`68b5e20b`): **372**.
+- **Comment commit** `50f33ac3`; this docs commit (log, this file, `docs/README.md`, the prompt's history line and decision rows, `tests/README.md`).
+- **Checks after every commit:** typecheck **68**, same list; build passes; `npm test` **309**, then **372**. A probe of the whole table after each enforcement commit; headless Chrome against a local test server over every tab of every role (no 401 or 403), reloads, logout, and a tampered cookie; the comment commit compiles to the same JavaScript.
+
+### Key findings
+
+- **The first token design had a real bug,** caught by the new tests before they were committed: two logins of the same user in the same second got the same token, so logging out and straight back in was refused, and a logout in one tab ended another tab's session. Each token now carries a random nonce (`a984ffb2`).
+- **The shared lists used to load on the login page,** before anyone logged in, and login never reloaded them. With 13b that would have left every dashboard empty, so the lists now load when a role is set.
+- **No test needed changing in the enforcement commits:** after the harness commit every test already sent an allowed role.
+
+### Open questions
+
+Both are in the log ("Questions for Raiki (stop 2)"), with options and a recommendation each: how long `SESSION_SECRET` must be (recommended: keep the 32-character minimum), and whether the Staff badge in the bell should stop counting loan and transfer cards Staff cannot act on (recommended: leave it for the bell rewrite).
+
+### Exact next step
+
+1. Every teammate adds `SESSION_SECRET` to `.env` (the log says how), restarts `npm run dev:all`, and opens the app at `http://localhost:5173`.
+2. Raiki runs the 13b hand checks in the log (5 marked "Raiki on the real app"; only check 4 writes to shared data, one loan request and its decline), then pushes and opens the 13b pull request.
+3. Then step 13c, on a fresh branch from that merge: `Read docs/phase-1c-restructure/PROMPT-2-restructure.md and docs/phase-1c-restructure/02-restructure-log.md. Continue Part B with step 13c.`

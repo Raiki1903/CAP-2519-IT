@@ -118,11 +118,12 @@ import { describe, expect, it } from "vitest";
 import { ASSETS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, db } = useApiHarness();   // fresh data and a fresh server for this file
+const { db, as } = useApiHarness();   // fresh data and a fresh server for this file
+const asCustodian = as(USERS.custodianA);   // logs in once, then sends that session
 
 describe("loans", () => {
   it("refuses a second request on an asset that already has a pending loan, with 409 (issue #25)", async () => {
-    const res = await api.post(`/api/assets/${ASSETS.pendingLoan.tag}/borrow`, {
+    const res = await asCustodian.post(`/api/assets/${ASSETS.pendingLoan.tag}/borrow`, {
       borrower: USERS.custodianA.fullName, purpose: "Test purpose", dueDate: "2030-01-01",
     });
     expect(res.status).toBe(409);
@@ -131,7 +132,8 @@ describe("loans", () => {
 });
 ```
 
-- `api.get/post/put/delete(path, body)` returns `{ status, body }`.
+- `as(USERS.x).get/post/put/delete(path, body)` returns `{ status, body }`, sent with that account's session. Every route but login, the sign-up request, and logout needs one, and the role the approved table in the restructure log gives it: Staff `USERS.staffTsg`, Lab Head `USERS.labHead`, Custodian `USERS.custodianA` (or `custodianB`), Director `USERS.director`. The first call logs the account in; the cookie is reused for the rest of the file.
+- `api` sends no session: use it for login, the sign-up request, logout, and to check that a route refuses a visitor (401). `logIn(user)` gives a fresh cookie and `withCookie(cookie)` sends it, for tests that log out or change a cookie (see [api/session.test.ts](api/session.test.ts)).
 - `db` is Prisma on the test database, for reading back what a request wrote.
 - Name each test after what it checks. If it pins a known defect, put the finding ID in the name, for example `"finalizing a return leaves the loan open (known defect H-04)"`.
 - These are **characterization tests**: they record what the API does **today**, even where that is wrong, so that a later change that alters it by accident makes a test fail. Do not "fix" the expected value to what it should be.
@@ -148,6 +150,7 @@ describe("loans", () => {
 | You see | It means |
 |---|---|
 | `Test database refused: ...` | `TEST_DATABASE_URL` is missing or does not pass the guard. The message says which rule failed. |
+| A test gets 401 `Please log in to continue.` or 403 `Your role is not allowed to do this.` | It used `api` on a route that needs a session, or an account whose role the route does not allow. Use `as(...)` with an allowed role. The tests set their own `SESSION_SECRET`; `.env`'s is not used. |
 | `No test files found, exiting with code 1` together with an error below it | The setup failed before any test ran. The real cause is the error printed under it. |
 | `Could not open localhost:3306/AdRIC_DB_test` | MySQL is not running (`Get-Service MySQL80`), the password in `TEST_DATABASE_URL` is wrong, or the database was not created (step 2). |
 | `prisma db push failed` | The tables could not be created. Read the Prisma message under it. |
