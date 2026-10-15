@@ -370,19 +370,20 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the body; every field is optional
+ * @param editorId the session user, under whom the edit's condition report is filed
  * @returns the assets row, updated or as it was
  * @throws AppError 404 if no asset has this tag
  * @throws AppError 400 if the picture is text but not an image
  */
-export async function updateAsset(assetTag: string, data: AssetUpdateInput): Promise<assets> {
+export async function updateAsset(assetTag: string, data: AssetUpdateInput, editorId: number): Promise<assets> {
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // The dialog sends the custodian as a display name ("Dr. Juan Dela Cruz"). It is split and matched like the
-    // other typed names; no match leaves the record's custodian as it is (but files the report under user 1).
-    // TODO(H-10): two people with the same name cannot be told apart (issue #32). The session user and an id, step 13.
+    // The dialog sends the new custodian as a display name ("Dr. Juan Dela Cruz"): a target, not the person acting.
+    // It is split at the first space and matched exactly; no match leaves the record's custodian as it is.
+    // TODO(H-10): two people with the same name cannot be told apart, and a two-word first name never matches (issue #32). A person picker, on a branch after step 13 (answer 8).
     let custodianId: number | undefined;
     if (data.custodian) {
         const [first, ...rest] = String(data.custodian).replace(/^Dr\.\s*/i, "").split(" ");
@@ -463,8 +464,8 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput): Pro
             report: {
                 data: {
                     asset_id: existing.asset_id,
-                    // Filed under the custodian named in the edit, else user 1, not under whoever made the edit.
-                    reported_by_id: custodianId ?? DEFAULT_CUSTODIAN_ID,
+                    // Filed under the Staff member who made the edit. (issue #32)
+                    reported_by_id: editorId,
                     report_condition: condition,
                     report_remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
                     report_img: imageVal || null,

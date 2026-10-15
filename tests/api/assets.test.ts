@@ -337,7 +337,7 @@ describe("PUT /api/assets/:tag", () => {
     expect(recordAfter.location).toBe(`Laguna${LOCATION_SEPARATOR}TESTL`);
   });
 
-  it("finds the custodian by typed name and files the remark as a report under them", async () => {
+  it("finds the new custodian by typed name, and files the remark as a report under the session user who edited (issue #32 fixed)", async () => {
     const res = await asStaff.put(`/api/assets/${ASSETS.pendingLoan.tag}`, {
       custodian: USERS.custodianB.fullName,
       remarks: "Test edit remark",
@@ -349,10 +349,10 @@ describe("PUT /api/assets/:tag", () => {
     expect(record).toMatchObject({ current_custodian: USERS.custodianB.userId, asset_condition: "MINOR_DRIFT", Asset_Remarks: "Test edit remark" });
     const reports = await db.asset_reports.findMany({ where: { asset_id: ASSETS.pendingLoan.assetId } });
     expect(reports).toHaveLength(1);
-    expect(reports[0]).toMatchObject({ reported_by_id: USERS.custodianB.userId, report_condition: "MINOR_DRIFT", report_remarks: "Test edit remark" });
+    expect(reports[0]).toMatchObject({ reported_by_id: USERS.staffTsg.userId, report_condition: "MINOR_DRIFT", report_remarks: "Test edit remark" });
   });
 
-  it("files the report under user 1 and keeps the custodian when the typed name matches nobody (known defect H-10)", async () => {
+  it("keeps the custodian when the typed name matches nobody, and files the report under the session user, not user 1 (H-10 fixed)", async () => {
     const recordBefore = await newestRecord(ASSETS.inRepair.assetId);
 
     await asStaff.put(`/api/assets/${ASSETS.inRepair.tag}`, { custodian: "Nobody Known", remarks: "Test remark from an unknown name" });
@@ -360,7 +360,7 @@ describe("PUT /api/assets/:tag", () => {
     const recordAfter = await newestRecord(ASSETS.inRepair.assetId);
     expect(recordAfter.current_custodian).toBe(recordBefore.current_custodian);
     const report = await db.asset_reports.findFirstOrThrow({ where: { asset_id: ASSETS.inRepair.assetId } });
-    expect(report.reported_by_id).toBe(USERS.admin.userId);
+    expect(report.reported_by_id).toBe(USERS.staffTsg.userId);
   });
 
   it("ignores a new acquisition value when the asset already has one (known defect M-16)", async () => {

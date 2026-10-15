@@ -8,6 +8,7 @@
 import type { Request, Response } from 'express';
 import * as assetsService from './assets.service';
 import { checkAssetCreate } from './assets.validation';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
  * Handles GET /api/assets: every asset with its current state, as `{ success, assets }`.
@@ -62,7 +63,7 @@ export async function updateAsset(req: Request<{ assetTag: string }>, res: Respo
     // Printed before the checks, as for a new asset.
     console.log(`🚀 Server received update for ${assetTag}:`, data);
 
-    const updated = await assetsService.updateAsset(assetTag, data);
+    const updated = await assetsService.updateAsset(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Asset updated in MySQL successfully:", updated.asset_id);
     res.json({ success: true, asset: updated });
