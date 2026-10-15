@@ -125,16 +125,16 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * Handles PUT /api/auth/account: saves the name, picture, and lab of the account the body's email names.
- * Answers `{ success, user }`, or the AppError's status and message (400 missing field, 404 no account), or 500.
+ * Handles PUT /api/auth/account: saves the name, picture, and lab of the session's own account. An `email` in the
+ * body, which older pages still send, is ignored, so no one can change another account. (C-06)
+ * Answers `{ success, user }`, or the AppError's status and message (400 missing name, 404 account gone), or 500.
  */
-// TODO(C-06): the account is chosen by the email in the body, so any signed-in user can rename anyone (C-02). 13c (the session user).
 export async function updateAccount(req: Request, res: Response): Promise<void> {
-    const { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = req.body;
-    const data = { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture };
+    const { firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = req.body;
+    const data = { firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture };
 
     checkAccountUpdate(data);
-    const { updatedUser, user } = await authService.updateAccount(data);
+    const { updatedUser, user } = await authService.updateAccount(sessionUserOf(req).userId, data);
 
     console.log(`👤 Updated user credentials in MySQL DB: ${updatedUser.email} -> ${firstName} ${lastName} (${labAffiliation}) [img length: ${updatedUser.user_img ? updatedUser.user_img.length : 0}]`);
     res.json({

@@ -153,16 +153,6 @@ export function findUserRolesById(userId: number) {
     });
 }
 
-/** The first user with exactly this email, or null. Used by the account update, which tries it twice before findAllUsers. */
-export function findFirstUserByEmail(email: string) {
-    return prisma.users.findFirst({ where: { email } });
-}
-
-/** Every user. The account update's last resort for an email in another letter case. */
-export function findAllUsers() {
-    return prisma.users.findMany();
-}
-
 /** Updates a user row and returns it. */
 export function updateUser(userId: number, data: Prisma.usersUpdateInput) {
     return prisma.users.update({

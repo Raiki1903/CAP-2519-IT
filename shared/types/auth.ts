@@ -81,9 +81,8 @@ export interface LoginInput {
 
 /** What the account page sends when saving a profile. */
 export interface AccountUpdateInput {
-  /** Identifies whose account to change. */
-  // TODO(C-06): the server trusts this email instead of a session. Step 13 (requireAuth).
-  email: string;
+  /** Not read: the account is the session user's (C-06). Older pages still send it. */
+  email?: string;
   firstName: string;
   lastName: string;
   /** The caller sends the same picture under these three names. */

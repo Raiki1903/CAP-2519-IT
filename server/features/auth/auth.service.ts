@@ -371,28 +371,18 @@ export async function getProfile(userId: number): Promise<ProfileUser> {
 }
 
 /**
- * Saves an account's name, picture, and lab.
- * The account is looked up by the email as sent, then in lower case, then by comparing every account's email in lower case.
+ * Saves the name, picture, and lab of the session user's own account. (C-06)
  * The picture is changed only when one is sent. A lab code that matches no research center is created as one first.
  *
- * @param data the checked body: email, names, and the optional picture (under three names) and lab code
+ * @param userId the session user
+ * @param data the checked body: names, and the optional picture (under three names) and lab code
  * @returns the updated users row, for the log line, and the profile the answer sends
- * @throws AppError 404 if no account matches the email
+ * @throws AppError 404 if the account no longer exists (deleted within the 60-second session cache)
  */
-export async function updateAccount(data: AccountUpdateInput): Promise<{ updatedUser: users; user: AccountUser }> {
-    const { email, firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = data;
+export async function updateAccount(userId: number, data: AccountUpdateInput): Promise<{ updatedUser: users; user: AccountUser }> {
+    const { firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = data;
 
-    const targetEmail = email.trim();
-    let user = await authRepository.findFirstUserByEmail(targetEmail);
-    if (!user) {
-        user = await authRepository.findFirstUserByEmail(targetEmail.toLowerCase());
-    }
-    if (!user) {
-        // TODO(M-01): the last resort loads every account to compare emails in code. Goes with the session user, step 13.
-        const allUsers = await authRepository.findAllUsers();
-        user = allUsers.find(u => u.email.toLowerCase() === targetEmail.toLowerCase()) || null;
-    }
-
+    const user = await authRepository.findUserById(userId);
     if (!user) {
         throw new AppError(404, "User not found in database.");
     }
