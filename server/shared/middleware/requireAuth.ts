@@ -43,3 +43,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     req.sessionUser = sessionUser;
     next();
 }
+
+/**
+ * The session user of a request that passed requireAuth: who is acting. (issue #32, H-10)
+ * Controllers read it instead of a name or email from the body.
+ *
+ * @param req a request on a route with requireAuth
+ * @returns { userId, role, staffUnit }
+ * @throws AppError 401 NOT_LOGGED_IN_MESSAGE if requireAuth did not run before it
+ */
+export function sessionUserOf(req: Request): SessionIdentity {
+    if (!req.sessionUser) throw new AppError(401, NOT_LOGGED_IN_MESSAGE);
+    return req.sessionUser;
+}

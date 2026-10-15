@@ -1,16 +1,14 @@
 /**
  * Loans service: the business rules for borrow requests, decisions, and the loan list.
  * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, features/assets/assets.repository.ts,
- * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/utils/campus.ts, and shared/constants/defaultCustodian.ts.
+ * shared/services/custodyRequestGuard.ts, and shared/utils/campus.ts.
  * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
  */
 import type { Prisma, asset_loans, asset_records } from '@prisma/client';
 import type { LoanDecision, LoanListItem, LoanRequestInput } from '@shared/types/loans';
 import * as loansRepository from './loans.repository';
 import * as assetsRepository from '../assets/assets.repository';
-import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
-import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
 import { campusForLab } from '../../shared/utils/campus';
 import { findCustodyRequestConflict } from '../../shared/services/custodyRequestGuard';
 
@@ -94,12 +92,13 @@ export async function listLoans(): Promise<LoanListItem[]> {
  * or is not Active, because two approvals would give one item two custodians. (H-05)
  *
  * @param assetTag the asset's tag, from the URL
- * @param data the checked borrow body: borrower name, optional destination lab, purpose, due date
+ * @param data the checked borrow body: optional destination lab, purpose, due date
+ * @param borrowerId the session user, who borrows as themselves; any borrower name in the body is ignored (issue #32)
  * @returns the created asset_loans row
  * @throws AppError 404 if no asset has this tag
  * @throws AppError 409 if the guard refuses the request
  */
-export async function requestLoan(assetTag: string, data: LoanRequestInput): Promise<asset_loans> {
+export async function requestLoan(assetTag: string, data: LoanRequestInput, borrowerId: number): Promise<asset_loans> {
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
@@ -109,15 +108,6 @@ export async function requestLoan(assetTag: string, data: LoanRequestInput): Pro
     if (conflict) {
         throw new AppError(409, conflict);
     }
-
-    // The form sends the borrower as a typed name. The first word is matched as the first name and
-    // the rest as the last name, after dropping a leading "Dr.". borrower_id is a required foreign key,
-    // so a name that matches nobody becomes DEFAULT_CUSTODIAN_ID.
-    // TODO(H-10): two people with the same name cannot be told apart, and a typo files the loan under user 1 (issue #32). The borrower comes from the session after step 13.
-    let borrowerId = DEFAULT_CUSTODIAN_ID;
-    const [first, ...rest] = String(data.borrower).replace(/^Dr\.\s*/i, "").split(" ");
-    const match = await authRepository.findUserByName(first, rest.join(" "));
-    if (match) borrowerId = match.user_id;
 
     // asset_loans has no destination column, so the lab is stored as the first line of purpose,
     // where listLoans and the approval read it back.

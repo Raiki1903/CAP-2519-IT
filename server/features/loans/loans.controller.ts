@@ -8,6 +8,7 @@
 import type { Request, Response } from 'express';
 import * as loansService from './loans.service';
 import { checkLoanDecision, checkLoanRequest } from './loans.validation';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
  * Handles GET /api/asset_loans: every loan, newest first, as `{ success, loans }`.
@@ -19,7 +20,7 @@ export async function listLoans(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * Handles POST /api/assets/:assetTag/borrow: files a pending loan request.
+ * Handles POST /api/assets/:assetTag/borrow: files a pending loan request for the session user.
  * Answers `{ success, loan }` with the new row, or the AppError's status and message
  * (400 missing field, 404 unknown tag, 409 refused by the custody request guard), or 500.
  */
@@ -30,7 +31,7 @@ export async function requestLoan(req: Request<{ assetTag: string }>, res: Respo
     console.log(`🚀 Server received loan request for ${assetTag}:`, data);
 
     checkLoanRequest(data);
-    const loan = await loansService.requestLoan(assetTag, data);
+    const loan = await loansService.requestLoan(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Loan request logged in MySQL successfully:", loan.loan_id, assetTag);
     res.json({ success: true, loan });

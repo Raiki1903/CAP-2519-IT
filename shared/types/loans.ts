@@ -6,9 +6,8 @@
 
 /** The body of POST /api/assets/:assetTag/borrow, as LoanForm sends it. */
 export interface LoanRequestInput {
-  /** Borrower's display name as typed in the form. */
-  // TODO(H-10): the server resolves this name to a user by matching text, and an unknown name becomes user 1 (issue #32). The borrower comes from the session after step 13.
-  borrower: string;
+  /** Not read: the borrower is the session user (issue #32). Older pages still send the typed name. */
+  borrower?: string;
   /** Destination lab code, for example "CITe4D". Optional: without it the asset keeps its current location on approval. */
   lab?: string;
   purpose: string;

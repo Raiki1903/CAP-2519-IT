@@ -7,15 +7,16 @@ import type { LoanDecision, LoanRequestInput } from '@shared/types/loans';
 import { AppError } from '../../shared/errors/AppError';
 
 /**
- * Checks that a borrow body has a borrower, a purpose, and a due date.
- * Only presence is checked: not that the due date is a date, or in the future.
+ * Checks that a borrow body has a purpose and a due date. The borrower is the session user, so a
+ * `borrower` field is neither required nor read. Only presence is checked: not that the due date is
+ * a date, or in the future.
  *
  * @param data the request body
- * @throws AppError 400 if any of the three is missing or empty
+ * @throws AppError 400 if either is missing or empty
  */
 export function checkLoanRequest(data: any): asserts data is LoanRequestInput {
-    if (!data.borrower || !data.purpose || !data.dueDate) {
-        throw new AppError(400, "Missing required fields: borrower, purpose, dueDate.");
+    if (!data.purpose || !data.dueDate) {
+        throw new AppError(400, "Missing required fields: purpose, dueDate.");
     }
 }
 
