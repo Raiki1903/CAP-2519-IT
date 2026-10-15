@@ -11,11 +11,11 @@ import { checkAssetCreate } from './assets.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles GET /api/assets: every asset with its current state, as `{ success, assets }`.
- * A failure answers errorHandler's generic 500.
+ * Handles GET /api/assets: every asset with its current state, as `{ success, assets }`. A Custodian gets no name
+ * but their own (D2). A failure answers errorHandler's generic 500.
  */
 export async function listAssets(req: Request, res: Response): Promise<void> {
-    const formatted = await assetsService.listAssets();
+    const formatted = await assetsService.listAssets(sessionUserOf(req));
     res.json({ success: true, assets: formatted });
 }
 

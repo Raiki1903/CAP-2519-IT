@@ -6,6 +6,7 @@
  */
 import type { asset_records, assets } from '@prisma/client';
 import type { AssetCreateInput, AssetListItem, AssetUpdateInput, CustodianHistory } from '@shared/types/assets';
+import type { SessionIdentity } from '@shared/types/auth';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import * as assetsRepository from './assets.repository';
@@ -18,12 +19,19 @@ import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
  * Lists every asset with its current state, shaped for the screens.
  * Each asset's state is read from its newest record (ties on date_logged go to the higher asset_record_id),
  * its due date from the newest approved loan, and its disposal details from the disposal's packed reason text.
+ * A Custodian gets no other person's name (D2): not the holder of an asset they do not hold (which is marked
+ * `custodianHidden` instead), not the disposal's last custodian or requester, and inside each asset not the
+ * custodian of a record, the people of a transfer they are not part of, or the reporter of a report.
  *
+ * @param viewer the session user
  * @returns one AssetListItem per assets row, with its records, transfers, and reports
  */
 // TODO(M-01): nine whole tables are loaded and joined in code on every call, and most screens call it. 01D rewrites it as targeted queries, in its own commit (issue #76).
 // TODO(H-13): reporterRole reads a `role` field users does not have, so it is always "Inspection Inspector"; and the condition score checks spellings the condition enum does not have. A small fix.
-export async function listAssets(): Promise<AssetListItem[]> {
+export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem[]> {
+    // Whether this caller may see the name of the person with this id: everyone but a Custodian sees every name. (D2)
+    const nameShown = (userId: number) => viewer.role !== "Custodian" || userId === viewer.userId;
+
     const [dbAssets, dbMonetaries, dbRecords, dbUsers, dbLoans, dbDisposals, dbTransfers, dbReports, dbProjects] = await assetsRepository.findListTables();
 
     const formatDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -37,6 +45,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
         const latestRecord = records[0];
 
         let custodianName = "";
+        let custodianHidden = false;
         let status = "Active";
         let location = "Manila";
         let lab = "CITe4D";
@@ -49,7 +58,9 @@ export async function listAssets(): Promise<AssetListItem[]> {
             const custodian = latestRecord.current_custodian === POOL_CUSTODIAN_ID
                 ? undefined
                 : dbUsers.find(u => u.user_id === latestRecord.current_custodian);
-            if (custodian) {
+            if (custodian && !nameShown(custodian.user_id)) {
+                custodianHidden = true;
+            } else if (custodian) {
                 custodianName = `${custodian.first_name} ${custodian.last_name}`;
             }
 
@@ -85,6 +96,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
             (d.asset_id === asset.asset_id && d.status === "approved")
         );
         const disposerUser = disposal ? dbUsers.find(u => u.user_id === disposal.disposed_by_id) : null;
+        const disposerHidden = !!disposerUser && !nameShown(disposerUser.user_id);
 
         let disposalDetails: any = undefined;
         if (disposal) {
@@ -95,11 +107,11 @@ export async function listAssets(): Promise<AssetListItem[]> {
             const justification = justificationMatch ? justificationMatch[1].trim() : reasonText;
 
             disposalDetails = {
-                lastCustodian: custodianName || "No Custodian",
+                lastCustodian: custodianHidden ? undefined : (custodianName || "No Custodian"),
                 breakdownReasons: justification || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
                 disposalPathway: pathway,
                 decommissionDate: formatDate(disposal.disposal_date),
-                decommissionedBy: disposerUser ? `${disposerUser.first_name} ${disposerUser.last_name}` : "AdRIC Director",
+                decommissionedBy: disposerHidden ? undefined : (disposerUser ? `${disposerUser.first_name} ${disposerUser.last_name}` : "AdRIC Director"),
             };
         }
 
@@ -124,7 +136,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
                 condition: r.asset_condition,
                 location: r.location,
                 currentLocation: r.current_location || undefined,
-                custodian: cUser ? `${cUser.first_name} ${cUser.last_name}` : "System Custodian",
+                custodian: cUser ? (nameShown(cUser.user_id) ? `${cUser.first_name} ${cUser.last_name}` : undefined) : "System Custodian",
                 remarks: r.Asset_Remarks || "Log entry recorded in asset lifecycle registry."
             };
         });
@@ -133,6 +145,8 @@ export async function listAssets(): Promise<AssetListItem[]> {
         const mappedTransfers = assetTransfers.map(t => {
             const fromUser = dbUsers.find(u => u.user_id === t.from_custodian_id);
             const toUser = dbUsers.find(u => u.user_id === t.to_custodian_id);
+            // As in GET /api/asset_transfers: a Custodian sees both names only on a transfer they are part of.
+            const namesShown = nameShown(t.from_custodian_id) || nameShown(t.to_custodian_id);
             return {
                 transfer_id: t.transfer_id,
                 id: `TR-${t.transfer_id}`,
@@ -140,8 +154,8 @@ export async function listAssets(): Promise<AssetListItem[]> {
                 assetId: asset.asset_tag,
                 from_custodian_id: t.from_custodian_id,
                 to_custodian_id: t.to_custodian_id,
-                from: fromUser ? `${fromUser.first_name} ${fromUser.last_name}` : `Custodian ID: ${t.from_custodian_id}`,
-                to: toUser ? `${toUser.first_name} ${toUser.last_name}` : `Custodian ID: ${t.to_custodian_id}`,
+                from: !namesShown ? undefined : fromUser ? `${fromUser.first_name} ${fromUser.last_name}` : `Custodian ID: ${t.from_custodian_id}`,
+                to: !namesShown ? undefined : toUser ? `${toUser.first_name} ${toUser.last_name}` : `Custodian ID: ${t.to_custodian_id}`,
                 requested_on: t.requested_on ? formatDate(t.requested_on) : "N/A",
                 initiated: t.requested_on ? formatDate(t.requested_on) : "N/A",
                 created_at: t.requested_on ? t.requested_on.toISOString() : new Date().toISOString(),
@@ -158,7 +172,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
                 id: r.report_id,
                 reportId: `RPT-${r.report_id}`,
                 assetId: asset.asset_tag,
-                reportedBy: rUser ? `${rUser.first_name} ${rUser.last_name}` : "Staff",
+                reportedBy: rUser ? (nameShown(rUser.user_id) ? `${rUser.first_name} ${rUser.last_name}` : undefined) : "Staff",
                 reporterRole: rUser?.role || "Inspection Inspector",
                 reportDate: r.report_date ? formatDate(r.report_date) : "N/A",
                 date_logged: r.report_date ? formatDate(r.report_date) : "N/A",
@@ -189,6 +203,7 @@ export async function listAssets(): Promise<AssetListItem[]> {
             condition: calculatedCondition,
             assetCondition: latestRecord?.asset_condition || "PERFECT",
             custodian: custodianName || undefined,
+            custodianHidden: custodianHidden ? (true as const) : undefined,
             borrowedOn,
             dueDate,
             daysLeft,
