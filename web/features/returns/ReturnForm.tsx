@@ -265,7 +265,7 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
               <User size={10} /> Responsible Custodian
             </Label>
             <Input
-              value={asset.custodian ?? "Current Active Custodian"}
+              value={asset.custodian ?? "None"}
               disabled
               className="bg-[#F3F4F6] text-muted-foreground"
             />

@@ -11,7 +11,7 @@ import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send,
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { useSession } from "@web/state/session";
-import { useServerData } from "@web/state/serverData";
+import { useServerData, holderLabel } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import * as inspectionsApi from "@web/api/inspections.api";
 import { Button } from "@web/components/ui/button";
@@ -207,6 +207,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         assetCondition: matched.assetCondition,
         currentLocation: matched.currentLocation,
         custodian: matched.custodian,
+        custodianHidden: matched.custodianHidden,
         description: matched.description,
         image: matched.image
       };
@@ -650,8 +651,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                   <p className="text-[11px] text-emerald-700 font-medium">
                     Status: <strong className="font-bold">{scannedAssetData?.status || "Active"}</strong> · Lab: {scannedAssetData?.lab || "CITe4D"} · {scannedAssetData?.location || "Manila"}
                   </p>
-                  {scannedAssetData?.custodian && (
-                    <p className="text-[10px] text-emerald-600 font-mono">Custodian: {scannedAssetData.custodian}</p>
+                  {scannedAssetData && (
+                    <p className="text-[10px] text-emerald-600 font-mono">Custodian: {holderLabel(scannedAssetData.custodian, scannedAssetData.custodianHidden)}</p>
                   )}
                 </div>
               </div>

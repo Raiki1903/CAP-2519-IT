@@ -636,7 +636,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         a.procurement_date || a.procured || "",
         a.asset_monetary?.acquisition_value || a.cost || 0,
         a.status,
-        a.custodian || "Unassigned",
+        a.custodian || "None",
         a.lab || "CITe4D"
       ]);
 
@@ -807,7 +807,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                                 )}>
                                   {item.status}
                                 </Badge>
-                                <p className="text-[9px] text-muted-foreground print:text-slate-600 font-semibold">{item.custodian || "No custodian assigned"}</p>
+                                <p className="text-[9px] text-muted-foreground print:text-slate-600 font-semibold">{item.custodian || "None"}</p>
                               </div>
                             )}
                           </TableCell>

@@ -172,7 +172,7 @@ export function InventoryPage() {
                     <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{eq.category}</TableCell>
                     <TableCell><Badge className={cn("text-[10px]", statusBadgeClass[eq.status])}>{eq.status}</Badge></TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{eq.custodian || "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{eq.custodian || "None"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{eq.currentLocation || eq.location}</TableCell>
                     <TableCell><ConditionState value={eq.assetCondition} /></TableCell>
                     <TableCell><Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">{eq.funding}</Badge></TableCell>

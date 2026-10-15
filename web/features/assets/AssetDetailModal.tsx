@@ -6,7 +6,7 @@
  */
 import { useState, useEffect } from "react";
 import { useSession } from "@web/state/session";
-import { useServerData, type DisposalDetails } from "@web/state/serverData";
+import { useServerData, holderLabel, type DisposalDetails } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -44,6 +44,7 @@ export interface AssetDetail {
   condition?: number;
   assetCondition?: string;
   custodian?: string;
+  custodianHidden?: boolean;
   disposalId?: string;
   disposalDetails?: DisposalDetails;
   description?: string;
@@ -349,8 +350,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           {asset.disposalDetails && (
                             <div className="mt-3 text-left border-t border-red-200/30 pt-2.5 space-y-1 font-mono text-[10px] text-red-800">
                               <p><strong>Disposal ID:</strong> {asset.disposalId}</p>
-                              <p><strong>Decommissioned By:</strong> {asset.disposalDetails.decommissionedBy}</p>
-                              <p><strong>Last Custodian:</strong> {asset.disposalDetails.lastCustodian}</p>
+                              <p><strong>Decommissioned By:</strong> {asset.disposalDetails.decommissionedBy ?? "Not shown"}</p>
+                              <p><strong>Last Custodian:</strong> {asset.disposalDetails.lastCustodian ?? "Not shown"}</p>
                               <p><strong>Pathway:</strong> {asset.disposalDetails.disposalPathway}</p>
                               <p><strong>Justification:</strong> {asset.disposalDetails.breakdownReasons}</p>
                             </div>
@@ -380,15 +381,15 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           ) : (
                             <>
                               <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                                <span>Current Custodian: <strong className="text-emerald-700">{currentHistoryEntry?.custodianName || asset.custodian || "Unassigned"}</strong></span>
+                                <span>Current Custodian: <strong className="text-emerald-700">{currentHistoryEntry ? holderLabel(currentHistoryEntry.custodianName, currentHistoryEntry.custodianHidden) : holderLabel(asset.custodian, asset.custodianHidden)}</strong></span>
                                 <span className="text-[10px] text-slate-400">Present</span>
                               </div>
                               <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                                <span>Prior Custodian: <strong>{priorHistoryEntry?.custodianName || "No prior custodian on record"}</strong></span>
+                                <span>Prior Custodian: <strong>{priorHistoryEntry ? holderLabel(priorHistoryEntry.custodianName, priorHistoryEntry.custodianHidden) : "No prior custodian on record"}</strong></span>
                                 <span className="text-[10px] text-slate-400">{priorHistoryEntry?.dateLogged || "—"}</span>
                               </div>
                               <div className="flex justify-between items-center py-1">
-                                <span>Original Intake: <strong>{originalHistoryEntry?.custodianName || "Staff Tagging Registry"}</strong></span>
+                                <span>Original Intake: <strong>{originalHistoryEntry ? holderLabel(originalHistoryEntry.custodianName, originalHistoryEntry.custodianHidden) : "Staff Tagging Registry"}</strong></span>
                                 <span className="text-[10px] text-slate-400">{originalHistoryEntry?.dateLogged || asset.procured || "—"}</span>
                               </div>
                             </>
@@ -691,7 +692,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                     )}>
                                       {entry.isCurrent ? `#${entry.sequence} (Current Custodian)` : `#${entry.sequence} (Prior Custodian)`}
                                     </Badge>
-                                    <span className="font-bold text-slate-800 text-sm">{entry.custodianName}</span>
+                                    <span className="font-bold text-slate-800 text-sm">{holderLabel(entry.custodianName, entry.custodianHidden)}</span>
                                   </div>
                                   <span className="text-[10px] font-mono text-slate-500">{entry.dateLogged}</span>
                                 </div>

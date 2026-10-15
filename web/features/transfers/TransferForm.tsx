@@ -206,7 +206,7 @@ export function TransferForm({ asset, onBack, onClose }: Props) {
                 <User size={10} /> Current Custodian / Origin Lab
               </Label>
               <Input
-                value={asset.custodian ?? asset.lab ?? "Current Assigned Custodian"}
+                value={asset.custodian ?? "None"}
                 disabled
                 className="bg-[#F3F4F6] text-muted-foreground"
               />
