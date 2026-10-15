@@ -377,7 +377,7 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
             location: [data.location, data.lab].filter(Boolean).join(" — ") || "Unassigned",
             // A new asset is at its home lab. Only loans, transfers, and repairs move it away.
             current_location: [data.location, data.lab].filter(Boolean).join(" — ") || "Unassigned",
-            // TODO(H-10): the first custodian is whatever id the body sends, or user 1. The session user, step 13.
+            // The custodian id the body sends, else the placeholder: a new asset is held by nobody until a loan or transfer.
             current_custodian: data.custodianId ?? POOL_CUSTODIAN_ID,
             Asset_Remarks: data.remarks || data.description || data.tsgRemarks || data.itsRemarks || null,
         },

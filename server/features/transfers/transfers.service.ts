@@ -118,7 +118,7 @@ export function notifyRecipient(asset: assets, recipient: users, assetTag: strin
  * @param viewer the session user
  * @returns one TransferListItem per asset_transfers row
  */
-// TODO(M-02): scoping by lab happens only in the browser. Server-side, once requireAuth gives the acting user (step 13 or later).
+// TODO(M-02): scoping by lab happens only in the browser. Server-side with lab scoping, after step 14 (a lab_id on assets).
 export async function listTransfers(viewer: SessionIdentity): Promise<TransferListItem[]> {
     const [dbTransfers, dbAssets, dbUsers, dbRecords] = await transfersRepository.findListLookups();
 

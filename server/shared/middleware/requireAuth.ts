@@ -2,7 +2,8 @@
  * requireAuth: lets a request through only with a valid session cookie, and records whose it is. (C-02, C-06)
  * Layer: shared (server middleware). Put first on every route except login, the sign-up request, and logout, in each
  * features/<process>/<process>.routes.ts. Calls shared/services/session.ts (reading the cookie) and
- * features/auth/auth.service.ts sessionIdentityFor (the token checks and the account's role).
+ * features/auth/auth.service.ts sessionIdentityFor (the token checks and the account's role). Its sessionUserOf(req) is
+ * how controllers learn who is acting; no request body or query names the acting user. (issue #32)
  * Used by: every workflow, for every role.
  */
 import type { NextFunction, Request, Response } from 'express';

@@ -1,6 +1,7 @@
 /**
  * Request and response shapes of the auth and registration endpoints.
- * Layer: shared. Imported by server/features/auth/, server/shared/middleware/requireAuth.ts, and web/api/auth.api.ts. Imports shared/enums/role.ts.
+ * Layer: shared. Imported by server/features/auth/, server/shared/middleware/requireAuth.ts, the loans, transfers, and assets
+ * services (SessionIdentity, to hide names from a Custodian), and web/api/auth.api.ts. Imports shared/enums/role.ts.
  * Used by: login, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
  */
 import type { Role, StaffUnit } from '../enums/role';

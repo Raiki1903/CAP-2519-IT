@@ -22,7 +22,7 @@ import { findCustodyRequestConflict } from '../../shared/services/custodyRequest
  * @param viewer the session user
  * @returns one LoanListItem per asset_loans row
  */
-// TODO(M-02): scoping by lab happens only in the browser. Server-side, once requireAuth gives the acting user (step 13 or later).
+// TODO(M-02): scoping by lab happens only in the browser. Server-side with lab scoping, after step 14 (a lab_id on assets).
 export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]> {
     let dbLoans = await loansRepository.findAllNewestFirst();
 

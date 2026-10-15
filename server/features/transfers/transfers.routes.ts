@@ -11,8 +11,8 @@ import { requireRole } from '../../shared/middleware/requireRole';
 /** The four transfer endpoints. Paths are written out in full, so app.ts mounts the router at the root. */
 export const transfersRouter = express.Router();
 
-// Every route needs a session; the roles are the approved 13b role table (rows 29 to 32). Whether the Custodian holds the
-// asset, or is the recipient, is not checked yet: that needs the session user (13c).
+// Every route needs a session; the roles are the approved 13b role table (rows 29 to 32). The service checks that the
+// Custodian requesting a transfer holds the asset. Whether a Custodian calling /accept is the recipient is not checked (M-12).
 transfersRouter.post('/api/assets/:assetTag/transfer', requireAuth, requireRole('Custodian'), transfersController.requestTransfer);
 transfersRouter.get('/api/asset_transfers', requireAuth, transfersController.listTransfers);
 transfersRouter.put('/api/asset_transfers/:transferId/decision', requireAuth, requireRole('LabHead'), transfersController.decideTransfer);

@@ -1,7 +1,7 @@
 /**
  * Adds one more fake asset in a chosen custody state, for a test that needs an asset no other test touches,
  * and removes such assets again.
- * Layer: test setup. Called by the loan, return, transfer, repair, inspection, disposal, and analytics test files.
+ * Layer: test setup. Called by the loan, return, transfer, repair, inspection, disposal, analytics, and session user test files.
  * Calls Prisma; reads fixtures.ts.
  * Used by: the workflows where each request changes an asset's state or its newest record, and the analytics
  * tests, which count every asset and so put the database back after each test.

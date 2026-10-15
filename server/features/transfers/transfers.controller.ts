@@ -1,6 +1,7 @@
 /**
  * Transfer controller: unpacks transfer requests, calls the service, and writes the JSON answers.
- * Layer: controller. Called by transfers.routes.ts. Calls transfers.validation.ts and transfers.service.ts.
+ * Layer: controller. Called by transfers.routes.ts. Calls transfers.validation.ts, transfers.service.ts, and shared/middleware/requireAuth.ts
+ * (sessionUserOf: who is acting).
  * Used by: Custodian transfer request, Lab Head approval.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).

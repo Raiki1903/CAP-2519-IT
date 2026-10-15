@@ -1,11 +1,11 @@
 /**
  * Account, role, and lab row access, and the pending sign-up file: every database read and write the auth endpoints
  * make, plus the user lookups other features need (who to email, a user by email, by typed name, or by id).
- * Layer: repository. Called by auth.service.ts (also on behalf of shared/middleware/requireAuth.ts), the services of features/loans, returns, transfers, disposals, repairs,
- * inspections, and assets, and shared/services/poolCustodianCheck.ts. Calls config/prisma.ts and Node's fs
+ * Layer: repository. Called by auth.service.ts (also on behalf of shared/middleware/requireAuth.ts), the services of features/transfers,
+ * disposals, and assets, and shared/services/poolCustodianCheck.ts. Calls config/prisma.ts and Node's fs
  * (pending_registrations.json).
  * Used by: login, every request with a session (its account and roles), the session reload, the account page, sign-ups and their approval, the transfer and disposal emails,
- * and every workflow that names a person by typed name or email.
+ * the transfer recipient by email, and the new custodian typed in an asset edit.
  */
 import fs from 'fs';
 import path from 'path';
@@ -55,10 +55,10 @@ export function findUserByEmail(email: string) {
 
 /**
  * The first user whose first and last name match exactly, or null.
- * Used where a screen sends a person as typed text: the borrower, returner, disposal requester,
- * repair reporter, and the custodian in an asset edit.
+ * Used for the one person a screen still sends as typed text: the new custodian in an asset edit (a target, not the
+ * person acting).
  */
-// TODO(H-10): two people with the same name cannot be told apart, and the callers split a typed name at its first space (issue #32). Step 13 uses the session user instead.
+// TODO(H-10): two people with the same name cannot be told apart, and the caller splits a typed name at its first space (issue #32). Only the asset edit's new custodian still uses it; a person picker replaces it on a branch after step 13.
 export function findUserByName(firstName: string, lastName: string) {
     return prisma.users.findFirst({
         where: { first_name: firstName, last_name: lastName },
