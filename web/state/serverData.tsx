@@ -264,7 +264,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   const addRepairRequest = async (req: RepairRequest) => {
     try {
       await repairsApi.requestRepairRaw(req.assetId, {
-        reportedBy: req.custodian,
         description: req.description,
         isImmediate: req.priority === "Critical" || req.statusLabel === "Disposal Recommendation",
       });

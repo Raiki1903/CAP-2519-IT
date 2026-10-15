@@ -354,9 +354,6 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     try {
       // 1. Post directly to MySQL database table asset_reports
       await inspectionsApi.submitInspectionRaw(targetTag, {
-        reporterEmail: currentUser?.email,
-        // TODO(H-13): the session user has userId, not user_id, so this is always undefined. Own fix branch.
-        reportedById: currentUser?.user_id,
         reportCondition: reportConditionEnum,
         reportRemarks: fullRemarks,
         reportImg: firstImg,

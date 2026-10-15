@@ -1,11 +1,10 @@
 /**
  * Staff Inventory: every asset, in gallery or table view, with search, filters, sorting, and the active and decommissioned sub-tabs.
  * Layer: page. Called by app/routes.tsx at /staff/inventory.
- * Calls: features/assets (useStaffAssets, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx, state/serverData.tsx syncFromDb(), state/session.tsx.
+ * Calls: features/assets (useStaffAssets, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx, state/serverData.tsx syncFromDb().
  * Used by: Staff asset editing, deletion, and disposal requests.
  */
 import { useState } from "react";
-import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { AssetGalleryCard } from "@web/features/assets/AssetGalleryCard";
@@ -30,7 +29,6 @@ import { Search, LayoutGrid, Table2, Pencil, Archive, Trash2 } from "lucide-reac
  * Takes no props.
  */
 export function InventoryPage() {
-  const { currentUser } = useSession();
   const { syncFromDb } = useServerData();
   const { displayedAssets, fetchDbAssets } = useStaffAssets();
 
@@ -242,7 +240,6 @@ export function InventoryPage() {
           key={disposalAsset.id}
           asset={disposalAsset}
           onClose={() => setDisposalAsset(null)}
-          requestedBy={currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Staff"}
           onSubmitted={() => fetchDbAssets()}
         />
       )}

@@ -1,11 +1,10 @@
 /**
  * Inspection queue: assets grouped by lab group (A to D), each with a button to inspect it and file a condition report.
  * Layer: feature component. Called by pages/staff/InspectionsPage.tsx.
- * Calls: api/inspections.api.ts submitInspectionRaw(), state/serverData.tsx syncFromDb(), state/session.tsx (the signed-in user).
+ * Calls: api/inspections.api.ts submitInspectionRaw(), state/serverData.tsx syncFromDb().
  * Used by: Staff single-item inspection.
  */
 import { useState } from "react";
-import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import * as inspectionsApi from "@web/api/inspections.api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
@@ -51,7 +50,6 @@ const urgencyBadge: Record<string, string> = {
  * @param onReportSaved reloads the page's assets and reports after a successful post
  */
 export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedAssets: any[]; onReportSaved: () => Promise<void> }) {
-  const { currentUser } = useSession();
   const { syncFromDb } = useServerData();
   const [activeGroup, setActiveGroup] = useState("A");
   const [itemInspectedState, setItemInspectedState] = useState<Record<string, boolean>>({});
@@ -332,9 +330,6 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                       };
                       const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
                       await inspectionsApi.submitInspectionRaw(targetTag, {
-                        reporterEmail: currentUser?.email,
-                        // TODO(H-13): the session user has userId, not user_id, so this is always undefined. The server uses the email first, so it matters only without one. Own fix branch.
-                        reportedById: currentUser?.user_id,
                         reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
                         reportRemarks: fullNotes,
                         reportImg: inspectionImgOption || null,

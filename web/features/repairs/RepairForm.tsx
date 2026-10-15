@@ -126,7 +126,6 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
     setSubmitError(null);
     try {
       const data = await repairsApi.requestRepair(asset.id, {
-        reportedBy: asset.custodian || "Active Custodian",
         description: justification,
         isImmediate: false,
       });

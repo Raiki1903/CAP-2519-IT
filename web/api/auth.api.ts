@@ -27,32 +27,29 @@ export function logout(): Promise<ApiResult> {
 }
 
 /**
- * Loads a user's profile and role by email.
+ * Loads the logged-in user's own profile and role. The server reads whose from the session cookie. (C-06)
  *
- * @param email the email from the session cookie
  * @returns `success` and `user`
  */
-// TODO(C-06): the server needs a session but answers for any email it is sent, not only the caller's. 13c (the session user).
-export function getMe(email: string): Promise<ApiResult> {
-  return apiGet(`/api/auth/me?email=${encodeURIComponent(email)}`);
+export function getMe(): Promise<ApiResult> {
+  return apiGet("/api/auth/me");
 }
 
 /**
  * Like getMe, but returns the untouched Response, so the session restore can tell a refused session (401)
  * from a server that failed (500) or answered nothing.
  *
- * @param email the email from the session cookie
  * @returns the raw Response; `success` and `user` in its JSON body
  * @throws if the server cannot be reached
  */
-export function getMeRaw(email: string): Promise<Response> {
-  return apiGetRaw(`/api/auth/me?email=${encodeURIComponent(email)}`);
+export function getMeRaw(): Promise<Response> {
+  return apiGetRaw("/api/auth/me");
 }
 
 /**
- * Saves the name, picture, and lab of an account.
+ * Saves the name, picture, and lab of the logged-in user's own account. (C-06)
  *
- * @param input the account's email and the new profile values
+ * @param input the new profile values
  * @returns `success` and the saved `user`
  */
 export function updateAccount(input: AccountUpdateInput): Promise<ApiResult> {

@@ -6,8 +6,6 @@
 
 /** The body of POST /api/assets/:assetTag/borrow, as LoanForm sends it. */
 export interface LoanRequestInput {
-  /** Not read: the borrower is the session user (issue #32). Older pages still send the typed name. */
-  borrower?: string;
   /** Destination lab code, for example "CITe4D". Optional: without it the asset keeps its current location on approval. */
   lab?: string;
   purpose: string;

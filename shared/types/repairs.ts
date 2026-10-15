@@ -6,8 +6,6 @@
 
 /** The body of POST /api/assets/:assetTag/repair, as RepairForm and ReturnForm send it. */
 export interface RepairRequestInput {
-  /** Not read: the reporter is the session user (issue #32). Older pages still send a name. */
-  reportedBy?: string;
   /** Required, and not only spaces. With the tag, it is also the key of the 8-second duplicate guard. (M-07) */
   description: string;
   /** True when the fault needs immediate attention: the ticket opens as "Awaiting Immediate Dispatch". */

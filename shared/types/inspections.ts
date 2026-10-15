@@ -6,14 +6,10 @@
 
 /**
  * The body of POST /api/assets/:assetTag/inspection. Every field is optional: each has a fallback.
- * The two senders (CustodianPortal, InspectionQueue) use reportCondition, reportRemarks, and reportImg, and still send
- * reporterEmail and reportedById, which the server no longer reads; the other names are older spellings the server still reads.
+ * The two senders (CustodianPortal, InspectionQueue) use reportCondition, reportRemarks, and reportImg; the other names
+ * are older spellings the server still reads. The reporter is the session user. (issue #32)
  */
 export interface InspectionReportInput {
-  /** Not read: the reporter is the session user (issue #32). Older pages still send it. */
-  reporterEmail?: string;
-  /** Not read, like reporterEmail. */
-  reportedById?: number;
   /** A condition name ("Minor Drift") or value ("MINOR_DRIFT") from ASSET_CONDITIONS. Anything else is saved as PERFECT. */
   reportCondition?: string;
   /** Read when reportCondition is empty. */

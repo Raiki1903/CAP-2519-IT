@@ -81,8 +81,6 @@ export interface LoginInput {
 
 /** What the account page sends when saving a profile. */
 export interface AccountUpdateInput {
-  /** Not read: the account is the session user's (C-06). Older pages still send it. */
-  email?: string;
   firstName: string;
   lastName: string;
   /** The caller sends the same picture under these three names. */

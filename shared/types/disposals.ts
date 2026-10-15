@@ -7,8 +7,6 @@
 /** The body of POST /api/assets/:assetTag/disposal, as DisposalFormDialog sends it. */
 // TODO(M-13): the server packs pathway, last custodian, and date into one text column. Phase 3 splits them into columns.
 export interface DisposalRequestInput {
-  /** Not read: the requester is the session user (issue #32). Older pages still send a name. */
-  requestedBy?: string;
   lastCustodian?: string;
   breakdownReasons: string;
   disposalPathway: string;

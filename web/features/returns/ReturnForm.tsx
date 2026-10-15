@@ -90,7 +90,6 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
       if (flagForRepair) {
         try {
           const data = await repairsApi.requestRepair(asset.id, {
-            reportedBy: asset.custodian || "Active Custodian",
             description: inspection || "Flagged for repair assessment during asset return.",
             isImmediate: false,
           });
@@ -110,7 +109,6 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
       // TODO(H-04): the matching loan is not closed, it stays approved. Phase 3.
       try {
         const data = await returnsApi.finalizeReturn(asset.id, {
-          returnedBy: asset.custodian || "Active Custodian",
           condition,
           comments: inspection,
         });

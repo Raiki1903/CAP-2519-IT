@@ -114,14 +114,13 @@ type RestoreOutcome =
 /**
  * Asks /me once who the session cookie belongs to, giving up after RESTORE_TIMEOUT_MS.
  *
- * @param email the display cookie's email
  * @returns "user" with the profile; "loggedOut" for a 401 (the 401 handler has already cleared the session) or a 400 or
  *   404 (the server answered: it does not know this email); "unreachable" for a 5xx, no answer, or a network error
  */
-async function askWhoIsLoggedIn(email: string): Promise<RestoreOutcome> {
+async function askWhoIsLoggedIn(): Promise<RestoreOutcome> {
   try {
     const res = await Promise.race([
-      authApi.getMeRaw(email),
+      authApi.getMeRaw(),
       wait(RESTORE_TIMEOUT_MS).then((): never => { throw new Error("timeout"); }),
     ]);
     if (res.status === 401 || res.status === 400 || res.status === 404) return { kind: "loggedOut" };
@@ -173,12 +172,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   hasSessionHere.current = role !== null || currentUser !== null || restoring;
 
   // Keeps the display cookies on a failure: the server's session cookie may well still be valid.
-  const restoreSession = async (email: string) => {
+  const restoreSession = async () => {
     setRestoreFailed(false);
     setRestoring(true);
     for (let attempt = 1; attempt <= RESTORE_ATTEMPTS; attempt++) {
       setRestoreAttempt(attempt);
-      const outcome = await askWhoIsLoggedIn(email);
+      const outcome = await askWhoIsLoggedIn();
       if (outcome.kind === "user") {
         const img = outcome.user.userImg || outcome.user.profilePicture || outcome.user.avatarUrl;
         setRoleState(outcome.user.role as Role);
@@ -201,7 +200,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const retryRestore = () => {
     const email = getCookie("session_user_email");
-    if (email) restoreSession(email);
+    if (email) restoreSession();
     else setRestoreFailed(false);
   };
 
@@ -283,7 +282,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         alert("Your session has reached its 30-day limit. Please log in again.");
       } else {
         setCookie("session_last_activity", String(now), 1);
-        restoreSession(sessionEmail);
+        restoreSession();
       }
     }
   }, []);
@@ -302,23 +301,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setRoleState(newRole);
       setSessionEnded(false);
       setCookie("session_last_activity", String(Date.now()), 1);
-      // Login.tsx writes the email cookie before it calls setRole, so the profile can be loaded here.
-      const email = getCookie("session_user_email");
-      if (email) {
-        authApi.getMe(email)
-          .then(data => {
-            if (data.success && data.user) {
-              const img = data.user.userImg || data.user.profilePicture || data.user.avatarUrl;
-              setCurrentUser({
-                ...data.user,
-                profilePicture: img,
-                userImg: img,
-                avatarUrl: img
-              } as any);
-            }
-          })
-          .catch(() => { });
-      }
+      // The server answers /me for the session cookie login just set: the logged-in user's own profile.
+      authApi.getMe()
+        .then(data => {
+          if (data.success && data.user) {
+            const img = data.user.userImg || data.user.profilePicture || data.user.avatarUrl;
+            setCurrentUser({
+              ...data.user,
+              profilePicture: img,
+              userImg: img,
+              avatarUrl: img
+            } as any);
+          }
+        })
+        .catch(() => { });
     }
   };
 
@@ -327,7 +323,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (!currentUser) return;
     try {
       const data = await authApi.updateAccount({
-        email: currentUser.email,
         firstName,
         lastName,
         avatarUrl: profilePicture,

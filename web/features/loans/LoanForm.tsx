@@ -4,7 +4,7 @@
  * Calls: api/loans.api.ts requestLoan(), then state/serverData.tsx syncFromDb().
  * Used by: Custodian borrow request (a Lab Head decides it).
  */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { motion, AnimatePresence } from "motion/react";
@@ -78,8 +78,9 @@ interface Props {
 }
 
 /**
- * Collects borrower, destination lab, purpose, and due date, then submits a borrow request
- * through loansApi.requestLoan(). A refusal (for example a pending request already on the
+ * Collects destination lab, purpose, and due date, then submits a borrow request through
+ * loansApi.requestLoan(). The borrower is the logged-in user, shown read-only: the server takes it
+ * from the session (issue #32). A refusal (for example a pending request already on the
  * asset, H-05) shows the server's message under the form. The reference shown on the
  * success screen is made up in the browser; it is not the loan's id in asset_loans.
  *
@@ -90,16 +91,7 @@ interface Props {
 export function LoanForm({ asset, onBack, onClose }: Props) {
   const { currentUser } = useSession();
   const { syncFromDb } = useServerData();
-  // TODO(H-10): the server picks the borrower by matching this typed name, so editing it can file the loan under someone else. Phase 3 (borrower from the session, issue #32).
-  const [borrower, setBorrower] = useState(() => {
-    return currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)";
-  });
-
-  useEffect(() => {
-    if (currentUser) {
-      setBorrower(`${currentUser.firstName} ${currentUser.lastName}`);
-    }
-  }, [currentUser]);
+  const borrower = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "";
   const [selectedLab, setSelectedLab] = useState("CITe4D");
   const [purpose, setPurpose] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -114,14 +106,14 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
     { label: "Staff Verification", sublabel: "Asset check-out complete", status: "pending" },
   ];
 
-  const canSubmit = borrower && selectedLab && purpose && dueDate;
+  const canSubmit = selectedLab && purpose && dueDate;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const result = await loansApi.requestLoan(asset.id, { borrower, lab: selectedLab, purpose, dueDate });
+      const result = await loansApi.requestLoan(asset.id, { lab: selectedLab, purpose, dueDate });
       if (!result.success) {
         throw new Error(result.error || "Loan request failed");
       }
@@ -193,13 +185,13 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
           <div className="space-y-4">
             <div>
               <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-1.5">
-                <User size={10} /> Proposed Borrower Name
+                <User size={10} /> Borrower (you)
               </Label>
               <Input
                 value={borrower}
-                onChange={e => setBorrower(e.target.value)}
-                placeholder="Enter borrower name"
-                className="h-9 text-xs"
+                readOnly
+                aria-readonly="true"
+                className="h-9 text-xs bg-muted/40 text-muted-foreground cursor-default"
               />
             </div>
 
