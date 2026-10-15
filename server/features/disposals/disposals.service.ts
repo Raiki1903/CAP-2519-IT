@@ -1,7 +1,7 @@
 /**
  * Disposals service: the business rules for disposal requests, the Director's decisions, and the disposal list.
  * Layer: service. Called by disposals.controller.ts. Calls disposals.repository.ts, features/assets/assets.repository.ts,
- * features/auth/auth.repository.ts, shared/services/mailer.ts, and shared/constants/defaultCustodian.ts.
+ * features/auth/auth.repository.ts, shared/services/mailer.ts, and shared/constants/poolCustodian.ts.
  * Used by: Staff disposal filing (DisposalFormDialog), Director approval (Approvals & Holds tab and the bell).
  */
 import type { Prisma, asset_disposals, asset_records, assets } from '@prisma/client';
@@ -10,7 +10,7 @@ import * as disposalsRepository from './disposals.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
-import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
+import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
 
 /**
@@ -153,7 +153,7 @@ function disposedRecord(disposal: asset_disposals, latestRecord: asset_records |
         status: "DISPOSED",
         asset_condition: latestRecord?.asset_condition ?? "PERFECT",
         location: latestRecord?.location ?? "Unassigned",
-        current_custodian: latestRecord?.current_custodian ?? DEFAULT_CUSTODIAN_ID,
+        current_custodian: latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
         disposal_id: disposal.disposal_id,
         Asset_Remarks: `Decommissioned via Disposal #DISP-${disposal.disposal_id}`,
     };

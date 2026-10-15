@@ -1,7 +1,7 @@
 /**
  * Repairs service: the business rules for repair tickets, their progress, and the asset status that follows them.
  * Layer: service. Called by repairs.controller.ts. Calls repairs.repository.ts, features/assets/assets.repository.ts,
- * shared/constants/defaultCustodian.ts, and @shared/enums/assetCondition.
+ * shared/constants/poolCustodian.ts, and @shared/enums/assetCondition.
  * Used by: Custodian repair request (RepairForm, and ReturnForm's "flag for repair"), Staff repair queue,
  * repair dialog, and the Staff analytics board.
  */
@@ -11,7 +11,7 @@ import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import * as repairsRepository from './repairs.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import { AppError } from '../../shared/errors/AppError';
-import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
+import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 
 // A safety net against the same ticket arriving twice within a few seconds (same tag, same
 // description), from when RepairForm posted every ticket twice. The form posts once since step 8 part 2.
@@ -180,12 +180,12 @@ function completionRows(
             asset_condition: conditionVal,
             location: latestRecord?.location ?? "Unassigned",
             current_location: preMaintenanceRecord?.current_location ?? preMaintenanceRecord?.location ?? latestRecord?.location ?? "Unassigned",
-            current_custodian: preMaintenanceRecord?.current_custodian ?? DEFAULT_CUSTODIAN_ID,
+            current_custodian: preMaintenanceRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
             Asset_Remarks: remarksVal,
         },
         report: {
             asset_id: existing.asset_id,
-            reported_by_id: existing.reported_by_id || DEFAULT_CUSTODIAN_ID,
+            reported_by_id: existing.reported_by_id,
             report_condition: conditionVal,
             report_remarks: remarksVal.slice(0, 255),
         },
@@ -208,7 +208,7 @@ function maintenanceRecord(
             asset_condition: latestRecord?.asset_condition ?? "PERFECT",
             location: latestRecord?.location ?? "Unassigned",
             current_location: TSG_OFFICE_LOCATION,
-            current_custodian: latestRecord?.current_custodian ?? DEFAULT_CUSTODIAN_ID,
+            current_custodian: latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
         };
     }
     return null;

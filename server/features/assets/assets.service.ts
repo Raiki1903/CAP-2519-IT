@@ -1,7 +1,7 @@
 /**
  * Assets service: the rules for the asset list, the custodian history, registration (with its tag), edits, and deletion.
  * Layer: service. Called by assets.controller.ts. Calls assets.repository.ts, features/auth/auth.repository.ts,
- * assets.validation.ts, shared/constants/defaultCustodian.ts, and @shared/enums.
+ * assets.validation.ts, shared/constants/poolCustodian.ts, and @shared/enums.
  * Used by: every role's inventory view and the bell, the asset detail modal, Staff asset registration, editing, and deletion.
  */
 import type { asset_records, assets } from '@prisma/client';
@@ -12,7 +12,7 @@ import * as assetsRepository from './assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { checkAssetImage } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
-import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
+import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 
 /**
  * Lists every asset with its current state, shaped for the screens.
@@ -354,7 +354,7 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
             // A new asset is at its home lab. Only loans, transfers, and repairs move it away.
             current_location: [data.location, data.lab].filter(Boolean).join(" — ") || "Unassigned",
             // TODO(H-10): the first custodian is whatever id the body sends, or user 1. The session user, step 13.
-            current_custodian: data.custodianId ?? DEFAULT_CUSTODIAN_ID,
+            current_custodian: data.custodianId ?? POOL_CUSTODIAN_ID,
             Asset_Remarks: data.remarks || data.description || data.tsgRemarks || data.itsRemarks || null,
         },
     );
@@ -434,7 +434,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
         const recordData = {
             status: (data.status?.toUpperCase().replace(" ", "_") || latestRecord?.status || "ACTIVE") as any,
             location: [data.location, data.lab].filter(Boolean).join(" — ") || latestRecord?.location || "Unassigned",
-            current_custodian: custodianId ?? latestRecord?.current_custodian ?? DEFAULT_CUSTODIAN_ID,
+            current_custodian: custodianId ?? latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
             asset_condition: (ASSET_CONDITIONS.includes(data.assetCondition) ? data.assetCondition : latestRecord?.asset_condition ?? "PERFECT") as any,
             Asset_Remarks: remarksVal,
         };

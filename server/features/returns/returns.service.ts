@@ -1,7 +1,7 @@
 /**
  * Returns service: the business rules for finalizing a return, and the return list.
  * Layer: service. Called by returns.controller.ts. Calls returns.repository.ts, features/assets/assets.repository.ts,
- * and shared/constants/defaultCustodian.ts.
+ * and shared/constants/poolCustodian.ts.
  * Used by: Staff return finalization (ReturnForm), after a custodian's return request.
  */
 import type { Prisma, asset_records, asset_returns } from '@prisma/client';
@@ -9,7 +9,7 @@ import type { ReturnInput, ReturnListItem } from '@shared/types/returns';
 import * as returnsRepository from './returns.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import { AppError } from '../../shared/errors/AppError';
-import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
+import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 
 /**
  * Finalizes a return: records it, and puts the asset back in the pool.
@@ -35,9 +35,9 @@ export async function finalizeReturn(assetTag: string, data: ReturnInput, sessio
 
     // Staff finalize the return on the custodian's behalf, so the returner is whoever holds the asset in its
     // latest record, by id (answer 2 of the 13c questions). When nobody holds it (no record, or the placeholder
-    // DEFAULT_CUSTODIAN_ID), the Staff member finalizing it is recorded instead. (issue #32)
+    // POOL_CUSTODIAN_ID), the Staff member finalizing it is recorded instead. (issue #32)
     const holderId = (await assetsRepository.findLatestRecord(existing.asset_id))?.current_custodian;
-    const returnedById = holderId && holderId !== DEFAULT_CUSTODIAN_ID ? holderId : sessionUserId;
+    const returnedById = holderId && holderId !== POOL_CUSTODIAN_ID ? holderId : sessionUserId;
 
     const referenceNumber = `CLR-${Date.now().toString(36).toUpperCase()}`;
 
@@ -57,7 +57,7 @@ export async function finalizeReturn(assetTag: string, data: ReturnInput, sessio
 }
 
 /**
- * Builds the record a finalized return appends: ACTIVE, held by DEFAULT_CUSTODIAN_ID (the pool).
+ * Builds the record a finalized return appends: ACTIVE, held by POOL_CUSTODIAN_ID (the pool).
  * The condition is the one reported on the return, not the one the asset left with.
  * current_location resets to the home location, since the asset is no longer out at a loan or
  * transfer destination. The return's comments replace the asset's remarks; with no comments,
@@ -75,7 +75,7 @@ function turnInRecord(
         asset_condition: conditionEnum as any,
         location: latestRecord?.location ?? "Unassigned",
         current_location: latestRecord?.location ?? "Unassigned",
-        current_custodian: DEFAULT_CUSTODIAN_ID,
+        current_custodian: POOL_CUSTODIAN_ID,
         Asset_Remarks: commentsText ? String(commentsText).slice(0, 255) : (latestRecord?.Asset_Remarks ?? null),
     };
 }

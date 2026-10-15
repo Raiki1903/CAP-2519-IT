@@ -98,7 +98,7 @@ Defined in [setup/fixtures.ts](setup/fixtures.ts). Everything is invented. Never
 
 | Accounts (all `@example.test`) | Role |
 |---|---|
-| `admin` (user 1, the server's default custodian) | ADMIN |
+| `admin` (user 1, the server's placeholder custodian: "nobody holds it") | ADMIN |
 | `director` | ADRIC_DIRECTOR |
 | `staff.tsg`, `staff.its` | TSG_STAFF, ITS_STAFF |
 | `labhead` | LAB_HEAD |

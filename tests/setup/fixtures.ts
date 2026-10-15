@@ -67,8 +67,8 @@ function user(userId: number, lastName: string, emailName: string, userType: Tes
 }
 
 /**
- * Seeded accounts. ADMIN must be user 1: the server uses user 1 (DEFAULT_CUSTODIAN_ID) as the
- * fallback custodian and checks it exists on startup.
+ * Seeded accounts. ADMIN must be user 1: the server records an asset nobody holds under user 1
+ * (POOL_CUSTODIAN_ID, the placeholder custodian) and checks it exists on startup.
  */
 export const USERS = {
   admin: user(1, "Admin", "admin", "STAFF", "ADMIN", false),

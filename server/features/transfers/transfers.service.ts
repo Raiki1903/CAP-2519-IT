@@ -1,7 +1,7 @@
 /**
  * Transfers service: the business rules for custodianship transfer requests, decisions, and the transfer list.
  * Layer: service. Called by transfers.controller.ts. Calls transfers.repository.ts, features/assets/assets.repository.ts,
- * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/services/mailer.ts, shared/utils/campus.ts, and shared/constants/defaultCustodian.ts.
+ * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/services/mailer.ts, shared/utils/campus.ts, and shared/constants/poolCustodian.ts.
  * Used by: Custodian transfer request, Lab Head approval (Custody tab and the bell), and the screens that list transfers.
  */
 import type { Prisma, asset_records, asset_transfers, assets, users } from '@prisma/client';
@@ -10,7 +10,7 @@ import * as transfersRepository from './transfers.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
-import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
+import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 import { campusForLab } from '../../shared/utils/campus';
 import { findCustodyRequestConflict } from '../../shared/services/custodyRequestGuard';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
@@ -49,7 +49,7 @@ export async function requestTransfer(
 
     // The custodian the asset leaves is whoever holds it in its latest record, not anyone named in the request.
     const latestRecord = await assetsRepository.findLatestRecord(existing.asset_id);
-    const fromCustodianId = latestRecord?.current_custodian ?? DEFAULT_CUSTODIAN_ID;
+    const fromCustodianId = latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID;
 
     // The recipient is looked up by email and must exist, unlike the typed-name lookups elsewhere
     // that fall back to user 1: the recipient becomes the asset's custodian on approval.

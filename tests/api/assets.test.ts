@@ -246,7 +246,7 @@ describe("POST /api/assets", () => {
     });
   });
 
-  it("files the new asset under user 1 when no custodian id is sent (known defect H-10)", async () => {
+  it("files the new asset under the placeholder custodian, user 1 (nobody holds it), when no custodian id is sent", async () => {
     const res = await asStaff.post("/api/assets", intake());
 
     const record = await newestRecord(res.body.asset.asset_id);
