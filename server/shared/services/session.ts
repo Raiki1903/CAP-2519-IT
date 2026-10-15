@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export const SESSION_COOKIE_NAME = 'adric_session';
 export const SESSION_LIFETIME_SECONDS = 8 * 60 * 60;
@@ -13,8 +13,15 @@ function signatureOf(payload: string, secret: string): string {
     return createHmac('sha256', secret).update(payload).digest('base64url');
 }
 
-export function signSessionToken(userId: number, expiresAt: number, secret: string): string {
-    const payload = `${userId}.${expiresAt}`;
+// The nonce makes every login's token different, even for the same user in the same second:
+// without it, logging out and straight back in got back the token just put on the logged-out list.
+export function signSessionToken(
+    userId: number,
+    expiresAt: number,
+    secret: string,
+    nonce: string = randomBytes(16).toString('base64url'),
+): string {
+    const payload = `${userId}.${expiresAt}.${nonce}`;
     return `${payload}.${signatureOf(payload, secret)}`;
 }
 
@@ -24,11 +31,11 @@ export function createSessionToken(userId: number, secret: string, now: number =
 
 export function verifySessionToken(token: string, secret: string, now: number = Date.now()): SessionClaims | null {
     const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const [userIdText, expiresAtText, signature] = parts;
-    if (!/^\d+$/.test(userIdText) || !/^\d+$/.test(expiresAtText)) return null;
+    if (parts.length !== 4) return null;
+    const [userIdText, expiresAtText, nonce, signature] = parts;
+    if (!/^\d+$/.test(userIdText) || !/^\d+$/.test(expiresAtText) || !/^[A-Za-z0-9_-]+$/.test(nonce)) return null;
 
-    const expected = Buffer.from(signatureOf(`${userIdText}.${expiresAtText}`, secret));
+    const expected = Buffer.from(signatureOf(`${userIdText}.${expiresAtText}.${nonce}`, secret));
     const given = Buffer.from(signature);
     // timingSafeEqual throws on different lengths, and a plain === would leak how many characters matched.
     if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
