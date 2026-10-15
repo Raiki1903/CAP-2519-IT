@@ -6,13 +6,15 @@
  */
 import express from 'express';
 import * as repairsController from './repairs.controller';
+import { requireAuth } from '../../shared/middleware/requireAuth';
+import { requireRole } from '../../shared/middleware/requireRole';
 
 /** The four repair endpoints. Paths are written out in full, so app.ts mounts the router at the root. */
 export const repairsRouter = express.Router();
 
 // TODO(C-02): anyone who can reach the server can list, open, and update repair tickets; no session or role is checked. requireAuth and requireRole, step 13.
-repairsRouter.post('/api/assets/:assetTag/repair', repairsController.requestRepair);
-repairsRouter.get('/api/asset_repairs', repairsController.listRepairs);
+repairsRouter.post('/api/assets/:assetTag/repair', requireAuth, requireRole('Custodian', 'LabHead', 'Staff'), repairsController.requestRepair);
+repairsRouter.get('/api/asset_repairs', requireAuth, repairsController.listRepairs);
 // Two endpoints change a ticket's status, with different side effects (H-06). Both kept in step 12, as decided.
-repairsRouter.put('/api/asset_repairs/:repairId', repairsController.updateRepair);
-repairsRouter.put('/api/asset_repairs/:repairId/status', repairsController.updateRepairStatus);
+repairsRouter.put('/api/asset_repairs/:repairId', requireAuth, requireRole('Staff'), repairsController.updateRepair);
+repairsRouter.put('/api/asset_repairs/:repairId/status', requireAuth, requireRole('Staff'), repairsController.updateRepairStatus);
