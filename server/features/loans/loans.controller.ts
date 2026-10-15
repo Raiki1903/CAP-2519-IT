@@ -11,11 +11,11 @@ import { checkLoanDecision, checkLoanRequest } from './loans.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles GET /api/asset_loans: every loan, newest first, as `{ success, loans }`.
- * A failure answers errorHandler's generic 500.
+ * Handles GET /api/asset_loans: every loan, newest first, as `{ success, loans }`. A Custodian gets no name but
+ * their own (D2). A failure answers errorHandler's generic 500.
  */
 export async function listLoans(req: Request, res: Response): Promise<void> {
-    const loans = await loansService.listLoans();
+    const loans = await loansService.listLoans(sessionUserOf(req));
     res.json({ success: true, loans });
 }
 

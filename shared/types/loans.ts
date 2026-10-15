@@ -34,8 +34,8 @@ export interface LoanListItem {
   asset: string;
   assetName: string;
   borrower_id: number;
-  /** The borrower's full name. */
-  borrower: string;
+  /** The borrower's full name. Left out for a Custodian on a loan that is not their own. (D2) */
+  borrower?: string;
   /** The purpose as typed, without the destination lab line. */
   purpose: string;
   /** The destination lab picked on the form, read back out of the stored purpose. (H-19) */

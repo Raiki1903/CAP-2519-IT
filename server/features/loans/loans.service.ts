@@ -6,6 +6,7 @@
  */
 import type { Prisma, asset_loans, asset_records } from '@prisma/client';
 import type { LoanDecision, LoanListItem, LoanRequestInput } from '@shared/types/loans';
+import type { SessionIdentity } from '@shared/types/auth';
 import * as loansRepository from './loans.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import { AppError } from '../../shared/errors/AppError';
@@ -15,11 +16,14 @@ import { findCustodyRequestConflict } from '../../shared/services/custodyRequest
 /**
  * Lists every loan, newest first, shaped for the screens.
  * Every loan goes to every caller; the Lab Head screen keeps its own lab's rows by `lab`. (M-02)
+ * A Custodian gets no borrower name on another person's loan (D2): `borrower_id` stays, because the asset modal
+ * needs to know a loan is pending on the asset whoever asked, and the bell finds the caller's own loans by name.
  *
+ * @param viewer the session user
  * @returns one LoanListItem per asset_loans row
  */
 // TODO(M-02): scoping by lab happens only in the browser. Server-side, once requireAuth gives the acting user (step 13 or later).
-export async function listLoans(): Promise<LoanListItem[]> {
+export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]> {
     let dbLoans = await loansRepository.findAllNewestFirst();
 
     // TODO(H-08): a read writes data. With no pending loan and no loan 9, this inserts loan 9 as pending on the first asset for the first student, and the list names its asset "ASUS TUF Gaming A15". Delete the block, its own fix.
@@ -43,7 +47,7 @@ export async function listLoans(): Promise<LoanListItem[]> {
 
     const [dbUsers, dbAssets, dbUserCenters] = await loansRepository.findListLookups();
 
-    return dbLoans.map(l => {
+    const loans: LoanListItem[] = dbLoans.map(l => {
         const borrowerUser = dbUsers.find(u => u.user_id === l.borrower_id);
         const asset = dbAssets.find(a => a.asset_id === l.asset_id);
         const borrowerCenterLink = dbUserCenters.find(uc => uc.user_id === l.borrower_id);
@@ -82,6 +86,14 @@ export async function listLoans(): Promise<LoanListItem[]> {
             center_id: center?.center_id || 1
         };
     });
+
+    return withoutOthersNames(loans, viewer);
+}
+
+/** For a Custodian, leaves the borrower name out of every loan that is not their own. Other roles get the list as is. (D2) */
+function withoutOthersNames(loans: LoanListItem[], viewer: SessionIdentity): LoanListItem[] {
+    if (viewer.role !== "Custodian") return loans;
+    return loans.map(l => (l.borrower_id === viewer.userId ? l : { ...l, borrower: undefined }));
 }
 
 /**
