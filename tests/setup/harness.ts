@@ -5,7 +5,9 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll } from "vitest";
+import { SESSION_COOKIE_NAME } from "../../server/shared/services/session";
 import { createTestPrisma, resetDatabase } from "./db";
+import type { TestUser } from "./fixtures";
 import { seedDatabase } from "./seed";
 import { loadTestDatabaseConfig } from "./testDatabase";
 import { startTestServer, type RunningServer } from "./testServer";
@@ -27,8 +29,14 @@ export interface ApiClient {
 
 /** What a test file gets back from useApiHarness. */
 export interface ApiHarness {
-  /** HTTP calls to the server started for this file. */
+  /** HTTP calls to the server started for this file, with no session: what a visitor who has not logged in sends. */
   api: ApiClient;
+  /**
+   * HTTP calls sent with this user's session, as the web app sends them after login.
+   * The first call logs the user in (POST /api/auth/login with the fixture's email and password) and the
+   * session cookie is reused for every later call in the file.
+   */
+  as(user: TestUser): ApiClient;
   /** Prisma on the test database, for reading back what a request wrote. */
   db: PrismaClient;
   /** The running server, for its working directory or its printed output. Available inside tests and hooks. */
@@ -65,10 +73,43 @@ export function useApiHarness(): ApiHarness {
     return running;
   };
 
-  const request = async (method: string, path: string, body?: unknown): Promise<ApiResponse> => {
+  // One login per user per file. Each file starts its own server, so a cookie never outlives its file.
+  const sessionCookies = new Map<number, Promise<string>>();
+
+  const logIn = async (user: TestUser): Promise<string> => {
+    const response = await fetch(`${server().baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: user.email, password: user.password }),
+    });
+    if (response.status !== 200) {
+      throw new Error(`[tests] Could not log in as ${user.email}: ${response.status} ${await response.text()}`);
+    }
+    // Node's fetch keeps no cookies, so the name=value part is kept here and sent back by hand.
+    const cookie = response.headers
+      .getSetCookie()
+      .map((header) => header.split(";")[0])
+      .find((pair) => pair.startsWith(`${SESSION_COOKIE_NAME}=`));
+    if (!cookie) throw new Error(`[tests] The login of ${user.email} set no ${SESSION_COOKIE_NAME} cookie.`);
+    return cookie;
+  };
+
+  const sessionCookie = (user: TestUser): Promise<string> => {
+    let cookie = sessionCookies.get(user.userId);
+    if (!cookie) {
+      cookie = logIn(user);
+      sessionCookies.set(user.userId, cookie);
+    }
+    return cookie;
+  };
+
+  const request = async (method: string, path: string, body?: unknown, user?: TestUser): Promise<ApiResponse> => {
+    const headers: Record<string, string> = {};
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (user) headers.Cookie = await sessionCookie(user);
     const response = await fetch(`${server().baseUrl}${path}`, {
       method,
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await response.text();
@@ -81,13 +122,16 @@ export function useApiHarness(): ApiHarness {
     return { status: response.status, body: parsed };
   };
 
+  const client = (user?: TestUser): ApiClient => ({
+    get: (path) => request("GET", path, undefined, user),
+    post: (path, body) => request("POST", path, body, user),
+    put: (path, body) => request("PUT", path, body, user),
+    delete: (path) => request("DELETE", path, undefined, user),
+  });
+
   return {
-    api: {
-      get: (path) => request("GET", path),
-      post: (path, body) => request("POST", path, body),
-      put: (path, body) => request("PUT", path, body),
-      delete: (path) => request("DELETE", path),
-    },
+    api: client(),
+    as: (user) => client(user),
     db,
     server,
   };

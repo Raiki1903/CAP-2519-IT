@@ -12,7 +12,9 @@ import { addExtraAsset } from "../setup/extraAssets";
 import { ASSETS, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, db } = useApiHarness();
+const { db, as } = useApiHarness();
+const asCustodian = as(USERS.custodianA);
+const asStaff = as(USERS.staffTsg);
 
 /** What RepairForm sends: the reporter's typed name, the fault, and whether it is urgent. */
 const repairBody = (description: string, extra: Record<string, unknown> = {}) => ({
@@ -38,19 +40,19 @@ const ticketStatus = async (repairId: number) => (await db.asset_repairs.findUni
  * send the same tag and description and trip the 8-second duplicate guard. (M-07)
  */
 async function openTicket(tag: string): Promise<number> {
-  const res = await api.post(`/api/assets/${tag}/repair`, repairBody(`Test fault on ${tag}`));
+  const res = await asCustodian.post(`/api/assets/${tag}/repair`, repairBody(`Test fault on ${tag}`));
   expect(res.status, JSON.stringify(res.body)).toBe(200);
   return res.body.repair.repair_id;
 }
 
 async function listedAsset(tag: string) {
-  const res = await api.get("/api/assets");
+  const res = await asStaff.get("/api/assets");
   return res.body.assets.find((a: { id: string }) => a.id === tag);
 }
 
 describe("GET /api/asset_repairs", () => {
   it("lists the seeded ticket with the fields the screens read", async () => {
-    const res = await api.get("/api/asset_repairs");
+    const res = await asStaff.get("/api/asset_repairs");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -95,7 +97,7 @@ describe("GET /api/asset_repairs", () => {
       },
     });
     try {
-      const res = await api.get("/api/asset_repairs");
+      const res = await asStaff.get("/api/asset_repairs");
 
       expect(res.body.repairs.map((r: { id: string }) => r.id)).toEqual([
         `MNT-${immediate.repair_id}`,
@@ -121,7 +123,7 @@ describe("POST /api/assets/:tag/repair", () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0401" });
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: the fan is loud"));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: the fan is loud"));
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -140,7 +142,7 @@ describe("POST /api/assets/:tag/repair", () => {
   it("opens an immediate ticket in 'Awaiting Immediate Dispatch'", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0402" });
 
-    const res = await api.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: smoke", { isImmediate: true }));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: smoke", { isImmediate: true }));
 
     expect(res.status).toBe(200);
     expect(res.body.repair).toMatchObject({ is_immediate: true, progress_status: "Awaiting Immediate Dispatch" });
@@ -149,7 +151,7 @@ describe("POST /api/assets/:tag/repair", () => {
   it("drops a leading 'Dr.' from the typed name before matching the reporter", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0403" });
 
-    const res = await api.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: no power", { reportedBy: `Dr. ${USERS.labHead.fullName}` }));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: no power", { reportedBy: `Dr. ${USERS.labHead.fullName}` }));
 
     expect(res.body.repair.reported_by_id).toBe(USERS.labHead.userId);
   });
@@ -160,7 +162,7 @@ describe("POST /api/assets/:tag/repair", () => {
   ])("files the ticket under user 1 for $case (known defect H-10)", async ({ reportedBy, tag }) => {
     const asset = await addExtraAsset(db, { tag });
 
-    const res = await api.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: unknown reporter", { reportedBy }));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: unknown reporter", { reportedBy }));
 
     expect(res.status).toBe(200);
     expect(res.body.repair.reported_by_id).toBe(USERS.admin.userId);
@@ -169,7 +171,7 @@ describe("POST /api/assets/:tag/repair", () => {
   it("accepts a repair request for a disposed asset, and leaves it DISPOSED (known defect H-05)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0406", status: "DISPOSED" });
 
-    const res = await api.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: on a disposed asset"));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: on a disposed asset"));
 
     expect(res.status).toBe(200);
     expect((await newestRecord(asset.assetId)).status).toBe("DISPOSED");
@@ -181,7 +183,7 @@ describe("POST /api/assets/:tag/repair", () => {
   ])("answers 400 for $case, and writes nothing", async ({ description }) => {
     const before = await db.asset_repairs.count();
 
-    const res = await api.post(`/api/assets/${ASSETS.available.tag}/repair`, repairBody("unused", { description }));
+    const res = await asCustodian.post(`/api/assets/${ASSETS.available.tag}/repair`, repairBody("unused", { description }));
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -189,7 +191,7 @@ describe("POST /api/assets/:tag/repair", () => {
   });
 
   it("answers 404 for an unknown tag", async () => {
-    const res = await api.post("/api/assets/TEST-9999/repair", repairBody("Test fault: unknown tag"));
+    const res = await asCustodian.post("/api/assets/TEST-9999/repair", repairBody("Test fault: unknown tag"));
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
@@ -200,10 +202,10 @@ describe("POST /api/assets/:tag/repair: the 8-second duplicate guard (M-07)", ()
   it("rejects the same tag and description sent again within 8 seconds with 409 (M-07)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0411" });
 
-    const first = await api.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: sent twice"));
+    const first = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: sent twice"));
     expect(first.status).toBe(200);
 
-    const second = await api.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: sent twice"));
+    const second = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: sent twice"));
     expect(second.status).toBe(409);
     expect(second.body.success).toBe(false);
 
@@ -213,8 +215,8 @@ describe("POST /api/assets/:tag/repair: the 8-second duplicate guard (M-07)", ()
   it("accepts a second ticket on the same asset with a different description", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0412" });
 
-    const first = await api.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: first problem"));
-    const second = await api.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: second problem"));
+    const first = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: first problem"));
+    const second = await asCustodian.post(`/api/assets/${asset.tag}/repair`, repairBody("Test fault: second problem"));
 
     expect([first.status, second.status]).toEqual([200, 200]);
     expect(await db.asset_repairs.count({ where: { asset_id: asset.assetId } })).toBe(2);
@@ -224,17 +226,17 @@ describe("POST /api/assets/:tag/repair: the 8-second duplicate guard (M-07)", ()
     const one = await addExtraAsset(db, { tag: "TEST-0413" });
     const two = await addExtraAsset(db, { tag: "TEST-0414" });
 
-    const first = await api.post(`/api/assets/${one.tag}/repair`, repairBody("Test fault: shared wording"));
-    const second = await api.post(`/api/assets/${two.tag}/repair`, repairBody("Test fault: shared wording"));
+    const first = await asCustodian.post(`/api/assets/${one.tag}/repair`, repairBody("Test fault: shared wording"));
+    const second = await asCustodian.post(`/api/assets/${two.tag}/repair`, repairBody("Test fault: shared wording"));
 
     expect([first.status, second.status]).toEqual([200, 200]);
   });
 
   it("answers 409, not 404, when an unknown tag is sent twice, because the guard runs before the tag lookup (new finding, M-07 family)", async () => {
-    const first = await api.post("/api/assets/TEST-9998/repair", repairBody("Test fault: unknown tag twice"));
+    const first = await asCustodian.post("/api/assets/TEST-9998/repair", repairBody("Test fault: unknown tag twice"));
     expect(first.status).toBe(404);
 
-    const second = await api.post("/api/assets/TEST-9998/repair", repairBody("Test fault: unknown tag twice"));
+    const second = await asCustodian.post("/api/assets/TEST-9998/repair", repairBody("Test fault: unknown tag twice"));
     expect(second.status).toBe(409);
   });
 });
@@ -251,7 +253,7 @@ describe("PUT /api/asset_repairs/:id", () => {
       const repairId = await openTicket(asset.tag);
       const recordsBefore = await recordCount(asset.assetId);
 
-      const res = await api.put(`/api/asset_repairs/${repairId}`, { progressStatus });
+      const res = await asStaff.put(`/api/asset_repairs/${repairId}`, { progressStatus });
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({ success: true, repair: { repair_id: repairId, progress_status: progressStatus } });
@@ -272,10 +274,10 @@ describe("PUT /api/asset_repairs/:id", () => {
   it("adds no second MAINTENANCE record when the ticket moves between maintenance statuses", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0424" });
     const repairId = await openTicket(asset.tag);
-    await api.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Inspection Phase" });
+    await asStaff.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Inspection Phase" });
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Third-Party Repairer Possession" });
+    const res = await asStaff.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Third-Party Repairer Possession" });
 
     expect(res.status).toBe(200);
     expect(await ticketStatus(repairId)).toBe("Third-Party Repairer Possession");
@@ -291,10 +293,10 @@ describe("PUT /api/asset_repairs/:id", () => {
       currentLocation: `Laguna${LOCATION_SEPARATOR}CeLT`,
     });
     const repairId = await openTicket(asset.tag);
-    await api.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Inspection Phase" });
+    await asStaff.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Inspection Phase" });
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.put(`/api/asset_repairs/${repairId}`, {
+    const res = await asStaff.put(`/api/asset_repairs/${repairId}`, {
       progressStatus: "Fixed & Completed",
       assetCondition: "OPERATIONAL",
       assetRemarks: "Test repaired: fan replaced",
@@ -324,9 +326,9 @@ describe("PUT /api/asset_repairs/:id", () => {
   it("'Fixed & Completed' without a known condition or remarks keeps the asset's condition and writes the default remarks", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0432", condition: "DEGRADED" });
     const repairId = await openTicket(asset.tag);
-    await api.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Inspection Phase" });
+    await asStaff.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Inspection Phase" });
 
-    const res = await api.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Fixed & Completed", assetCondition: "Broken" });
+    const res = await asStaff.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Fixed & Completed", assetCondition: "Broken" });
 
     expect(res.status).toBe(200);
     expect(await newestRecord(asset.assetId)).toMatchObject({ status: "ACTIVE", asset_condition: "DEGRADED", Asset_Remarks: DEFAULT_COMPLETION_REMARKS });
@@ -341,7 +343,7 @@ describe("PUT /api/asset_repairs/:id", () => {
     const repairId = await openTicket(asset.tag);
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Fixed & Completed" });
+    const res = await asStaff.put(`/api/asset_repairs/${repairId}`, { progressStatus: "Fixed & Completed" });
 
     expect(res.status).toBe(200);
     expect(await recordCount(asset.assetId)).toBe(recordsBefore + 1);
@@ -350,7 +352,7 @@ describe("PUT /api/asset_repairs/:id", () => {
   });
 
   it("'Fixed & Completed' on the seeded ticket brings TEST-0003 back from the TSG Office to Custodian A at its home lab", async () => {
-    const res = await api.put(`/api/asset_repairs/${SEEDED_ROWS.repairId}`, { progressStatus: "Fixed & Completed" });
+    const res = await asStaff.put(`/api/asset_repairs/${SEEDED_ROWS.repairId}`, { progressStatus: "Fixed & Completed" });
 
     expect(res.status).toBe(200);
     expect(await newestRecord(ASSETS.inRepair.assetId)).toMatchObject({
@@ -369,7 +371,7 @@ describe("PUT /api/asset_repairs/:id", () => {
     const repairId = await openTicket(asset.tag);
     const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await api.put(`/api/asset_repairs/${repairId}`, { progressStatus });
+    const res = await asStaff.put(`/api/asset_repairs/${repairId}`, { progressStatus });
 
     expect(res.status).toBe(200);
     expect(await ticketStatus(repairId)).toBe(progressStatus);
@@ -383,7 +385,7 @@ describe("PUT /api/asset_repairs/:id", () => {
   ])("answers 400 for $case, and leaves the ticket as it was", async ({ progressStatus }) => {
     const before = await ticketStatus(SEEDED_ROWS.repairId);
 
-    const res = await api.put(`/api/asset_repairs/${SEEDED_ROWS.repairId}`, { progressStatus });
+    const res = await asStaff.put(`/api/asset_repairs/${SEEDED_ROWS.repairId}`, { progressStatus });
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -391,13 +393,13 @@ describe("PUT /api/asset_repairs/:id", () => {
   });
 
   it("answers 400 for an id that is not a number, such as the MNT-n id the list shows", async () => {
-    const res = await api.put("/api/asset_repairs/MNT-1", { progressStatus: "Inspection Phase" });
+    const res = await asStaff.put("/api/asset_repairs/MNT-1", { progressStatus: "Inspection Phase" });
 
     expect(res.status).toBe(400);
   });
 
   it("answers 404 for an unknown id", async () => {
-    const res = await api.put("/api/asset_repairs/9999", { progressStatus: "Inspection Phase" });
+    const res = await asStaff.put("/api/asset_repairs/9999", { progressStatus: "Inspection Phase" });
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
@@ -416,7 +418,7 @@ describe("PUT /api/asset_repairs/:id/status", () => {
       const repairId = await openTicket(asset.tag);
       const recordsBefore = await recordCount(asset.assetId);
 
-      const res = await api.put(`/api/asset_repairs/${repairId}/status`, { progressStatus });
+      const res = await asStaff.put(`/api/asset_repairs/${repairId}/status`, { progressStatus });
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({ success: true, repair: { repair_id: repairId, progress_status: progressStatus } });
@@ -431,21 +433,21 @@ describe("PUT /api/asset_repairs/:id/status", () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0454" });
     const repairId = await openTicket(asset.tag);
 
-    const res = await api.put(`/api/asset_repairs/${repairId}/status`, { progressStatus: "   " });
+    const res = await asStaff.put(`/api/asset_repairs/${repairId}/status`, { progressStatus: "   " });
 
     expect(res.status).toBe(200);
     expect((await ticketStatus(repairId)).trim()).toBe("");
   });
 
   it("answers 400 without progressStatus", async () => {
-    const res = await api.put(`/api/asset_repairs/${SEEDED_ROWS.repairId}/status`, {});
+    const res = await asStaff.put(`/api/asset_repairs/${SEEDED_ROWS.repairId}/status`, {});
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
   it("answers 500 with a generic message and no database text for an unknown id (H-16 fixed)", async () => {
-    const res = await api.put("/api/asset_repairs/9999/status", { progressStatus: "Inspection Phase" });
+    const res = await asStaff.put("/api/asset_repairs/9999/status", { progressStatus: "Inspection Phase" });
 
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });
@@ -456,7 +458,7 @@ describe("PUT /api/asset_repairs/:id/status", () => {
   });
 
   it("answers 500 with a generic message and no database text for an id that is not a number (H-16 fixed)", async () => {
-    const res = await api.put("/api/asset_repairs/MNT-1/status", { progressStatus: "Inspection Phase" });
+    const res = await asStaff.put("/api/asset_repairs/MNT-1/status", { progressStatus: "Inspection Phase" });
 
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });

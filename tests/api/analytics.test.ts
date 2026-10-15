@@ -15,7 +15,10 @@ import { addExtraAsset, removeExtraAssets } from "../setup/extraAssets";
 import { ASSETS, FUNDING_SOURCE, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, db } = useApiHarness();
+const { db, as } = useApiHarness();
+const asDirector = as(USERS.director);
+const asLabHead = as(USERS.labHead);
+const asStaff = as(USERS.staffTsg);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -84,14 +87,14 @@ async function addOverdueLoan(tag: string, daysOverdue: number, status = "approv
   return { asset, loan };
 }
 
-const labHead = (query: string) => api.get(`/api/analytics/lab-head?${query}`);
+const labHead = (query: string) => asLabHead.get(`/api/analytics/lab-head?${query}`);
 
 /** The query every Lab Head widget sends for the seeded lab. */
 const TEST_LAB_QUERY = `labPrefix=${LAB.shortCode}&lab=${LAB.shortCode}`;
 
 describe("GET /api/analytics/director", () => {
   it("answers the portfolio value, funding, pending disposals, location counts, and reports per month for the seed", async () => {
-    const res = await api.get("/api/analytics/director");
+    const res = await asDirector.get("/api/analytics/director");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -107,7 +110,7 @@ describe("GET /api/analytics/director", () => {
   it("adds every asset's value and groups it by funding source", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0701", fundingSource: "Test Grant B", acquisitionValue: 750 });
     try {
-      const res = await api.get("/api/analytics/director");
+      const res = await asDirector.get("/api/analytics/director");
 
       expect(res.body.data.totalPortfolioValue).toBe(SEEDED_PORTFOLIO_VALUE + 750);
       expect(res.body.data.fundingData).toHaveLength(2);
@@ -133,7 +136,7 @@ describe("GET /api/analytics/director", () => {
       );
     }
     try {
-      const res = await api.get("/api/analytics/director");
+      const res = await asDirector.get("/api/analytics/director");
 
       expect(res.body.data.pendingDisposalsCount).toBe(3);
     } finally {
@@ -156,7 +159,7 @@ describe("GET /api/analytics/director", () => {
       );
     }
     try {
-      const res = await api.get("/api/analytics/director");
+      const res = await asDirector.get("/api/analytics/director");
 
       expect(res.body.data.auditComplianceData).toEqual([
         { month: "Mar 26", count: 1 },
@@ -169,7 +172,7 @@ describe("GET /api/analytics/director", () => {
 
   it("treats \"All Labs\" and \"All Laboratories (DLSU Combined)\" as no lab filter", async () => {
     for (const lab of ["All Labs", "All Laboratories (DLSU Combined)"]) {
-      const res = await api.get(`/api/analytics/director?lab=${encodeURIComponent(lab)}`);
+      const res = await asDirector.get(`/api/analytics/director?lab=${encodeURIComponent(lab)}`);
 
       expect(res.status).toBe(200);
       expect(res.body.data.locationStatusData).toEqual(SEEDED_LOCATION_STATUS);
@@ -178,14 +181,14 @@ describe("GET /api/analytics/director", () => {
 
   it("matches the lab filter anywhere in the record's location, so a campus name works as well as a lab code", async () => {
     for (const lab of [LAB.shortCode, "Manila"]) {
-      const res = await api.get(`/api/analytics/director?lab=${lab}`);
+      const res = await asDirector.get(`/api/analytics/director?lab=${lab}`);
 
       expect(res.body.data.locationStatusData).toEqual(SEEDED_LOCATION_STATUS);
     }
   });
 
   it("narrows only the location counts by lab; portfolio value, funding, and pending disposals stay for every lab (new)", async () => {
-    const res = await api.get("/api/analytics/director?lab=CAR");
+    const res = await asDirector.get("/api/analytics/director?lab=CAR");
 
     expect(res.status).toBe(200);
     expect(res.body.data.locationStatusData).toEqual([
@@ -197,7 +200,7 @@ describe("GET /api/analytics/director", () => {
   });
 
   it("with a date range, counts each asset by its newest record inside the range, and with no report in it answers a fixed demo series (known defect H-09)", async () => {
-    const res = await api.get("/api/analytics/director?startDate=2026-01-01&endDate=2026-01-31");
+    const res = await asDirector.get("/api/analytics/director?startDate=2026-01-01&endDate=2026-01-31");
 
     expect(res.status).toBe(200);
     expect(res.body.data.locationStatusData).toEqual([
@@ -212,7 +215,7 @@ describe("GET /api/analytics/director", () => {
     const laguna = await addExtraAsset(db, { tag: "TEST-0702", location: at("Laguna", "CeLT") });
     const manilaWithCar = await addExtraAsset(db, { tag: "TEST-0703", location: at("Manila", "Test CARD Lab") });
     try {
-      const res = await api.get("/api/analytics/director");
+      const res = await asDirector.get("/api/analytics/director");
 
       expect(res.body.data.locationStatusData).toEqual([
         { location: "MANILA", ACTIVE: 3, ON_LOAN: 1, MAINTENANCE: 1, DISPOSED: 1, total: 6 },
@@ -237,7 +240,7 @@ describe("GET /api/analytics/lab-head", () => {
   };
 
   it("defaults to the CITe4D prefix, which no seeded asset has, and answers empty data", async () => {
-    const res = await api.get("/api/analytics/lab-head");
+    const res = await asLabHead.get("/api/analytics/lab-head");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true, data: EMPTY_LAB });
@@ -452,7 +455,7 @@ describe("GET /api/analytics/lab-head", () => {
   it("still counts a loan as delinquent after the asset is returned through the return route (known defect H-04)", async () => {
     const overdue = await addOverdueLoan("TEST-0727", 5);
     try {
-      const returned = await api.post(`/api/assets/${overdue.asset.tag}/return`, {
+      const returned = await asStaff.post(`/api/assets/${overdue.asset.tag}/return`, {
         returnedBy: USERS.custodianA.fullName,
         condition: "OPERATIONAL",
         comments: "Test return comment",
@@ -471,7 +474,7 @@ describe("GET /api/analytics/lab-head", () => {
 
 describe("GET /api/analytics/tsg", () => {
   it("answers the repair board and the condition summary for the seed", async () => {
-    const res = await api.get("/api/analytics/tsg");
+    const res = await asStaff.get("/api/analytics/tsg");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -499,7 +502,7 @@ describe("GET /api/analytics/tsg", () => {
   });
 
   it("gives each asset the home location of its newest record, not where it is now (the asset in repair shows its lab, not the TSG Office)", async () => {
-    const res = await api.get("/api/analytics/tsg");
+    const res = await asStaff.get("/api/analytics/tsg");
 
     const inRepair = res.body.data.conditionSummary.conditionItems.find((i: { assetTag: string }) => i.assetTag === ASSETS.inRepair.tag);
     expect(inRepair).toEqual({
@@ -519,7 +522,7 @@ describe("GET /api/analytics/tsg", () => {
       await addExtraAsset(db, { tag: "TEST-0733", condition: "CRITICAL_DEFECT" }),
     ];
     try {
-      const res = await api.get("/api/analytics/tsg");
+      const res = await asStaff.get("/api/analytics/tsg");
 
       const { conditionItems, ...counts } = res.body.data.conditionSummary;
       expect(counts).toEqual({ goodCount: 6, degradedCount: 2, criticalCount: 1, totalCount: 9 });
@@ -539,7 +542,7 @@ describe("GET /api/analytics/tsg", () => {
   it("shows an asset with no records as PERFECT and Unassigned, and counts it as good (H-09 family)", async () => {
     const bare = await db.assets.create({ data: { asset_tag: "TEST-0734", name: "Test Asset Without Records", category: "MONITOR" } });
     try {
-      const res = await api.get("/api/analytics/tsg");
+      const res = await asStaff.get("/api/analytics/tsg");
 
       expect(res.body.data.conditionSummary).toMatchObject({ goodCount: 7, totalCount: 7 });
       expect(res.body.data.conditionSummary.conditionItems).toContainEqual({
@@ -567,7 +570,7 @@ describe("GET /api/analytics/tsg", () => {
       },
     });
     try {
-      const res = await api.get("/api/analytics/tsg");
+      const res = await asStaff.get("/api/analytics/tsg");
 
       expect(res.body.data.repairs.map((r: { repairId: number }) => r.repairId)).toEqual([repair.repair_id, SEEDED_ROWS.repairId]);
       expect(res.body.data.repairs[0]).toMatchObject({ reportedBy: USERS.staffTsg.fullName, isImmediate: true, progressStatus: "Reported", createdAt: "2026-05-01" });
@@ -577,7 +580,7 @@ describe("GET /api/analytics/tsg", () => {
   });
 
   it("ignores the startDate and endDate the Staff view sends (the view filters the repairs itself)", async () => {
-    const res = await api.get("/api/analytics/tsg?startDate=2030-01-01&endDate=2030-12-31");
+    const res = await asStaff.get("/api/analytics/tsg?startDate=2030-01-01&endDate=2030-12-31");
 
     expect(res.status).toBe(200);
     expect(res.body.data.repairs).toHaveLength(1);
@@ -591,7 +594,7 @@ describe("GET /api/analytics/tsg", () => {
       await addExtraAsset(db, { tag: "TEST-0743", warrantyExpiry: dateInDays(120) }),
     ];
     try {
-      const res = await api.get("/api/analytics/tsg");
+      const res = await asStaff.get("/api/analytics/tsg");
 
       // Only the extra assets: the seeded warranties end on 2027-06-01, which enters the 90 days in 2027.
       const listed = res.body.data.warrantyExpiringSoon.filter((w: { assetTag: string }) => w.assetTag.startsWith("TEST-074"));
@@ -627,17 +630,17 @@ describe("GET /api/analytics/location-status", () => {
   };
 
   it("counts the seed by campus and status, and counts the lab TEST, missing from its list, as CITe4D (known defect M-03)", async () => {
-    const res = await api.get("/api/analytics/location-status");
+    const res = await asStaff.get("/api/analytics/location-status");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true, data: SEEDED });
   });
 
   it("matches the lab filter anywhere in the location, ignoring letter case", async () => {
-    const lowerCase = await api.get("/api/analytics/location-status?lab=test");
+    const lowerCase = await asStaff.get("/api/analytics/location-status?lab=test");
     expect(lowerCase.body.data).toEqual(SEEDED);
 
-    const noMatch = await api.get("/api/analytics/location-status?lab=CAR");
+    const noMatch = await asStaff.get("/api/analytics/location-status?lab=CAR");
     expect(noMatch.body.data).toEqual({
       byLocation: [
         { location: "Manila Campus", ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 },
@@ -663,7 +666,7 @@ describe("GET /api/analytics/location-status", () => {
     const laguna = await addExtraAsset(db, { tag: "TEST-0751", location: at("Laguna", "CeLT") });
     const manilaWithCar = await addExtraAsset(db, { tag: "TEST-0752", location: at("Manila", "Test CARD Lab") });
     try {
-      const res = await api.get("/api/analytics/location-status");
+      const res = await asStaff.get("/api/analytics/location-status");
 
       expect(res.body.data.byLocation).toEqual([
         { location: "Manila Campus", ACTIVE: 4, ON_LOAN: 1, MAINTENANCE: 1, DISPOSED: 1 },
@@ -684,7 +687,7 @@ describe("GET /api/analytics/location-status", () => {
   it("counts an asset with no records as Active at Manila, CITe4D (H-09 family)", async () => {
     const bare = await db.assets.create({ data: { asset_tag: "TEST-0753", name: "Test Asset Without Records", category: "MONITOR" } });
     try {
-      const res = await api.get("/api/analytics/location-status");
+      const res = await asStaff.get("/api/analytics/location-status");
 
       expect(res.body.data.byLocation[0]).toEqual({ location: "Manila Campus", ACTIVE: 4, ON_LOAN: 1, MAINTENANCE: 1, DISPOSED: 1 });
       expect(res.body.data.locationDistribution[0]).toEqual({ location: "CITe4D", available: 4, onLoan: 1, underRepair: 1 });
@@ -696,7 +699,7 @@ describe("GET /api/analytics/location-status", () => {
 
 describe("GET /api/analytics/advanced/inspection-progress", () => {
   it("reports 100% for a research center with no projects (new)", async () => {
-    const res = await api.get("/api/analytics/advanced/inspection-progress");
+    const res = await asStaff.get("/api/analytics/advanced/inspection-progress");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -720,7 +723,7 @@ describe("GET /api/analytics/advanced/inspection-progress", () => {
       },
     });
     try {
-      const res = await api.get("/api/analytics/advanced/inspection-progress");
+      const res = await asStaff.get("/api/analytics/advanced/inspection-progress");
 
       expect(res.body.data).toEqual([{ group: `${LAB.name} (${LAB.shortCode})`, inspected: 1, total: 3, percent: 33 }]);
     } finally {
@@ -732,21 +735,21 @@ describe("GET /api/analytics/advanced/inspection-progress", () => {
 
 describe("the three advanced endpoints kept on 2026-10-07 (responds with 200 only)", () => {
   it("GET /api/analytics/advanced/idle-time answers 200 with success", async () => {
-    const res = await api.get(`/api/analytics/advanced/idle-time?lab=${LAB.shortCode}`);
+    const res = await asLabHead.get(`/api/analytics/advanced/idle-time?lab=${LAB.shortCode}`);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
 
   it("GET /api/analytics/advanced/idle-frequency answers 200 with success", async () => {
-    const res = await api.get(`/api/analytics/advanced/idle-frequency?lab=${LAB.shortCode}`);
+    const res = await asLabHead.get(`/api/analytics/advanced/idle-frequency?lab=${LAB.shortCode}`);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
 
   it("GET /api/analytics/advanced/loan-recommender answers 200 with success", async () => {
-    const res = await api.get("/api/analytics/advanced/loan-recommender");
+    const res = await asLabHead.get("/api/analytics/advanced/loan-recommender");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);

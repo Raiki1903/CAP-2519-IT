@@ -10,12 +10,13 @@ import { describe, expect, it } from "vitest";
 import { ASSETS, FUNDING_SOURCE, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, db } = useApiHarness();
+const { db, as } = useApiHarness();
+const asStaff = as(USERS.staffTsg);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 async function listedAsset(tag: string) {
-  const res = await api.get("/api/assets");
+  const res = await asStaff.get("/api/assets");
   expect(res.status).toBe(200);
   return res.body.assets.find((a: { id: string }) => a.id === tag);
 }
@@ -25,7 +26,7 @@ const newestRecord = (assetId: number) =>
 
 describe("GET /api/assets", () => {
   it("answers one entry per asset with the fields the screens read", async () => {
-    const res = await api.get("/api/assets");
+    const res = await asStaff.get("/api/assets");
 
     expect(res.status).toBe(200);
     expect(res.body.assets).toHaveLength(Object.keys(ASSETS).length);
@@ -49,7 +50,7 @@ describe("GET /api/assets", () => {
   });
 
   it("shows each seeded asset in its seeded state", async () => {
-    const res = await api.get("/api/assets");
+    const res = await asStaff.get("/api/assets");
 
     for (const asset of Object.values(ASSETS)) {
       const listed = res.body.assets.find((a: { id: string }) => a.id === asset.tag);
@@ -148,7 +149,7 @@ describe("GET /api/assets", () => {
 
 describe("GET /api/assets/:tag/custodian-history", () => {
   it("answers the custody records oldest first, with the last one marked current", async () => {
-    const res = await api.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
+    const res = await asStaff.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true, assetTag: ASSETS.onLoan.tag, assetName: ASSETS.onLoan.name, historyCount: 2 });
@@ -175,13 +176,13 @@ describe("GET /api/assets/:tag/custodian-history", () => {
   });
 
   it("includes each custodian's email and id number (known defect, 01C 4.2)", async () => {
-    const res = await api.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
+    const res = await asStaff.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
 
     expect(res.body.custodianHistory[1]).toMatchObject({ custodianEmail: USERS.custodianA.email, custodianId: USERS.custodianA.idNumber });
   });
 
   it("looks a numeric tag up as an asset id", async () => {
-    const res = await api.get(`/api/assets/${ASSETS.onLoan.assetId}/custodian-history`);
+    const res = await asStaff.get(`/api/assets/${ASSETS.onLoan.assetId}/custodian-history`);
 
     expect(res.status).toBe(200);
     expect(res.body.assetTag).toBe(ASSETS.onLoan.tag);
@@ -190,7 +191,7 @@ describe("GET /api/assets/:tag/custodian-history", () => {
   it("invents a first entry for an asset with no records (H-09 family)", async () => {
     const bare = await db.assets.create({ data: { asset_tag: "TEST-9001", name: "Test Asset With No Records", category: "AUDIO" } });
     try {
-      const res = await api.get("/api/assets/TEST-9001/custodian-history");
+      const res = await asStaff.get("/api/assets/TEST-9001/custodian-history");
 
       expect(res.status).toBe(200);
       expect(res.body.custodianHistory).toMatchObject([
@@ -202,7 +203,7 @@ describe("GET /api/assets/:tag/custodian-history", () => {
   });
 
   it("answers 404 for an unknown tag", async () => {
-    const res = await api.get("/api/assets/TEST-9999/custodian-history");
+    const res = await asStaff.get("/api/assets/TEST-9999/custodian-history");
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
@@ -223,7 +224,7 @@ describe("POST /api/assets", () => {
   });
 
   it("registers the asset under the next free tag for the lab, with its monetary row and an ACTIVE PERFECT record", async () => {
-    const res = await api.post("/api/assets", intake({ remarks: "Test intake remark" }));
+    const res = await asStaff.post("/api/assets", intake({ remarks: "Test intake remark" }));
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -246,29 +247,29 @@ describe("POST /api/assets", () => {
   });
 
   it("files the new asset under user 1 when no custodian id is sent (known defect H-10)", async () => {
-    const res = await api.post("/api/assets", intake());
+    const res = await asStaff.post("/api/assets", intake());
 
     const record = await newestRecord(res.body.asset.asset_id);
     expect(record.current_custodian).toBe(USERS.admin.userId);
   });
 
   it("files the new asset under the custodian id when one is sent", async () => {
-    const res = await api.post("/api/assets", intake({ custodianId: USERS.custodianB.userId }));
+    const res = await asStaff.post("/api/assets", intake({ custodianId: USERS.custodianB.userId }));
 
     const record = await newestRecord(res.body.asset.asset_id);
     expect(record.current_custodian).toBe(USERS.custodianB.userId);
   });
 
   it("normalizes a category name and stores an unknown category as DEV_KIT", async () => {
-    const spaced = await api.post("/api/assets", intake({ category: "video camera" }));
-    const unknown = await api.post("/api/assets", intake({ category: "Test Unknown Category" }));
+    const spaced = await asStaff.post("/api/assets", intake({ category: "video camera" }));
+    const unknown = await asStaff.post("/api/assets", intake({ category: "Test Unknown Category" }));
 
     expect(spaced.body.asset.category).toBe("VIDEO_CAMERA");
     expect(unknown.body.asset.category).toBe("DEV_KIT");
   });
 
   it("uses the CITe4D tag prefix and location Unassigned when no lab or location is sent", async () => {
-    const res = await api.post("/api/assets", { name: "Test Unplaced Asset", category: "AUDIO" });
+    const res = await asStaff.post("/api/assets", { name: "Test Unplaced Asset", category: "AUDIO" });
 
     expect(res.status).toBe(200);
     expect(res.body.asset.asset_tag).toBe("CITe4D-0001");
@@ -280,7 +281,7 @@ describe("POST /api/assets", () => {
   });
 
   it("accepts a data:image picture", async () => {
-    const res = await api.post("/api/assets", intake({ image: "data:image/png;base64,iVBORw0KGgo=" }));
+    const res = await asStaff.post("/api/assets", intake({ image: "data:image/png;base64,iVBORw0KGgo=" }));
 
     expect(res.status).toBe(200);
     expect(res.body.asset.image_url).toBe("data:image/png;base64,iVBORw0KGgo=");
@@ -288,8 +289,8 @@ describe("POST /api/assets", () => {
 
   it("answers 400 without a name or a category, and writes nothing", async () => {
     const before = await db.assets.count();
-    const noName = await api.post("/api/assets", intake({ name: undefined }));
-    const noCategory = await api.post("/api/assets", intake({ category: undefined }));
+    const noName = await asStaff.post("/api/assets", intake({ name: undefined }));
+    const noCategory = await asStaff.post("/api/assets", intake({ category: undefined }));
 
     expect(noName.status).toBe(400);
     expect(noCategory.status).toBe(400);
@@ -297,7 +298,7 @@ describe("POST /api/assets", () => {
   });
 
   it("answers 400 for an image that is neither a data:image nor a picture file", async () => {
-    const res = await api.post("/api/assets", intake({ image: "https://example.test/file.exe" }));
+    const res = await asStaff.post("/api/assets", intake({ image: "https://example.test/file.exe" }));
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -308,7 +309,7 @@ describe("PUT /api/assets/:tag", () => {
   it("changes only the fields sent", async () => {
     const recordBefore = await newestRecord(ASSETS.available.assetId);
 
-    const res = await api.put(`/api/assets/${ASSETS.available.tag}`, { name: "Test Dev Kit Renamed" });
+    const res = await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { name: "Test Dev Kit Renamed" });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true, asset: { asset_tag: ASSETS.available.tag, name: "Test Dev Kit Renamed" } });
@@ -328,7 +329,7 @@ describe("PUT /api/assets/:tag", () => {
     const countBefore = await db.asset_records.count({ where: { asset_id: ASSETS.pendingLoan.assetId } });
     const recordBefore = await newestRecord(ASSETS.pendingLoan.assetId);
 
-    await api.put(`/api/assets/${ASSETS.pendingLoan.tag}`, { location: "Laguna", lab: "TESTL" });
+    await asStaff.put(`/api/assets/${ASSETS.pendingLoan.tag}`, { location: "Laguna", lab: "TESTL" });
 
     expect(await db.asset_records.count({ where: { asset_id: ASSETS.pendingLoan.assetId } })).toBe(countBefore);
     const recordAfter = await newestRecord(ASSETS.pendingLoan.assetId);
@@ -337,7 +338,7 @@ describe("PUT /api/assets/:tag", () => {
   });
 
   it("finds the custodian by typed name and files the remark as a report under them", async () => {
-    const res = await api.put(`/api/assets/${ASSETS.pendingLoan.tag}`, {
+    const res = await asStaff.put(`/api/assets/${ASSETS.pendingLoan.tag}`, {
       custodian: USERS.custodianB.fullName,
       remarks: "Test edit remark",
       assetCondition: "MINOR_DRIFT",
@@ -354,7 +355,7 @@ describe("PUT /api/assets/:tag", () => {
   it("files the report under user 1 and keeps the custodian when the typed name matches nobody (known defect H-10)", async () => {
     const recordBefore = await newestRecord(ASSETS.inRepair.assetId);
 
-    await api.put(`/api/assets/${ASSETS.inRepair.tag}`, { custodian: "Nobody Known", remarks: "Test remark from an unknown name" });
+    await asStaff.put(`/api/assets/${ASSETS.inRepair.tag}`, { custodian: "Nobody Known", remarks: "Test remark from an unknown name" });
 
     const recordAfter = await newestRecord(ASSETS.inRepair.assetId);
     expect(recordAfter.current_custodian).toBe(recordBefore.current_custodian);
@@ -363,7 +364,7 @@ describe("PUT /api/assets/:tag", () => {
   });
 
   it("ignores a new acquisition value when the asset already has one (known defect M-16)", async () => {
-    await api.put(`/api/assets/${ASSETS.available.tag}`, { funding: "Test New Grant", acquisitionValue: 99999 });
+    await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { funding: "Test New Grant", acquisitionValue: 99999 });
 
     const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: ASSETS.available.assetId } });
     expect(monetary.funding_source).toBe("Test New Grant");
@@ -371,21 +372,21 @@ describe("PUT /api/assets/:tag", () => {
   });
 
   it("resets the funding source to Unspecified when only an acquisition value is sent (new finding, M-16 family)", async () => {
-    await api.put(`/api/assets/${ASSETS.available.tag}`, { acquisitionValue: 99999 });
+    await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { acquisitionValue: 99999 });
 
     const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: ASSETS.available.assetId } });
     expect(monetary.funding_source).toBe("Unspecified");
   });
 
   it("answers 404 for an unknown tag", async () => {
-    const res = await api.put("/api/assets/TEST-9999", { name: "Test Nothing" });
+    const res = await asStaff.put("/api/assets/TEST-9999", { name: "Test Nothing" });
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
   });
 
   it("answers 400 for an image that is neither a data:image nor a picture file, and changes nothing", async () => {
-    const res = await api.put(`/api/assets/${ASSETS.available.tag}`, { name: "Test Should Not Save", image: "https://example.test/file.exe" });
+    const res = await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { name: "Test Should Not Save", image: "https://example.test/file.exe" });
 
     expect(res.status).toBe(400);
     const row = await db.assets.findUniqueOrThrow({ where: { asset_id: ASSETS.available.assetId } });
@@ -405,7 +406,7 @@ describe("DELETE /api/assets/:tag", () => {
     });
     await db.asset_returns.create({ data: { asset_id: assetId, returned_by_id: USERS.custodianA.userId, reference_number: "TEST-RET-DELETE" } });
 
-    const res = await api.delete(`/api/assets/${ASSETS.disposed.tag}`);
+    const res = await asStaff.delete(`/api/assets/${ASSETS.disposed.tag}`);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -420,13 +421,13 @@ describe("DELETE /api/assets/:tag", () => {
       returns: await db.asset_returns.count(where),
       disposals: await db.asset_disposals.count(where),
     }).toEqual({ assets: 0, records: 0, monetary: 0, loans: 0, repairs: 0, transfers: 0, returns: 0, disposals: 0 });
-    expect((await api.get("/api/assets")).body.assets.map((a: { id: string }) => a.id)).not.toContain(ASSETS.disposed.tag);
+    expect((await asStaff.get("/api/assets")).body.assets.map((a: { id: string }) => a.id)).not.toContain(ASSETS.disposed.tag);
   });
 
   it("cannot delete an asset that has an inspection report: answers 500 with a generic message and no database text, and deletes nothing (known defect H-03; H-16 fixed)", async () => {
     const recordsBefore = await db.asset_records.count({ where: { asset_id: ASSETS.inspected.assetId } });
 
-    const res = await api.delete(`/api/assets/${ASSETS.inspected.tag}`);
+    const res = await asStaff.delete(`/api/assets/${ASSETS.inspected.tag}`);
 
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });
@@ -439,7 +440,7 @@ describe("DELETE /api/assets/:tag", () => {
   });
 
   it("answers 404 for an unknown tag", async () => {
-    const res = await api.delete("/api/assets/TEST-9999");
+    const res = await asStaff.delete("/api/assets/TEST-9999");
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);

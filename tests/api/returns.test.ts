@@ -11,7 +11,8 @@ import { addExtraAsset } from "../setup/extraAssets";
 import { ASSETS, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, db } = useApiHarness();
+const { db, as } = useApiHarness();
+const asStaff = as(USERS.staffTsg);
 
 /** What ReturnForm sends: who returned it, the condition, and the inspection notes. */
 const returnBody = (extra: Record<string, unknown> = {}) => ({
@@ -25,13 +26,13 @@ const newestRecord = (assetId: number) =>
   db.asset_records.findFirstOrThrow({ where: { asset_id: assetId }, orderBy: [{ date_logged: "desc" }, { asset_record_id: "desc" }] });
 
 async function listedAsset(tag: string) {
-  const res = await api.get("/api/assets");
+  const res = await asStaff.get("/api/assets");
   return res.body.assets.find((a: { id: string }) => a.id === tag);
 }
 
 describe("GET /api/asset_returns", () => {
   it("answers an empty list when nothing has been returned", async () => {
-    const res = await api.get("/api/asset_returns");
+    const res = await asStaff.get("/api/asset_returns");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true, returns: [] });
@@ -57,7 +58,7 @@ describe("GET /api/asset_returns", () => {
       },
     });
     try {
-      const res = await api.get("/api/asset_returns");
+      const res = await asStaff.get("/api/asset_returns");
 
       expect(res.status).toBe(200);
       expect(res.body.returns.map((r: { id: string }) => r.id)).toEqual([`RET-${newer.return_id}`, `RET-${older.return_id}`]);
@@ -85,7 +86,7 @@ describe("POST /api/assets/:tag/return", () => {
       currentLocation: `Laguna${LOCATION_SEPARATOR}CeLT`,
     });
 
-    const res = await api.post(`/api/assets/${asset.tag}/return`, returnBody());
+    const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody());
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -109,7 +110,7 @@ describe("POST /api/assets/:tag/return", () => {
   });
 
   it("finalizing a return leaves the loan open (known defect H-04)", async () => {
-    const res = await api.post(`/api/assets/${ASSETS.onLoan.tag}/return`, returnBody());
+    const res = await asStaff.post(`/api/assets/${ASSETS.onLoan.tag}/return`, returnBody());
 
     expect(res.status).toBe(200);
     expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.approvedLoanId } })).status).toBe("approved");
@@ -126,7 +127,7 @@ describe("POST /api/assets/:tag/return", () => {
     async ({ condition, tag }) => {
       const asset = await addExtraAsset(db, { tag, status: "ON_LOAN" });
 
-      const res = await api.post(`/api/assets/${asset.tag}/return`, returnBody({ condition }));
+      const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody({ condition }));
 
       expect(res.status).toBe(200);
       expect(res.body.return.condition).toBe(condition);
@@ -137,7 +138,7 @@ describe("POST /api/assets/:tag/return", () => {
   it("keeps the earlier remarks when no comment is sent", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0221", status: "ON_LOAN", remarks: "Test earlier remark" });
 
-    const res = await api.post(`/api/assets/${asset.tag}/return`, returnBody({ comments: undefined }));
+    const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody({ comments: undefined }));
 
     expect(res.status).toBe(200);
     expect(res.body.return.comments).toBeNull();
@@ -147,7 +148,7 @@ describe("POST /api/assets/:tag/return", () => {
   it("takes the inspection text as the comment when no comment is sent", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0222", status: "ON_LOAN" });
 
-    const res = await api.post(`/api/assets/${asset.tag}/return`, returnBody({ comments: undefined, inspection: "Test inspection note" }));
+    const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody({ comments: undefined, inspection: "Test inspection note" }));
 
     expect(res.body.return.comments).toBe("Test inspection note");
     expect((await newestRecord(asset.assetId)).Asset_Remarks).toBe("Test inspection note");
@@ -159,7 +160,7 @@ describe("POST /api/assets/:tag/return", () => {
   ])("files the return under user 1 for $case (known defect H-10)", async ({ returnedBy, tag }) => {
     const asset = await addExtraAsset(db, { tag, status: "ON_LOAN" });
 
-    const res = await api.post(`/api/assets/${asset.tag}/return`, returnBody({ returnedBy }));
+    const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody({ returnedBy }));
 
     expect(res.status).toBe(200);
     expect(res.body.return.returned_by_id).toBe(USERS.admin.userId);
@@ -168,7 +169,7 @@ describe("POST /api/assets/:tag/return", () => {
   it("accepts a return for an asset that is not on loan, and makes a disposed asset ACTIVE again (known defect H-05)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0241", status: "DISPOSED" });
 
-    const res = await api.post(`/api/assets/${asset.tag}/return`, returnBody());
+    const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody());
 
     expect(res.status).toBe(200);
     expect((await newestRecord(asset.assetId)).status).toBe("ACTIVE");
@@ -184,7 +185,7 @@ describe("POST /api/assets/:tag/return", () => {
     const returnsBefore = await db.asset_returns.count();
     const recordsBefore = await db.asset_records.count();
 
-    const res = await api.post(`/api/assets/${ASSETS.available.tag}/return`, returnBody({ condition }));
+    const res = await asStaff.post(`/api/assets/${ASSETS.available.tag}/return`, returnBody({ condition }));
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
@@ -193,7 +194,7 @@ describe("POST /api/assets/:tag/return", () => {
   });
 
   it("answers 404 for an unknown tag", async () => {
-    const res = await api.post("/api/assets/TEST-9999/return", returnBody());
+    const res = await asStaff.post("/api/assets/TEST-9999/return", returnBody());
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);

@@ -8,7 +8,8 @@ import { describe, expect, it } from "vitest";
 import { LAB, USERS, type TestUser } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, db } = useApiHarness();
+const { api, db, as } = useApiHarness();
+const asCustodian = as(USERS.custodianA);
 
 /** What login and /me answer for each seeded account today. */
 const EXPECTED_ROLES: { user: TestUser; role: string; staffUnit: string | null }[] = [
@@ -97,29 +98,29 @@ describe("GET /api/auth/me", () => {
   it.each(EXPECTED_ROLES)(
     "answers the $user.role account's profile with role $role inside user",
     async ({ user, role, staffUnit }) => {
-      const res = await api.get(`/api/auth/me?email=${encodeURIComponent(user.email)}`);
+      const res = await asCustodian.get(`/api/auth/me?email=${encodeURIComponent(user.email)}`);
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({ success: true, user: { ...profileOf(user), role, staffUnit } });
     },
   );
 
-  it("answers any account's profile from the email alone, with no session (known defect C-06)", async () => {
-    const res = await api.get(`/api/auth/me?email=${encodeURIComponent(USERS.director.email)}`);
+  it("answers any account's profile from the email alone, to any signed-in user (known defect C-06, until 13c)", async () => {
+    const res = await asCustodian.get(`/api/auth/me?email=${encodeURIComponent(USERS.director.email)}`);
 
     expect(res.status).toBe(200);
     expect(res.body.user.role).toBe("AdRICDirector");
   });
 
   it("answers 400 without an email", async () => {
-    const res = await api.get("/api/auth/me");
+    const res = await asCustodian.get("/api/auth/me");
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
   it("answers 404 for an unknown email", async () => {
-    const res = await api.get("/api/auth/me?email=nobody%40example.test");
+    const res = await asCustodian.get("/api/auth/me?email=nobody%40example.test");
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
@@ -131,7 +132,7 @@ describe("PUT /api/auth/account", () => {
   const labLinks = (userId: number) => db.user_centers.findMany({ where: { user_id: userId } });
 
   it("saves the new first and last name and answers the updated profile", async () => {
-    const res = await api.put("/api/auth/account", {
+    const res = await asCustodian.put("/api/auth/account", {
       email: USERS.custodianB.email,
       firstName: "  Renamed  ",
       lastName: "Custodian B",
@@ -149,7 +150,7 @@ describe("PUT /api/auth/account", () => {
   });
 
   it("finds the account by email in any letter case", async () => {
-    const res = await api.put("/api/auth/account", {
+    const res = await asCustodian.put("/api/auth/account", {
       email: USERS.custodianB.email.toUpperCase(),
       firstName: "Test",
       lastName: "Custodian B",
@@ -162,13 +163,13 @@ describe("PUT /api/auth/account", () => {
 
   it("saves the picture when one is sent and keeps it when none is sent", async () => {
     const picture = "data:image/png;base64,iVBORw0KGgo=";
-    const withPicture = await api.put("/api/auth/account", {
+    const withPicture = await asCustodian.put("/api/auth/account", {
       email: USERS.custodianB.email,
       firstName: "Test",
       lastName: "Custodian B",
       avatarUrl: picture,
     });
-    const withoutPicture = await api.put("/api/auth/account", { email: USERS.custodianB.email, firstName: "Test", lastName: "Custodian B" });
+    const withoutPicture = await asCustodian.put("/api/auth/account", { email: USERS.custodianB.email, firstName: "Test", lastName: "Custodian B" });
 
     expect(withPicture.body.user).toMatchObject({ userImg: picture, profilePicture: picture, avatarUrl: picture });
     expect(withoutPicture.body.user.userImg).toBe(picture);
@@ -176,7 +177,7 @@ describe("PUT /api/auth/account", () => {
   });
 
   it("links an account with no lab to a known lab code", async () => {
-    const res = await api.put("/api/auth/account", {
+    const res = await asCustodian.put("/api/auth/account", {
       email: USERS.director.email,
       firstName: USERS.director.firstName,
       lastName: USERS.director.lastName,
@@ -191,7 +192,7 @@ describe("PUT /api/auth/account", () => {
   it("moves an account's existing lab link to another known lab code, without adding a second link", async () => {
     const otherLab = await db.research_centers.create({ data: { name: "Test Other Lab", short_code: "TESTB", location: "LAGUNA" } });
 
-    const res = await api.put("/api/auth/account", {
+    const res = await asCustodian.put("/api/auth/account", {
       email: USERS.labHead.email,
       firstName: USERS.labHead.firstName,
       lastName: USERS.labHead.lastName,
@@ -204,7 +205,7 @@ describe("PUT /api/auth/account", () => {
   });
 
   it("answers an unknown lab code as saved, but creates no lab and keeps the old link (new finding: MANILA_CAMPUS is not a valid location)", async () => {
-    const res = await api.put("/api/auth/account", {
+    const res = await asCustodian.put("/api/auth/account", {
       email: USERS.custodianA.email,
       firstName: USERS.custodianA.firstName,
       lastName: USERS.custodianA.lastName,
@@ -219,7 +220,7 @@ describe("PUT /api/auth/account", () => {
   });
 
   it("answers labAffiliation CITe4D when no lab is sent, whatever the account's lab is (new finding)", async () => {
-    const res = await api.put("/api/auth/account", {
+    const res = await asCustodian.put("/api/auth/account", {
       email: USERS.custodianA.email,
       firstName: USERS.custodianA.firstName,
       lastName: USERS.custodianA.lastName,
@@ -231,8 +232,8 @@ describe("PUT /api/auth/account", () => {
     expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
   });
 
-  it("renames whichever account the body names, with no session (known defect C-02)", async () => {
-    const res = await api.put("/api/auth/account", { email: USERS.admin.email, firstName: "Changed", lastName: "By Anyone" });
+  it("renames whichever account the body names, for any signed-in user (known defects C-02 and C-06, until 13c)", async () => {
+    const res = await asCustodian.put("/api/auth/account", { email: USERS.admin.email, firstName: "Changed", lastName: "By Anyone" });
 
     expect(res.status).toBe(200);
     const row = await userRow(USERS.admin.userId);
@@ -244,13 +245,13 @@ describe("PUT /api/auth/account", () => {
     for (const missing of ["email", "firstName", "lastName"] as const) {
       const body: Record<string, string> = { ...full };
       delete body[missing];
-      const res = await api.put("/api/auth/account", body);
+      const res = await asCustodian.put("/api/auth/account", body);
       expect(res.status, missing).toBe(400);
     }
   });
 
   it("answers 404 for an unknown email", async () => {
-    const res = await api.put("/api/auth/account", { email: "nobody@example.test", firstName: "No", lastName: "Body" });
+    const res = await asCustodian.put("/api/auth/account", { email: "nobody@example.test", firstName: "No", lastName: "Body" });
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
