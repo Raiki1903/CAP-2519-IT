@@ -8,6 +8,23 @@
 // so the app runs with no VITE_API_URL set.
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
+// A wrong password also answers 401, and the login page shows its own message for it.
+const LOGIN_PATH = "/api/auth/login";
+
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
+// Every request goes through here. credentials: "include" makes the browser send the session
+// cookie to the API on its other port, and store the one login sets.
+async function send(path: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, credentials: "include" });
+  if (res.status === 401 && path !== LOGIN_PATH) onUnauthorized?.();
+  return res;
+}
+
 /**
  * The body every endpoint answers with: `success`, an `error` message when it
  * failed, and endpoint-specific fields (for example `loans`).
@@ -29,7 +46,7 @@ export interface ApiResult {
  * @throws if the server cannot be reached
  */
 function sendRaw(method: string, path: string, body: unknown): Promise<Response> {
-  return fetch(`${API_BASE_URL}${path}`, {
+  return send(path, {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -61,7 +78,7 @@ async function sendJson(method: string, path: string, body: unknown): Promise<Ap
  * @throws if the server cannot be reached or the answer is not JSON
  */
 export async function apiGet(path: string): Promise<ApiResult> {
-  const res = await fetch(`${API_BASE_URL}${path}`);
+  const res = await send(path);
   return res.json();
 }
 
@@ -97,7 +114,7 @@ export function apiPut(path: string, body: unknown): Promise<ApiResult> {
  * @throws if the server cannot be reached or the answer is not JSON
  */
 export async function apiDelete(path: string): Promise<ApiResult> {
-  const res = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" });
+  const res = await send(path, { method: "DELETE" });
   return res.json();
 }
 
@@ -115,7 +132,7 @@ export async function apiDelete(path: string): Promise<ApiResult> {
  * @throws if the server cannot be reached
  */
 export function apiGetRaw(path: string): Promise<Response> {
-  return fetch(`${API_BASE_URL}${path}`);
+  return send(path);
 }
 
 /**

@@ -17,6 +17,14 @@ import * as inspectionsApi from "../api/inspections.api";
 import * as authApi from "../api/auth.api";
 import type { ApiResult } from "../api/client";
 import { useBrowserOnly } from "./browserOnly";
+import { useSession } from "./session";
+import type { Role } from "@shared/enums/role";
+
+// The lists only some roles may read (the 13b role table). Asking with another role answers 403,
+// so those lists are not requested for it. The other lists are open to every signed-in role.
+const REPORT_READERS: Role[] = ["Staff", "AdRICDirector"];
+const DISPOSAL_READERS: Role[] = ["Staff", "AdRICDirector", "LabHead"];
+const REGISTRATION_READERS: Role[] = ["LabHead"];
 
 /** A repair ticket as `GET /api/asset_repairs` returns it, and as the repair forms build one to send. */
 export interface RepairRequest {
@@ -161,6 +169,7 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  */
 export function ServerDataProvider({ children }: { children: React.ReactNode }) {
   const { reloadFromStorage } = useBrowserOnly();
+  const { role } = useSession();
   const [isDbLoading, setIsDbLoading] = useState<boolean>(true);
 
   const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
@@ -198,12 +207,14 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
         }
       } catch (e) {}
 
-      try {
-        const jsonR = await inspectionsApi.listReportSummaries();
-        if (jsonR.success && Array.isArray(jsonR.reports)) {
-          setDbReports(jsonR.reports);
-        }
-      } catch (e) {}
+      if (role && REPORT_READERS.includes(role)) {
+        try {
+          const jsonR = await inspectionsApi.listReportSummaries();
+          if (jsonR.success && Array.isArray(jsonR.reports)) {
+            setDbReports(jsonR.reports);
+          }
+        } catch (e) {}
+      }
 
       try {
         const jsonL = await loansApi.listLoans();
@@ -212,22 +223,24 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
         }
       } catch (e) {}
 
-      try {
-        const jsonD: any = await disposalsApi.listDisposals();
-        if (jsonD.success && Array.isArray(jsonD.disposals)) {
-          // The endpoint returns decided disposals too. Only pending ones are kept,
-          // so one that was just approved or rejected leaves the bell. (H-01)
-          setPendingDisposals(jsonD.disposals.filter((d: any) => d.status === "Pending").map((d: any) => ({
-            id: String(d.id || d.disposalId),
-            disposalId: d.disposalId,
-            assetId: d.assetId || `EQ-2024-${String(d.asset_id || 0).padStart(3, "0")}`,
-            assetName: d.assetName || "Asset Scheduled for Decommissioning",
-            requestedBy: d.requestedBy || "Staff",
-            requestedAt: d.requestedAt || new Date().toISOString(),
-            reason: d.reason || d.disposal_reason || "Obsolescence",
-          })));
-        }
-      } catch (e) {}
+      if (role && DISPOSAL_READERS.includes(role)) {
+        try {
+          const jsonD: any = await disposalsApi.listDisposals();
+          if (jsonD.success && Array.isArray(jsonD.disposals)) {
+            // The endpoint returns decided disposals too. Only pending ones are kept,
+            // so one that was just approved or rejected leaves the bell. (H-01)
+            setPendingDisposals(jsonD.disposals.filter((d: any) => d.status === "Pending").map((d: any) => ({
+              id: String(d.id || d.disposalId),
+              disposalId: d.disposalId,
+              assetId: d.assetId || `EQ-2024-${String(d.asset_id || 0).padStart(3, "0")}`,
+              assetName: d.assetName || "Asset Scheduled for Decommissioning",
+              requestedBy: d.requestedBy || "Staff",
+              requestedAt: d.requestedAt || new Date().toISOString(),
+              reason: d.reason || d.disposal_reason || "Obsolescence",
+            })));
+          }
+        } catch (e) {}
+      }
 
       try {
         const data = await repairsApi.listRepairs();
@@ -244,9 +257,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  useEffect(() => {
-    syncFromDb();
-  }, []);
 
   // The only post for the callers that use it (the asset modal's "Send to Maintenance"
   // and the custodian condition report). RepairForm posts its ticket itself. (M-07)
@@ -293,15 +303,32 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
   const [pendingRegistrations, setPendingRegistrations] = useState<PendingRegistration[]>([]);
 
+  // Every list needs a session, so nothing loads until someone is logged in (after login, or when a page load
+  // restores the session). A logout empties the lists, so the next person in this tab never sees them.
   useEffect(() => {
-    authApi.listPendingRegistrations()
-      .then(data => {
-        if (data.success && Array.isArray(data.pendingRegistrations)) {
-          setPendingRegistrations(data.pendingRegistrations);
-        }
-      })
-      .catch(() => { });
-  }, []);
+    if (!role) {
+      setAssets([]);
+      setRepairRequests([]);
+      setDbTransfers([]);
+      setDbReports([]);
+      setDbLoans([]);
+      setPendingDisposals([]);
+      setPendingRegistrations([]);
+      setIsDbLoading(false);
+      return;
+    }
+    syncFromDb();
+    if (REGISTRATION_READERS.includes(role)) {
+      authApi.listPendingRegistrations()
+        .then(data => {
+          if (data.success && Array.isArray(data.pendingRegistrations)) {
+            setPendingRegistrations(data.pendingRegistrations);
+          }
+        })
+        .catch(() => { });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
 
   // Adds to the in-memory list only. Register.tsx has already sent the request to the server.
   const addPendingRegistration = (req: PendingRegistration) => {

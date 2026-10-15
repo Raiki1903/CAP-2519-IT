@@ -21,7 +21,7 @@ import { Label } from "@web/components/ui/label";
  */
 export function Login() {
   const navigate = useNavigate();
-  const { setRole } = useSession();
+  const { setRole, sessionEnded } = useSession();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -153,6 +153,12 @@ export function Login() {
                 </Button>
               </div>
             </div>
+
+            {sessionEnded && !error && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                Your session has ended. Please log in again.
+              </div>
+            )}
 
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 flex items-start gap-2">

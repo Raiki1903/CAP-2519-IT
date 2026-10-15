@@ -744,7 +744,8 @@ export function NotificationCenter() {
                           )}
 
                           {/* Authorize Equipment Loan Button */}
-                          {item.type === "loan" && (role === "LabHead" || role === "Staff") && (
+                          {/* Lab Head only: the server refuses a loan decision from any other role (13b role table). */}
+                          {item.type === "loan" && role === "LabHead" && (
                             <button
                               type="button"
                               onClick={async (e) => {

@@ -17,6 +17,10 @@ export function login(email: string, password: string): Promise<ApiResult> {
   return apiPost("/api/auth/login", { email, password });
 }
 
+export function logout(): Promise<ApiResult> {
+  return apiPost("/api/auth/logout", {});
+}
+
 /**
  * Loads a user's profile and role by email.
  *

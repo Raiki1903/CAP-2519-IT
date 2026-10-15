@@ -7,6 +7,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import type { Role, StaffUnit } from "@shared/enums/role";
 import * as authApi from "../api/auth.api";
+import { setUnauthorizedHandler } from "../api/client";
 
 /**
  * Writes a browser cookie for the whole site.
@@ -85,6 +86,8 @@ interface SessionContextType {
   setTheme: (t: "classic-dark" | "light-slate") => void;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
+  /** True after the server refused the session (a 401), until the next login. The login page says so. */
+  sessionEnded: boolean;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -105,6 +108,25 @@ const SessionContext = createContext<SessionContextType | null>(null);
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [role, setRoleState] = useState<Role | null>(null);
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+  const [sessionEnded, setSessionEnded] = useState(false);
+
+  const clearSession = () => {
+    setRoleState(null);
+    setCurrentUser(null);
+    eraseCookie("session_user_email");
+    eraseCookie("session_last_activity");
+    eraseCookie("session_created");
+  };
+
+  // Any 401 means the server no longer accepts the session cookie (expired, logged out elsewhere,
+  // or the secret changed), so the person is logged out here too and RootLayout sends them to /login.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      if (getCookie("session_user_email")) setSessionEnded(true);
+      clearSession();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   // TODO(F-38): cycle mode is shown as a policy for the whole institution, but it is one cookie per browser. Phase 3.
   const [cycleMode, setCycleModeState] = useState<"Annual" | "Trimestral">(() => {
@@ -194,13 +216,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setRole = (newRole: Role | null) => {
-    setRoleState(newRole);
     if (newRole === null) {
-      eraseCookie("session_user_email");
-      eraseCookie("session_last_activity");
-      eraseCookie("session_created");
-      setCurrentUser(null);
+      // The server forgets the session cookie even if this answer never arrives; the local logout does not wait for it.
+      authApi.logout().catch(() => { });
+      clearSession();
     } else {
+      setRoleState(newRole);
+      setSessionEnded(false);
       setCookie("session_last_activity", String(Date.now()), 1);
       // Login.tsx writes the email cookie before it calls setRole, so the profile can be loaded here.
       const email = getCookie("session_user_email");
@@ -269,7 +291,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         currentUser, updateProfile,
         cycleMode, setCycleMode,
         theme, setTheme,
-        sidebarCollapsed, setSidebarCollapsed
+        sidebarCollapsed, setSidebarCollapsed,
+        sessionEnded
       }}
     >
       {children}
