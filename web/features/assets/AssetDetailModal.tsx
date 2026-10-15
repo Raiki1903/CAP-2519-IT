@@ -110,8 +110,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
       : null;
   const isOwnPendingRequest = !!pendingRequest && currentUser?.userId === pendingRequest.requesterId;
   // The server lets only the asset's current custodian request its transfer (answer 3 of the 13c questions), so the
-  // button shows only on an asset the Custodian holds, matched by name as My Assets matches it. The server sends
-  // a Custodian no other holder's name, so this matches only their own assets.
+  // Transfer and Return buttons show only on an asset the Custodian holds, matched by name as My Assets matches it.
+  // The server sends a Custodian no other holder's name, so this matches only their own assets. Repair stays for all.
   const holdsThisAsset = !!asset && !!currentUser && asset.custodian === `${currentUser.firstName} ${currentUser.lastName}`;
   const [view, setView] = useState<FormView>("detail");
 
@@ -510,7 +510,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 </div>
                               </div>
                             ) : (
-                              <div className={cn("grid gap-2.5", role === "Custodian" ? (holdsThisAsset ? "grid-cols-3" : "grid-cols-2") : "grid-cols-1")}>
+                              <div className={cn("grid gap-2.5", role === "Custodian" && holdsThisAsset ? "grid-cols-3" : "grid-cols-1")}>
                                 {/* 1: Custodianship Transfer, only for the asset's holder */}
                                 {role === "Custodian" && holdsThisAsset && pendingRequest && requestPendingTile}
                                 {role === "Custodian" && holdsThisAsset && !pendingRequest && (
@@ -569,8 +569,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                   </motion.div>
                                 )}
 
-                                {/* 3 — Return Asset */}
-                                {role === "Custodian" && (
+                                {/* 3: Return Asset, only for the asset's holder */}
+                                {role === "Custodian" && holdsThisAsset && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       className="w-full h-auto flex-col py-4 px-2 gap-2 text-white"
