@@ -1,14 +1,13 @@
 /**
  * Returns service: the business rules for finalizing a return, and the return list.
  * Layer: service. Called by returns.controller.ts. Calls returns.repository.ts, features/assets/assets.repository.ts,
- * features/auth/auth.repository.ts, and shared/constants/defaultCustodian.ts.
+ * and shared/constants/defaultCustodian.ts.
  * Used by: Staff return finalization (ReturnForm), after a custodian's return request.
  */
 import type { Prisma, asset_records, asset_returns } from '@prisma/client';
 import type { ReturnInput, ReturnListItem } from '@shared/types/returns';
 import * as returnsRepository from './returns.repository';
 import * as assetsRepository from '../assets/assets.repository';
-import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
 
@@ -19,13 +18,14 @@ import { DEFAULT_CUSTODIAN_ID } from '../../shared/constants/defaultCustodian';
  * pending one. (H-02)
  *
  * @param assetTag the asset's tag, from the URL
- * @param data the checked return body: returner name, condition, comments
+ * @param data the checked return body: condition and comments; a returner name is ignored (issue #32)
+ * @param sessionUserId the Staff member finalizing it, recorded as the returner only when nobody holds the asset
  * @returns the created asset_returns row, with its CLR- reference number
  * @throws AppError 404 if no asset has this tag
  */
 // TODO(H-05): a return is accepted whatever the asset's status, so an asset that is not out comes back ACTIVE, a disposed one included (issue #51). Its own fix; tests/api/returns.test.ts pins it.
 // TODO(H-04): the matching loan stays approved, so it still counts as overdue. Phase 3 (a loan link on asset_returns).
-export async function finalizeReturn(assetTag: string, data: ReturnInput): Promise<asset_returns> {
+export async function finalizeReturn(assetTag: string, data: ReturnInput, sessionUserId: number): Promise<asset_returns> {
     const conditionEnum = data.condition;
 
     const existing = await assetsRepository.findByTag(assetTag);
@@ -33,15 +33,11 @@ export async function finalizeReturn(assetTag: string, data: ReturnInput): Promi
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // The form sends the returner as a typed name, split and matched the same way as the borrower
-    // of a loan. returned_by_id is a required foreign key, so no name or no match becomes DEFAULT_CUSTODIAN_ID.
-    // TODO(H-10): two people with the same name cannot be told apart, and a typo files the return under user 1 (issue #32). The returner comes from the session after step 13.
-    let returnedById = DEFAULT_CUSTODIAN_ID;
-    if (data.returnedBy) {
-        const [first, ...rest] = String(data.returnedBy).replace(/^Dr\.\s*/i, "").split(" ");
-        const match = await authRepository.findUserByName(first, rest.join(" "));
-        if (match) returnedById = match.user_id;
-    }
+    // Staff finalize the return on the custodian's behalf, so the returner is whoever holds the asset in its
+    // latest record, by id (answer 2 of the 13c questions). When nobody holds it (no record, or the placeholder
+    // DEFAULT_CUSTODIAN_ID), the Staff member finalizing it is recorded instead. (issue #32)
+    const holderId = (await assetsRepository.findLatestRecord(existing.asset_id))?.current_custodian;
+    const returnedById = holderId && holderId !== DEFAULT_CUSTODIAN_ID ? holderId : sessionUserId;
 
     const referenceNumber = `CLR-${Date.now().toString(36).toUpperCase()}`;
 

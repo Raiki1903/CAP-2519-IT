@@ -8,6 +8,7 @@
 import type { Request, Response } from 'express';
 import * as returnsService from './returns.service';
 import { checkReturnInput } from './returns.validation';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
  * Handles POST /api/assets/:assetTag/return: finalizes a return.
@@ -21,7 +22,7 @@ export async function finalizeReturn(req: Request<{ assetTag: string }>, res: Re
     console.log(`🚀 Server received return finalization for ${assetTag}:`, data);
 
     checkReturnInput(data);
-    const ret = await returnsService.finalizeReturn(assetTag, data);
+    const ret = await returnsService.finalizeReturn(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Return finalized in MySQL successfully:", ret.return_id, assetTag);
     res.json({ success: true, return: ret });
