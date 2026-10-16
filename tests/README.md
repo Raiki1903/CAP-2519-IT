@@ -111,6 +111,8 @@ One lab, `TEST` (Test Research Lab, Manila). Six assets, `TEST-0001` to `TEST-00
 
 ## Writing a test file
 
+Tests that need no server go in `tests/db/` (today: [db/seedTarget.test.ts](db/seedTarget.test.ts), the demo seed's safety checks) or, for the harness itself, `tests/setup/` ([setup/guard.test.ts](setup/guard.test.ts)).
+
 Put API tests in `tests/api/<feature>.test.ts`. Start from [api/smoke.test.ts](api/smoke.test.ts):
 
 ```ts
