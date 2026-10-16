@@ -106,21 +106,25 @@ and 100 demo assets, 10 per lab, all Active and held by nobody. No loans, repair
 
 **The seed refuses, and writes nothing,** when `SEED_DATABASE_URL` or `SEED_PASSWORD` is missing, when the host is not `localhost` or `127.0.0.1` (it cannot reach CCS Cloud), when the tables do not exist yet (run step 2), or when the database already has users, roles, labs, or assets. It never reads `.env` and never prints the passwords.
 
-**4. Run the app against it.** The server reads `.env`, but a variable already set in the shell wins, so set the five `DATABASE_*` values in this one terminal:
+**4. Run the app against it.** The server reads `.env`, but a variable already set in the shell wins, so set the five `DATABASE_*` values in this one terminal.
+
+**`DATABASE_PASSWORD` is your local MySQL root password** (the one in `TEST_DATABASE_URL`), **not `SEED_PASSWORD`**. `SEED_PASSWORD` is only what the demo accounts log in with. To copy the root password from `TEST_DATABASE_URL` in your `.env` without typing or showing it, use the first line of each form below instead of typing it.
 
 PowerShell:
 ```
-$env:DATABASE_HOST = "localhost"; $env:DATABASE_PORT = "3306"; $env:DATABASE_USER = "root"
-$env:DATABASE_PASSWORD = "<password>"; $env:DATABASE_NAME = "AdRIC_DB_dev"
+$env:DATABASE_PASSWORD = node -e "process.stdout.write(decodeURIComponent(new URL(require('dotenv').parse(require('fs').readFileSync('.env')).TEST_DATABASE_URL).password))"
+$env:DATABASE_HOST = "localhost"; $env:DATABASE_PORT = "3306"; $env:DATABASE_USER = "root"; $env:DATABASE_NAME = "AdRIC_DB_dev"
 npm.cmd run dev:all
 ```
 
 Git Bash:
 ```
-DATABASE_HOST=localhost DATABASE_PORT=3306 DATABASE_USER=root DATABASE_PASSWORD="<password>" DATABASE_NAME=AdRIC_DB_dev npm run dev:all
+DATABASE_PASSWORD="$(node -e "process.stdout.write(decodeURIComponent(new URL(require('dotenv').parse(require('fs').readFileSync('.env')).TEST_DATABASE_URL).password))")" DATABASE_HOST=localhost DATABASE_PORT=3306 DATABASE_USER=root DATABASE_NAME=AdRIC_DB_dev npm run dev:all
 ```
 
 The server prints `Pool custodian check passed: user_id 1 (Demo Admin) ...`: that name tells you it is on the demo database. Close the terminal when done (PowerShell keeps the variables until then); a new terminal is back on `.env`.
+
+**Use a private browser window for the demo database, or log out before switching.** The login cookie holds only your user id (and when it expires), not which database it came from. A browser logged in while the server ran on one database stays logged in as the same user id after the server is switched to another: for example, demo user 3 (Demo TSG Staff) becomes CCS Cloud's user 3, whoever that is, until the cookie expires (8 hours) or you log out. A private window keeps the demo login apart and forgets it when closed.
 
 To start over: drop and create the database again (step 1), then steps 2 and 3.
 
