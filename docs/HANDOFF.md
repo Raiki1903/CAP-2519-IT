@@ -1052,3 +1052,34 @@ None new. The log lists what 13c leaves for later (lab scoping after step 14, a 
 1. Everyone pulls, restarts `npm run dev:all`, and logs in once.
 2. The advisor reviews the push. Then the 13c hand checks in the log: Raiki runs 1 to 5 on CCS Cloud (read-only); the agent runs 6 to 17 in a browser on the local test database when asked.
 3. Then the 13c pull request, and step 14 (baseline migrations), on a fresh branch from that merge, with Raiki's explicit go-ahead.
+
+## Phase 1C, restructure step 14, 2026-10-16
+
+**Prompt followed:** [phase-1c-restructure/PROMPT-2-restructure.md](phase-1c-restructure/PROMPT-2-restructure.md), Part B, step 14 (baseline the migrations, add `prisma/seed.ts`), the last restructure step, in two stops: the plan (`a86ad23d`), answered by Raiki the same day with a read-only check of CCS Cloud, then the build. On a fresh `refactor/feature-based-structure` from the PR #97 merge (`3b5ed0b0`). Details: [02-restructure-log.md](phase-1c-restructure/02-restructure-log.md), "Step 14 detail".
+
+### What was produced
+
+- **Answers** `af20c294`. **Schema** `e8ea5510`: the one difference Raiki's check found, a foreign key name, taken from CCS Cloud (a name only, no behavior change).
+- **Tooling:** Prisma commands take their database from `PRISMA_TARGET_URL` only and never load `.env` (`cc0943f1`); `.gitattributes` (`dbd39cf7`); **the baseline** `prisma/migrations/0_init`, generated from `schema.prisma` (`86ef314d`); `prisma/seed.ts` with `seedTarget.ts` and `seedData.ts` (`1e85f590`; its location separator written as an escape in `33a61dab`); `test-user.ts` deleted (`ed9ad5f9`); the SQL file's header and `prisma:pull` removed (`94eb672c`).
+- **Tests:** the test database is built from the migrations, and a `schema.prisma` change with no migration stops the run (`407d5224`); `tests/db/seedTarget.test.ts`, 6 tests (`cc594a84`): **391**. Typecheck **65** (the `test-user.ts` error went with the file).
+- **Docs:** comment commit `27d94f04`; the new guide [guides/DATABASE-MIGRATIONS.md](guides/DATABASE-MIGRATIONS.md); this log, `docs/README.md`, the root `README.md`, `tests/README.md`, `.env.example`.
+
+### Key findings
+
+- **H-21 does not occur on CCS Cloud**: its return conditions match `schema.prisma`. The finding came from the SQL file, which does not match CCS Cloud (issue #24, which step 14 closes).
+- **The baseline builds the same test database as `db push`**: structure snapshots identical apart from `_prisma_migrations`.
+- **My tool turns a typed Unicode escape into the character itself**: that put an em dash into `prisma/seed.ts` (fixed in `33a61dab`) and one into that commit's message (history not rewritten).
+- **On Windows, `migrate diff` needs a local database's name in lower case**, or it reports every foreign key as missing. The guide's commands do this.
+- **Nothing in the running app changed**: `server/`, `web/`, and `shared/` are untouched since `3b5ed0b0`. `npm run prisma:generate` and `npm run dev:all` work with `PRISMA_TARGET_URL` unset. About 2 s more per `npm test`.
+
+### Open questions
+
+None for the agent. For the team: when to mark CCS Cloud as "already at the baseline", and a real backup before it (the log, item 3, and the guide).
+
+### Exact next step
+
+1. Raiki runs the 6 hand checks in the log ("Step 14 detail", "Hand checks"): 1 and 2 on CCS Cloud, read-only; 3 to 6 local. Then the step 14 pull request.
+2. Everyone pulls and runs `npm test` once (391), and reads [guides/DATABASE-MIGRATIONS.md](guides/DATABASE-MIGRATIONS.md) before any Prisma command that needs a database.
+3. The restructure is then complete. The team decides when to mark CCS Cloud, then starts Phase 3 as migrations: a nullable `asset_records.current_custodian`, a `lab_id` on assets (issue #94), and the custodianship queue (issue #22).
+
+Answered on 2026-10-16 (see the log, "Step 14 hand checks: results"): **all 6 step 14 hand checks passed** (Raiki): 1 and 2 on CCS Cloud, read-only ("This is an empty migration"; the app unchanged); 3 on the local `AdRIC_DB_test` (391); 4 and 5 on a new local `AdRIC_DB_dev` (deploy, seed, the app on it, the seed's refusals); 6 with no database. Step 14 is built, all 6 hand checks passed, pull request next. Follow-ups in the same docs commit: the guide and hand check 4 warn that a login cookie is not tied to a database (use a private window for a demo database; a note for later in the log) and that `DATABASE_PASSWORD` is the MySQL root password, not `SEED_PASSWORD`; every hand checks heading in the log now names its step (for example "Step 14 hand checks"), and new ones will too.

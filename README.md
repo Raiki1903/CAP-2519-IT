@@ -19,13 +19,15 @@ AdRIC_System/
                         assets, analytics), each in five layers: routes, validation, controller, service, repository
     config/env.ts       Reads and checks .env; the server will not start without the DATABASE_* variables
     config/prisma.ts    Prisma client wired to the MariaDB adapter (only the repositories import it)
-    shared/             errors/AppError.ts, services/ (mailer.ts, custodyRequestGuard.ts, defaultCustodianCheck.ts),
+    shared/             errors/AppError.ts, services/ (mailer.ts, custodyRequestGuard.ts, poolCustodianCheck.ts),
                         utils/, constants/
   legacy/               Quarantined code, not built or imported: old analytics screens, widgets, and endpoints
-  prisma.config.ts      Prisma CLI config
-  prisma/schema.prisma  Authoritative database schema
+  prisma.config.ts      Prisma CLI config: takes the database from PRISMA_TARGET_URL only, never .env
+  prisma/schema.prisma  Database schema (the Prisma client is generated from it)
+  prisma/migrations/    The migrations that build the database, starting with 0_init (the baseline)
+  prisma/seed.ts        Demo data for an empty local database (npm run seed)
+  tests/                API tests (npm test), on a local test database built from the migrations
   generated/prisma/     Generated Prisma client (imported by server/config/prisma.ts)
-  test-user.ts          Seed / test script
   .env                  Database connection settings
   docs/                 Merge notes + the old FE design schema, kept for reference
 ```
@@ -46,6 +48,9 @@ AdRIC_System/
    ```
    npm run prisma:generate
    ```
+
+4. For a local database with demo data, the tests, or any Prisma command that needs a database
+   (migrations), read `docs/guides/DATABASE-MIGRATIONS.md`. Prisma commands never read `.env`.
 
 ## Running
 

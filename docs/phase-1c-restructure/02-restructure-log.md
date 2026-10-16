@@ -3,7 +3,7 @@
 Running record of the migration in [01D section 9](../phase-1b-deep-map/01D-restructure-plan.md#9-ordered-migration-steps).
 Decision and comment standard: [01-restructure-decision.md](01-restructure-decision.md), [../guides/CODE-COMMENTS.md](../guides/CODE-COMMENTS.md).
 
-Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16. The fixes for issues #25 and #26 were merged in PR #33 (their own branch); step 8 continues from that merge. Step 8 part 1 was merged in PR #45, and part 2 continues from that merge (`9db4a4d7`). Step 8 part 2 was merged in PR #46, and step 9 continues from that merge (`8db5a88f`). Step 9 was merged in PR #50 and the Phase 2 API tests in PR #52; step 10 starts from that merge (`dd6db809`), on a fresh `refactor/feature-based-structure`. Step 10 was merged in PR #56; step 11 starts from that merge (`2256e0ad`), again on a fresh `refactor/feature-based-structure`. Step 11 was merged in PR #58; step 12 starts from that merge (`6cf95b29`), again on a fresh `refactor/feature-based-structure`, and runs in batches (batch 1: returns, transfers, disposals). Batch 1 was merged in PR #61; batch 2 (repairs, inspections) starts from that merge (`d571d697`), again on a fresh `refactor/feature-based-structure`. Batch 2 was merged in PR #64; batch 3 (auth, assets, and the borrowed reads) starts from that merge (`e3ac3e3f`), again on a fresh `refactor/feature-based-structure`. Batch 3 was merged in PR #77; batch 4 (analytics, the last batch) starts from that merge (`c407a232`), again on a fresh `refactor/feature-based-structure`. Batch 4 was merged in PR #90; step 13 runs in three parts (13a, 13b, 13c), each its own session and pull request, and 13a starts from that merge (`c8f50cfb`), again on a fresh `refactor/feature-based-structure`. 13a was merged in PR #91; 13b starts from that merge (`2c107afc`), again on a fresh `refactor/feature-based-structure`. 13b was merged in PR #93; 13c starts from that merge (`5ac94dcd`), again on a fresh `refactor/feature-based-structure`. From step 10 on, `npm test` runs after every commit and must stay at 305 passed; from step 13a on, at 309 (4 errorHandler tests added); from 13c on, at 385. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
+Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on `refactor/option-a-structure`, merged in PR #4). Steps 3 to 5 were merged into `main` in PR #15 and step 6 in PR #16. The fixes for issues #25 and #26 were merged in PR #33 (their own branch); step 8 continues from that merge. Step 8 part 1 was merged in PR #45, and part 2 continues from that merge (`9db4a4d7`). Step 8 part 2 was merged in PR #46, and step 9 continues from that merge (`8db5a88f`). Step 9 was merged in PR #50 and the Phase 2 API tests in PR #52; step 10 starts from that merge (`dd6db809`), on a fresh `refactor/feature-based-structure`. Step 10 was merged in PR #56; step 11 starts from that merge (`2256e0ad`), again on a fresh `refactor/feature-based-structure`. Step 11 was merged in PR #58; step 12 starts from that merge (`6cf95b29`), again on a fresh `refactor/feature-based-structure`, and runs in batches (batch 1: returns, transfers, disposals). Batch 1 was merged in PR #61; batch 2 (repairs, inspections) starts from that merge (`d571d697`), again on a fresh `refactor/feature-based-structure`. Batch 2 was merged in PR #64; batch 3 (auth, assets, and the borrowed reads) starts from that merge (`e3ac3e3f`), again on a fresh `refactor/feature-based-structure`. Batch 3 was merged in PR #77; batch 4 (analytics, the last batch) starts from that merge (`c407a232`), again on a fresh `refactor/feature-based-structure`. Batch 4 was merged in PR #90; step 13 runs in three parts (13a, 13b, 13c), each its own session and pull request, and 13a starts from that merge (`c8f50cfb`), again on a fresh `refactor/feature-based-structure`. 13a was merged in PR #91; 13b starts from that merge (`2c107afc`), again on a fresh `refactor/feature-based-structure`. 13b was merged in PR #93; 13c starts from that merge (`5ac94dcd`), again on a fresh `refactor/feature-based-structure`. 13c was merged in PR #97; step 14 starts from that merge (`3b5ed0b0`), again on a fresh `refactor/feature-based-structure`. From step 10 on, `npm test` runs after every commit and must stay at 305 passed; from step 13a on, at 309 (4 errorHandler tests added); from 13c on, at 385. Nothing here is pushed by the agent; Raiki pushes and opens the pull requests.
 
 ---
 
@@ -25,8 +25,8 @@ Branch: `refactor/feature-based-structure` from step 3 on (steps 0 to 2 were on 
 | 10 | Create the `server/` skeleton | Done (hand checks passed; 4 skipped, no Mailgun; 6 a team action) | `584d0c5f`, `7a40911b`, `5fd47ff0` (moves); `bd242d15` (behavior change, C-07) | `77f68fa7` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 11 | Extract one backend feature end to end (loans) | Done (all 8 hand checks passed), merged in PR #58 | `0ba5feda`, `b3212304`, `2261a0dd` (moves and types) | `4a51c67a` | **71** (unchanged, same errors); `npm test` **305 passed** after every commit | 2026-10-09 |
 | 12 | Extract the remaining backend features | Batch 1 done (returns, transfers, disposals; all 9 hand checks passed), merged in PR #61. Batch 2 done (repairs, inspections; all 9 hand checks passed), merged in PR #64. Batch 3 done (auth with registrations, assets, and the borrowed reads folded; all 11 hand checks passed, 1 and 2 without their reload part, blocked by issue #49), merged in PR #77. Batch 4 done (analytics, the startup check, two folds, the backup job; `remainingRoutes.ts` deleted; all 10 hand checks passed, 2026-10-13), merged in PR #90. **Step 12 complete** | Batch 1: `86d166ee` (email lookups), `02147897` (returns), `574ded38` (transfers), `9e81ffc6` (disposals). Batch 2: `d4a473d6` (repairs), `3d8d4547` (inspections). Batch 3: `5b94aa9b` (auth), `c6cf958f` (assets), `569a175d` (borrowed reads). Batch 4: `9265911f` (analytics), `c5ff5d27` (behavior change: 22 old endpoints to legacy, unregistered), `94374139` (startup check), `13c33c2c` (two folds), `1a3b3bbd` (behavior change: backup job deleted, F-39) | Batch 1: `5dc2f47a`. Batch 2: `e30282a5`, `edad3003` (issue #53). Batch 3: `39bc37eb`; the hand checks and issue numbers recorded in a later docs commit. Batch 4: `1c83c84d`; the hand checks recorded in a later docs commit | Batches 1 to 3: **71** (unchanged, same errors). Batch 4: **68** (the three `is_documented` errors moved into `legacy/`, see detail); `npm test` **305 passed** after every commit | 2026-10-09, 2026-10-10, 2026-10-11 |
-| 13 | Add `errorHandler` and `requireAuth` (in three parts: 13a `errorHandler`, 13b session and roles, 13c the session user) | 13a and 13b done (merged in PR #91 and PR #93); 13c built 2026-10-15 (stop 2), plus the Return button `922096c8` (2026-10-16); all 17 hand checks passed (1 to 5 Raiki on CCS Cloud, 6 to 17 the agent in a browser on the local test database, 2026-10-16); pull request next; step 14 not started | 13a: `9c462ac9` (behavior change: body parser errors answer JSON), `62350584` to `7f56a1f8` (9 behavior changes, one per feature: generic 500s, H-16); docs `4f7bd647` (decisions). 13b: `fab7825a` to `680cd60a`, and `a984ffb2` (15 labelled behavior changes, among them the issue #49 fix and nine per-feature enforcement commits; see detail), tests `076490b7` and `68b5e20b`; docs `50889595`, `b4c83a76` (role table); after the hand checks, `128896fb` and `4c6bbc83` (2 more behavior changes), and after hand check 9, `4b5386d8` (1 more). 13c: docs `f42292b4` (plan), `3d618e05` (answers); `99325ed5` to `a77424ab` (21 labelled behavior changes, see detail), and `922096c8` (1 more, the Return button); tests `85818f81`, `5456eeed` | 13a: `b72cf6c3`. 13b: `50f33ac3`. 13c: `22f8bf17` | 13a: **68** (unchanged, same errors); `npm test` **309 passed** (305 plus 4 new errorHandler tests) from `9c462ac9` on. 13b: **68** (unchanged, same errors); **309**, then **372** from `68b5e20b` (63 new tests), **375** from `128896fb` (3 cache tests). 13c: **68** to **66** at `03a4bb20` (two H-13 errors removed with their lines; `85818f81` alone showed 79, fixed in `5456eeed`); **375**, **374** from `c31dabfa`, **372** from `4d04801a`, **385** from `85818f81` (13 new tests) | 2026-10-14, 2026-10-15 |
-| 14 | Baseline the migrations | Not started | | | | |
+| 13 | Add `errorHandler` and `requireAuth` (in three parts: 13a `errorHandler`, 13b session and roles, 13c the session user) | 13a and 13b done (merged in PR #91 and PR #93); 13c built 2026-10-15 (stop 2), plus the Return button `922096c8` (2026-10-16); all 17 hand checks passed (1 to 5 Raiki on CCS Cloud, 6 to 17 the agent in a browser on the local test database, 2026-10-16); merged in PR #97 (`3b5ed0b0`). **Step 13 complete** | 13a: `9c462ac9` (behavior change: body parser errors answer JSON), `62350584` to `7f56a1f8` (9 behavior changes, one per feature: generic 500s, H-16); docs `4f7bd647` (decisions). 13b: `fab7825a` to `680cd60a`, and `a984ffb2` (15 labelled behavior changes, among them the issue #49 fix and nine per-feature enforcement commits; see detail), tests `076490b7` and `68b5e20b`; docs `50889595`, `b4c83a76` (role table); after the hand checks, `128896fb` and `4c6bbc83` (2 more behavior changes), and after hand check 9, `4b5386d8` (1 more). 13c: docs `f42292b4` (plan), `3d618e05` (answers); `99325ed5` to `a77424ab` (21 labelled behavior changes, see detail), and `922096c8` (1 more, the Return button); tests `85818f81`, `5456eeed` | 13a: `b72cf6c3`. 13b: `50f33ac3`. 13c: `22f8bf17` | 13a: **68** (unchanged, same errors); `npm test` **309 passed** (305 plus 4 new errorHandler tests) from `9c462ac9` on. 13b: **68** (unchanged, same errors); **309**, then **372** from `68b5e20b` (63 new tests), **375** from `128896fb` (3 cache tests). 13c: **68** to **66** at `03a4bb20` (two H-13 errors removed with their lines; `85818f81` alone showed 79, fixed in `5456eeed`); **375**, **374** from `c31dabfa`, **372** from `4d04801a`, **385** from `85818f81` (13 new tests) | 2026-10-14, 2026-10-15 |
+| 14 | Baseline the migrations, add `prisma/seed.ts` | Built (stop 2, 2026-10-16); **all 6 hand checks passed** (Raiki, 2026-10-16, see "Step 14 hand checks: results"); pull request next. No change to the running app | Plan `a86ad23d`, answers `af20c294`; `e8ea5510` (schema key name), `cc0943f1` (Prisma CLI target), `dbd39cf7` (`.gitattributes`), `86ef314d` (baseline), `407d5224` (tests on migrations), `1e85f590` (seed), `ed9ad5f9` (`test-user.ts` deleted), `94eb672c` (SQL header, `prisma:pull` removed), `cc594a84` (seed tests), `33a61dab` (separator escape) | `27d94f04` | **66** to **65** at `ed9ad5f9` (the `test-user.ts` error, by message); `npm test` **385**, **391** from `cc594a84` (6 seed tests) | 2026-10-16 |
 
 Steps 6, 7, 9, and 13 change behavior on purpose, and so do step 8 part 2 in five labelled commits (team decisions H-18 and F-28, and M-07) and step 10 in one (C-07, the database fallbacks that 01D section 6 deletes). Every other step is a move or an addition. Step 11 has no behavior change, and neither have step 12 batches 1, 2, and 3. Step 12 batch 4 has two labelled behavior-change commits, both team decisions: the 22 old analytics endpoints answer 404 (`c5ff5d27`, 2026-10-08), and the backup job is deleted (`1a3b3bbd`, F-39, 2026-10-09). Step 13a has ten, all part of the step 13 decisions (2026-10-13): a body the parsers cannot read answers JSON (`9c462ac9`), and each feature's 500s answer a generic message instead of the raw error text (H-16, one commit per feature). Step 13b has eighteen, all from the 13b decisions (2026-10-13 and 2026-10-15): the session cookie, logout, CORS, the web changes, the issue #49 fix, one enforcement commit per feature, the per-login token, and, after the hand checks, the 60-second session lookup cache, a restore that survives a slow server, and the "session ended" notice in a tab logged out from another tab. Step 13c has twenty-one, all from the 13c decisions and answers (2026-10-13 and 2026-10-15): who acted comes from the session (six commits, one per feature), `/me` and the account update act on the caller only, user 1 becomes the named-for-no-one placeholder `POOL_CUSTODIAN_ID`, no id numbers in the custodian history, only the holder may request a transfer, four D2 commits hiding other people's names from a Custodian, and five web commits.
 
@@ -319,7 +319,7 @@ No new error appeared. 14 messages now name the type `SessionUser` where they sa
 
 **Known gap until step 7:** `Login.tsx` still falls back to the fake users. Someone who logs in that way now gets a Custodian screen with no profile, and is logged out on reload. Step 7 removes the fallback. (Closed by step 7, `6e08e469`.)
 
-### Hand checks: passed
+### Step 6 hand checks: passed
 
 Raiki ran the eleven checks below against the database and all passed. Step 6 was merged into `main` in PR #16. The list is kept for the record.
 
@@ -376,7 +376,7 @@ Someone using a real account sees no difference. A demo account that also exists
 
 **Not verified in the agent session:** nothing was clicked in a browser, and no real account was logged in. The hand checks below cover that.
 
-### Hand checks: passed
+### Step 7 hand checks: passed
 
 Raiki ran the five checks below against the database and all passed (reported 2026-10-05): real logins work for each role, the old demo accounts are refused, a wrong password is refused, a login with the server stopped stays on the login page with an error, and the `dlsu_equipment_ms_db_v2` key does not come back. The list is kept for the record.
 
@@ -448,7 +448,7 @@ Same 93 errors, compared by file name, position, and message after each commit. 
 
 **Not verified in the agent session:** nothing was clicked in a browser. The hand checks below cover that.
 
-### Hand checks: part 1, passed
+### Step 8 part 1 hand checks: passed
 
 Raiki ran the seven checks below and all passed (reported 2026-10-07). Step 8 part 1 was merged into `main` in PR #45. The list is kept for the record.
 
@@ -542,7 +542,7 @@ Compared error by error after every commit, by file and message. No error was ad
 
 **Not verified in the agent session:** nothing was clicked in a browser, and nothing was written to the database. The hand checks below cover that.
 
-### Part 2: hand checks, passed
+### Step 8 part 2 hand checks: passed
 
 Raiki ran the thirteen checks below and all passed (reported 2026-10-08). Step 8 part 2 was merged into `main` in PR #46. The team's decisions on the part 2 notes are recorded in the notes table (Inspector Role, `RepairAlertCard`, the repeating intake serial) and in behavior change 2 above (the Inspections tab). The list is kept for the record.
 
@@ -616,7 +616,7 @@ Compared error by error after every commit, by file and message. No error was ad
 
 **Not verified in the agent session:** nothing was clicked in a browser, and no login was made (that needs a password). **The database has no `ITS_STAFF` account and no `ADRIC_SECRETARY` account**, so the M-11 branch was checked by reading and by the typecheck only; testing it needs an account with that role, which is a database write and the team's call (hand check 8).
 
-### Hand checks: partly run
+### Step 9 hand checks: partly run
 
 Step 9 was merged into `main` in PR #50. Raiki reported the results on 2026-10-09, in this list's numbering:
 
@@ -719,7 +719,7 @@ Compared after every commit, by file and message. The eight `server.ts` errors a
 
 **Not verified in the agent session:** nothing was clicked in a browser, and no email was sent (the tests run with mail off, and the `.env` check above did not trigger one).
 
-### Hand checks: passed, one skipped
+### Step 10 hand checks: passed, one skipped
 
 Raiki ran them on 2026-10-09:
 
@@ -799,7 +799,7 @@ Compared after every commit, by file and message: the same 71 errors. None of th
 
 **Not verified in the agent session:** nothing was clicked in a browser, and no loan was requested or decided on the shared database. The hand checks below cover that.
 
-### Hand checks: passed
+### Step 11 hand checks: passed
 
 Raiki ran all eight checks below and all passed (reported 2026-10-09). During checks 5 to 7 a pre-existing refresh gap between the bell and the Custody tab was found: a loan decided in one does not update the other until a reload. It is not caused by step 11 (the web bundle is identical to `main`) and is filed as issue #57, to be fixed with #55 (see notes). The list is kept for the record.
 
@@ -868,7 +868,7 @@ Compared after every commit, by file and message: the same 71 errors. None of th
 
 **Not verified in the agent session:** nothing was clicked in a browser, and nothing was written to the shared database. The hand checks below cover that.
 
-### Hand checks: passed
+### Step 12 batch 1 hand checks: passed
 
 Raiki ran all nine checks below and all passed (reported 2026-10-09). Two pre-existing gaps were found while running them, neither caused by step 12 (the web bundle is identical to `main`): the return form shows a random `CLR-` placeholder before finalizing (issue #59), and the issue #57 refresh gap between the bell and the Custody tab also affects transfers (added to #57). Both are in the notes. The list is kept for the record.
 
@@ -939,7 +939,7 @@ Compared after every commit, by file and message: the same 71 errors. None of th
 
 **Not verified in the agent session:** nothing was clicked in a browser, and nothing was written to the shared database. The hand checks below cover the browser.
 
-#### Hand checks: passed
+#### Step 12 batch 2 hand checks: passed
 
 Raiki ran all nine checks below and all passed (reported 2026-10-10). Notes from the run, by check number:
 
@@ -1027,7 +1027,7 @@ Compared after every commit, by file and message: the same 71 errors. Five moved
 
 **Not verified in the agent session:** nothing was clicked in a browser, nothing was written to the shared database, and `pending_registrations.json` in the repository was not opened. The hand checks below cover the browser.
 
-#### Hand checks: passed
+#### Step 12 batch 3 hand checks: passed
 
 Raiki ran all 11 checks below and all passed (reported 2026-10-11). Notes from the run, by check number:
 
@@ -1136,7 +1136,7 @@ Compared after every commit, by file and message. `9265911f`: 71, the same list 
 
 **Not verified in the agent session:** nothing was clicked in a browser, and nothing was sent to the shared database. The hand checks below cover the browser.
 
-#### Hand checks: passed
+#### Step 12 batch 4 hand checks: passed
 
 Raiki ran all 10 checks below and all passed (reported 2026-10-13). Notes from the run, by check number:
 
@@ -1261,7 +1261,7 @@ Compared after every commit, by file and message: the same 68 errors. `errorHand
 
 **Not verified in the agent session:** nothing was clicked in a browser. The hand checks below cover it.
 
-#### Hand checks: passed
+#### Step 13a hand checks: passed
 
 Raiki ran all 9 checks below and all passed (reported 2026-10-15). Check 2 was run on an asset with an inspection report: the dialog showed the generic message, the asset stayed, and the terminal showed the full Prisma error. The list is kept for the record.
 
@@ -1540,7 +1540,7 @@ The same 68 errors after every commit.
 5. `npm test` needs nothing new: the tests set their own secret.
 6. **A browser holds one login at a time.** Every tab shares the same `adric_session` cookie, so logging in as another role in a second tab replaces the first tab's login. To test two roles at once, use two browsers, or a normal window and a private (incognito) window.
 
-#### Hand checks
+#### Step 13b hand checks
 
 Against CCS Cloud with `npm run dev:all`, after adding `SESSION_SECRET` and restarting. **Nothing below changes shared data except check 4**, which only files one loan request and declines it (a request's status, no custody change). Refusals are read-only requests. DevTools means the browser's developer tools (F12): the Application tab lists cookies, the Network tab lists requests, the Console runs commands.
 
@@ -1563,7 +1563,7 @@ Against CCS Cloud with `npm run dev:all`, after adding `SESSION_SECRET` and rest
 12. **The ADMIN account**, if you have its password: it reaches the Staff dashboard, and Approvals data is refused (in the Console, `fetch("http://localhost:4000/api/auth/pending-registrations", { credentials: "include" }).then(r => console.log(r.status))` prints 403).
 13. **Tests.** `npm test` passes on your machine: **375 tests** (372 when this list was written; 3 cache tests added after the hand checks).
 
-#### Hand checks: results (2026-10-15)
+#### Step 13b hand checks: results (2026-10-15)
 
 Raiki ran checks 1 to 5 on CCS Cloud (`npm run dev:all`), from off the DLSU network. **All five passed for what they test.**
 
@@ -1571,9 +1571,9 @@ Raiki ran checks 1 to 5 on CCS Cloud (`npm run dev:all`), from off the DLSU netw
 - **What they found besides:** dashboards took 10 to 90 seconds, several lists answered 500, and the server terminal showed Prisma's P2039 "pool timeout: failed to retrieve a connection from pool after 10001ms (pool connections: active=8 idle=0 limit=20)" on `GET /api/asset_loans` and `GET /api/asset_disposals`. And after a reload or a typed URL, a valid `adric_session` cookie (8 hours, not logged out, one browser, one tab) was often sent to the login page. CCS Cloud is slow on and off the DLSU network (issue #8); the two fixes below reduce what 13b added, they do not fix the link:
   - `128896fb` **fix(step 13b)!: remember the session lookup for 60 seconds.** `requireAuth` had added one query to every request; the lookup is now kept per cookie for 60 seconds.
   - `4c6bbc83` **fix(step 13b)!: a slow or failing server no longer logs you out on reload.** The page load treated a 500 or no answer from `/me` as logged out; now only a 401 does, and anything else is retried.
-- **Checks 6 to 13:** run later the same day in a browser on the local test database; see "Hand checks 6 to 13: results" below (9 failed first, then a fix, then all passed). **Checks 2 and 5** were re-run by Raiki on CCS Cloud (`npm run dev:all`) after `128896fb` and `4c6bbc83`: **both passed**. A slow load showed "Restoring your session..." and then the dashboard, never the login page.
+- **Checks 6 to 13:** run later the same day in a browser on the local test database; see "Step 13b hand checks 6 to 13: results" below (9 failed first, then a fix, then all passed). **Checks 2 and 5** were re-run by Raiki on CCS Cloud (`npm run dev:all`) after `128896fb` and `4c6bbc83`: **both passed**. A slow load showed "Restoring your session..." and then the dashboard, never the login page.
 
-#### After the hand checks: the two fixes
+#### Step 13b after the hand checks: the two fixes
 
 | Commit | Kind | What it does |
 |---|---|---|
@@ -1584,7 +1584,7 @@ Raiki ran checks 1 to 5 on CCS Cloud (`npm run dev:all`), from off the DLSU netw
 
 **Checks after both fixes:** typecheck **68**, same errors; build passes; `npm test` **375**.
 
-#### Hand checks 6 to 13: results (2026-10-15, local test database)
+#### Step 13b hand checks 6 to 13: results (2026-10-15, local test database)
 
 Run by the agent, **not on CCS Cloud**: a real browser (Chrome, driven by the Playwright MCP) against the Vite dev server (`npm run dev`, opened at `http://localhost:5173`) and `server/main.ts` on port 4000 against the local `AdRIC_DB_test`, logged in with the fixture accounts from `tests/setup/fixtures.ts`. A start script outside the repository used the test harness (the guard, `resetDatabase`, the seed, `buildServerEnv`) to empty and seed the database, then started the server from a temporary working folder with `WEB_ORIGIN` `http://localhost:5173`, so `pending_registrations.json` in the repository was never touched. **One change to the fixture data:** the login page accepts only `@dlsu.edu.ph`, so after seeding the script changed the eight fixture emails from `@example.test` to `@dlsu.edu.ph` in `AdRIC_DB_test` (passwords as in the fixtures). `.env` and `pending_registrations.json` were not opened; nothing was sent to CCS Cloud.
 
@@ -1891,9 +1891,9 @@ On the same branch, after Raiki's answers. Every commit that changes behavior ha
 1. Pull, restart `npm run dev:all`, and **log in once**: the page erases the old session cookies, so the first page load after the update goes to the login page.
 2. Nothing new in `.env`.
 
-#### Hand checks
+#### Step 13c hand checks
 
-**All 17 passed** (2026-10-16; see "Hand checks: results" below). **Raiki's, on CCS Cloud (`npm run dev:all`), all read-only:** 1 to 5. **The agent's, in a browser (Playwright MCP) on the local test database:** 6 to 17.
+**All 17 passed** (2026-10-16; see "Step 13c hand checks: results" below). **Raiki's, on CCS Cloud (`npm run dev:all`), all read-only:** 1 to 5. **The agent's, in a browser (Playwright MCP) on the local test database:** 6 to 17.
 
 **Raiki on CCS Cloud (5, nothing submitted):**
 
@@ -1928,7 +1928,7 @@ Asked by Raiki before the agent's hand checks, as one small labelled commit:
 
 Check 7 above now covers it.
 
-#### Hand checks: results
+#### Step 13c hand checks: results
 
 **1 to 5: passed** (Raiki, on CCS Cloud, `npm run dev:all`, reported 2026-10-16).
 
@@ -1952,6 +1952,306 @@ Check 7 above now covers it.
 | 17. Tests | Passed | `npm test` with the browser, the server, and Vite stopped: 15 files, **385 passed** | `check17-npm-test.txt` (beside the screenshots) |
 
 **Seen besides, not caused by 13c:** the browser console showed only React's development warning about `ref` and a 404 for `/favicon.ico`, both from before; no 401, 403, or 500 except the refusals the checks asked for. My Vite process outlived its stopped wrapper and was ended by its PID, after the run.
+
+#### Questions for Raiki (stop 2)
+
+None.
+
+---
+
+## Step 14 detail
+
+**Stop 1 of 2: the plan, proposed 2026-10-16 (`a86ad23d`). No code, no migration run, no database touched.** On a fresh `refactor/feature-based-structure` from the PR #97 merge (`3b5ed0b0`). Read from the code on that commit; line numbers are from it. **Raiki answered the seven questions the same day, and ran the read-only CCS Cloud check (answer 1); the answers are under each question, and items 1 and 7 are revised to match.** Stop 2 builds it.
+
+What step 14 does (01D section 9, row 14): it gives the database a starting point that tools can rebuild, so the team can make Phase 3 changes as reviewed files instead of by hand (H-15, "no migrations"). Three terms, used below:
+
+- A **migration** is a file of SQL in `prisma/migrations/` that changes the database's structure. `prisma migrate deploy` applies the ones a database has not had yet, in name order, and records each in a table it keeps in that database, `_prisma_migrations`.
+- The **baseline** is the first migration: the whole structure as it is today, so every later migration has something to build on.
+- A **seed** writes starting data (roles, labs, demo accounts) into an empty database.
+
+**Nothing in the running app changes.** Step 14 does not touch `server/`, `web/`, or `shared/`. The server never reads `prisma/migrations/` or `_prisma_migrations`. `prisma/schema.prisma` is not changed, unless question 2 says otherwise.
+
+#### 1. Source of the baseline
+
+Two files describe the database today:
+
+| | `prisma/schema.prisma` | `docs/reference/AdRIC_DB_Schema.sql` |
+|---|---|---|
+| Does it run? | Yes. `tests/setup/globalSetup.ts` builds the test database from it with `prisma db push` before every `npm test` (385 pass) | No. Two syntax errors (H-23, "the schema file cannot be executed"): `VARCAHR(255)` on `asset_records.current_location` (L98), and a `;` in the `user_roles` insert (L295) that leaves `(14, 3, 6);` as a stray statement |
+| Who uses it | The Prisma client is generated from it, so every repository and every test already agrees with it | Nothing |
+| Picture columns (`users.user_img`, `assets.image_url`, `asset_reports.report_img`) | `LONGTEXT` | `VARCHAR(500)`, too small for the base64 pictures the app stores. The `scratch/` scripts `alter_table.ts` and `update_user_img_column.ts` widened two of them on CCS Cloud by hand |
+| `asset_records.Asset_Remarks` | `TEXT` | `VARCHAR(255)` |
+| `asset_returns.condition` | `MINOR_DRIFT`, `CRITICAL_DEFECT` (underscores), may be empty | `MINOR DRIFT`, `CRITICAL DEFECT` (spaces), required. This is H-21, "two return conditions cannot be saved", if CCS Cloud has the spaces |
+| Foreign key names | `fk_reports_reporter`; the project link is `fk_assets_project`, with an index `fk_records_project` | `fk_reports_user`; the project link is `fk_records_project` |
+| Anything else in it | Structure only | Starts with `DROP DATABASE IF EXISTS AdRIC_DB`; holds account rows with names, emails, and plain-text passwords; its roles list leaves out `ITS_STAFF` |
+| Matches CCS Cloud? | **Probably, not checked.** It has the shape `prisma db pull` writes (the team's old workflow was "ALTER by hand, then `db pull`", H-15; `package.json` still has `prisma:pull`), and the app runs against CCS Cloud with it every day | **No.** Issue #24, "SQL file doesn't match the live database" (Raiki, 2026-10-02: other Lab Head accounts, other passwords, the Director's role) |
+
+**Proposed: build the baseline from `prisma/schema.prisma`.** It runs, the code and the 385 tests already use it, and it is the closest thing in the repository to the live schema. This differs from 01D, whose row 14 says to fix the SQL file's two errors and make it the first migration; the notes table below already says step 14 should baseline from the live schema, not from that file (the `AdRIC_DB_Schema.sql` row). What happens to the SQL file is question 7.
+
+**Checking `schema.prisma` against CCS Cloud without writing to it.** The installed Prisma (7.9.1) has `prisma migrate diff`, which compares two database structures and prints the SQL that would turn one into the other, changing neither:
+
+```
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+```
+
+- `--from-config-datasource` means "the database named in `prisma.config.ts`", which reads `DATABASE_URL`, which `.env` sets to CCS Cloud. Prisma reads the structure (tables, columns, indexes, foreign keys) from MySQL's `information_schema`. It writes nothing and reads no rows.
+- The output is SQL statements only: no data, no passwords. An empty migration (`-- This is an empty migration.`) means `schema.prisma` describes CCS Cloud exactly, as far as Prisma can see. With `--exit-code` added, it also exits with 2 when there is a difference.
+- What it cannot see: each table's character set, collation, and storage engine (Prisma does not model them); triggers, procedures, and views (the team confirmed on 2026-09-18 that there are none); and the rows themselves.
+- What to look for in its output: the return conditions (H-21), the picture and remarks column types, and the foreign key names.
+
+**This needs the Prisma CLI to read `.env` and connect to CCS Cloud, so I have not run it** (question 1). If it shows a difference, question 2.
+
+**Result (Raiki ran it on 2026-10-16, answer 1):** one difference, and only a name. CCS Cloud calls the foreign key from `asset_reports.reported_by_id` to `users` `fk_reports_user`; `schema.prisma` calls it `fk_reports_reporter`. The full output was a `DROP FOREIGN KEY fk_reports_user` and an `ADD CONSTRAINT fk_reports_reporter` on the same column and target, `ON DELETE NO ACTION ON UPDATE NO ACTION`. Everything else matches: the return conditions, the picture and remarks columns, every other key and index. So **H-21 ("two return conditions cannot be saved") does not occur on CCS Cloud**: its `asset_returns.condition` uses the same values as `schema.prisma` (`MINOR_DRIFT`, `CRITICAL_DEFECT`, with underscores). H-21 came from the SQL file, which does not match CCS Cloud (issue #24). Answer 2: `schema.prisma` takes CCS Cloud's name in its own commit before the baseline.
+
+#### 2. The baseline migration
+
+**Generated by Prisma, not written by hand:**
+
+```
+prisma/migrations/
+  migration_lock.toml    provider = "mysql"
+  0_init/
+    migration.sql        output of: npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script
+```
+
+- `--from-empty --to-schema` compares "no database" with `schema.prisma` and connects to no database. The command still loads `prisma.config.ts`, which loads `.env` through `dotenv/config`. To keep `.env` out of that process entirely, I run it with `DATABASE_URL` unset and `DOTENV_CONFIG_PATH` pointing at an empty file in my scratch folder: dotenv then reads that file instead (it honors the variable, `node_modules/dotenv/lib/env-options.js:8`). So even a wrong flag could not reach CCS Cloud.
+- `0_init` is Prisma's usual name for a baseline. It sorts before the dated folders that `prisma migrate dev` makes later (for example `20261020120000_nullable_custodian`).
+- `migration.sql` is committed exactly as Prisma prints it: 15 `CREATE TABLE` statements, then the indexes and foreign keys. Not edited. `migration_lock.toml` is the two-line file Prisma expects beside it.
+- A new `.gitattributes` line, `prisma/migrations/** text eol=lf`. This machine has `core.autocrlf=true` and the repository has no `.gitattributes`, so a Windows checkout would give the file Windows line endings while a Mac or Linux checkout would not. Prisma stores a checksum of every migration it applies; the file should read the same on every machine.
+- `prisma.config.ts` already points at `prisma/migrations` (`migrations.path`); no change there.
+
+**Proving it builds the same database as today's test database.** "Today's test database" is `AdRIC_DB_test` after `npm test` has loaded it with `db push`. Everything below runs on the local `AdRIC_DB_test` only, through `TEST_DATABASE_URL` and the tests' guard (local host, name ending in `_test`), as PROMPT-2 requires for step 14:
+
+1. `npm test`, as today (`db push`): 385. Then a read-only script outside the repository (like 13c's hand check helpers, through the same guard) writes a snapshot of the structure: every table's `SHOW CREATE TABLE` with its `AUTO_INCREMENT=` counter removed, and from `information_schema` every column (order, type, null or not, default, extra, character set, collation), index (name, columns, unique or not), foreign key (name, columns, target, on delete, on update), and each table's engine and collation.
+2. Drop every table in `AdRIC_DB_test` (after the guard's check that the open connection really is on that database), then `prisma migrate deploy` with `DATABASE_URL` set to the test database for that one command. Snapshot again.
+3. Compare the two snapshots. Expected: identical, except for one extra table, `_prisma_migrations`, holding one row, `0_init`. Any other difference stops stop 2 and goes into this log.
+4. `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code` against the test database (again with `DATABASE_URL` set for that one command): exit code 0, no difference.
+5. `npm test` on the migrations path (item 4): 385.
+
+#### 3. CCS Cloud: marking it "already at the baseline" (a team decision, not part of step 14)
+
+Written so it can be explained to the team.
+
+**Today** CCS Cloud has all 15 tables but no record of any migration. If someone ran `prisma migrate deploy` against it now, Prisma would refuse ("The database schema is not empty", error P3005), because it cannot tell which migrations the database already has. So no migration can reach CCS Cloud until it is marked.
+
+**Marking it** is one command, run once, by one person, with `DATABASE_URL` pointing at CCS Cloud:
+
+```
+npx prisma migrate resolve --applied 0_init
+```
+
+It creates the `_prisma_migrations` table on CCS Cloud and adds one row saying "0_init is already applied" (the name, a checksum of the file, the time). It does **not** run `0_init`'s SQL, and it does not touch any other table or any row. The app never reads that table. From then on, `prisma migrate deploy` on CCS Cloud applies only the migrations that came after `0_init`.
+
+**Before marking:**
+
+1. The read-only check from item 1 is empty against CCS Cloud **on that day**. Otherwise the row would claim a structure CCS Cloud does not have, and a later migration could fail halfway through on it.
+2. A real backup of CCS Cloud (structure and data), kept outside the repository. There is none today: the backup job was deleted on 2026-10-09 because it copied 4 of the 15 tables and could not restore anything (F-39).
+3. The CCS Cloud database account may create a table.
+4. A chosen date. UAT starts 2026-10-21. Marking changes nothing the app reads, but it is the gate for the Phase 3 migrations, and those do change what the app reads.
+
+**After marking, the rule for CCS Cloud:** it changes only through `prisma migrate deploy`, and only with migrations that passed on the local test database and were merged. Never `prisma migrate dev` there (it builds a temporary second database, and when it finds a difference it offers to reset, which deletes all data); never `prisma db push`; never an ALTER by hand; never `prisma db pull` to rewrite `schema.prisma`.
+
+**Undo:** dropping `_prisma_migrations` (that one table) puts CCS Cloud back exactly as it is today, as long as no later migration was deployed.
+
+**If the team never marks it:** the migrations still build every local database, but each Phase 3 change would have to reach CCS Cloud some other way, which means by hand, which the team decided against (2026-10-09).
+
+#### 4. Tests: keep `prisma db push`, or apply the migrations
+
+Today `tests/setup/globalSetup.ts` empties every table in the test database, then runs `prisma db push`, which makes the tables match `schema.prisma` directly. Its comment says migrations wait for step 14.
+
+- **(a) Keep `db push`.** Nothing in `tests/` changes. But the suite then tests `schema.prisma`, not the migration files: a migration that does something other than what `schema.prisma` says (a typo, or a schema edit with no migration) passes every test and fails only on CCS Cloud.
+- **(b) Apply the migrations.** `globalSetup.ts`, after the guard: **drops** every table (including `_prisma_migrations`) instead of emptying it; runs `prisma migrate deploy` with `DATABASE_URL` set to the test database for that one command (the lower-case stored name, as now); then runs `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code` on it and stops the run with "schema.prisma has changes that no migration contains" when that check finds a difference. The Prisma child process also gets `DOTENV_CONFIG_PATH` pointing at no file, so it no longer reads `.env` at all (today it does, and the `DATABASE_URL` set for it wins). `resetDatabase` in `db.ts` (between test files) skips `_prisma_migrations`, so the migration record survives each file's reset. `tests/README.md` (setup step 2 and the error table) is updated. Cost: rebuilding 15 tables once per run, a few seconds; measured in stop 2. Gain: every `npm test` proves the migrations build the database the tests expect, which is the "tested on the local test database first" the team decided for Phase 3.
+
+**Recommended: (b)** (question 3).
+
+#### 5. `prisma/seed.ts`
+
+**Replaces** `test-user.ts`, which writes fields that no longer exist (`qr_code_hash`, `asset_name`, `center_id` on assets), so `npm run seed` throws (L-04, "the seed script is broken"); it is also one of the 66 typecheck errors. `test-user.ts` is deleted; `package.json` `"seed": "tsx test-user.ts"` becomes `"seed": "tsx prisma/seed.ts"`; `tsconfig.json` drops `test-user.ts` from `include` and adds `prisma`, so the seed is typechecked. Typecheck **66 to 65** (that one error, compared by message).
+
+**Not the test fixtures.** `tests/setup/seed.ts` and `fixtures.ts` stay as they are: the tests need exact ids and `@example.test` accounts. The new seed is for a person clicking through a local copy of the app. Neither imports the other.
+
+**What it writes** (proposed; question 4 for the amount, question 5 for the accounts):
+
+| Table | Rows | Taken from |
+|---|---|---|
+| `roles` | 7, one per value of `roles_role_name`, ids 1 to 7 in that order (as the test fixtures) | The enum. Includes `ITS_STAFF`, which the SQL file left out |
+| `research_centers` | The 10 labs: name, short code, campus | The SQL file's list (names of institutions, not people) |
+| `users`, `user_roles`, `user_centers` | Demo accounts with invented names ("Demo Director", "Demo Custodian A", ...): **user 1 Admin**, the placeholder for "nobody holds it" (`POOL_CUSTODIAN_ID`; the server checks at startup that user 1 exists); Director (`ADRIC_DIRECTOR`, which the SQL file got wrong, H-22); TSG Staff; Lab Head of CITe4D; Lab Head of CAR; Custodians A and B in CITe4D; Custodian C in CAR | Invented |
+| `assets`, `asset_monetary`, `asset_records` | The SQL file's 100 demo assets, 10 per lab (product names, invented serial numbers, agency funding sources), each with one ACTIVE record in its lab, held by user 1 (nobody), with the location text the server splits on (campus, separator, short code; `server/features/assets/assets.service.ts:73`) | The SQL file, without its `project_id` links |
+| Everything else | Nothing: no loans, repairs, reports, transfers, disposals, or projects (the SQL file's projects name project leaders) | |
+
+Passwords are stored as plain text, like every account today, until password hashing (issue #10, C-03).
+
+**It runs only against a database you name:**
+
+- The target comes from `SEED_DATABASE_URL` only, set in the shell for that one command. Never from `.env`, never from `DATABASE_URL` or the `DATABASE_*` variables. The seed does not import `server/config/` (which loads `.env`); it builds its own Prisma client, the way `tests/setup/db.ts` does.
+- It refuses, and writes nothing, when: the variable is missing; the host is not `localhost` or `127.0.0.1` (so it cannot reach CCS Cloud by construction); the open connection is on another database than the URL names (the same second check the test guard makes); the tables do not exist (it then prints the `migrate deploy` command to run first); or any of `users`, `roles`, `research_centers`, `assets` already has a row. It fills empty databases only: it never merges and never deletes.
+- It prints the target as `host:port/name` before writing, never the user or the password.
+- All writes run in one transaction, so a failure leaves the database empty.
+- It is **not** wired as Prisma's own seed command (`migrations.seed` in `prisma.config.ts`), because `prisma db seed` loads `.env` through that file. Only `npm run seed`.
+
+**How a teammate makes a fresh local database** (the guide in stop 2): create an empty local MySQL database, then, in Git Bash,
+
+```
+DATABASE_URL="<local url>" npx prisma migrate deploy
+SEED_DATABASE_URL="<same url>" npm run seed
+```
+
+(and the PowerShell form). If the first line is typed without `DATABASE_URL`, the CLI falls back to `.env`, which is CCS Cloud: question 6.
+
+**Noted, not fixed:** on a freshly seeded database, the first `GET /api/asset_loans` inserts a pending loan with id 9 on the first asset (H-08, "a GET that writes"). A seeded database will show that loan.
+
+#### 6. What it unblocks
+
+The Phase 3 changes the team plans next, each as a later migration on top of `0_init`, tested on the local test database first. Listed only, not designed:
+
+1. **A nullable `asset_records.current_custodian`**, so an available asset has no custodian and the `POOL_CUSTODIAN_ID` placeholder (user 1) and its startup check can go (13c answer 1).
+2. **A `lab_id` on assets**, for issue #94, "Lab Heads see only their own lab" (13c answer 4; 01C tier 3 item 21).
+3. **A custodianship queue replacing `asset_transfers`**: the custodian releases an asset to Staff, and Staff assign the next custodian (issue #22; 13c answer 3).
+
+Also waiting on a migration, from this log's notes: return requests in `asset_returns` (H-02, H-04), the inspector role on reports (issue #48), the inspection cycle type (issue #34), a report type on `asset_reports` (L-07), a ticket's forwarding unit, sign-ups as a table instead of `pending_registrations.json` (H-17), and the H-21 spelling if CCS Cloud has it.
+
+#### 7. Stop 2 plan
+
+The commits in order. After every commit: `npm run typecheck` (66, then 65 from the commit that deletes `test-user.ts`, compared by message), `npm run build`, and `npm test` (385 until the test commit). At the end, `git diff 3b5ed0b0 -- server web shared` must be empty, and the server must start on the test database with the same startup lines as today.
+
+**Revised by the answers (2026-10-16).** The Prisma CLI change (answer 6) moves up to commit 3, before the baseline, so every later Prisma command in this step, the agent's and the test setup's, already goes through the new variable and never loads `.env`.
+
+1. `docs(step 14)`: Raiki's answers, and this plan revised to match.
+2. `fix(step 14)`: **`schema.prisma` names the reporter key `fk_reports_user`**, as CCS Cloud does (answer 2): `map` on the `users` relation of `asset_reports`. A name only, so not a behavior change and no `!`; nothing in the code uses the name.
+3. `chore(step 14)`: **Prisma CLI commands read `PRISMA_TARGET_URL` only** (answer 6), a variable `.env` does not set; `prisma.config.ts` stops loading `.env`; `.env.example`; the test setup passes the new variable to its one Prisma command.
+4. `chore(step 14)`: `.gitattributes` (LF for `prisma/migrations/`).
+5. `feat(step 14)`: **the baseline**: `prisma/migrations/migration_lock.toml` and `0_init/migration.sql`, generated as in item 2. The comparison (item 2, steps 1 to 4) is recorded in the log.
+6. `test(step 14)`: **the tests apply the migrations** (answer 3): `globalSetup.ts` drops the test tables, runs `prisma migrate deploy`, and checks `schema.prisma` against the result; `resetDatabase` skips `_prisma_migrations`; `tests/README.md`. 385.
+7. `feat(step 14)`: **`prisma/seed.ts`** (answers 4 and 5: two labs of demo accounts, `demo.*@dlsu.edu.ph`, the password from `SEED_PASSWORD`, 100 demo assets held by nobody), the `seed` script in `package.json`, and `prisma` in `tsconfig.json`.
+8. `chore(step 14)`: delete `test-user.ts` and its `tsconfig.json` entry (L-04). Typecheck 65.
+9. `chore(step 14)`: the SQL file's header, and the `prisma:pull` script removed (answer 7).
+10. `test(step 14)`: tests for the seed's refusals (missing variable, a non-local host, a malformed URL, a missing password), run without any database: about 5. **385 plus about 5**, exact count in the stop 2 report.
+11. `docs(step 14)`: file headers and TSDoc (`prisma/seed.ts`, and the test setup files that changed).
+12. `docs(step 14)`: this log, a new guide `docs/guides/DATABASE-MIGRATIONS.md` (a fresh local database, writing and testing a Phase 3 migration, the CCS Cloud rules from item 3), `docs/README.md`, `docs/HANDOFF.md`, the prompt's history line, `tests/README.md`, and the hand checks.
+
+**Verified by the agent in stop 2, on the local `AdRIC_DB_test` only:** item 2's comparison; the seed on that database after a fresh `migrate deploy` (row counts per table; then the server started on it and one login per demo account through the API; `GET /api/assets` lists 100 assets as Lab Head); a second seed run refused because the database is not empty; then `npm test`, which empties and reloads the database as usual.
+
+**Hand checks (planned; the final list comes with stop 2):**
+
+1. **Raiki, on CCS Cloud, read-only:** `npm run dev:all` as usual; the startup lines are the same as before step 14 ("Pool custodian check passed"); log in as any role and open one tab. Nothing changes, because step 14 touches no app code.
+2. **Raiki, on your machine:** `npm test` passes with the count from the stop 2 report, and its first lines say the migrations were applied (if question 3 is (b)).
+3. **Raiki, a fresh local database from the guide:** create an empty local database, run the two commands in item 5, then start the server against it (the guide shows how to point `DATABASE_*` at it for one command). Log in as the demo Director: 100 assets in 10 labs, all available ("None" as custodian).
+4. **Raiki, the seed refuses:** run `npm run seed` with no `SEED_DATABASE_URL`, then again on the database from check 3: both stop with a message and write nothing.
+
+#### 8. Questions for Raiki
+
+1. **How to check that `schema.prisma` matches CCS Cloud.** The baseline is generated from `schema.prisma`, so before CCS Cloud is ever marked as "already at the baseline", someone must confirm both have the same tables, columns, indexes, and keys; any way of reading CCS Cloud needs its login, which is in `.env`. It affects no screen; it decides whether the baseline is known to be true. (a) You run one read-only command on your machine, `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`, and paste its output to me: it prints SQL statements only, no data or passwords, and "This is an empty migration" means they match. (b) You let me run that same command: the Prisma CLI then reads `.env` in my session (I would still never open or print the file). (c) You export CCS Cloud's structure only, no data (for example phpMyAdmin, Export, "Structure" only), save it outside the repository, and I compare it with the local test database; this also shows character sets and collations, which (a) cannot. (d) Skip the check in step 14; it then happens only when the team marks CCS Cloud. **Recommendation: (a)**, because it is one read-only command, I never touch the CCS Cloud login, and the output holds no secrets.
+   **Answer (2026-10-16): (a).** Raiki ran it on CCS Cloud. The only difference is the name of the reporter foreign key on `asset_reports` (`fk_reports_user` on CCS Cloud); see item 1, "Result".
+2. **What to do if the check finds a difference.** The likeliest one is the return conditions Minor Drift and Critical Defect: the SQL file spells them with spaces in the database and `schema.prisma` with underscores, and if CCS Cloud has the spaces, Staff cannot finalize a return in either condition there today (H-21, "two return conditions cannot be saved"). It affects Staff finalizing returns on CCS Cloud, and whether the baseline can honestly be marked as applied there. (a) Change `schema.prisma` to describe CCS Cloud, one commit per difference, before the baseline is generated; a change that alters what the app writes (H-21's would, and it would fix those two returns on CCS Cloud) is labelled as a behavior change and updates its tests. (b) Baseline `schema.prisma` as it is, and change CCS Cloud by hand once, before marking, to match it: an edit by hand, which the team decided against. (c) Stop step 14 and decide each difference with the team first. **Recommendation: (a)**, because a baseline that differs from CCS Cloud cannot be marked as applied there, and the app already runs on what `schema.prisma` says.
+   **Answer (2026-10-16): (a).** One commit before the baseline: `schema.prisma` names that key `fk_reports_user` (`map` on the `users` relation of `asset_reports`). A name only, not a behavior change: no `!`, and the commit body says so. Then `0_init` is generated; no second fix migration is needed. Stop and ask if anything contradicts this.
+3. **How the tests build their database.** Before every `npm test`, the test setup loads the tables into the local test database straight from `schema.prisma` (`prisma db push`); step 14 adds migration files that should build the same tables. It affects every teammate running `npm test`, and how Phase 3 migrations get tested. (a) Keep `db push`: nothing in the tests changes, but no test ever runs the migration files, so a wrong migration is found only on CCS Cloud. (b) Apply the migrations instead: the setup drops the test tables and runs `prisma migrate deploy`, then stops the run if `schema.prisma` has a change that no migration contains; a few seconds more per run. **Recommendation: (b)**, because it makes "tested on the local test database first" true for every migration, on every run.
+   **Answer (2026-10-16): (b).** The tests apply the migrations.
+4. **How much demo data the seed writes.** `prisma/seed.ts` fills an empty local database so a teammate can click through the app; it never runs on CCS Cloud. It affects only local databases. (a) The minimum: the 7 roles, the 10 labs, and one demo account per role in use (user 1 Admin, Director, TSG Staff, one Lab Head, two Custodians), no assets. (b) (a), plus a second Lab Head and a third Custodian in another lab (CAR), plus the SQL file's 100 demo assets, 10 per lab, all available (held by nobody): every screen has something to show, and "Lab Heads see only their own lab" (issue #94) can be tried with two labs. (c) (b), plus workflow history (a pending loan, an asset on loan, a repair, a report, a disposal), as in the test fixtures. **Recommendation: (b)**, because it is enough to use every screen and to try two labs, without invented history that the planned Phase 3 tables would then have to fit.
+   **Answer (2026-10-16): (b).** Roles, the 10 labs, the demo accounts across two labs (CITe4D and CAR), and the 100 demo assets, all held by nobody.
+5. **The demo accounts' emails and password.** The login page accepts only `@dlsu.edu.ph` addresses, and passwords are stored as plain text until password hashing (issue #10). It affects anyone logging in to a local seeded database. (a) Addresses like `demo.director@dlsu.edu.ph`, with one shared demo password written in the seed file and the guide: you log in through the page; if a teammate's `.env` has Mailgun set, disposal and transfer emails would be sent to those addresses at DLSU (most likely they do not exist, so the mail would bounce). (b) `@example.test` addresses like the tests: no email can ever reach anyone, but the login page refuses them, so the accounts work only through the API. (c) The addresses of (a), but the password comes from a `SEED_PASSWORD` variable you set when seeding (the seed refuses without it): no password is written in the repository. **Recommendation: (c)**, because you can log in through the page and no new password lands in git, whose history already holds old ones (C-01).
+   **Answer (2026-10-16): (c).** `demo.*@dlsu.edu.ph`, the password from `SEED_PASSWORD`; the seed refuses without it and never prints it.
+6. **Prisma commands that name no database go to CCS Cloud.** `prisma.config.ts` takes the database for every Prisma CLI command from `DATABASE_URL`, and `.env` sets that to CCS Cloud, so a migration command typed without naming a database reaches CCS Cloud: today `prisma migrate deploy` is refused there (no migration record), but once CCS Cloud is marked it would apply every merged migration, and `prisma migrate dev` can offer to reset it (delete all data). It affects every teammate running Prisma commands in Phase 3; the app itself does not use this variable. (a) Leave it as it is; the guide warns. (b) Make `prisma.config.ts` read a new variable that `.env` does not set, for example `PRISMA_TARGET_URL`: a command that does not name its database then stops with "no database URL"; deploying to CCS Cloud means setting the variable on purpose for that one command; `.env.example`, the test setup, and the `prisma:pull` script (if kept) use the new name. (c) Add npm scripts that accept only a local database (like the test guard) and leave plain commands as they are. **Recommendation: (b)**, because a forgotten setting then fails instead of reaching the shared database; (c) can be added on top later.
+   **Answer (2026-10-16): (b).** `prisma.config.ts` reads a new variable that `.env` does not set. Confirm in the report that `npm run prisma:generate` and `npm run dev:all` still work with it unset.
+7. **The old database files.** `docs/reference/AdRIC_DB_Schema.sql` does not run and does not match CCS Cloud (issue #24, "SQL file doesn't match the live database"), and the `prisma:pull` script rewrites `schema.prisma` from CCS Cloud, the old "ALTER by hand, then pull" workflow. It affects anyone who might use either to set up or change a database. (a) Keep the SQL file, with a two-line header saying it builds nothing and the baseline is `prisma/migrations/0_init` (issue #24 is then closed by step 14; its two typos stay, since nothing runs it), and remove the `prisma:pull` script, because with migrations `schema.prisma` changes only together with a migration file. (b) Keep both as they are. (c) Move the SQL file to `legacy/` with a README, and remove `prisma:pull`. **Recommendation: (a)**, because the file is still a useful record of the labs and the demo assets, and the header stops anyone from trying to run it.
+   **Answer (2026-10-16): (a).** Keep the SQL file with the header; remove the `prisma:pull` script.
+
+#### Stop 2: what was built (2026-10-16)
+
+On the same branch, after Raiki's answers. No commit changes the running app, so none has `!` in its title. Nothing was pushed.
+
+| Commit | Kind | What it does |
+|---|---|---|
+| `af20c294` | Docs | Raiki's seven answers and the CCS Cloud check result; the stop 2 plan revised (the Prisma CLI change moved before the baseline) |
+| `e8ea5510` | Schema, name only | `schema.prisma` names the `asset_reports` reporter key `fk_reports_user`, as CCS Cloud does (answer 2). Same column, target, and rules; nothing in the code uses the name |
+| `cc0943f1` | Tooling | Prisma CLI commands read `PRISMA_TARGET_URL` only, and `prisma.config.ts` no longer loads `.env` (answer 6). `.env.example` explains it; the test setup passes it |
+| `dbd39cf7` | Tooling | `.gitattributes`: LF line endings in `prisma/migrations/` |
+| `86ef314d` | Tooling | **The baseline**: `prisma/migrations/0_init/migration.sql` (generated, unedited: 15 tables, 20 foreign keys) and `migration_lock.toml` |
+| `407d5224` | Tests | The test setup drops the test tables, applies the migrations, and stops if `schema.prisma` differs from them (answer 3); `tests/README.md` |
+| `1e85f590` | Tooling | **`prisma/seed.ts`** with `seedTarget.ts` (the checks) and `seedData.ts` (the data); `npm run seed` runs it; `prisma` in `tsconfig.json` |
+| `ed9ad5f9` | Tooling | `test-user.ts` deleted (L-04). Typecheck 65 |
+| `94eb672c` | Tooling, docs | The SQL file's header; the `prisma:pull` script removed (answer 7) |
+| `cc594a84` | Tests | `tests/db/seedTarget.test.ts`, 6 tests: **391** |
+| `27d94f04` | Comments | `docs(step 14): add file headers and TSDoc` |
+| `33a61dab` | Fix, no behavior change | The seed's location separator written as a Unicode escape, as asked: `1e85f590` held a literal em dash there (see "Differences", point 9). Same string at run time |
+| (this commit) | Docs | This log, `docs/guides/DATABASE-MIGRATIONS.md` (new), `docs/README.md`, the root `README.md`, `docs/HANDOFF.md`, the prompt's history line |
+
+#### Differences from the plan, and why
+
+1. **`prisma.config.ts` no longer loads `.env` at all**, not only "reads a new variable". Answer 6 asked for a variable `.env` does not set; dropping the `dotenv` import as well means even a `PRISMA_TARGET_URL` line someone adds to `.env` is ignored, and the `DOTENV_CONFIG_PATH` workaround of item 2 was not needed. The variable is named `PRISMA_TARGET_URL`, as proposed.
+2. **The seed is three files**, not one: `prisma/seed.ts` runs it, `prisma/seedTarget.ts` holds the checks that need no database (so `tests/db/seedTarget.test.ts` can import them without running the seed), and `prisma/seedData.ts` holds the labs, accounts, and assets.
+3. **`SEED_PASSWORD` must be at least 8 characters.** Not in the plan; a one-letter demo password is easy to set by mistake. An unexpected error is printed with the password and the URL hidden, since a Prisma error can quote the values it was given.
+4. **New, found while testing the guide's commands: on Windows, a local database's name must be written in lower case for `migrate diff`.** With the name as `TEST_DATABASE_URL` writes it (`AdRIC_DB_test`), Prisma did not see the test database's foreign keys and printed all 20 as missing; with `adric_db_test` the result was empty. The test setup already used the stored (lower-case) name, which is why its check passes. The guide's commands lower-case the name. CCS Cloud is not affected: Raiki's check found the one real difference, not 20.
+5. **The tests' Prisma child no longer gets `DOTENV_CONFIG_PATH`** (item 4 said it would): with point 1 there is no `.env` loading left to block.
+6. **`tests/db/` is a new folder**, as the decisions table lists (`tests/db/`, `tests/api/`, `tests/setup/`); it holds the one seed test file.
+7. **Six hand checks, not four**: Raiki's rerun of the CCS Cloud check (asked for in the stop 2 message), and a check that a Prisma command with no target stops.
+8. **Not changed, on purpose:** the header of `server/config/prisma.ts` still names `test-user.ts` among its importers. Step 14 leaves `server/` untouched (`git diff 3b5ed0b0 -- server web shared` is empty); noted below. The Phase 2 test title in `tests/api/returns.test.ts` ("H-21 cannot be reproduced here") stays: true on the test database, and now known to be true on CCS Cloud too.
+9. **An em dash slipped into `prisma/seed.ts`, and one into a commit message.** My tool turns a typed Unicode escape (backslash, u, 2014) into the character itself before it reaches the file, so `1e85f590` wrote the separator as a literal em dash instead of the escape asked for. Found by a final search for em dashes; `33a61dab` writes the escape, built from character codes, and a reseed of the test database showed the same bytes. The message of `33a61dab` itself has one em dash where it names the escape, for the same reason. History was not rewritten, as instructed. Every other backslash in step 14's code was checked and is as written.
+
+#### What changed in behavior
+
+**Nothing in the running app.** `server/`, `web/`, and `shared/` are unchanged since `3b5ed0b0`. What changed for the team:
+
+- **Prisma commands that need a database** (migrate, diff) take it from `PRISMA_TARGET_URL` only, set in the shell. With nothing set they stop before connecting: `migrate deploy` and `migrate status` with "The datasource.url property is required in your Prisma config file", `migrate diff` with P4003 "No URL defined in the configured datasource". `.env`'s `DATABASE_URL` is no longer read by anything. `npm run prisma:generate` and `npm run dev:all` work as before with the variable unset (checked, below).
+- **`npm test` builds the test database from the migrations**, and stops before any test if `schema.prisma` has a change no migration contains. Its first lines now say "Applying prisma/migrations to ..." and "The migrations built the test database, and prisma/schema.prisma matches it." About 2 seconds more per run.
+- **`npm run seed`** works: it fills an empty local database (only local, only a database named in `SEED_DATABASE_URL`).
+- **`npm run prisma:pull`** is gone.
+
+#### What stayed the same, on purpose
+
+- CCS Cloud: not touched, not marked. Marking it (`prisma migrate resolve --applied 0_init`) is a team decision (item 3, and the guide).
+- `docs/reference/AdRIC_DB_Schema.sql`: kept, with a header; its two typos stay, since nothing runs it.
+- The test fixtures (`tests/setup/seed.ts`, `fixtures.ts`): unchanged; the demo seed does not share them.
+
+#### Typecheck: 66 to 65
+
+65 from `ed9ad5f9` on. Compared by message: the one error removed is `test-user.ts`'s own (`qr_code_hash` is not a field of `assets`); none added, also none from the new `prisma/` files. 66 at every commit before it.
+
+#### Verified
+
+- **After every commit:** `npm run typecheck` (66, then 65), `npm run build` (passes), `npm test`: **385** up to `ed9ad5f9` and `94eb672c`, **391** from `cc594a84` (and at `33a61dab`).
+- **Run time:** `npm test` reported 29.3 to 29.6 s with `db push` (4 runs) and 31.3 to 32.0 s with the migrations (4 runs, the same 15 files): **about 2 s more per run**. With the 16th file, 30.4 and 30.5 s.
+- **The baseline builds today's test database (item 2), on the local `AdRIC_DB_test` only:** snapshot A after `npm test` with `db push` (at `dbd39cf7` plus the generated files); every table dropped; `prisma migrate deploy`; snapshot B. Each snapshot holds every table's `SHOW CREATE TABLE` (the `AUTO_INCREMENT` counter removed) and, from `information_schema`, every column (order, type, null, default, extra, character set, collation, key), index, foreign key (name, columns, target, update and delete rules), constraint, and each table's engine and collation. **Result: no line of snapshot A is missing or changed in B; B adds only `_prisma_migrations`** (its `CREATE TABLE`, 8 columns, primary key), holding one row, `0_init`, 1 step applied, not rolled back. Then `migrate diff` from that database to `schema.prisma`: "This is an empty migration", exit 0.
+- **The new stop in the test setup:** a temporary, uncommitted nullable column added to `schema.prisma` stopped the run before any test, with the message and `ALTER TABLE assets ADD COLUMN probe_column INTEGER NULL`; the schema was restored with `git checkout`.
+- **The seed, on the local `AdRIC_DB_test` only:** refused with nothing set, with a URL but no password, with a non-local host, and with a 5-character password, each before connecting; refused with no tables ("Build them first with prisma migrate deploy"); after a fresh `migrate deploy`, seeded: 7 roles (ids 1 to 7, `ITS_STAFF` included), 10 labs, 8 users, 8 role links, 5 lab links, 100 assets, 100 money rows, 100 records, all held by user 1, every lab's location text right (for example "Laguna", separator, "CAR"), no loans; a second run refused ("the table users already has rows"). Then the server, started on it by the tests' own starter: "Pool custodian check passed: user_id 1 (Demo Admin)"; all 8 demo accounts log in (Admin and TSG as Staff, Director, both Lab Heads, three Custodians); the CAR Lab Head's profile says lab CAR; `GET /api/assets` as a Lab Head and as a Custodian lists 100 Active assets, campus and lab split correctly, no custodian sent. The next `npm test` rebuilt the database as usual.
+- **The seed tests catch what they test:** with the host check switched off by hand, the host test fails.
+- **`npm run prisma:generate`** with `PRISMA_TARGET_URL` unset: generates the client. With it unset, `migrate diff` stops with P4003 and `migrate deploy` and `migrate status` with "The datasource.url property is required", none of them connecting.
+- **`npm run dev:all`** with `PRISMA_TARGET_URL` unset, run in a temporary worktree of this branch (no `.env`, no `pending_registrations.json` there) with the five `DATABASE_*` values of the local test database set in its environment: Vite ready; the API "actively listening" and "Pool custodian check passed"; `GET :4000/api/auth/me` answers 401 (no session); `GET :5173/` serves the page. Stopped afterwards; ports 4000 and 5173 confirmed free before and after; the worktree removed.
+- **The guide's PowerShell and Git Bash lines** that read one value from `.env` were run, as written, in a scratch folder holding a fake `.env` (made-up URLs): CCS Cloud's URL is taken as written, the test database's name is lower-cased, and the variable is gone after `Remove-Item`. `npx.cmd` and `npm.cmd` run under PowerShell.
+- **The comment commit** changes comment lines only (checked in its diff). No em dash in any file step 14 wrote, after `33a61dab` (point 9 of "Differences"); the seed writes the location separator as a Unicode escape (backslash, u2014).
+- `.env` and `pending_registrations.json` were not opened. Nothing was sent to CCS Cloud. No `prisma migrate dev`, `migrate resolve`, or `db pull` was run; `db push` ran only through the test setup, on the test database, before `407d5224`.
+
+#### What every teammate must do
+
+1. Pull. Nothing to add to `.env`. The `DATABASE_URL` line in your `.env` is no longer read; you may keep it (the guide's CCS Cloud commands read it) or delete it.
+2. `npm test` once: it now drops and rebuilds `AdRIC_DB_test` from the migrations.
+3. For any Prisma command that needs a database, read [docs/guides/DATABASE-MIGRATIONS.md](../guides/DATABASE-MIGRATIONS.md) first: the target is set in the shell, for one command.
+
+#### Step 14 hand checks
+
+All Raiki's. Commands for PowerShell in VS Code, from the repository root; the Git Bash forms are in the guide. 1 and 2 touch CCS Cloud, read-only; 3 to 6 are local.
+
+1. **CCS Cloud still matches, on this branch** (read-only). PowerShell: `$env:PRISMA_TARGET_URL = node -e "process.stdout.write(require('dotenv').parse(require('fs').readFileSync('.env')).DATABASE_URL)"`, then `npx.cmd prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`, then `Remove-Item Env:PRISMA_TARGET_URL`. The first line reads your own `.env`'s `DATABASE_URL` into the variable without showing it (if your `.env` no longer has that line, set the variable to the CCS Cloud URL by hand instead). Expected: **"-- This is an empty migration."** (In Git Bash: `PRISMA_TARGET_URL="$(node -e "process.stdout.write(require('dotenv').parse(require('fs').readFileSync('.env')).DATABASE_URL)")" npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`.)
+2. **The app on CCS Cloud is unchanged** (read-only). In a new terminal (no `PRISMA_TARGET_URL`): `npm.cmd run dev:all`. The startup lines are as before step 14 ("Pool custodian check passed: user_id 1 (...)" with your real admin name). Log in as any role and open one tab; nothing submitted.
+3. **`npm.cmd test`: 391 passed**, and its first lines say "[tests] Applying prisma/migrations to localhost:3306/AdRIC_DB_test." and "[tests] The migrations built the test database, and prisma/schema.prisma matches it."
+4. **A fresh local database from the guide** ([DATABASE-MIGRATIONS.md](../guides/DATABASE-MIGRATIONS.md), "A fresh local database with demo data", steps 1 to 4): create `AdRIC_DB_dev`, `migrate deploy`, seed with a `SEED_PASSWORD` of your choice, then `npm.cmd run dev:all` with the five `DATABASE_*` set in that terminal. The startup line says "(Demo Admin)". Log in at `http://localhost:5173` as `demo.tsg@dlsu.edu.ph`: Inventory lists 100 assets from 10 labs, all Active, custodian "None". Log in as `demo.director@dlsu.edu.ph` and as `demo.custodian.c@dlsu.edu.ph`: each lands on its own dashboard, and the Custodian's Available Equipment lists the assets. Close the terminal afterwards. **Use a private browser window for the demo database, or log out before switching back** (added after the checks, 2026-10-16): the session cookie holds only the user id, so a browser logged in on one database stays logged in as the same user id when the server is switched to another (demo user 3 becomes CCS Cloud's user 3) until it expires or you log out. `DATABASE_PASSWORD` is the MySQL root password, not `SEED_PASSWORD`; the guide shows how to copy it from `TEST_DATABASE_URL` without typing it.
+5. **The seed refuses.** In a new terminal: `npm.cmd run seed` with nothing set: "SEED_DATABASE_URL is not set"; then the step 3 commands of check 4 again on `AdRIC_DB_dev`: "the table users already has rows". Nothing written either time.
+6. **A Prisma command with no target stops.** In a new terminal: `npx.cmd prisma migrate status`. Expected: "Error: The datasource.url property is required in your Prisma config file when using prisma migrate status.", and nothing reached any database.
+
+#### Step 14 hand checks: results
+
+**All 6 passed** (Raiki, 2026-10-16).
+
+| Check | Run by, on | Result |
+|---|---|---|
+| 1. CCS Cloud still matches | Raiki, CCS Cloud, read-only (`prisma migrate diff` with `PRISMA_TARGET_URL` set for that one command) | Passed: "This is an empty migration" |
+| 2. The app on CCS Cloud is unchanged | Raiki, CCS Cloud, read-only (`npm run dev:all`) | Passed: the startup lines as before; logged in as TSG Staff and opened one tab; nothing submitted |
+| 3. `npm test` | Raiki, the local `AdRIC_DB_test` | Passed: 391, the migrations applied |
+| 4. A fresh local database from the guide | Raiki, a new local `AdRIC_DB_dev` | Passed: `migrate deploy` and the seed worked; the app ran on it ("Demo Admin"); TSG Staff, Director, and Custodian C logged in and saw the expected screens |
+| 5. The seed refuses | Raiki, the local `AdRIC_DB_dev` | Passed: refused with no `SEED_DATABASE_URL`, and refused on `AdRIC_DB_dev` because `users` already has rows; nothing written |
+| 6. A Prisma command with no target stops | Raiki, no database (nothing set) | Passed: `prisma migrate status` stopped with "datasource.url property is required" |
+
+**Seen besides, during check 4 (Raiki):** a browser logged in on one database stays logged in as the same user id after the server is switched to another, because the session cookie holds only the user id (and an expiry), not which database it came from. Harmless in deployment, which has one database; noted below for later. Also, `DATABASE_PASSWORD` (the MySQL root password) is easy to confuse with `SEED_PASSWORD` (the demo accounts' password). The guide's "A fresh local database with demo data", step 4, now warns about both and shows how to copy the root password from `TEST_DATABASE_URL`; check 4 above says the same.
 
 #### Questions for Raiki (stop 2)
 
@@ -2025,7 +2325,7 @@ A line-by-line comparison shows the same 93 errors after each commit. `npm run b
 
 **D2 follow-up, verified:** typecheck 93 with the same errors, build passes. A copy of the server on port 4001 (port 4000 was taken by a server started before the change) answered `GET /api/asset_transfers` with `fromCustodianId` on all 21 rows. The two pending requests at the time, `TRF-21` (`CITe4D-0013`) and `LOAN-24` (`CITe4D-0008`), both belong to user 4, A. Dela Cruz. Nothing was clicked in a browser.
 
-### Hand checks: first round
+### Bug fix #25 and #26 hand checks: first round
 
 Raiki ran the first round on 2026-10-06:
 
@@ -2045,7 +2345,7 @@ The list is kept for the record:
 8. *My Assets (#26).* As a Custodian who was the last custodian of a disposed asset, open My Assets in list and grid views. The disposed asset is not listed. Their other assets still are, with due dates and overdue banners as before.
 9. *Condition report (#26 side effect).* On the report tab, the asset picker does not offer the disposed asset.
 
-### Hand checks: D2 follow-up
+### Bug fix #25 and #26 hand checks: D2 follow-up
 
 **Restart the server first.** A server started before this change does not send `fromCustodianId`. Without it, the requester's own transfer shows "Requested by another user".
 
@@ -2080,7 +2380,7 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | `LabHeadAnalyticsView.tsx` `handleLoanDecision` is defined but nothing calls it, so it is dead code. It would also fail if wired up: it sends `"reject"`, and the server only accepts `"approve"` or `"decline"` (400). Converted to the client anyway so no loan URL is left outside `web/api/`; `decideLoan` takes a plain string for that reason. **Not done in step 11**, which moved the server side only; `shared/types/loans.ts` now has `LoanDecision`, which `decideLoan` can take once the dead handler is gone. **Not done in step 12 batch 4,** which moved server code only | n/a (new) | Small web fix branch, with `handleTransferDecision`, or when the analytics view is split |
 | Most call sites check only `success` in the body, not the HTTP status. A minority check the status or content type, or never read the answer at all (corrected in step 5: the step 4 version of this note said no site checks the status, which was true for loans only). The client keeps both styles for now, through plain and `Raw` calls, so steps 4 and 5 stay behavior-neutral. **Step 13a** did the server half: every failure now answers JSON with `success: false` (a 500 with `code: "SERVER_ERROR"` and a generic message, a body that cannot be read with `code: "BAD_REQUEST"`), and refusals keep their status and message. `web/` was not changed, as instructed: the 15 `Raw` functions stay (`web/api/analytics.api.ts` 7, `assets.api.ts` 3, `auth.api.ts` 2, `repairs.api.ts` 2, `inspections.api.ts` 1, over `apiGetRaw`, `apiPostRaw`, and `apiPutRaw` in `client.ts`) | H-16 | Server side done (13a). Left: typed errors in `web/api/client.ts`, then remove the `Raw` calls. Not part of 13b or 13c; noted for later; when is not decided yet (most likely a web branch after step 13) |
 | `web/api/*.api.ts` return a loose `ApiResult` (any extra fields). The real request and response shapes belong in `shared/types/`. **Step 11:** `shared/types/loans.ts` holds the loan shapes and the server uses them; the web side uses the request type only (see the step 11 note below). **Step 12 batch 1:** the same for returns, transfers, and disposals. **Batches 2 and 3:** repairs, inspections, auth, and assets. **Batch 4:** `shared/types/analytics.ts` holds the response data of the eight live analytics routes, used by the server; the web side builds query strings and sends no body, so it uses none yet | H-13 | Done on the server side; the web responses with step 13 (typed client) |
-| `docs/reference/AdRIC_DB_Schema.sql` does not match the live database. The live database has different Lab Head accounts (`labhead.bio`, `labhead.car`, and so on, with no `labhead.cite4d`) and different seed passwords, and the Director already holds `ADRIC_DIRECTOR`. Logging in with the credentials from the file fails and silently falls back to the mock login. Reported by Raiki on 2026-10-02. Not part of the restructure, not fixed. **Step 14 should baseline from the live schema, not from this file** | H-23, H-22 (H-22 is already fixed in the live data) | Step 14 |
+| `docs/reference/AdRIC_DB_Schema.sql` does not match the live database. The live database has different Lab Head accounts (`labhead.bio`, `labhead.car`, and so on, with no `labhead.cite4d`) and different seed passwords, and the Director already holds `ADRIC_DIRECTOR`. Logging in with the credentials from the file fails and silently falls back to the mock login. Reported by Raiki on 2026-10-02. Not part of the restructure, not fixed. **Step 14 should baseline from the live schema, not from this file.** **Done in step 14:** the baseline was generated from `schema.prisma`, which Raiki's read-only check showed matches CCS Cloud after one key name (`e8ea5510`, `86ef314d`); the file has a header saying it builds nothing (`94eb672c`); its typos stay. The check also showed H-21 does not occur on CCS Cloud | H-23, H-22 (H-22 is already fixed in the live data), H-21, issue #24 | Done (issue #24 can be closed) |
 | Five endpoints put the asset tag into the URL without encoding it (`custodian-history`, `transfer`, `return`, `repair`, `inspection`), while five others encode it (`borrow`, `disposal`, and asset create, edit, delete). Harmless with tags like `EQ-2024-001`; a tag containing `/`, `?`, or `#` would break the unencoded ones. Each API function keeps what its call site did. **Step 12 batch 1** left `return` and `transfer` unencoded: encoding changes which URL such a tag reaches, so it is a behavior change on the web side, not part of a backend move | n/a (new) | A small web fix, one commit for all five |
 | The pending disposals list (now in `web/state/serverData.tsx`) is built from the API without `lastCustodian`, `breakdownReasons`, and `disposalPathway`, which the `PendingDisposal` type requires, so the variable stays annotated `any`. Step 6 moved the block but did not fix it: making the type truthful means changing the bell, which reads two of those fields and so shows "undefined" in every disposal card | H-13, M-13 | The bell rewrite (01D section 8) |
 | `approveRegistration` returns the server's answer and accepts an object, but its declared type said it takes a string and returns nothing. **Fixed in step 6** (`8dcd6120`): the declared type now matches and the `any` is gone | H-13 | Done |
@@ -2165,7 +2465,7 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | **Step 12 batch 3 hand checks (2026-10-11):** deleting an asset that has an `asset_reports` row answers 500 ("Foreign key constraint violated on the fields: (`asset_id`)" at `tx.assets.delete`) and the transaction rolls back, as H-03 says. Seen on the shared database in hand check 8. Issue #69 (proposal 6) | H-03 | Issue #69 |
 | **Issue #8 (confirmed 2026-10-11):** an asset edit can fail with Prisma's interactive transaction timeout (P2028, "expired transaction") on the slow CCS Cloud link: the edit runs several round trips inside one transaction (`assets.repository.ts` `saveEdit`, named there). Not changed by batch 3. Note: the `c6cf958f` commit message pairs issue #8 with H-14; #8 is this timeout, and H-14 is the overwrite (#74) | n/a | Issue #8, its own fix (fewer round trips, or a longer timeout) |
 | **Step 12 batch 4, new: eight analytics changes proposed, not made.** The Director lab filter on every figure, deleting the invented values (H-09), the Lab Head overdue list without pending requests (H-04), inspection progress from reports, labs from data instead of text (M-03), the M-09 tie-break and current records only, renaming `/api/analytics/tsg`, and refusing bad input (H-16, M-14). Each changes what a chart shows and is pinned by a Phase 2 test; effects and tests in the batch 4 detail ("Proposals for separate commits"). **Step 13a** removed Prisma's text from the unknown-category 500 (now generic); proposal 8 itself (a 400, and the M-14 prefix check) is still open | H-09, H-04, M-03, M-09, H-16, M-14 | Its own commit each, if the team agrees; the Lab Head's lab from the session with 13b or 13c |
-| **Step 12 batch 4, new:** `test-user.ts` at the root (`npm run seed`, already broken, L-04) is the one file outside `server/features/*/` repositories that still imports `config/prisma`. It is not part of the server. 01D replaces it with `prisma/seed.ts` in step 14. `legacy/analytics-endpoints/analyticsEndpoints.ts` also names it, through an import path that no longer resolves | L-04 | Step 14 (`prisma/seed.ts`) |
+| **Step 12 batch 4, new:** `test-user.ts` at the root (`npm run seed`, already broken, L-04) is the one file outside `server/features/*/` repositories that still imports `config/prisma`. It is not part of the server. 01D replaces it with `prisma/seed.ts` in step 14. `legacy/analytics-endpoints/analyticsEndpoints.ts` also names it, through an import path that no longer resolves. **Done in step 14:** `prisma/seed.ts` (`1e85f590`), `test-user.ts` deleted (`ed9ad5f9`) | L-04 | Done |
 | **Step 12 batch 4, new:** the one-off scripts in `scratch/` (`test_endpoints.ts`, `test-fetch.js`, the `replace-analytics` scripts, and two old copies of `server.ts`) call or contain the 22 old analytics endpoints. They are not part of the app; those calls now get 404 | n/a | When `scratch/` becomes `scripts/` (01D section 7) |
 | **Step 12 batch 4, new:** the loan recommender lists every ACTIVE record of `asset_records`, history included, so an asset on loan today is suggested once per earlier ACTIVE record, and the asking lab's own assets are not left out. No live caller | M-09 family (new) | Batch 4 proposal 6, if the widget comes back |
 | **Step 12 batch 4, new:** analytics answers `{ success: true, data }` with every borrower's name and email (Lab Head) and asset values (Director) to anyone who calls it, as before (C-02) | C-02, 01C 4.4 | Roles: done in 13b (the Lab Head figures go to Lab Heads only, the Director's to the Director only). The Lab Head's lab from the session: 13c or later |
@@ -2183,6 +2483,10 @@ Kept here instead of being fixed, per 01D section 11 ("scope creep into Phase 3"
 | **Step 13b, new:** in the browser check, one pass over the Director's five tabs sent about 140 list requests, many of them repeats (`GET /api/assets` and `GET /api/asset_disposals` several times per tab); each now also costs the session query | M-01 | Page-level loading (01D) and the asset list rewrite (issue #76) |
 | **13c hand checks (2026-10-16):** `server/main.ts` prints "✅ Mini-Backend API is actively listening!" even when port 4000 is already taken: Express 5 calls `app.listen`'s callback with the error instead of throwing, and the callback ignores its argument. A second server started while another holds the port looks healthy but answers nothing, and requests go to the other one. Found when a leftover `npm run dev:all` held the port | n/a | A small fix: log the error and exit, its own commit |
 | **13c hand checks (2026-10-16):** a disposal of an asset nobody holds packs "Last Custodian: Unassigned" into its reason text, the disposal form's own fallback for an empty field, while the screens say "None" for the same asset. Free text inside the packed reason, not the asset's custodian | M-13 | With M-13 (the reason's fields as columns), Phase 3 |
+| **Step 14, new:** the header comment of `server/config/prisma.ts` still names `test-user.ts` among its importers; the file is gone. Not changed because step 14 leaves `server/` untouched | n/a | A one-line comment fix in the next commit that touches `server/config/` |
+| **Step 14, new:** on Windows, Prisma's `migrate diff` against a local database named in mixed case (`AdRIC_DB_test`, as `TEST_DATABASE_URL` writes it) does not see its foreign keys and reports all 20 as missing; with the lower-case name it is right. MySQL on Windows stores database names in lower case. The test setup uses the stored name; the guide's commands lower-case it. Same family as the `db push` note in `globalSetup.ts` | n/a | Documented in `docs/guides/DATABASE-MIGRATIONS.md`; no fix needed |
+| **Step 14, new:** CCS Cloud is not marked as "already at the baseline" and has no backup (F-39 deleted the partial one). Both are needed before any Phase 3 migration can reach it | H-15, F-39 | Team decision (item 3 of the step 14 detail, and the guide) |
+| **Step 14 hand checks, new (Raiki, 2026-10-16):** a session is not tied to a database. The session cookie holds the user id and an expiry, signed with `SESSION_SECRET`, so a browser logged in while the server ran on one database stays logged in as the same user id after the server is switched to another with the same secret (demo user 3 becomes CCS Cloud's user 3), until it expires or the user logs out. Harmless in deployment, which has one database. Warned in the guide and in step 14 hand check 4 | C-06 family | A follow-up for later: for example a database marker in the token, or a different `SESSION_SECRET` per database |
 
 **Note 1 (step 0):** no comment commit. `server.ts` is excluded from the comment pass because it is about to be split, and `.gitignore` and `.env.example` carry their own inline explanations.
 

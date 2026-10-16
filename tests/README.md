@@ -81,7 +81,7 @@ Some words first:
 In order:
 
 1. **The guard checks `TEST_DATABASE_URL`.** It stops everything unless the host is `localhost` or `127.0.0.1` **and** the database name ends in `_test`. This is what keeps the tests away from CCS Cloud. (`tests/setup/testDatabase.ts`)
-2. **The tables are loaded** from `prisma/schema.prisma` into the test database with `prisma db push`. Only `TEST_DATABASE_URL` is used for this. (`tests/setup/globalSetup.ts`)
+2. **The tables are built from the migrations.** Every table in the test database is dropped, then `prisma migrate deploy` applies every migration in `prisma/migrations/`, the same files that will one day be deployed to CCS Cloud. Then `prisma migrate diff` checks that the result matches `prisma/schema.prisma`; if the schema has a change that no migration contains, the run stops before any test. Only `TEST_DATABASE_URL` is used for this. (`tests/setup/globalSetup.ts`; how to write a migration: [../docs/guides/DATABASE-MIGRATIONS.md](../docs/guides/DATABASE-MIGRATIONS.md))
 3. **For each test file, one at a time:**
    - every table in the test database is emptied and the fake data is written in (`tests/setup/seed.ts`, values in `tests/setup/fixtures.ts`);
    - the server (`server/main.ts`) is started as a separate process on a free port, connected to the test database only, with email and backups switched off, and with its working folder set to a temporary folder (so `pending_registrations.json` is written there, never in the repository);
@@ -110,6 +110,8 @@ One lab, `TEST` (Test Research Lab, Manila). Six assets, `TEST-0001` to `TEST-00
 ---
 
 ## Writing a test file
+
+Tests that need no server go in `tests/db/` (today: [db/seedTarget.test.ts](db/seedTarget.test.ts), the demo seed's safety checks) or, for the harness itself, `tests/setup/` ([setup/guard.test.ts](setup/guard.test.ts)).
 
 Put API tests in `tests/api/<feature>.test.ts`. Start from [api/smoke.test.ts](api/smoke.test.ts):
 
@@ -154,5 +156,6 @@ describe("loans", () => {
 | A test gets 401 `Please log in to continue.` or 403 `Your role is not allowed to do this.` | It used `api` on a route that needs a session, or an account whose role the route does not allow. Use `as(...)` with an allowed role. The tests set their own `SESSION_SECRET`; `.env`'s is not used. |
 | `No test files found, exiting with code 1` together with an error below it | The setup failed before any test ran. The real cause is the error printed under it. |
 | `Could not open localhost:3306/AdRIC_DB_test` | MySQL is not running (`Get-Service MySQL80`), the password in `TEST_DATABASE_URL` is wrong, or the database was not created (step 2). |
-| `prisma db push failed` | The tables could not be created. Read the Prisma message under it. |
+| `prisma migrate deploy failed` | A migration in `prisma/migrations/` could not be applied. Read the Prisma message under it: it names the migration and the SQL error. |
+| `prisma/schema.prisma has changes that no migration in prisma/migrations contains` | Someone changed `schema.prisma` without adding a migration (or a migration does something the schema does not say). The SQL printed under it is what is missing. Add a migration: [../docs/guides/DATABASE-MIGRATIONS.md](../docs/guides/DATABASE-MIGRATIONS.md). |
 | `server/main.ts exited during startup` | The server crashed while starting. Its own output is printed under the message. |

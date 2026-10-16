@@ -1,7 +1,7 @@
 /**
- * Direct database access for the tests: a Prisma client aimed at the guarded test database, and the reset between files.
- * Layer: test setup. Called by harness.ts and by tests that read rows back. Calls testDatabase.ts and Prisma.
- * Used by: every API test file, to seed data and check what a request wrote.
+ * Direct database access for the tests: a Prisma client aimed at the guarded test database, the drop before the migrations, and the reset between files.
+ * Layer: test setup. Called by globalSetup.ts, harness.ts, and tests that read rows back. Calls testDatabase.ts and Prisma.
+ * Used by: every test run (the drop) and every API test file, to seed data and check what a request wrote.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@prisma/client";
@@ -45,9 +45,36 @@ export async function assertConnectedToTestDatabase(prisma: PrismaClient, config
 }
 
 /**
+ * Drops every table in the test database, Prisma's migration record included, so the migrations can
+ * build it again from nothing. Foreign keys go first, so the tables can then be dropped in any order.
+ *
+ * @returns the database name exactly as MySQL stores it
+ * @throws TestDatabaseRefused when the connection is not on the test database
+ */
+export async function dropAllTables(prisma: PrismaClient, config: TestDatabaseConfig): Promise<string> {
+  const storedName = await assertConnectedToTestDatabase(prisma, config);
+
+  const foreignKeys = await prisma.$queryRaw<{ tableName: string; name: string }[]>`
+    SELECT TABLE_NAME AS tableName, CONSTRAINT_NAME AS name FROM information_schema.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA = DATABASE() AND CONSTRAINT_TYPE = 'FOREIGN KEY'`;
+  for (const { tableName, name } of foreignKeys) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE \`${tableName}\` DROP FOREIGN KEY \`${name}\``);
+  }
+
+  const tables = await prisma.$queryRaw<{ name: string }[]>`
+    SELECT TABLE_NAME AS name FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'`;
+  for (const { name } of tables) {
+    await prisma.$executeRawUnsafe(`DROP TABLE \`${name}\``);
+  }
+  return storedName;
+}
+
+/**
  * Empties every table in the test database and restarts each id counter at 1,
  * so ids in the seed are the same in every file.
- * Tables are read from the database, so a table added to the schema later is emptied too.
+ * Tables are read from the database, so a table added by a later migration is emptied too.
+ * Prisma's migration record (_prisma_migrations) is left alone: it says which migrations built the tables.
  *
  * @returns the database name exactly as MySQL stores it
  * @throws TestDatabaseRefused when the connection is not on the test database
@@ -57,7 +84,7 @@ export async function resetDatabase(prisma: PrismaClient, config: TestDatabaseCo
 
   const tables = await prisma.$queryRaw<{ name: string }[]>`
     SELECT TABLE_NAME AS name FROM information_schema.TABLES
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'`;
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME <> '_prisma_migrations'`;
 
   // Foreign key checks are a per-connection setting, so the deletes run in one
   // transaction to stay on the connection where the checks are off.
