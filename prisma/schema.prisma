@@ -95,7 +95,7 @@ model asset_reports {
   report_condition asset_reports_condition
   report_remarks   String?                 @db.VarChar(255)
   assets           assets                  @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_asset")
-  users            users                   @relation(fields: [reported_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_reporter")
+  users            users                   @relation(fields: [reported_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_user")
 
   @@index([asset_id])
   @@index([reported_by_id])
