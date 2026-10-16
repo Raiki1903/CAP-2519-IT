@@ -1,3 +1,8 @@
+/**
+ * The demo seed's safety checks: which database URL (SEED_DATABASE_URL) and which password (SEED_PASSWORD) it accepts, before it connects.
+ * Layer: database tooling. Called by prisma/seed.ts and tests/db/seedTarget.test.ts. Calls nothing.
+ * Used by: npm run seed.
+ */
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
 /** Thrown when the seed must not run. The message never holds the URL, the user, or a password. */

@@ -1,3 +1,8 @@
+/**
+ * The demo seed's data: the 10 research centers, 8 demo accounts in two labs, and 100 demo assets. All invented or about institutions; nothing about real people.
+ * Layer: database tooling. Read by prisma/seed.ts. Imports the server's POOL_CUSTODIAN_ID constant and Prisma's enum types.
+ * Used by: npm run seed.
+ */
 import type { assets_category, research_centers_location, roles_role_name, users_user_type } from "@prisma/client";
 import { POOL_CUSTODIAN_ID } from "../server/shared/constants/poolCustodian";
 

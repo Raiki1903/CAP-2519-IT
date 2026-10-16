@@ -1,3 +1,9 @@
+/**
+ * The demo seed (npm run seed): fills an empty local database, built by prisma/migrations, with roles, labs, demo accounts, and demo assets.
+ * Layer: database tooling, not part of the server. Run by npm run seed. Calls seedTarget.ts, seedData.ts, Prisma with the MariaDB adapter,
+ * and the server's POOL_CUSTODIAN_ID constant.
+ * Used by: a teammate setting up a local copy of the app (docs/guides/DATABASE-MIGRATIONS.md). Never CCS Cloud, never the tests.
+ */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient, roles_role_name } from "@prisma/client";
 import { POOL_CUSTODIAN_ID } from "../server/shared/constants/poolCustodian";
@@ -19,6 +25,10 @@ const MUST_BE_EMPTY = ["users", "roles", "research_centers", "assets"] as const;
 
 const CAMPUS_TEXT = { MANILA: "Manila", LAGUNA: "Laguna" } as const;
 
+/**
+ * A Prisma client for the seed's target only. It does not import server/config/prisma.ts, which loads .env,
+ * where the DATABASE_* variables point at CCS Cloud. (C-07)
+ */
 function connect(target: SeedTarget): PrismaClient {
   const adapter = new PrismaMariaDb({ ...target, connectionLimit: 2, allowPublicKeyRetrieval: true });
   return new PrismaClient({ adapter });
@@ -127,6 +137,11 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
   );
 }
 
+/**
+ * Checks both variables before connecting, then the database, then writes. Prints the target as host:port/name only.
+ *
+ * @throws SeedRefused when a variable or the database fails a check (nothing is written)
+ */
 async function main(): Promise<void> {
   const target = parseSeedTarget(process.env.SEED_DATABASE_URL);
   const password = readSeedPassword(process.env.SEED_PASSWORD);

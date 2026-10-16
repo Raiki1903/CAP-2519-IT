@@ -1,7 +1,7 @@
 /**
- * Direct database access for the tests: a Prisma client aimed at the guarded test database, and the reset between files.
- * Layer: test setup. Called by harness.ts and by tests that read rows back. Calls testDatabase.ts and Prisma.
- * Used by: every API test file, to seed data and check what a request wrote.
+ * Direct database access for the tests: a Prisma client aimed at the guarded test database, the drop before the migrations, and the reset between files.
+ * Layer: test setup. Called by globalSetup.ts, harness.ts, and tests that read rows back. Calls testDatabase.ts and Prisma.
+ * Used by: every test run (the drop) and every API test file, to seed data and check what a request wrote.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@prisma/client";
