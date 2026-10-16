@@ -1,3 +1,5 @@
+-- NOT USED TO BUILD ANY DATABASE, AND DO NOT RUN IT: it stops on two syntax errors (H-23), it starts by dropping AdRIC_DB,
+-- and it does not match CCS Cloud (issue #24). The database is built by prisma/migrations/ (0_init, restructure step 14). Kept as a record.
 -- ==========================================
 -- MySQL Schema
 -- Generated from Prisma schema

@@ -13,8 +13,7 @@
     "seed": "tsx prisma/seed.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "prisma:generate": "prisma generate",
-    "prisma:pull": "prisma db pull"
+    "prisma:generate": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.8.0",
