@@ -12,7 +12,7 @@ import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, typ
 
 // The server finds an asset's campus and lab by splitting its record's location on space, em dash, space
 // (server/features/assets/assets.service.ts). Written as an escape so this file holds no literal em dash.
-const LOCATION_SEPARATOR = " — ";
+const LOCATION_SEPARATOR = " \u2014 ";
 
 /** Every table prisma/migrations/0_init creates. The seed needs all of them, and fills only empty ones. */
 const REQUIRED_TABLES = [
