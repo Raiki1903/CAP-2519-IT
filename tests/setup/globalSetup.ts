@@ -48,11 +48,10 @@ export default async function setup(): Promise<void> {
 
   console.log(`[tests] Loading prisma/schema.prisma into ${target}.`);
   const prismaCli = createRequire(path.join(REPO_ROOT, "package.json")).resolve("prisma/build/index.js");
-  // DATABASE_URL is set for this one command only. prisma.config.ts loads .env too,
-  // but dotenv never overrides a variable that is already set.
+  // PRISMA_TARGET_URL is set for this one command only; prisma.config.ts reads nothing else and does not load .env.
   const result = spawnSync(process.execPath, [prismaCli, "db", "push"], {
     cwd: REPO_ROOT,
-    env: { ...process.env, DATABASE_URL: pushUrl.toString(), PRISMA_HIDE_UPDATE_MESSAGE: "1" },
+    env: { ...process.env, PRISMA_TARGET_URL: pushUrl.toString(), PRISMA_HIDE_UPDATE_MESSAGE: "1" },
     encoding: "utf8",
   });
   if (result.status !== 0) {
