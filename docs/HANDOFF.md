@@ -1111,3 +1111,29 @@ Six, in the log, section 7: what counts as "out" for a return; a disposal approv
 1. Raiki answers the 6 questions, and may run hand check H13 now (CCS Cloud, SELECT only).
 2. Stop 2: the 6 or 7 commits in the log's section 5, typecheck and tests after each, then the build and the agent's hand checks on the local test database.
 3. Then the group A pull request, and issue #99 on its own branch.
+
+## UAT fixes, group A (state guards) stop 2, 2026-10-19
+
+**Prompt followed:** Raiki's answers to the group A plan (1b, 2a, 3a, 4b, 5a, 6a; #88 becomes web only, #35 is frontend only), stop 2: build in the planned order, typecheck, build, and tests after every commit, then the hand checks by Playwright on the local test database. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), section 8 and "Group A hand checks".
+
+### What was produced
+
+- Six labelled behavior-change commits: #51 returns (`6d9e8164`), #54 disposal requests and the shared pending-request rule (`d9c8292c`), #28 approvals check the asset again (`2059d17e`), #53 inspection conditions (`caf35fae`), the server half of #88, no report for a Disposed asset (`fca6666b`), #69 delete answers 409 (`193db447`).
+- The docs and comments commit: the stale "nothing catches the lookup" comments deleted (PR #101 made them untrue); the log's results and section 8; `docs/README.md`.
+- Tests **391 to 410**, exactly as planned; typecheck **65** in every commit; build passes.
+
+### Key findings
+
+- **The Return Asset button shows only on On Loan assets**, not on every asset a Custodian holds, as the plan's question 1 said. Answer 1b stands; it matters only for direct calls and old browser requests.
+- **Pending Returns still shows a server refusal as "Return Ledger Closed"** and drops the request, and with two requests for one asset it drops the other row, not the one clicked. Both for #99 (answer 5a).
+- No 500 and no unexpected console error in the run.
+
+### Open questions
+
+None for the agent. H13 (CCS Cloud, read-only) is Raiki's.
+
+### Exact next step
+
+1. Raiki runs H13 and reviews the branch, then pushes and opens the group A pull request (`Closes #51`, `#54`, `#28`, `#53`, `#69`; #88 stays open for its web part).
+2. Everyone pulls and runs `npm test` once (410).
+3. Issue #99 (Staff "Record Return") on a fresh branch from the merge.

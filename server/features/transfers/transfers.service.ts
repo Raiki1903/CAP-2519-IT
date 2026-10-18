@@ -242,8 +242,6 @@ function handoverRecord(transfer: asset_transfers, latestRecord: asset_records |
  * @param fromCustodianId the transfer's from_custodian_id; nothing is sent if that user has no email
  * @returns when the send was attempted or skipped; the controller does not wait for it
  */
-// The email lookup runs after the answer was sent, and nothing catches it: if that database read fails,
-// the rejection is unhandled, which stops the Node process by default. A small fix (catch and log it), outside the restructure.
 export function notifyDecision(transferId: number, fromCustodianId: number, decision: TransferDecision): Promise<void> {
     return authRepository.getUserEmail(fromCustodianId).then(email => {
         if (!email) return;

@@ -72,8 +72,6 @@ export async function requestDisposal(
  * @param requesterId the session user who filed it; "Staff" is named if that account is gone
  * @returns when the send was attempted or skipped; the controller does not wait for it
  */
-// The role and requester lookups run after the answer was sent, and nothing catches them: if a database read fails,
-// the rejection is unhandled, which stops the Node process by default. A small fix (catch and log it), outside the restructure.
 // TODO(H-20): the asset name, requester, and pathway go into the email HTML unescaped. Step 13 (shared escaping).
 export function notifyDirector(asset: assets, assetTag: string, data: DisposalRequestInput, requesterId: number): Promise<void> {
     return Promise.all([
@@ -185,7 +183,6 @@ function disposedRecord(disposal: asset_disposals, latestRecord: asset_records |
  * @param disposedById the disposal's disposed_by_id; nothing is sent if that user has no email
  * @returns when the send was attempted or skipped; the controller does not wait for it
  */
-// The email lookup runs after the answer was sent and nothing catches it, as in notifyDirector above.
 export function notifyDecision(disposalId: number, disposedById: number, decision: DisposalDecision): Promise<void> {
     return authRepository.getUserEmail(disposedById).then(email => {
         if (!email) return;

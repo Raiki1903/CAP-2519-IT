@@ -13,7 +13,7 @@ Baseline on `main` at `1ce2aaa3` (the PR #101 merge): typecheck **65** errors, `
 
 | Group | Branch | Issues | Status | Commits | Typecheck | Tests | Date |
 |---|---|---|---|---|---|---|---|
-| A | `fix/h05-state-guards` | #51, #54, #28, #53, #69 (and part of #88, if question 4 says so) | Stop 1: plan written, waiting for Raiki's answers | Plan: this docs commit | 65 (no change expected) | 391 now; 410 planned (408 without the #88 part) | 2026-10-18 |
+| A | `fix/h05-state-guards` | #51, #54, #28, #53, #69, and the server half of #88 | Built (stop 2); the agent's hand checks H1 to H12 and H14 passed on the local test database; H13 (CCS Cloud, read-only) is Raiki's; pull request next | Plan `6082b361`; `6d9e8164`, `d9c8292c`, `2059d17e`, `caf35fae`, `fca6666b`, `193db447`; docs and comments: the last commit | **65** (unchanged) | **391** to **410** | 2026-10-18, 2026-10-19 |
 
 ---
 
@@ -253,6 +253,29 @@ WHERE d.status = 'pending' AND (
 
 H13 can run now, before stop 2; it does not depend on this branch.
 
+**Results (2026-10-19). H1 to H12 and H14: all passed** (the agent, on the local `AdRIC_DB_test` only). **H13: not run yet** (Raiki, CCS Cloud, read-only).
+
+How they ran: a real browser (Chrome, driven by the Playwright MCP) against Vite at `http://localhost:5173` (started with `VITE_API_URL=http://localhost:4000`) and `server/main.ts` on port 4000. Ports 4000 and 5173 were free before the start, and their processes were checked by command line to be the start script's server and this run's Vite. The start script `%TEMP%\adric-groupA-handchecks\start.mts` (13c's, with this group's three extra assets) emptied and seeded the test database through the test harness and its guard, which takes only `TEST_DATABASE_URL` from `.env`, as `npm test` does; the agent did not open `.env` or `pending_registrations.json`. Reads went through `q.mts` (SELECT only); the two old rows for H9 and H10 were written by `w.mts` (INSERT only, through the same guard, so only a local `*_test` database). Screenshots are in `%TEMP%\adric-groupA-handchecks\screenshots\`, the browser console logs in `playwright-logs\`, and the H14 test output in `h14-npm-test.txt`, all beside the start script. The MCP saves screenshots only inside the repository, so they were moved out afterwards and `.playwright-mcp` was deleted. Vite outlived its stopped wrapper and was ended by its PID (as in 13c).
+
+| Check | Result | What was seen | Screenshots |
+|---|---|---|---|
+| H1 | Passed | Custodian A, TEST-0901, Return Asset, twice: two requests in Pending Returns. Staff finalized one as Operational: "Return Ledger Closed", no amber box; `asset_returns` row 1 with `returned_by_id` 6 (Custodian A); TEST-0901's newest record ACTIVE under user 1 (the placeholder); Asset Inventory "None" | `h1-1-first-return-finalized.png` |
+| H2 | Passed | The second request for TEST-0901, finalized as Degraded: the amber box "Logged locally, but couldn't reach the database to finalize this return: TEST-0901 is not out with anyone, so there is nothing to return." under "Return Ledger Closed" (the wording #99 fixes, answer 5a). Still one `asset_returns` row; TEST-0901's newest record unchanged (ACTIVE, OPERATIONAL, not DEGRADED). The same browser also held a leftover request for TEST-0903 from an earlier session (2026-10-16), an Active asset nobody holds, which is the old bug's exact case: refused the same way, nothing written | `h2-1-stale-return-refused.png`, `h2-2-pool-asset-return-refused.png` |
+| H3 | Passed | POST from the Staff page: TEST-0004, 409 "TEST-0004 is disposed and cannot be returned."; also TEST-0003, 409 "TEST-0003 is under maintenance and cannot be returned until its repair is finished." Asset Inventory: Decommissioned Archive (1) still TEST-0004 | none (API answers recorded here) |
+| H4 | Passed, by a direct POST | The modal shows Return Asset only on an On Loan asset (see "Differences from the plan"), so the Active TEST-0006 held by Custodian A was returned by a POST from the Staff page: 200, return 2 with `returned_by_id` 6; TEST-0006 then "None" | `h4-0-test0006-modal.png` (no Return button on an Active asset) |
+| H5 | Passed | Staff, Asset Inventory, Decommission TEST-0902: "Disposal Request Submitted", DISP-2. Again: red "TEST-0902 already has a pending disposal request (DISP-2).", dialog open. One pending disposal | `h5-1-second-disposal-refused.png` |
+| H6 | Passed | Decommission TEST-0002: "TEST-0002 is on loan and cannot take this request."; TEST-0003: "TEST-0003 is under maintenance and cannot take this request."; TEST-0005: "TEST-0005 already has a pending loan request (LOAN-2)." No new `asset_disposals` row | `h6-1-on-loan-refused.png`, `h6-2-maintenance-refused.png`, `h6-3-pending-loan-refused.png` |
+| H7 | Passed | Custodian B, Available Equipment, TEST-0902, Request Loan: red "TEST-0902 already has a pending disposal request (DISP-2)." under the form; no loan row for TEST-0902 | `h7-1-loan-refused-pending-disposal.png` |
+| H8 | Passed | Custodian A, TEST-0002, Custodianship Transfer to Custodian B (CeLT): TRF-1 pending. Staff, Decommission TEST-0002: "TEST-0002 already has a pending transfer request (TRF-1)."; no disposal row | `h8-1-transfer-filed.png`, `h8-2-disposal-refused-pending-transfer.png` |
+| H9 | Passed | TRF-2 written on TEST-0004 (Disposed). Lab Head, Custody Transitions, Authorize TRF-2: red "TEST-0004 is disposed now, so this transfer can only be declined."; TRF-2 still pending, TEST-0004 still 2 records, the newest DISPOSED. Decline: TRF-2 declined, no new record | `h9-1-transfer-approval-refused.png`, `h9-2-transfer-declined.png` |
+| H10 | Passed | Director, Approvals & Holds, Authorize Disposal DISP-2: approved, TEST-0902's newest record DISPOSED with `disposal_id` 2. DISP-3 written on TEST-0902; Authorize: red "TEST-0902 is disposed now, so this disposal can only be rejected."; Reject & Recirculate: DISP-3 rejected; one DISPOSED record | `h10-1-second-disposal-approval-refused.png` |
+| H11 | Passed | Staff, Inspection Manager, TEST-0903 as Degraded Performance: RPT-2 DEGRADED, TEST-0903 DEGRADED. Custodian A, Send Inspection Report, Minor Drift on TEST-0002 (not TEST-0006: she no longer held it after H4): RPT-3, stored "MINOR DRIFT" (the database spelling of MINOR_DRIFT), `reported_by_id` 6. POST "Broken" on TEST-0903: 400 "Unrecognized condition: Broken.", no new report, still DEGRADED. Also commit 5: POST on TEST-0004: 409 "TEST-0004 is disposed and cannot take an inspection report." | none (database rows recorded here) |
+| H12 | Passed | Staff, Asset Inventory, Remove TEST-0006, Permanently Delete: "⚠️ TEST-0006 cannot be deleted because it has inspection or condition reports, which are part of its history. To take it out of use, file a disposal instead.", still listed, its report and 2 records kept. Remove TEST-0001 (no reports, nothing pending; used instead of a newly registered asset): deleted, gone from the list and the database | `h12-1-delete-refused-reports.png` |
+| H13 | Not run | Raiki's, on CCS Cloud, SELECT only | |
+| H14 | Passed | With the browser, server, and Vite stopped: typecheck **65**, build passes, `npm test` 16 files, **410 passed** | `h14-npm-test.txt` |
+
+**Seen besides, not caused by this branch:** the console showed only the refusals the checks asked for (each 400 and 409 above), `GET /api/auth/me` 401 on the login page before each login, the `favicon.ico` 404, and React's development warning about refs; no 500. With two requests for one asset, the browser-only return list (H-02) marked the other row as finalized, not the one clicked (H1: the older row was clicked, the newer one left the list). For #99.
+
 ### 7. Questions for Raiki
 
 1. **When is an asset "out" for a return?** Pending Returns (Staff), and the Custodian's Return Asset button in the asset modal, which shows on any asset the Custodian holds that is not Disposed. Edit Asset can give an Active asset a custodian without a loan.
@@ -281,6 +304,36 @@ H13 can run now, before stop 2; it does not depend on this branch.
    - (a) Keep both sides in commit 2, as planned: one rule, in one function.
    - (b) Split: commit 2 checks pending disposals inside the disposal code only; commit 3 moves that check into the shared guard for loans and transfers.
    - **Recommendation: (a).** Splitting writes the same check twice, and the commit message and log say plainly that loans and transfers change too.
+
+**Answers (Raiki, 2026-10-19):** 1 (b), 2 (a), 3 (a), 4 (b), 5 (a), 6 (a). On 4: issue #88 (Joel) becomes web only, and the server rule for Disposed assets is this branch's, in its own commit. On #35 (the Available Assets category filter): frontend only, in the Custodian screens; it touches neither `server/` nor `tests/api/`.
+
+### 8. Stop 2: what was built (2026-10-19)
+
+On `fix/h05-state-guards`, in the planned order. After every commit: typecheck **65**, build passes, `npm test` as below. Nothing pushed.
+
+| Commit | Kind | What it does | Tests |
+|---|---|---|---|
+| `6d9e8164` | **Behavior change** (#51) | A return answers 409 unless the asset is On Loan, or Active and held by a real person (answer 1b) | **396** |
+| `d9c8292c` | **Behavior change** (#54) | The custody request guard reads the pending disposal too; a disposal request needs an Active asset with nothing pending; loans and transfers are refused while a disposal is pending (answer 6a) | **400** |
+| `2059d17e` | **Behavior change** (#28) | `findDecisionConflict`: approving a loan, transfer, or disposal checks the asset again; a disposal approval waits for a pending loan or transfer (answer 2a); decline and reject always work | **408** |
+| `caf35fae` | **Behavior change** (#53) | `checkInspectionReport`: a missing condition, or one not in `ASSET_CONDITIONS` (display names included, answer 3a), answers 400 before any database work | **408** |
+| `fca6666b` | **Behavior change** (#88, server half) | An inspection report for a Disposed asset answers 409; under maintenance is still accepted (answer 4b) | **410** |
+| `193db447` | **Behavior change** (#69) | Deleting an asset with reports answers 409 with the reason, instead of the generic 500 | **410** |
+| this commit | Docs and comments | The five stale comment lines above `notifyDirector` and `notifyDecision` (disposals) and `notifyDecision` (transfers) deleted (untrue since PR #101); this section, the hand check results, `docs/README.md`, `docs/HANDOFF.md` | **410** |
+
+**Test count: 391 to 410**, exactly as planned in section 3. The typecheck stayed at **65** in every commit. No schema, `package.json`, or `web/` change.
+
+#### Differences from the plan, and why
+
+- **The Custodian's Return Asset button shows only on an On Loan asset.** Question 1 said it shows on any asset the Custodian holds that is not Disposed; the asset modal in fact offers Request Loan on an Active asset and no actions on one under maintenance. So answer 1b matters only for direct calls and old browser requests, and H4 was run as a direct POST. The rule itself is unchanged; no screen needs it to change.
+- **#51 commit:** the asset with no record became its own test instead of a fourth `it.each` case (same count).
+- **#53 commit:** the `InspectionReportInput` TSDoc in `shared/types/inspections.ts` said an unknown condition is saved as PERFECT; it was corrected in the same commit (not listed in the plan's files). `checkInspectionReport` reads the body with `?.`, so a request with no JSON body answers 400 rather than a 500.
+- **#28 commit:** the disposal test file lost its now unused `LOCATION_SEPARATOR` import.
+- **H11** used TEST-0002 for the Custodian's report, and **H12** deleted the seeded TEST-0001 instead of a newly registered asset; both for the reasons in the results table.
+
+#### What every teammate must do
+
+Pull and run `npm test` once (410). Screens that send a disposal, return, loan or transfer approval, or inspection should show the server's `error` text on a 409 or 400, as Asset Inventory, Custody Transitions, and Approvals & Holds already do; the bell, the Lab Head analytics panel's quick buttons, and the two inspection screens do not read it yet (section 4).
 
 ### Noticed, not in this branch
 
