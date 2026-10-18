@@ -23,7 +23,9 @@ import { AppError } from '../../shared/errors/AppError';
  * @param reporterId the session user, who files the report
  * @returns the created asset_reports row
  * @throws AppError 404 if no asset has this tag (or, for a number, this id)
+ * @throws AppError 409 if the asset is disposed
  */
+// TODO(H-05): the check and the write are not atomic, so a report filed in the same instant as a disposal approval can pass. Phase 3 database triggers.
 export async function fileReport(assetTag: string, data: InspectionReportInput, reporterId: number): Promise<asset_reports> {
     // A tag that is a number is also tried as an asset_id.
     let asset = await assetsRepository.findByTag(assetTag);
@@ -33,6 +35,13 @@ export async function fileReport(assetTag: string, data: InspectionReportInput, 
 
     if (!asset) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
+    }
+
+    // A disposed asset is out of use, and the report would rewrite the condition its DISPOSED record keeps.
+    // An asset under maintenance is still accepted: Staff inspect assets in repair on purpose. (issue #88)
+    const latestRecord = await assetsRepository.findLatestRecordStatus(asset.asset_id);
+    if (latestRecord?.status === "DISPOSED") {
+        throw new AppError(409, `${asset.asset_tag} is disposed and cannot take an inspection report.`);
     }
 
     const { condition, remarks: remarksVal, image: imgVal } = readInspectionReport(data);

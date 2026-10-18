@@ -291,6 +291,27 @@ describe("POST /api/assets/:tag/inspection", () => {
     });
   });
 
+  it("answers 409 for a disposed asset, and writes nothing (issue #88)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0543", status: "DISPOSED", condition: "DEGRADED" });
+    const before = await newestRecord(asset.assetId);
+
+    const res = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody());
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: "TEST-0543 is disposed and cannot take an inspection report." });
+    expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(0);
+    expect(await newestRecord(asset.assetId)).toEqual(before);
+  });
+
+  it("accepts an asset under maintenance, since Staff inspect assets in repair (issue #88)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0544", status: "MAINTENANCE" });
+
+    const res = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody());
+
+    expect(res.status).toBe(200);
+    expect((await newestRecord(asset.assetId)).asset_condition).toBe("MINOR_DRIFT");
+  });
+
   it("answers 404 for an unknown tag, and writes nothing", async () => {
     const before = await db.asset_reports.count();
 

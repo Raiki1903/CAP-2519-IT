@@ -15,7 +15,7 @@ import { sessionUserOf } from '../../shared/middleware/requireAuth';
  * Handles POST /api/assets/:assetTag/inspection: saves a condition report to asset_reports and
  * writes its condition onto the asset.
  * Answers `{ success, report }` with the new row, or the AppError's status and message
- * (400 missing or unknown condition, 404 unknown asset), or 500.
+ * (400 missing or unknown condition, 404 unknown asset, 409 a disposed asset), or 500.
  */
 export async function fileReport(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
