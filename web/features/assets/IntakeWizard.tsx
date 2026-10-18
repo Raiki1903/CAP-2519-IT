@@ -4,7 +4,7 @@
  * Calls: api/assets.api.ts createAssetRaw(), state/serverData.tsx syncFromDb().
  * Used by: Staff asset registration.
  */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useServerData } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
@@ -31,20 +31,11 @@ interface IntakeForm {
   remarks?: string;
 }
 
-const generateAdricSerial = () => {
-  const year = new Date().getFullYear();
-  const hex = Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(6, "0").toUpperCase();
-  return `ADRIC-${year}-${hex}`;
-};
-
-// Known defect: this serial is generated once, when the module first loads. Every reset to
-// emptyForm (after a successful registration, or on reopening the tab) offers the same serial
-// again until the page is reloaded. Logged in 02-restructure-log.md, notes.
-const emptyForm: IntakeForm = {
-  name: "", serial: generateAdricSerial(), manufacturer: "", category: "CPU",
+const createEmptyForm = (): IntakeForm => ({
+  name: "", serial: "", manufacturer: "", category: "CPU",
   funding: "DOST", acquisitionValue: 0, procured: new Date().toISOString().split("T")[0],
   warranty: "", location: "Manila", lab: "CITe4D", image: "", remarks: ""
-};
+});
 
 /**
  * Collects the asset's details over three steps (identity and photo, procurement and funding,
@@ -54,19 +45,10 @@ const emptyForm: IntakeForm = {
  */
 export function IntakeWizard() {
   const { syncFromDb } = useServerData();
-  const [form, setForm] = useState<IntakeForm>(emptyForm);
+  const [form, setForm] = useState<IntakeForm>(createEmptyForm);
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!form.serial || form.serial.trim() === "") {
-      setForm(prev => ({
-        ...prev,
-        serial: generateAdricSerial()
-      }));
-    }
-  }, []);
 
   const handleSubmit = async () => {
     setSubmitted(true);
@@ -84,7 +66,7 @@ export function IntakeWizard() {
       }
 
       syncFromDb();
-      setForm(emptyForm);
+      setForm(createEmptyForm());
       setStep(1);
     } catch (err: any) {
       console.error("❌ Asset registration failed:", err);
