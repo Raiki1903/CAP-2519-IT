@@ -15,11 +15,11 @@ import { AppError } from '../../shared/errors/AppError';
 /**
  * Saves an inspection report and writes its condition and remarks onto the asset's newest record,
  * in one transaction. Known inspection defects stay as they are, each marked at its line and pinned by
- * tests/api/inspections.test.ts: an unknown condition is saved as PERFECT instead of refused (issue #53,
- * in inspections.validation.ts), and the reporter, record, and error defects below.
+ * tests/api/inspections.test.ts: the record and reporter defects below.
  *
  * @param assetTag the asset's tag from the URL, or its numeric asset_id
- * @param data the request body; every field has a fallback. reporterEmail and reportedById are ignored (issue #32)
+ * @param data the request body, its condition already checked by the controller (issue #53); every other field
+ * has a fallback. reporterEmail and reportedById are ignored (issue #32)
  * @param reporterId the session user, who files the report
  * @returns the created asset_reports row
  * @throws AppError 404 if no asset has this tag (or, for a number, this id)
@@ -35,8 +35,6 @@ export async function fileReport(assetTag: string, data: InspectionReportInput, 
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // The body is first read here, after the asset lookup, so a request with no body answers 404 for
-    // an unknown asset and 500 otherwise.
     const { condition, remarks: remarksVal, image: imgVal } = readInspectionReport(data);
 
     return inspectionsRepository.saveReport(

@@ -194,34 +194,37 @@ describe("POST /api/assets/:tag/inspection", () => {
   });
 
   it.each([
-    { sent: "Perfect", stored: "PERFECT", tag: "TEST-0511" },
-    { sent: "Operational", stored: "OPERATIONAL", tag: "TEST-0512" },
-    { sent: "Minor Drift", stored: "MINOR_DRIFT", tag: "TEST-0513" },
-    { sent: "Degraded Performance", stored: "DEGRADED", tag: "TEST-0514" },
-    { sent: "Critical Defect", stored: "CRITICAL_DEFECT", tag: "TEST-0515" },
-    { sent: "CRITICAL_DEFECT", stored: "CRITICAL_DEFECT", tag: "TEST-0516" },
-  ])("maps the condition '$sent' to $stored on the report and the record", async ({ sent, stored, tag }) => {
+    { sent: "PERFECT", tag: "TEST-0511" },
+    { sent: "OPERATIONAL", tag: "TEST-0512" },
+    { sent: "MINOR_DRIFT", tag: "TEST-0513" },
+    { sent: "DEGRADED", tag: "TEST-0514" },
+    { sent: "CRITICAL_DEFECT", tag: "TEST-0515" },
+  ])("stores the condition $sent on the report and the record", async ({ sent, tag }) => {
     const asset = await addExtraAsset(db, { tag, condition: "OPERATIONAL" });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportCondition: sent }));
 
-    expect(res.body.report.report_condition).toBe(stored);
-    expect((await newestRecord(asset.assetId)).asset_condition).toBe(stored);
+    expect(res.status).toBe(200);
+    expect(res.body.report.report_condition).toBe(sent);
+    expect((await newestRecord(asset.assetId)).asset_condition).toBe(sent);
   });
 
   it.each([
-    { sent: "Broken", case: "a condition it does not know", tag: "TEST-0521" },
-    { sent: "degraded", case: "a condition in lower case", tag: "TEST-0522" },
-    { sent: "MINOR DRIFT", case: "the stored spelling with a space", tag: "TEST-0523" },
-    { sent: undefined, case: "no condition", tag: "TEST-0524" },
-  ])("stores PERFECT for $case, overwriting the asset's condition", async ({ sent, tag }) => {
+    { sent: "Broken", case: "a condition it does not know", error: "Unrecognized condition: Broken.", tag: "TEST-0521" },
+    { sent: "degraded", case: "a condition in lower case", error: "Unrecognized condition: degraded.", tag: "TEST-0522" },
+    { sent: "MINOR DRIFT", case: "the stored spelling with a space", error: "Unrecognized condition: MINOR DRIFT.", tag: "TEST-0523" },
+    { sent: "Degraded Performance", case: "a display name", error: "Unrecognized condition: Degraded Performance.", tag: "TEST-0526" },
+    { sent: undefined, case: "no condition", error: "Missing required field: reportCondition.", tag: "TEST-0524" },
+  ])("answers 400 for $case, and writes nothing (issue #53)", async ({ sent, error, tag }) => {
     const asset = await addExtraAsset(db, { tag, condition: "DEGRADED" });
+    const before = await newestRecord(asset.assetId);
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportCondition: sent }));
 
-    expect(res.status).toBe(200);
-    expect(res.body.report.report_condition).toBe("PERFECT");
-    expect((await newestRecord(asset.assetId)).asset_condition).toBe("PERFECT");
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ success: false, error });
+    expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(0);
+    expect(await newestRecord(asset.assetId)).toEqual(before);
   });
 
   it("takes assetCondition when no reportCondition is sent", async () => {

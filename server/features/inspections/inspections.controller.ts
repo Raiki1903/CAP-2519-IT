@@ -1,6 +1,6 @@
 /**
  * Inspection controller: unpacks inspection requests, calls the service, and writes the JSON answers.
- * Layer: controller. Called by inspections.routes.ts. Calls inspections.service.ts and shared/middleware/requireAuth.ts
+ * Layer: controller. Called by inspections.routes.ts. Calls inspections.validation.ts, inspections.service.ts, and shared/middleware/requireAuth.ts
  * (sessionUserOf: who is acting).
  * Used by: Custodian condition report, Staff inspection finalize, the Staff inspection log, and state/serverData.tsx.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
@@ -8,20 +8,22 @@
  */
 import type { Request, Response } from 'express';
 import * as inspectionsService from './inspections.service';
+import { checkInspectionReport } from './inspections.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
  * Handles POST /api/assets/:assetTag/inspection: saves a condition report to asset_reports and
  * writes its condition onto the asset.
- * Answers `{ success, report }` with the new row, 404 for an unknown asset, or 500.
- * No validation runs here: the body is read by the service, after the asset lookup.
+ * Answers `{ success, report }` with the new row, or the AppError's status and message
+ * (400 missing or unknown condition, 404 unknown asset), or 500.
  */
 export async function fileReport(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = req.body;
-    // Printed before the lookups, so a refused report still shows in the server terminal.
+    // Printed before the checks, so a refused report still shows in the server terminal.
     console.log(`📋 Server received inspection report for ${assetTag}:`, data);
 
+    checkInspectionReport(data);
     const newReport = await inspectionsService.fileReport(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Inspection report saved under asset_reports in DB:", newReport.report_id);
