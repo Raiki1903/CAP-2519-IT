@@ -14,7 +14,7 @@ import { sessionUserOf } from '../../shared/middleware/requireAuth';
 /**
  * Handles POST /api/assets/:assetTag/return: finalizes a return.
  * Answers `{ success, return }` with the new row, or the AppError's status and message
- * (400 missing or unknown condition, 404 unknown tag), or 500.
+ * (400 missing or unknown condition, 404 unknown tag, 409 an asset that is not out), or 500.
  */
 export async function finalizeReturn(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
