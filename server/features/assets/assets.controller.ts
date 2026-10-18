@@ -73,7 +73,7 @@ export async function updateAsset(req: Request<{ assetTag: string }>, res: Respo
 
 /**
  * Handles DELETE /api/assets/:assetTag: deletes the asset and every row that points at it.
- * Answers `{ success }`, 404 for an unknown tag, or 500, which is what an asset with an inspection report gets. (H-03, issue #69)
+ * Answers `{ success }`, or the AppError's status and message (404 unknown tag, 409 an asset with reports, issue #69), or 500.
  */
 export async function deleteAsset(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;

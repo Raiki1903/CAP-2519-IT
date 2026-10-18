@@ -510,15 +510,21 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
 
 /**
  * Deletes an asset and every row that points at it.
+ * An asset with inspection or condition reports is refused, so its reports are never deleted. (issue #69)
  *
  * @param assetTag the asset's tag, from the URL
  * @throws AppError 404 if no asset has this tag
+ * @throws AppError 409 if the asset has any report
  */
-// TODO(H-03): a hard delete that destroys the asset's history; and asset_reports is not cleared, so an inspected asset cannot be deleted (500). 01D turns it into "retire", a status change, in its own commit (issue #69).
+// TODO(H-03): a hard delete that destroys the asset's history. 01D turns it into "retire", a status change, with a later database change.
 export async function deleteAsset(assetTag: string): Promise<void> {
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
+    }
+
+    if (await assetsRepository.countReports(existing.asset_id) > 0) {
+        throw new AppError(409, `${assetTag} cannot be deleted because it has inspection or condition reports, which are part of its history. To take it out of use, file a disposal instead.`);
     }
 
     await assetsRepository.deleteWithHistory(existing.asset_id);
