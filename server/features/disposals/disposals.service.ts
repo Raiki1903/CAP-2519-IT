@@ -1,7 +1,7 @@
 /**
  * Disposals service: the business rules for disposal requests, the Director's decisions, and the disposal list.
  * Layer: service. Called by disposals.controller.ts. Calls disposals.repository.ts, features/assets/assets.repository.ts,
- * features/auth/auth.repository.ts, shared/services/mailer.ts, and shared/constants/poolCustodian.ts.
+ * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/services/mailer.ts, and shared/constants/poolCustodian.ts.
  * Used by: Staff disposal filing (DisposalFormDialog), Director approval (Approvals & Holds tab and the bell).
  */
 import type { Prisma, asset_disposals, asset_records, assets } from '@prisma/client';
@@ -11,20 +11,23 @@ import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
+import { findCustodyRequestConflict } from '../../shared/services/custodyRequestGuard';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
 
 /**
  * Files a pending disposal request for an asset.
  * Only the asset_disposals row is written. The asset is not marked Disposed until the Director
  * approves (decideDisposal), so it keeps its status and custodian while the request is pending.
+ * The custody request guard refuses an asset that is not Active, or already has a pending loan,
+ * transfer, or disposal. (H-05, issue #54)
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the checked disposal body: pathway, justification, optional last custodian and date
  * @param disposedById the session user, who requests the disposal; any requester name in the body is ignored (issue #32)
  * @returns the created row, plus the asset for the email the controller sends after answering
  * @throws AppError 404 if no asset has this tag
+ * @throws AppError 409 if the guard refuses the request
  */
-// TODO(H-05): no status or duplicate check, so an asset on loan, under maintenance, or with a pending disposal can be put up for disposal, and approving two disposals writes two DISPOSED records (issue #54). Its own fix; tests/api/disposals.test.ts pins it.
 export async function requestDisposal(
     assetTag: string,
     data: DisposalRequestInput,
@@ -33,6 +36,11 @@ export async function requestDisposal(
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
+    }
+
+    const conflict = await findCustodyRequestConflict(existing, ["ACTIVE"]);
+    if (conflict) {
+        throw new AppError(409, conflict);
     }
 
     // asset_disposals has one text column for all of this, so the fields are written as labelled

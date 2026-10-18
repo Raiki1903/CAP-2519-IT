@@ -40,6 +40,14 @@ async function requestDisposal(tag: string, extra: Record<string, unknown> = {})
   return res.body.disposal.disposal_id;
 }
 
+/** Writes a pending disposal straight to the test database, as a row filed before the issue #54 guard would be. */
+async function addOldPendingDisposal(assetId: number): Promise<number> {
+  const row = await db.asset_disposals.create({
+    data: { asset_id: assetId, disposed_by_id: USERS.staffTsg.userId, disposal_reason: "Test old pending disposal", status: "pending" },
+  });
+  return row.disposal_id;
+}
+
 async function listedAsset(tag: string) {
   const res = await asStaff.get("/api/assets");
   return res.body.assets.find((a: { id: string }) => a.id === tag);
@@ -153,23 +161,49 @@ describe("POST /api/assets/:tag/disposal", () => {
     { status: "ON_LOAN" as const, tag: "TEST-0611" },
     { status: "MAINTENANCE" as const, tag: "TEST-0612" },
     { status: "DISPOSED" as const, tag: "TEST-0613" },
-  ])("accepts a disposal request for an asset that is $status (known defect H-05)", async ({ status, tag }) => {
+  ])("answers 409 for an asset that is $status, and writes nothing (issue #54)", async ({ status, tag }) => {
     const asset = await addExtraAsset(db, { tag, status });
+    const described = { ON_LOAN: "on loan", MAINTENANCE: "under maintenance", DISPOSED: "disposed" }[status];
 
     const res = await asStaff.post(`/api/assets/${asset.tag}/disposal`, disposalBody());
 
-    expect(res.status).toBe(200);
-    expect(res.body.disposal.status).toBe("pending");
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: `${tag} is ${described} and cannot take this request.` });
+    expect(await db.asset_disposals.count({ where: { asset_id: asset.assetId } })).toBe(0);
   });
 
-  it("accepts a second pending disposal on the same asset (known defect H-05)", async () => {
+  it("answers 409 to a second disposal request while one is pending, and writes nothing (issue #54)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0614" });
 
-    await requestDisposal(asset.tag);
+    const first = await requestDisposal(asset.tag);
     const second = await asStaff.post(`/api/assets/${asset.tag}/disposal`, disposalBody());
 
-    expect(second.status).toBe(200);
-    expect(await db.asset_disposals.count({ where: { asset_id: asset.assetId, status: "pending" } })).toBe(2);
+    expect(second.status).toBe(409);
+    expect(second.body.error).toBe(`TEST-0614 already has a pending disposal request (DISP-${first}).`);
+    expect(await db.asset_disposals.count({ where: { asset_id: asset.assetId, status: "pending" } })).toBe(1);
+  });
+
+  it("answers 409 for an asset with a pending loan request, and writes nothing (issue #54)", async () => {
+    const before = await db.asset_disposals.count();
+
+    const res = await asStaff.post(`/api/assets/${ASSETS.pendingLoan.tag}/disposal`, disposalBody());
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(`${ASSETS.pendingLoan.tag} already has a pending loan request (LOAN-${SEEDED_ROWS.pendingLoanId}).`);
+    expect(await db.asset_disposals.count()).toBe(before);
+  });
+
+  it("answers 409 for an asset with a pending transfer request, and writes nothing (issue #28)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0615", custodianId: USERS.custodianA.userId });
+    const transfer = await db.asset_transfers.create({
+      data: { asset_id: asset.assetId, from_custodian_id: USERS.custodianA.userId, to_custodian_id: USERS.custodianB.userId, justification: "Test pending transfer", status: "pending" },
+    });
+
+    const res = await asStaff.post(`/api/assets/${asset.tag}/disposal`, disposalBody());
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(`TEST-0615 already has a pending transfer request (TRF-${transfer.transfer_id}).`);
+    expect(await db.asset_disposals.count({ where: { asset_id: asset.assetId } })).toBe(0);
   });
 
   it.each(["breakdownReasons", "disposalPathway"])("answers 400 without %s, and writes nothing", async (field) => {
@@ -236,7 +270,7 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
       custodianId: USERS.custodianB.userId,
       currentLocation: `Laguna${LOCATION_SEPARATOR}CeLT`,
     });
-    const disposalId = await requestDisposal(asset.tag);
+    const disposalId = await addOldPendingDisposal(asset.assetId);
 
     const res = await asDirector.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "approve" });
 
@@ -246,8 +280,8 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
 
   it("approving both of two pending disposals on one asset adds two DISPOSED records (known defect H-05)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0624" });
-    const first = await requestDisposal(asset.tag);
-    const second = await requestDisposal(asset.tag);
+    const first = await addOldPendingDisposal(asset.assetId);
+    const second = await addOldPendingDisposal(asset.assetId);
 
     const answers = [
       await asDirector.put(`/api/asset_disposals/${first}/decision`, { decision: "approve" }),

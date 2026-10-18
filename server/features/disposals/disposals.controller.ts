@@ -14,7 +14,7 @@ import { checkDisposalDecision, checkDisposalRequest } from './disposals.validat
 /**
  * Handles POST /api/assets/:assetTag/disposal: files a pending disposal request, then emails the Director.
  * Answers `{ success, disposal }` with the new row, or the AppError's status and message
- * (400 missing field, 404 unknown tag), or 500.
+ * (400 missing field, 404 unknown tag, 409 refused by the custody request guard), or 500.
  */
 export async function requestDisposal(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;

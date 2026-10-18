@@ -100,8 +100,8 @@ function withoutOthersNames(loans: LoanListItem[], viewer: SessionIdentity): Loa
  * Files a pending loan request for an asset.
  * Only the asset_loans row is written. Custody does not move until a Lab Head approves
  * (decideLoan), so the asset stays with its current custodian while the request is pending.
- * The custody request guard refuses an asset that already has a pending loan or transfer,
- * or is not Active, because two approvals would give one item two custodians. (H-05)
+ * The custody request guard refuses an asset that already has a pending loan, transfer, or disposal,
+ * or is not Active, because two approvals would give one item two custodians. (H-05, issue #54)
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the checked borrow body: optional destination lab, purpose, due date

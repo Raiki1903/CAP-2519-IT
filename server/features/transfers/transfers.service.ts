@@ -27,8 +27,8 @@ export const NOT_THE_HOLDER_MESSAGE = "Only the asset's current custodian can re
 /**
  * Files a pending transfer request for an asset.
  * Only the asset_transfers row is written. Custody does not move until the transfer is approved
- * (decideTransfer). The custody request guard refuses an asset that already has a pending loan or
- * transfer, or is not Active or On Loan, because two approvals would give one item two custodians. (H-05)
+ * (decideTransfer). The custody request guard refuses an asset that already has a pending loan,
+ * transfer, or disposal, or is not Active or On Loan, because two approvals would give one item two custodians. (H-05, issue #54)
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the checked transfer body: recipient email, reason, optional destination lab

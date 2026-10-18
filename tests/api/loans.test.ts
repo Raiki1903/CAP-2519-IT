@@ -240,6 +240,19 @@ describe("POST /api/assets/:tag/borrow: one pending request per asset (issue #25
     expect(await db.asset_loans.count({ where: { asset_id: asset.assetId } })).toBe(0);
   });
 
+  it("answers 409 while the asset has a pending disposal request, and writes nothing (issue #54)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0113" });
+    const disposal = await db.asset_disposals.create({
+      data: { asset_id: asset.assetId, disposed_by_id: USERS.staffTsg.userId, disposal_reason: "Test pending disposal", status: "pending" },
+    });
+
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(`TEST-0113 already has a pending disposal request (DISP-${disposal.disposal_id}).`);
+    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId } })).toBe(0);
+  });
+
   it.each([ASSETS.onLoan, ASSETS.inRepair, ASSETS.disposed])("answers 409 for $tag, which is $listStatus, and writes nothing", async (asset) => {
     const before = await db.asset_loans.count({ where: { asset_id: asset.assetId } });
 

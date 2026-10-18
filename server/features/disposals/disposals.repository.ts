@@ -1,10 +1,15 @@
 /**
  * Disposal row access: every database read and write the disposal endpoints make.
- * Layer: repository. Called by disposals.service.ts. Calls server/config/prisma.ts.
+ * Layer: repository. Called by disposals.service.ts and shared/services/custodyRequestGuard.ts (the pending disposal). Calls server/config/prisma.ts.
  * Used by: Staff disposal filing, Director approval, and the screens that list disposals.
  */
 import type { Prisma, asset_disposals, asset_records } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+
+/** The asset's pending disposal (its id only), or null. Read by the custody request guard. (H-05, issue #54) */
+export function findPendingDisposalId(assetId: number) {
+    return prisma.asset_disposals.findFirst({ where: { asset_id: assetId, status: "pending" }, select: { disposal_id: true } });
+}
 
 /** Inserts an asset_disposals row and returns it. */
 export function create(data: Prisma.asset_disposalsUncheckedCreateInput) {
