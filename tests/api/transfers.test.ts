@@ -291,6 +291,36 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
     expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active", custodian: USERS.custodianA.fullName });
   });
 
+  it.each([
+    { status: "MAINTENANCE" as const, described: "under maintenance", tag: "TEST-0325" },
+    { status: "DISPOSED" as const, described: "disposed", tag: "TEST-0326" },
+  ])("approve: answers 409 when the asset is $described now, and writes nothing (issue #28)", async ({ status, described, tag }) => {
+    const asset = await addExtraAsset(db, { tag, status, custodianId: USERS.custodianA.userId });
+    const transfer = await db.asset_transfers.create({
+      data: { asset_id: asset.assetId, from_custodian_id: USERS.custodianA.userId, to_custodian_id: USERS.custodianB.userId, justification: "Test old pending transfer", status: "pending" },
+    });
+    const recordsBefore = await recordCount(asset.assetId);
+
+    const res = await asLabHead.put(`/api/asset_transfers/${transfer.transfer_id}/decision`, { decision: "approve" });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: `${tag} is ${described} now, so this transfer can only be declined.` });
+    expect(await transferStatus(transfer.transfer_id)).toBe("pending");
+    expect(await recordCount(asset.assetId)).toBe(recordsBefore);
+  });
+
+  it("decline: still works on a disposed asset (issue #28)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0327", status: "DISPOSED", custodianId: USERS.custodianA.userId });
+    const transfer = await db.asset_transfers.create({
+      data: { asset_id: asset.assetId, from_custodian_id: USERS.custodianA.userId, to_custodian_id: USERS.custodianB.userId, justification: "Test old pending transfer", status: "pending" },
+    });
+
+    const res = await asLabHead.put(`/api/asset_transfers/${transfer.transfer_id}/decision`, { decision: "decline" });
+
+    expect(res.status).toBe(200);
+    expect(await transferStatus(transfer.transfer_id)).toBe("declined");
+  });
+
   it("answers 400 on a transfer that is already decided, and changes nothing", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0324", custodianId: USERS.custodianA.userId });
     const transferId = await requestTransfer(asset.tag, USERS.custodianB);

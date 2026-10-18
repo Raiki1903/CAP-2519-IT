@@ -41,7 +41,7 @@ export async function requestLoan(req: Request<{ assetTag: string }>, res: Respo
 /**
  * Handles PUT /api/asset_loans/:loanId/decision: approves or declines a pending loan.
  * Answers `{ success, loan }` with the updated row, or the AppError's status and message
- * (400 bad id, bad decision word, or loan already decided; 404 unknown loan), or 500.
+ * (400 bad id, bad decision word, or loan already decided; 404 unknown loan; 409 an approval the asset no longer allows), or 500.
  */
 export async function decideLoan(req: Request<{ loanId: string }>, res: Response): Promise<void> {
     const loanId = parseInt(req.params.loanId, 10);

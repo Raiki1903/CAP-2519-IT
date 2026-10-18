@@ -1,10 +1,11 @@
 /**
- * The custody request guard: one pending loan, transfer, or disposal per asset, and only from a status that allows it.
- * Layer: shared service. Called by features/loans/loans.service.ts (borrow), features/transfers/transfers.service.ts (transfer request),
- * and features/disposals/disposals.service.ts (disposal request).
+ * The custody request guard: one pending loan, transfer, or disposal per asset, and only from a status that allows it,
+ * checked again when the request is approved.
+ * Layer: shared service. Called by features/loans/loans.service.ts, features/transfers/transfers.service.ts,
+ * and features/disposals/disposals.service.ts, for each request and each approval.
  * Calls features/assets/assets.repository.ts, features/loans/loans.repository.ts, features/transfers/transfers.repository.ts,
  * and features/disposals/disposals.repository.ts.
- * Used by: Custodian borrow and transfer requests, Staff disposal requests.
+ * Used by: Custodian borrow and transfer requests, Staff disposal requests, and the Lab Head and Director approvals.
  */
 import * as assetsRepository from '../../features/assets/assets.repository';
 import * as loansRepository from '../../features/loans/loans.repository';
@@ -40,8 +41,58 @@ export async function findCustodyRequestConflict(
     // An asset with no record yet is listed as Active, so it is treated as ACTIVE here too.
     const status = latestRecord?.status ?? "ACTIVE";
     if (!allowedStatuses.includes(status)) {
-        const described: Record<string, string> = { ACTIVE: "active", ON_LOAN: "on loan", MAINTENANCE: "under maintenance", DISPOSED: "disposed" };
-        return `${asset.asset_tag} is ${described[status] ?? status} and cannot take this request.`;
+        return `${asset.asset_tag} is ${describeStatus(status)} and cannot take this request.`;
     }
     return null;
+}
+
+/**
+ * Says why approving a pending loan, transfer, or disposal must be refused, or null if it may go ahead.
+ * The asset can change between the request and the decision, and rows filed before the guard above may
+ * break its rules, so an approval checks the asset again with the same allowed statuses as its request.
+ * A disposal is also refused while a loan or transfer is pending: that one is decided first (answer 2a).
+ * Declining or rejecting is never refused, so stale requests can be cleared. (H-05, issue #28)
+ *
+ * @param assetId the asset the request is for
+ * @param allowedStatuses the asset_records statuses this kind of request accepts
+ * @param kind the kind of request being approved, named in the message
+ * @returns a message for a 409 answer, or null
+ */
+// TODO(H-05): the check reads outside the decision's transaction, so two approvals in the same instant can both pass. Phase 3 database triggers.
+export async function findDecisionConflict(
+    assetId: number,
+    allowedStatuses: readonly string[],
+    kind: "loan" | "transfer" | "disposal",
+): Promise<string | null> {
+    const [asset, latestRecord] = await Promise.all([
+        assetsRepository.findById(assetId),
+        assetsRepository.findLatestRecordStatus(assetId),
+    ]);
+    const tag = asset?.asset_tag ?? `Asset ${assetId}`;
+    const undoWord = kind === "disposal" ? "rejected" : "declined";
+
+    const status = latestRecord?.status ?? "ACTIVE";
+    if (!allowedStatuses.includes(status)) {
+        return `${tag} is ${describeStatus(status)} now, so this ${kind} can only be ${undoWord}.`;
+    }
+
+    if (kind === "disposal") {
+        const [pendingLoan, pendingTransfer] = await Promise.all([
+            loansRepository.findPendingLoanId(assetId),
+            transfersRepository.findPendingTransferId(assetId),
+        ]);
+        const pending = pendingLoan
+            ? `loan request (LOAN-${pendingLoan.loan_id})`
+            : pendingTransfer ? `transfer request (TRF-${pendingTransfer.transfer_id})` : null;
+        if (pending) {
+            return `${tag} has a pending ${pending}. It must be approved or declined before this disposal can be approved.`;
+        }
+    }
+    return null;
+}
+
+/** The status as the messages say it: "on loan", "under maintenance", and so on. */
+function describeStatus(status: string): string {
+    const described: Record<string, string> = { ACTIVE: "active", ON_LOAN: "on loan", MAINTENANCE: "under maintenance", DISPOSED: "disposed" };
+    return described[status] ?? status;
 }

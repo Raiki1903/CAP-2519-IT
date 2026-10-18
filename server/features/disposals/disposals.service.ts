@@ -11,7 +11,7 @@ import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
-import { findCustodyRequestConflict } from '../../shared/services/custodyRequestGuard';
+import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/services/custodyRequestGuard';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
 
 /**
@@ -127,12 +127,15 @@ export async function listDisposals(): Promise<DisposalListItem[]> {
  * Approval decommissions the asset: the disposal becomes approved and a DISPOSED record is appended,
  * in one transaction. Reject changes only the disposal's status. The server does not check who
  * decides (C-02); the screens give the decision to the Director.
+ * An approval checks the asset again: it must still be Active, as for the request, with no pending
+ * loan or transfer, so an old second disposal on a disposed asset can only be rejected. (issue #28)
  *
  * @param disposalId the numeric disposal id
  * @param decision "approve" or "reject"
  * @returns the updated asset_disposals row
  * @throws AppError 404 if no disposal has this id
  * @throws AppError 400 if the disposal is not pending any more
+ * @throws AppError 409 if an approval finds the asset no longer Active, or with a pending loan or transfer
  */
 export async function decideDisposal(disposalId: number, decision: DisposalDecision): Promise<asset_disposals> {
     const disposal = await disposalsRepository.findById(disposalId);
@@ -141,6 +144,13 @@ export async function decideDisposal(disposalId: number, decision: DisposalDecis
     }
     if (disposal.status !== "pending") {
         throw new AppError(400, `Disposal #${disposalId} has already been ${disposal.status}.`);
+    }
+    if (decision === "approve") {
+        // The same allowed statuses as requestDisposal.
+        const conflict = await findDecisionConflict(disposal.asset_id, ["ACTIVE"], "disposal");
+        if (conflict) {
+            throw new AppError(409, conflict);
+        }
     }
 
     const newStatus = decision === "approve" ? "approved" : "rejected";

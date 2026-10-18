@@ -46,7 +46,7 @@ export async function listDisposals(req: Request, res: Response): Promise<void> 
  * Handles PUT /api/asset_disposals/:disposalId/decision: approves or rejects a pending disposal,
  * then emails the requester.
  * Answers `{ success, disposal }` with the updated row, or the AppError's status and message
- * (400 bad id, bad decision word, or disposal not pending; 404 unknown disposal), or 500.
+ * (400 bad id, bad decision word, or disposal not pending; 404 unknown disposal; 409 an approval the asset no longer allows), or 500.
  */
 export async function decideDisposal(req: Request<{ disposalId: string }>, res: Response): Promise<void> {
     const disposalId = parseInt(req.params.disposalId, 10);

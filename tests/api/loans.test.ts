@@ -318,6 +318,24 @@ describe("PUT /api/asset_loans/:id/decision", () => {
     expect((await listedAsset(asset.tag)).custodian, "still the placeholder's: nobody holds it").toBeUndefined();
   });
 
+  it.each([
+    { status: "MAINTENANCE" as const, described: "under maintenance", tag: "TEST-0127" },
+    { status: "DISPOSED" as const, described: "disposed", tag: "TEST-0128" },
+  ])("approve: answers 409 when the asset is $described now, and writes nothing (issue #28)", async ({ status, described, tag }) => {
+    const asset = await addExtraAsset(db, { tag, status });
+    const loan = await db.asset_loans.create({
+      data: { asset_id: asset.assetId, borrower_id: USERS.custodianB.userId, purpose: "Test old pending loan", due_date: new Date(inDays(30)), status: "pending" },
+    });
+    const recordsBefore = await recordCount(asset.assetId);
+
+    const res = await asLabHead.put(`/api/asset_loans/${loan.loan_id}/decision`, { decision: "approve" });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: `${tag} is ${described} now, so this loan can only be declined.` });
+    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: loan.loan_id } })).status).toBe("pending");
+    expect(await recordCount(asset.assetId)).toBe(recordsBefore);
+  });
+
   it("after an approval the asset is on loan, so a new borrow request answers 409 (issue #25)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0125" });
     const loanId = await requestLoan(asset.tag, USERS.custodianB);

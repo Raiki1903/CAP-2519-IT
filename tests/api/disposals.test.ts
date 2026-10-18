@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { addExtraAsset } from "../setup/extraAssets";
-import { ASSETS, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, USERS } from "../setup/fixtures";
+import { ASSETS, LAB, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
 const { db, as } = useApiHarness();
@@ -263,22 +263,23 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
     });
   });
 
-  it("approve: disposes of an asset that is on loan, under its borrower at the borrower's lab (known defect H-05)", async () => {
-    const asset = await addExtraAsset(db, {
-      tag: "TEST-0623",
-      status: "ON_LOAN",
-      custodianId: USERS.custodianB.userId,
-      currentLocation: `Laguna${LOCATION_SEPARATOR}CeLT`,
-    });
+  it.each([
+    { status: "ON_LOAN" as const, described: "on loan", tag: "TEST-0623" },
+    { status: "MAINTENANCE" as const, described: "under maintenance", tag: "TEST-0626" },
+  ])("approve: answers 409 for an asset that is $described now, and writes nothing (issue #28)", async ({ status, described, tag }) => {
+    const asset = await addExtraAsset(db, { tag, status, custodianId: USERS.custodianB.userId });
     const disposalId = await addOldPendingDisposal(asset.assetId);
+    const recordsBefore = await recordCount(asset.assetId);
 
     const res = await asDirector.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "approve" });
 
-    expect(res.status).toBe(200);
-    expect(await newestRecord(asset.assetId)).toMatchObject({ status: "DISPOSED", current_custodian: USERS.custodianB.userId });
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: `${tag} is ${described} now, so this disposal can only be rejected.` });
+    expect(await disposalStatus(disposalId)).toBe("pending");
+    expect(await recordCount(asset.assetId)).toBe(recordsBefore);
   });
 
-  it("approving both of two pending disposals on one asset adds two DISPOSED records (known defect H-05)", async () => {
+  it("approving the second of two old pending disposals answers 409: one DISPOSED record (issue #28)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0624" });
     const first = await addOldPendingDisposal(asset.assetId);
     const second = await addOldPendingDisposal(asset.assetId);
@@ -288,8 +289,40 @@ describe("PUT /api/asset_disposals/:id/decision", () => {
       await asDirector.put(`/api/asset_disposals/${second}/decision`, { decision: "approve" }),
     ];
 
-    expect(answers.map((a) => a.status)).toEqual([200, 200]);
-    expect(await db.asset_records.count({ where: { asset_id: asset.assetId, status: "DISPOSED" } })).toBe(2);
+    expect(answers.map((a) => a.status)).toEqual([200, 409]);
+    expect(answers[1].body.error).toBe("TEST-0624 is disposed now, so this disposal can only be rejected.");
+    expect(await db.asset_records.count({ where: { asset_id: asset.assetId, status: "DISPOSED" } })).toBe(1);
+    expect(await disposalStatus(second)).toBe("pending");
+  });
+
+  it("approve: answers 409 while the asset has a pending transfer, naming it, and writes nothing (issue #28)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0627", custodianId: USERS.custodianA.userId });
+    const disposalId = await addOldPendingDisposal(asset.assetId);
+    const transfer = await db.asset_transfers.create({
+      data: { asset_id: asset.assetId, from_custodian_id: USERS.custodianA.userId, to_custodian_id: USERS.custodianB.userId, justification: "Test old pending transfer", status: "pending" },
+    });
+    const recordsBefore = await recordCount(asset.assetId);
+
+    const res = await asDirector.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "approve" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(
+      `TEST-0627 has a pending transfer request (TRF-${transfer.transfer_id}). It must be approved or declined before this disposal can be approved.`,
+    );
+    expect(await disposalStatus(disposalId)).toBe("pending");
+    expect(await recordCount(asset.assetId)).toBe(recordsBefore);
+  });
+
+  it("reject: still works on an asset that is no longer Active (issue #28)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0628", status: "DISPOSED" });
+    const disposalId = await addOldPendingDisposal(asset.assetId);
+    const recordsBefore = await recordCount(asset.assetId);
+
+    const res = await asDirector.put(`/api/asset_disposals/${disposalId}/decision`, { decision: "reject" });
+
+    expect(res.status).toBe(200);
+    expect(await disposalStatus(disposalId)).toBe("rejected");
+    expect(await recordCount(asset.assetId)).toBe(recordsBefore);
   });
 
   it("reject: marks the disposal rejected and leaves the asset as it is", async () => {

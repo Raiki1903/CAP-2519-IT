@@ -11,7 +11,7 @@ import * as loansRepository from './loans.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { campusForLab } from '../../shared/utils/campus';
-import { findCustodyRequestConflict } from '../../shared/services/custodyRequestGuard';
+import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/services/custodyRequestGuard';
 
 /**
  * Lists every loan, newest first, shaped for the screens.
@@ -139,12 +139,14 @@ export async function requestLoan(assetTag: string, data: LoanRequestInput, borr
  * Approves or declines a pending loan.
  * Approval is the custody handoff: the loan becomes approved and a new ON_LOAN record moves
  * the asset to the borrower, in one transaction. Decline changes only the loan's status.
+ * An approval checks the asset again: it must still be Active, as for the request. (issue #28)
  *
  * @param loanId the numeric loan id
  * @param decision "approve" or "decline"
  * @returns the updated asset_loans row
  * @throws AppError 404 if no loan has this id
  * @throws AppError 400 if the loan is not pending any more
+ * @throws AppError 409 if an approval finds the asset no longer Active
  */
 export async function decideLoan(loanId: number, decision: LoanDecision): Promise<asset_loans> {
     const loan = await loansRepository.findById(loanId);
@@ -153,6 +155,13 @@ export async function decideLoan(loanId: number, decision: LoanDecision): Promis
     }
     if (loan.status !== "pending") {
         throw new AppError(400, `Loan #${loanId} has already been ${loan.status}.`);
+    }
+    if (decision === "approve") {
+        // The same allowed statuses as requestLoan.
+        const conflict = await findDecisionConflict(loan.asset_id, ["ACTIVE"], "loan");
+        if (conflict) {
+            throw new AppError(409, conflict);
+        }
     }
 
     const newLoanStatus = decision === "approve" ? "approved" : "declined";
