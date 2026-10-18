@@ -79,7 +79,9 @@ export function notifyDirector(asset: assets, assetTag: string, data: DisposalRe
                 <p><strong>Disposal Pathway:</strong> ${data.disposalPathway}</p>
                 <p>Please review this request in the Clearance & Disposal tab of your dashboard.</p>
             `)
-    ));
+    )).catch(error => {
+        console.error(`Failed to send disposal request notification email for asset ${assetTag}:`, error);
+    });
 }
 
 /**
@@ -178,5 +180,7 @@ export function notifyDecision(disposalId: number, disposedById: number, decisio
                     ${approved ? `<p>The asset is now marked Disposed in the registry.</p>` : `<p>The asset remains active — you may revise and resubmit if needed.</p>`}
                 `)
         );
+    }).catch(error => {
+        console.error(`Failed to send disposal #${disposalId} decision notification email:`, error);
     });
 }

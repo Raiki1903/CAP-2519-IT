@@ -246,6 +246,8 @@ export function notifyDecision(transferId: number, fromCustodianId: number, deci
                     ${approved ? `<p>Custody has moved to them.</p>` : `<p>The asset remains with you.</p>`}
                 `)
         );
+    }).catch(error => {
+        console.error(`Failed to send transfer #${transferId} decision notification email:`, error);
     });
 }
 
