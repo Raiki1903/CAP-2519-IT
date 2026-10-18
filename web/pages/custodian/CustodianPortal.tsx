@@ -26,6 +26,7 @@ import {
 } from "@web/components/ui/select";
 import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
+import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 
 const MINT = "#10B981";
 
@@ -196,7 +197,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         name: matched.name || matched.assetName || "Database Asset",
         serial: matched.serial || matched.serial_number || "—",
         manufacturer: matched.manufacturer || "—",
-        category: matched.category || "Computing Array",
+        category: matched.category || "DEV_KIT",
         funding: matched.funding || "DOST",
         procured: matched.procured || "",
         warranty: matched.warranty || "",
@@ -525,7 +526,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
             <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="All">All Categories</SelectItem>
-              {["Computing Array", "Robotic Node", "Mobile Infrastructure", "Sensor Array", "Networking", "Peripheral"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {ASSET_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c.replace(/_/g, " ")}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterLoc} onValueChange={setFilterLoc}>
