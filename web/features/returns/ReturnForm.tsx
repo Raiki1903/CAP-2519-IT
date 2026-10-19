@@ -44,8 +44,9 @@ interface Props {
  *   request passed in (the row clicked) finalized and reloads the shared lists. The success
  *   screen shows the server's reference number.
  *
- * If a server call fails, the success screen still appears, with a warning line, and
- * the reference shown is a made-up `CLR-` number instead of a database one.
+ * If the server refuses a Staff finalize or cannot be reached, the form stays open with the reason
+ * in red, and nothing in the browser is marked. A Custodian's request is saved even if its repair
+ * ticket fails; the success screen then says so in an amber line.
  *
  * @param asset the asset being returned
  * @param request the Pending Returns request being finalized, if any; only this one is marked
@@ -102,9 +103,10 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
         }
       }
     } else {
-      // The database write: the server adds the asset_returns row and an ACTIVE
-      // record under the placeholder custodian (nobody holds it), and closes the asset's approved loans. The custodian's request above stays
-      // in the browser only, because asset_returns has no pending state to hold it. (H-02)
+      // The database write: the server adds the asset_returns row and an ACTIVE record under the
+      // placeholder custodian (nobody holds it), and closes the asset's approved loans. The custodian's
+      // request stays in the browser only, because asset_returns has no pending state to hold it. (H-02)
+      let notRecorded: string | null = null;
       try {
         const data = await returnsApi.finalizeReturn(asset.id, {
           condition,
@@ -113,10 +115,19 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
         if (data.success) {
           setDbReferenceNumber(data.return.reference_number);
         } else {
-          setSubmitError(data.error || "Failed to finalize return in the database.");
+          notRecorded = data.error ? `The return was not recorded: ${data.error}` : "The return was not recorded. Please try again.";
         }
-      } catch (err: any) {
-        setSubmitError(err.message || "Failed to reach the server.");
+      } catch {
+        notRecorded = "The return was not recorded: the server could not be reached. Please try again.";
+      }
+
+      // The lists reload either way: after a refusal for an asset that is no longer out, they show it back in the pool.
+      syncFromDb();
+
+      if (notRecorded) {
+        setSubmitError(notRecorded);
+        setSubmitting(false);
+        return;
       }
 
       // Only the row Staff clicked is marked: with two requests for one asset, the other stays as it was.
@@ -129,7 +140,6 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
           clearanceIssued
         );
       }
-      syncFromDb();
     }
 
     setSubmitting(false);
@@ -170,11 +180,9 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
                 : "Asset return has been finalized and registry status set to Available."}
             </p>
           </div>
-          {submitError && (
+          {isCustodian && submitError && (
             <div className="w-full rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs px-3 py-2 text-left">
-              {isCustodian
-                ? <>Return logged locally, but the repair ticket couldn't reach the database: {submitError}</>
-                : <>Logged locally, but couldn't reach the database to finalize this return: {submitError}</>}
+              Return logged locally, but the repair ticket couldn't reach the database: {submitError}
             </div>
           )}
           <div className="w-full rounded-xl bg-[#F3F4F6] border border-border p-4 text-left space-y-2">
@@ -412,6 +420,10 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
                 )}
               </AnimatePresence>
             </>
+          )}
+
+          {!isCustodian && submitError && (
+            <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{submitError}</div>
           )}
 
           <Separator />
