@@ -2,7 +2,7 @@
  * Asset detail modal: one asset's facts, QR tag, custodian history, and the request forms each role may open from it.
  * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and pages/staff/InventoryPage.tsx.
  * Calls: api/assets.api.ts getCustodianHistory(), state/serverData.tsx addRepairRequest(), and the loan, transfer, return, and repair forms.
- * Used by: Custodian requests, Lab Head custody review, Staff maintenance flagging.
+ * Used by: Custodian requests, Lab Head custody review, Staff maintenance flagging and Record Return.
  */
 import { useState, useEffect } from "react";
 import { useSession } from "@web/state/session";
@@ -86,8 +86,8 @@ interface Props {
 /**
  * Shows one asset and switches between its detail view, custodian history, and the request forms.
  * The buttons depend on role and status: a Custodian can request a loan (Active),
- * a transfer, repair, or return (On Loan); Staff can send it to maintenance; a Lab Head
- * can open the full custodian history. Calls assetsApi.getCustodianHistory() when it opens.
+ * a transfer, repair, or return (On Loan); Staff can send it to maintenance, and record its return
+ * when it is On Loan or Overdue; a Lab Head can open the full custodian history. Calls assetsApi.getCustodianHistory() when it opens.
  *
  * @param asset the asset to show, or null for a closed modal. The live copy from
  *   useServerData() is preferred when one exists, so the modal reflects a reload.
@@ -113,6 +113,9 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   // Transfer and Return buttons show only on an asset the Custodian holds, matched by name as My Assets matches it.
   // The server sends a Custodian no other holder's name, so this matches only their own assets. Repair stays for all.
   const holdsThisAsset = !!asset && !!currentUser && asset.custodian === `${currentUser.firstName} ${currentUser.lastName}`;
+  // Staff record a return straight from here, with no request needed in this browser, so a return works from
+  // any computer. Only on an asset that is out: Overdue is On Loan past its due date. (issue #99)
+  const isOnLoan = !!asset && (asset.status === "On Loan" || asset.status === "Overdue");
   const [view, setView] = useState<FormView>("detail");
 
   const [custodianHistoryList, setCustodianHistoryList] = useState<any[]>([]);
@@ -510,7 +513,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 </div>
                               </div>
                             ) : (
-                              <div className={cn("grid gap-2.5", role === "Custodian" && holdsThisAsset ? "grid-cols-3" : "grid-cols-1")}>
+                              <div className={cn("grid gap-2.5", role === "Custodian" && holdsThisAsset ? "grid-cols-3" : role === "Staff" && isOnLoan ? "grid-cols-2" : "grid-cols-1")}>
                                 {/* 1: Custodianship Transfer, only for the asset's holder */}
                                 {role === "Custodian" && holdsThisAsset && pendingRequest && requestPendingTile}
                                 {role === "Custodian" && holdsThisAsset && !pendingRequest && (
@@ -564,6 +567,25 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                         style={{ fontFamily: "'Montserrat', sans-serif" }}
                                       >
                                         Send to<br />Maintenance
+                                      </span>
+                                    </Button>
+                                  </motion.div>
+                                )}
+
+                                {/* 3a: Record Return, Staff, on an asset that is out */}
+                                {role === "Staff" && isOnLoan && (
+                                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+                                    <Button
+                                      className="w-full h-auto flex-col py-4 px-2 gap-2 text-white"
+                                      style={{ background: "#005A36" }}
+                                      onClick={() => setView("return")}
+                                    >
+                                      <CornerUpLeft size={20} />
+                                      <span
+                                        className="text-[10px] font-extrabold leading-tight text-center"
+                                        style={{ fontFamily: "'Montserrat', sans-serif" }}
+                                      >
+                                        Record<br />Return
                                       </span>
                                     </Button>
                                   </motion.div>

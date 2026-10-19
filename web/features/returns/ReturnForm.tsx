@@ -1,8 +1,9 @@
 /**
  * Return form: a Custodian asks to hand an asset back, and Staff finalize the return.
- * Layer: feature component. Called by features/assets/AssetDetailModal.tsx (Custodian) and pages/staff/ReturnsPage.tsx (Staff pending returns).
+ * Layer: feature component. Called by features/assets/AssetDetailModal.tsx (Custodian return request, Staff Record Return)
+ * and pages/staff/ReturnsPage.tsx (Staff pending returns).
  * Calls: api/returns.api.ts finalizeReturn(), api/repairs.api.ts requestRepair(), state/browserOnly.tsx (the request list).
- * Used by: Custodian return request, Staff return finalization.
+ * Used by: Custodian return request, Staff return finalization, Staff Record Return.
  */
 import { useState } from "react";
 import { useSession } from "@web/state/session";
@@ -42,7 +43,8 @@ interface Props {
  *   Nothing about the return itself reaches the server at this stage.
  * - Staff: records the condition and calls returnsApi.finalizeReturn(), then marks the
  *   request passed in (the row clicked) finalized and reloads the shared lists. The success
- *   screen shows the server's reference number.
+ *   screen shows the server's reference number. From the asset modal (Record Return) there is
+ *   no request: the return is recorded on the server alone.
  *
  * If the server refuses a Staff finalize or cannot be reached, the form stays open with the reason
  * in red, and nothing in the browser is marked. A Custodian's request is saved even if its repair
