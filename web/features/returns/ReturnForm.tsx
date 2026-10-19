@@ -56,7 +56,7 @@ interface Props {
 export function ReturnForm({ asset, request, onBack, onClose }: Props) {
   const { role } = useSession();
   const { syncFromDb } = useServerData();
-  const { addReturnRequest, finalizeReturn, returns } = useBrowserOnly();
+  const { addReturnRequest, finalizeReturn } = useBrowserOnly();
 
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
   const [condition, setCondition] = useState("");
@@ -154,9 +154,8 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
     CRITICAL_DEFECT: "text-red-700",
   };
 
-  // Find certId if finalized
-  const finalizedRequest = returns.find(r => r.assetId === asset.id && r.status === "Finalized");
-  const displayCertId = dbReferenceNumber || finalizedRequest?.certId || `CLR-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  // The server makes the CLR- number when it records the return, so there is none to show before. (issue #59)
+  const displayCertId = dbReferenceNumber ?? "Assigned on finalize";
 
   return (
     <AnimatePresence mode="wait">
@@ -413,7 +412,7 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
                         className="font-mono font-bold text-primary bg-white border-emerald-200"
                       />
                       <p className="text-[10px] text-emerald-700">
-                        This reference is permanently bound to the return ledger record.
+                        The server assigns this reference when the return is finalized.
                       </p>
                     </div>
                   </motion.div>
