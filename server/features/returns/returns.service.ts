@@ -65,7 +65,9 @@ export async function finalizeReturn(assetTag: string, data: ReturnInput, sessio
 
 /**
  * Says why an asset cannot be returned, or null if it is out. An asset is out when it is on loan, or Active
- * and held by a real person (Edit Asset can give an Active asset a custodian, who then sees Return Asset).
+ * and held by a real person (Edit Asset can give an Active asset a custodian). The asset modal offers
+ * Return Asset and Record Return only on an asset on loan (On Loan or Overdue on screen), so the Active
+ * case comes only from a direct call or an old browser request.
  * An asset nobody holds was already returned, or never left, so a second or stale return is refused. (issue #51)
  */
 function returnRefusal(assetTag: string, latestRecord: asset_records | null): string | null {
