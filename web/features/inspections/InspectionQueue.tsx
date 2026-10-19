@@ -61,6 +61,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
   const [tsgRemarksOption, setTsgRemarksOption] = useState<string>("");
   const [itsRemarksOption, setItsRemarksOption] = useState<string>("");
   const [inspectionImgOption, setInspectionImgOption] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   return (
     <>
@@ -305,55 +306,61 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
             </div>
 
             <DialogFooter className="gap-2">
-              <Button variant="outline" size="sm" onClick={() => setSelectedQueueItem(null)}>Cancel</Button>
+              <Button variant="outline" size="sm" disabled={isSubmitting} onClick={() => setSelectedQueueItem(null)}>Cancel</Button>
               <Button
                 size="sm"
+                disabled={isSubmitting}
                 className="bg-[#005A36] hover:bg-[#004225] text-white font-bold text-xs"
                 onClick={async () => {
+                  if (isSubmitting) return;
+                  setIsSubmitting(true);
+
                   const fullNotes = [
                     tsgRemarksOption ? `[TSG Remarks]: ${tsgRemarksOption}` : "",
                     itsRemarksOption ? `[ITS Remarks]: ${itsRemarksOption}` : "",
                     inspectionNotesOption ? `[Notes]: ${inspectionNotesOption}` : ""
                   ].filter(Boolean).join(" | ") || "Routine periodic physical inspection verified.";
 
-                  await syncFromDb();
-
-                  // Save report under asset_reports table in MySQL database
-                  if (selectedQueueItem.rawAsset?.id || selectedQueueItem.id) {
-                    try {
-                      const conditionEnumMap: Record<string, string> = {
-                        "Perfect": "PERFECT",
-                        "Operational": "OPERATIONAL",
-                        "Minor Drift": "MINOR_DRIFT",
-                        "Degraded Performance": "DEGRADED",
-                        "Critical Defect": "CRITICAL_DEFECT",
-                      };
-                      const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
-                      await inspectionsApi.submitInspectionRaw(targetTag, {
-                        reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
-                        reportRemarks: fullNotes,
-                        reportImg: inspectionImgOption || null,
-                      });
-                      await onReportSaved();
-                    } catch (e) {
-                      console.error("Failed to save asset inspection report in MySQL asset_reports:", e);
+                  try {
+                    // Save report under asset_reports table in MySQL database before reloading data
+                    if (selectedQueueItem.rawAsset?.id || selectedQueueItem.id) {
+                      try {
+                        const conditionEnumMap: Record<string, string> = {
+                          "Perfect": "PERFECT",
+                          "Operational": "OPERATIONAL",
+                          "Minor Drift": "MINOR_DRIFT",
+                          "Degraded Performance": "DEGRADED",
+                          "Critical Defect": "CRITICAL_DEFECT",
+                        };
+                        const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
+                        await inspectionsApi.submitInspectionRaw(targetTag, {
+                          reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
+                          reportRemarks: fullNotes,
+                          reportImg: inspectionImgOption || null,
+                        });
+                        await onReportSaved();
+                      } catch (e) {
+                        console.error("Failed to save asset inspection report in MySQL asset_reports:", e);
+                      }
                     }
-                  }
 
-                  if (selectedQueueItem.rawAsset) {
-                    syncFromDb();
-                  }
+                    if (selectedQueueItem.rawAsset) {
+                      syncFromDb();
+                    }
 
-                  setItemInspectedState(prev => ({ ...prev, [selectedQueueItem.rawAsset?.id || selectedQueueItem.id]: true }));
-                  setSelectedQueueItem(null);
-                  setInspectionImgOption("");
-                  setTsgRemarksOption("");
-                  setItsRemarksOption("");
-                  // TODO(H-16): this success message shows even when the post failed, because the answer is never read. Step 13 (typed errors).
-                  alert(`Inspection Report logged & saved under asset_reports table in MySQL for ${selectedQueueItem.asset}!`);
+                    setItemInspectedState(prev => ({ ...prev, [selectedQueueItem.rawAsset?.id || selectedQueueItem.id]: true }));
+                    setSelectedQueueItem(null);
+                    setInspectionImgOption("");
+                    setTsgRemarksOption("");
+                    setItsRemarksOption("");
+                    // TODO(H-16): this success message shows even when the post failed, because the answer is never read. Step 13 (typed errors).
+                    alert(`Inspection Report logged & saved under asset_reports table in MySQL for ${selectedQueueItem.asset}!`);
+                  } finally {
+                    setIsSubmitting(false);
+                  }
                 }}
               >
-                Submit &amp; Finalize Inspection
+                {isSubmitting ? "Submitting..." : "Submit & Finalize Inspection"}
               </Button>
             </DialogFooter>
           </DialogContent>
