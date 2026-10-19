@@ -3,7 +3,7 @@
  * Covers POST /api/assets/:tag/return, GET /api/asset_returns.
  * Workflow: returning a borrowed asset (TSG or ITS records the condition, the asset goes back to the pool).
  * Fixtures: the seeded approved loan LOAN-1 on TEST-0002, the accounts (USERS). The list tests run first and remove
- * the rows they add. The write tests return TEST-0002 (for H-04) and otherwise use their own extra assets
+ * the rows they add. The write tests return TEST-0002 (its loan LOAN-1 closes, H-04) and otherwise use their own extra assets
  * (TEST-0201 onward, see extraAssets.ts).
  */
 import { describe, expect, it } from "vitest";
@@ -110,14 +110,76 @@ describe("POST /api/assets/:tag/return", () => {
     expect((await listedAsset(asset.tag)).custodian, "nobody holds it: no name").toBeUndefined();
   });
 
-  it("finalizing a return leaves the loan open (known defect H-04)", async () => {
+  it("finalizing a return closes the asset's approved loan, and the loan list shows it as Returned (issue #99, H-04 fixed)", async () => {
     const res = await asStaff.post(`/api/assets/${ASSETS.onLoan.tag}/return`, returnBody());
 
     expect(res.status).toBe(200);
-    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.approvedLoanId } })).status).toBe("approved");
+    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.approvedLoanId } })).status).toBe("returned");
+    const loans = await asStaff.get("/api/asset_loans");
+    expect(loans.body.loans.find((l: { loanId: number }) => l.loanId === SEEDED_ROWS.approvedLoanId).status).toBe("Returned");
     const listed = await listedAsset(ASSETS.onLoan.tag);
     expect(listed.status).toBe("Active");
     expect(listed.dueDate).toBeUndefined();
+  });
+
+  it("closes every approved loan of the asset, and leaves its pending and declined loans and other assets' loans alone (issue #99)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0251", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
+    const other = await addExtraAsset(db, { tag: "TEST-0252", status: "ON_LOAN", custodianId: USERS.custodianB.userId });
+    const loan = (assetId: number, status: string, loanedOn: string) =>
+      db.asset_loans.create({
+        data: {
+          asset_id: assetId,
+          borrower_id: USERS.custodianA.userId,
+          purpose: "Test purpose: loan on a returned asset",
+          loaned_on: new Date(loanedOn),
+          due_date: new Date("2026-12-01T00:00:00Z"),
+          status,
+        },
+      });
+    const older = await loan(asset.assetId, "approved", "2026-03-01T09:00:00Z");
+    const newer = await loan(asset.assetId, "approved", "2026-04-01T09:00:00Z");
+    const pending = await loan(asset.assetId, "pending", "2026-04-02T09:00:00Z");
+    const declined = await loan(asset.assetId, "declined", "2026-04-03T09:00:00Z");
+    const otherLoan = await loan(other.assetId, "approved", "2026-04-01T09:00:00Z");
+
+    const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody());
+
+    expect(res.status).toBe(200);
+    const statusOf = async (loanId: number) => (await db.asset_loans.findUniqueOrThrow({ where: { loan_id: loanId } })).status;
+    expect(await statusOf(older.loan_id)).toBe("returned");
+    expect(await statusOf(newer.loan_id)).toBe("returned");
+    expect(await statusOf(pending.loan_id)).toBe("pending");
+    expect(await statusOf(declined.loan_id)).toBe("declined");
+    expect(await statusOf(otherLoan.loan_id)).toBe("approved");
+  });
+
+  it("returns an asset with no approved loan (put on loan by a transfer), and changes no loan (issue #99)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0253", status: "ON_LOAN", custodianId: USERS.custodianB.userId });
+    const loansBefore = await db.asset_loans.findMany({ orderBy: { loan_id: "asc" } });
+
+    const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody());
+
+    expect(res.status).toBe(200);
+    expect(res.body.return.returned_by_id).toBe(USERS.custodianB.userId);
+    expect(await db.asset_loans.findMany({ orderBy: { loan_id: "asc" } })).toEqual(loansBefore);
+  });
+
+  it("a refused return (409) leaves the asset's approved loan approved (issue #99)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0254", status: "MAINTENANCE", custodianId: USERS.custodianA.userId });
+    const approved = await db.asset_loans.create({
+      data: {
+        asset_id: asset.assetId,
+        borrower_id: USERS.custodianA.userId,
+        purpose: "Test purpose: loan on an asset under maintenance",
+        due_date: new Date("2026-12-01T00:00:00Z"),
+        status: "approved",
+      },
+    });
+
+    const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody());
+
+    expect(res.status).toBe(409);
+    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: approved.loan_id } })).status).toBe("approved");
   });
 
   it.each([

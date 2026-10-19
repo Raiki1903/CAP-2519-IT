@@ -77,7 +77,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
             // The due date comes from the asset's newest approved loan (dbLoans is newest first), matched by
             // asset alone, not by borrower: a transfer moves custody without touching the loan row, and the
             // new custodian still needs the same due date.
-            // TODO(H-04): a returned asset's loan stays approved, so an asset put On Loan later by a transfer shows the old loan's dates. Phase 3 (returns close the loan).
+            // TODO(H-04): a loan returned before issue #99 stays approved (old rows, as CCS Cloud holds), so an asset put On Loan later by a transfer can show that old loan's dates. It closes at the asset's next return.
             if (st === "ON_LOAN") {
                 const loan = dbLoans.find(l => l.asset_id === asset.asset_id);
                 if (loan) {

@@ -12,7 +12,8 @@ import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 
 /**
- * Finalizes a return: records it, and puts the asset back in the pool.
+ * Finalizes a return: records it, puts the asset back in the pool, and closes the asset's approved loans
+ * (status "returned"), in one transaction.
  * Only the finalized return reaches the server. The custodian's request before it lives in the
  * browser (web/state/browserOnly.tsx), because asset_returns has no status column to hold a
  * pending one. (H-02)
@@ -24,7 +25,6 @@ import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
  * @throws AppError 404 if no asset has this tag
  * @throws AppError 409 if the asset is not out (see returnRefusal)
  */
-// TODO(H-04): the matching loan stays approved, so it still counts as overdue. Phase 3 (a loan link on asset_returns).
 // TODO(H-05): the check and the write are not atomic, so two returns in the same instant can both pass. Phase 3 database triggers.
 export async function finalizeReturn(assetTag: string, data: ReturnInput, sessionUserId: number): Promise<asset_returns> {
     const conditionEnum = data.condition;

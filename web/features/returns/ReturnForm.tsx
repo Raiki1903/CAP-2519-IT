@@ -104,9 +104,8 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
       const reqId = pendingReturn ? pendingReturn.id : `RET-${Date.now().toString().slice(-6)}`;
 
       // The database write: the server adds the asset_returns row and an ACTIVE
-      // record under the placeholder custodian (nobody holds it). The custodian's request above stays
+      // record under the placeholder custodian (nobody holds it), and closes the asset's approved loans. The custodian's request above stays
       // in the browser only, because asset_returns has no pending state to hold it. (H-02)
-      // TODO(H-04): the matching loan is not closed, it stays approved. Phase 3.
       try {
         const data = await returnsApi.finalizeReturn(asset.id, {
           condition,
