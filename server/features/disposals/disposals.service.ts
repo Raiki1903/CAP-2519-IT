@@ -1,7 +1,7 @@
 /**
  * Disposals service: the business rules for disposal requests, the Director's decisions, and the disposal list.
  * Layer: service. Called by disposals.controller.ts. Calls disposals.repository.ts, features/assets/assets.repository.ts,
- * features/auth/auth.repository.ts, shared/services/mailer.ts, and shared/constants/poolCustodian.ts.
+ * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/services/mailer.ts, and shared/constants/poolCustodian.ts.
  * Used by: Staff disposal filing (DisposalFormDialog), Director approval (Approvals & Holds tab and the bell).
  */
 import type { Prisma, asset_disposals, asset_records, assets } from '@prisma/client';
@@ -11,20 +11,23 @@ import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
+import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/services/custodyRequestGuard';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
 
 /**
  * Files a pending disposal request for an asset.
  * Only the asset_disposals row is written. The asset is not marked Disposed until the Director
  * approves (decideDisposal), so it keeps its status and custodian while the request is pending.
+ * The custody request guard refuses an asset that is not Active, or already has a pending loan,
+ * transfer, or disposal. (H-05, issue #54)
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the checked disposal body: pathway, justification, optional last custodian and date
  * @param disposedById the session user, who requests the disposal; any requester name in the body is ignored (issue #32)
  * @returns the created row, plus the asset for the email the controller sends after answering
  * @throws AppError 404 if no asset has this tag
+ * @throws AppError 409 if the guard refuses the request
  */
-// TODO(H-05): no status or duplicate check, so an asset on loan, under maintenance, or with a pending disposal can be put up for disposal, and approving two disposals writes two DISPOSED records (issue #54). Its own fix; tests/api/disposals.test.ts pins it.
 export async function requestDisposal(
     assetTag: string,
     data: DisposalRequestInput,
@@ -33,6 +36,11 @@ export async function requestDisposal(
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
+    }
+
+    const conflict = await findCustodyRequestConflict(existing, ["ACTIVE"]);
+    if (conflict) {
+        throw new AppError(409, conflict);
     }
 
     // asset_disposals has one text column for all of this, so the fields are written as labelled
@@ -64,8 +72,6 @@ export async function requestDisposal(
  * @param requesterId the session user who filed it; "Staff" is named if that account is gone
  * @returns when the send was attempted or skipped; the controller does not wait for it
  */
-// The role and requester lookups run after the answer was sent, and nothing catches them: if a database read fails,
-// the rejection is unhandled, which stops the Node process by default. A small fix (catch and log it), outside the restructure.
 // TODO(H-20): the asset name, requester, and pathway go into the email HTML unescaped. Step 13 (shared escaping).
 export function notifyDirector(asset: assets, assetTag: string, data: DisposalRequestInput, requesterId: number): Promise<void> {
     return Promise.all([
@@ -119,12 +125,15 @@ export async function listDisposals(): Promise<DisposalListItem[]> {
  * Approval decommissions the asset: the disposal becomes approved and a DISPOSED record is appended,
  * in one transaction. Reject changes only the disposal's status. The server does not check who
  * decides (C-02); the screens give the decision to the Director.
+ * An approval checks the asset again: it must still be Active, as for the request, with no pending
+ * loan or transfer, so an old second disposal on a disposed asset can only be rejected. (issue #28)
  *
  * @param disposalId the numeric disposal id
  * @param decision "approve" or "reject"
  * @returns the updated asset_disposals row
  * @throws AppError 404 if no disposal has this id
  * @throws AppError 400 if the disposal is not pending any more
+ * @throws AppError 409 if an approval finds the asset no longer Active, or with a pending loan or transfer
  */
 export async function decideDisposal(disposalId: number, decision: DisposalDecision): Promise<asset_disposals> {
     const disposal = await disposalsRepository.findById(disposalId);
@@ -133,6 +142,13 @@ export async function decideDisposal(disposalId: number, decision: DisposalDecis
     }
     if (disposal.status !== "pending") {
         throw new AppError(400, `Disposal #${disposalId} has already been ${disposal.status}.`);
+    }
+    if (decision === "approve") {
+        // The same allowed statuses as requestDisposal.
+        const conflict = await findDecisionConflict(disposal.asset_id, ["ACTIVE"], "disposal");
+        if (conflict) {
+            throw new AppError(409, conflict);
+        }
     }
 
     const newStatus = decision === "approve" ? "approved" : "rejected";
@@ -167,7 +183,6 @@ function disposedRecord(disposal: asset_disposals, latestRecord: asset_records |
  * @param disposedById the disposal's disposed_by_id; nothing is sent if that user has no email
  * @returns when the send was attempted or skipped; the controller does not wait for it
  */
-// The email lookup runs after the answer was sent and nothing catches it, as in notifyDirector above.
 export function notifyDecision(disposalId: number, disposedById: number, decision: DisposalDecision): Promise<void> {
     return authRepository.getUserEmail(disposedById).then(email => {
         if (!email) return;

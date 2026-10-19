@@ -15,15 +15,17 @@ import { AppError } from '../../shared/errors/AppError';
 /**
  * Saves an inspection report and writes its condition and remarks onto the asset's newest record,
  * in one transaction. Known inspection defects stay as they are, each marked at its line and pinned by
- * tests/api/inspections.test.ts: an unknown condition is saved as PERFECT instead of refused (issue #53,
- * in inspections.validation.ts), and the reporter, record, and error defects below.
+ * tests/api/inspections.test.ts: the record and reporter defects below.
  *
  * @param assetTag the asset's tag from the URL, or its numeric asset_id
- * @param data the request body; every field has a fallback. reporterEmail and reportedById are ignored (issue #32)
+ * @param data the request body, its condition already checked by the controller (issue #53); every other field
+ * has a fallback. reporterEmail and reportedById are ignored (issue #32)
  * @param reporterId the session user, who files the report
  * @returns the created asset_reports row
  * @throws AppError 404 if no asset has this tag (or, for a number, this id)
+ * @throws AppError 409 if the asset is disposed
  */
+// TODO(H-05): the check and the write are not atomic, so a report filed in the same instant as a disposal approval can pass. Phase 3 database triggers.
 export async function fileReport(assetTag: string, data: InspectionReportInput, reporterId: number): Promise<asset_reports> {
     // A tag that is a number is also tried as an asset_id.
     let asset = await assetsRepository.findByTag(assetTag);
@@ -35,8 +37,13 @@ export async function fileReport(assetTag: string, data: InspectionReportInput, 
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // The body is first read here, after the asset lookup, so a request with no body answers 404 for
-    // an unknown asset and 500 otherwise.
+    // A disposed asset is out of use, and the report would rewrite the condition its DISPOSED record keeps.
+    // An asset under maintenance is still accepted: Staff inspect assets in repair on purpose. (issue #88)
+    const latestRecord = await assetsRepository.findLatestRecordStatus(asset.asset_id);
+    if (latestRecord?.status === "DISPOSED") {
+        throw new AppError(409, `${asset.asset_tag} is disposed and cannot take an inspection report.`);
+    }
+
     const { condition, remarks: remarksVal, image: imgVal } = readInspectionReport(data);
 
     return inspectionsRepository.saveReport(

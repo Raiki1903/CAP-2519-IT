@@ -223,7 +223,15 @@ export function saveEdit(
     });
 }
 
-/** Deletes an asset and the rows of seven tables that point at it, in one transaction. (H-03, issue #69: asset_reports is not among them) */
+/** How many inspection or condition reports the asset has. A delete is refused when there is any. (issue #69) */
+export function countReports(assetId: number) {
+    return prisma.asset_reports.count({ where: { asset_id: assetId } });
+}
+
+/**
+ * Deletes an asset and the rows of seven tables that point at it, in one transaction.
+ * asset_reports is not among them: an asset with reports is refused before this is called. (H-03, issue #69)
+ */
 export function deleteWithHistory(assetId: number) {
     // The schema has no ON DELETE CASCADE, so the child rows go first, or the delete fails on a foreign key.
     return prisma.$transaction(async (tx) => {

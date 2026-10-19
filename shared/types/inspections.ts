@@ -5,12 +5,13 @@
  */
 
 /**
- * The body of POST /api/assets/:assetTag/inspection. Every field is optional: each has a fallback.
+ * The body of POST /api/assets/:assetTag/inspection. A condition is required, in reportCondition or assetCondition;
+ * every other field has a fallback.
  * The two senders (CustodianPortal, InspectionQueue) use reportCondition, reportRemarks, and reportImg; the other names
  * are older spellings the server still reads. The reporter is the session user. (issue #32)
  */
 export interface InspectionReportInput {
-  /** A condition name ("Minor Drift") or value ("MINOR_DRIFT") from ASSET_CONDITIONS. Anything else is saved as PERFECT. */
+  /** One of ASSET_CONDITIONS ("MINOR_DRIFT"). Anything else, or no condition at all, answers 400. (issue #53) */
   reportCondition?: string;
   /** Read when reportCondition is empty. */
   assetCondition?: string;

@@ -429,19 +429,20 @@ describe("DELETE /api/assets/:tag", () => {
     expect((await asStaff.get("/api/assets")).body.assets.map((a: { id: string }) => a.id)).not.toContain(ASSETS.disposed.tag);
   });
 
-  it("cannot delete an asset that has an inspection report: answers 500 with a generic message and no database text, and deletes nothing (known defect H-03; H-16 fixed)", async () => {
+  it("answers 409 for an asset with an inspection report, says why, and deletes nothing (issue #69)", async () => {
     const recordsBefore = await db.asset_records.count({ where: { asset_id: ASSETS.inspected.assetId } });
+    const reportsBefore = await db.asset_reports.count({ where: { asset_id: ASSETS.inspected.assetId } });
 
     const res = await asStaff.delete(`/api/assets/${ASSETS.inspected.tag}`);
 
-    expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });
-    const text = JSON.stringify(res.body);
-    expect(text).not.toMatch(/prisma|foreign key/i);
-    expect(text).not.toContain("Invalid `");
-    expect(text).not.toMatch(/[A-Za-z]:\\|\.ts\b/);
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      success: false,
+      error: `${ASSETS.inspected.tag} cannot be deleted because it has inspection or condition reports, which are part of its history. To take it out of use, file a disposal instead.`,
+    });
     expect(await db.assets.count({ where: { asset_id: ASSETS.inspected.assetId } })).toBe(1);
     expect(await db.asset_records.count({ where: { asset_id: ASSETS.inspected.assetId } })).toBe(recordsBefore);
+    expect(await db.asset_reports.count({ where: { asset_id: ASSETS.inspected.assetId } })).toBe(reportsBefore);
   });
 
   it("answers 404 for an unknown tag", async () => {

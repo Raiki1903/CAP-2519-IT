@@ -22,9 +22,10 @@ import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
  * @param sessionUserId the Staff member finalizing it, recorded as the returner only when nobody holds the asset
  * @returns the created asset_returns row, with its CLR- reference number
  * @throws AppError 404 if no asset has this tag
+ * @throws AppError 409 if the asset is not out (see returnRefusal)
  */
-// TODO(H-05): a return is accepted whatever the asset's status, so an asset that is not out comes back ACTIVE, a disposed one included (issue #51). Its own fix; tests/api/returns.test.ts pins it.
 // TODO(H-04): the matching loan stays approved, so it still counts as overdue. Phase 3 (a loan link on asset_returns).
+// TODO(H-05): the check and the write are not atomic, so two returns in the same instant can both pass. Phase 3 database triggers.
 export async function finalizeReturn(assetTag: string, data: ReturnInput, sessionUserId: number): Promise<asset_returns> {
     const conditionEnum = data.condition;
 
@@ -33,10 +34,16 @@ export async function finalizeReturn(assetTag: string, data: ReturnInput, sessio
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
+    const latestRecord = await assetsRepository.findLatestRecord(existing.asset_id);
+    const refusal = returnRefusal(assetTag, latestRecord);
+    if (refusal) {
+        throw new AppError(409, refusal);
+    }
+
     // Staff finalize the return on the custodian's behalf, so the returner is whoever holds the asset in its
-    // latest record, by id (answer 2 of the 13c questions). When nobody holds it (no record, or the placeholder
+    // latest record, by id (answer 2 of the 13c questions). When nobody holds it (the placeholder
     // POOL_CUSTODIAN_ID), the Staff member finalizing it is recorded instead. (issue #32)
-    const holderId = (await assetsRepository.findLatestRecord(existing.asset_id))?.current_custodian;
+    const holderId = latestRecord?.current_custodian;
     const returnedById = holderId && holderId !== POOL_CUSTODIAN_ID ? holderId : sessionUserId;
 
     const referenceNumber = `CLR-${Date.now().toString(36).toUpperCase()}`;
@@ -54,6 +61,19 @@ export async function finalizeReturn(assetTag: string, data: ReturnInput, sessio
         },
         (latestRecord) => turnInRecord(existing.asset_id, conditionEnum, commentsText, latestRecord),
     );
+}
+
+/**
+ * Says why an asset cannot be returned, or null if it is out. An asset is out when it is on loan, or Active
+ * and held by a real person (Edit Asset can give an Active asset a custodian, who then sees Return Asset).
+ * An asset nobody holds was already returned, or never left, so a second or stale return is refused. (issue #51)
+ */
+function returnRefusal(assetTag: string, latestRecord: asset_records | null): string | null {
+    if (latestRecord?.status === "ON_LOAN") return null;
+    if (latestRecord?.status === "DISPOSED") return `${assetTag} is disposed and cannot be returned.`;
+    if (latestRecord?.status === "MAINTENANCE") return `${assetTag} is under maintenance and cannot be returned until its repair is finished.`;
+    if (latestRecord && latestRecord.current_custodian !== POOL_CUSTODIAN_ID) return null;
+    return `${assetTag} is not out with anyone, so there is nothing to return.`;
 }
 
 /**

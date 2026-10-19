@@ -1083,3 +1083,57 @@ None for the agent. For the team: when to mark CCS Cloud as "already at the base
 3. The restructure is then complete. The team decides when to mark CCS Cloud, then starts Phase 3 as migrations: a nullable `asset_records.current_custodian`, a `lab_id` on assets (issue #94), and the custodianship queue (issue #22).
 
 Answered on 2026-10-16 (see the log, "Step 14 hand checks: results"): **all 6 step 14 hand checks passed** (Raiki): 1 and 2 on CCS Cloud, read-only ("This is an empty migration"; the app unchanged); 3 on the local `AdRIC_DB_test` (391); 4 and 5 on a new local `AdRIC_DB_dev` (deploy, seed, the app on it, the seed's refusals); 6 with no database. Step 14 is built, all 6 hand checks passed, pull request next. Follow-ups in the same docs commit: the guide and hand check 4 warn that a login cookie is not tied to a database (use a private window for a demo database; a note for later in the log) and that `DATABASE_PASSWORD` is the MySQL root password, not `SEED_PASSWORD`; every hand checks heading in the log now names its step (for example "Step 14 hand checks"), and new ones will too.
+
+## UAT fixes, group A (state guards) stop 1, 2026-10-18
+
+**Prompt followed:** Raiki's group A prompt in chat (the bug fixes before UAT on 2026-10-21, code freeze 2026-10-20, 6 pm), stop 1 only: the plan, no code. On `fix/h05-state-guards` from a fresh `main` at `1ce2aaa3` (the PR #101 merge). Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Group A: state guards (fix/h05-state-guards)".
+
+### What was produced
+
+- **The new log** [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md): one section per fix branch, and the group A plan: where each of the five issues is in the code, the exact change with its status code and message, the allowed statuses per action, the tests per commit with the counts (391 to 410), the screens and roles that see a difference, the stop 2 commit order, 14 hand checks ("Group A hand checks"), and 6 questions.
+- `docs/README.md`: current phase UAT fixes, next group A; the status board and the folder layout.
+
+### Key findings
+
+- **#28 has three causes, not one:** a disposal could be filed while a transfer was pending, a transfer while a disposal was pending, and no approval (loan, transfer, or disposal) looks at the asset's status. The plan closes the first two with the shared issue #25 guard (#54) and the third with a status check at approval time.
+- **A Return Asset button shows on Active assets a Custodian holds** (given through Edit Asset), so "only On Loan can be returned" would refuse returns the screen invites (question 1).
+- **`tests/api/sessionUser.test.ts` returns an asset with no record**, which #51 refuses; that test changes in the #51 commit.
+- **Issue #88's plan includes a server status check in the inspection files #53 changes** (question 4).
+- **Pending Returns shows a server refusal as "Return Ledger Closed"** and drops the request; left to issue #99 if question 5 says so.
+- Commits since the restructure merge touch `disposals.service.ts` and `transfers.service.ts` only (PR #101's `.catch` blocks), not the planned lines. The comments above those three functions are now stale; their deletion is in the stop 2 docs commit.
+
+### Open questions
+
+Six, in the log, section 7: what counts as "out" for a return; a disposal approval while a loan or transfer is pending; which condition names the inspection route accepts; a status rule for inspection reports (shared with #88); Pending Returns after a refusal (#99); one commit or two for the shared pending-request rule.
+
+### Exact next step
+
+1. Raiki answers the 6 questions, and may run hand check H13 now (CCS Cloud, SELECT only).
+2. Stop 2: the 6 or 7 commits in the log's section 5, typecheck and tests after each, then the build and the agent's hand checks on the local test database.
+3. Then the group A pull request, and issue #99 on its own branch.
+
+## UAT fixes, group A (state guards) stop 2, 2026-10-19
+
+**Prompt followed:** Raiki's answers to the group A plan (1b, 2a, 3a, 4b, 5a, 6a; #88 becomes web only, #35 is frontend only), stop 2: build in the planned order, typecheck, build, and tests after every commit, then the hand checks by Playwright on the local test database. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), section 8 and "Group A hand checks".
+
+### What was produced
+
+- Six labelled behavior-change commits: #51 returns (`6d9e8164`), #54 disposal requests and the shared pending-request rule (`d9c8292c`), #28 approvals check the asset again (`2059d17e`), #53 inspection conditions (`caf35fae`), the server half of #88, no report for a Disposed asset (`fca6666b`), #69 delete answers 409 (`193db447`).
+- The docs and comments commit: the stale "nothing catches the lookup" comments deleted (PR #101 made them untrue); the log's results and section 8; `docs/README.md`.
+- Tests **391 to 410**, exactly as planned; typecheck **65** in every commit; build passes.
+
+### Key findings
+
+- **The Return Asset button shows only on On Loan assets**, not on every asset a Custodian holds, as the plan's question 1 said. Answer 1b stands; it matters only for direct calls and old browser requests.
+- **Pending Returns still shows a server refusal as "Return Ledger Closed"** and drops the request, and with two requests for one asset it drops the other row, not the one clicked. Both for #99 (answer 5a).
+- No 500 and no unexpected console error in the run.
+
+### Open questions
+
+None for the agent. H13 (CCS Cloud, read-only) is Raiki's.
+
+### Exact next step
+
+1. Raiki runs H13 and reviews the branch, then pushes and opens the group A pull request (`Closes #51`, `#54`, `#28`, `#53`, `#69`; #88 stays open for its web part).
+2. Everyone pulls and runs `npm test` once (410).
+3. Issue #99 (Staff "Record Return") on a fresh branch from the merge.

@@ -12,7 +12,7 @@ import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { campusForLab } from '../../shared/utils/campus';
-import { findCustodyRequestConflict } from '../../shared/services/custodyRequestGuard';
+import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/services/custodyRequestGuard';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
 
 // Transfers are kept exactly as they are until the custodianship queue replaces them (issue #22,
@@ -27,8 +27,8 @@ export const NOT_THE_HOLDER_MESSAGE = "Only the asset's current custodian can re
 /**
  * Files a pending transfer request for an asset.
  * Only the asset_transfers row is written. Custody does not move until the transfer is approved
- * (decideTransfer). The custody request guard refuses an asset that already has a pending loan or
- * transfer, or is not Active or On Loan, because two approvals would give one item two custodians. (H-05)
+ * (decideTransfer). The custody request guard refuses an asset that already has a pending loan,
+ * transfer, or disposal, or is not Active or On Loan, because two approvals would give one item two custodians. (H-05, issue #54)
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the checked transfer body: recipient email, reason, optional destination lab
@@ -176,12 +176,15 @@ export async function listTransfers(viewer: SessionIdentity): Promise<TransferLi
  * Approval is the custody handoff: the transfer becomes approved and a new ON_LOAN record moves
  * the asset to the recipient, in one transaction. Decline changes only the transfer's status.
  * The server does not check who decides (C-02, and no approval rule, see the top of this file).
+ * An approval checks the asset again: it must still be Active or On Loan, as for the request, so a pending
+ * transfer on an asset disposed since can only be declined. (issue #28)
  *
  * @param transferId the numeric transfer id
  * @param decision "approve" or "decline"
  * @returns the updated asset_transfers row
  * @throws AppError 404 if no transfer has this id
  * @throws AppError 400 if the transfer is not pending, including one /accept moved to pending_approver (M-12)
+ * @throws AppError 409 if an approval finds the asset no longer Active or On Loan
  */
 export async function decideTransfer(transferId: number, decision: TransferDecision): Promise<asset_transfers> {
     const transfer = await transfersRepository.findById(transferId);
@@ -190,6 +193,13 @@ export async function decideTransfer(transferId: number, decision: TransferDecis
     }
     if (transfer.status !== "pending") {
         throw new AppError(400, `Transfer #${transferId} has already been ${transfer.status}.`);
+    }
+    if (decision === "approve") {
+        // The same allowed statuses as requestTransfer.
+        const conflict = await findDecisionConflict(transfer.asset_id, ["ACTIVE", "ON_LOAN"], "transfer");
+        if (conflict) {
+            throw new AppError(409, conflict);
+        }
     }
 
     const newStatus = decision === "approve" ? "approved" : "declined";
@@ -232,8 +242,6 @@ function handoverRecord(transfer: asset_transfers, latestRecord: asset_records |
  * @param fromCustodianId the transfer's from_custodian_id; nothing is sent if that user has no email
  * @returns when the send was attempted or skipped; the controller does not wait for it
  */
-// The email lookup runs after the answer was sent, and nothing catches it: if that database read fails,
-// the rejection is unhandled, which stops the Node process by default. A small fix (catch and log it), outside the restructure.
 export function notifyDecision(transferId: number, fromCustodianId: number, decision: TransferDecision): Promise<void> {
     return authRepository.getUserEmail(fromCustodianId).then(email => {
         if (!email) return;

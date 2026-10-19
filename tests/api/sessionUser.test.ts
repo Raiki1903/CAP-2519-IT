@@ -184,10 +184,10 @@ describe("Who acted, where the body used to say", () => {
     expect(res.body.repair.reported_by_id).toBe(USERS.staffTsg.userId);
   });
 
-  it("records the Staff member as returner of an asset with no record, since nobody holds it", async () => {
-    const asset = await db.assets.create({ data: { asset_tag: "TEST-0851", name: "Test Asset Without Records", category: "DEV_KIT" } });
+  it("records the Staff member as returner of an asset on loan under the placeholder, since nobody holds it", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0851", status: "ON_LOAN", custodianId: USERS.admin.userId });
 
-    const res = await asStaff.post(`/api/assets/${asset.asset_tag}/return`, { condition: "OPERATIONAL" });
+    const res = await asStaff.post(`/api/assets/${asset.tag}/return`, { condition: "OPERATIONAL" });
 
     expect(res.status).toBe(200);
     expect(res.body.return.returned_by_id).toBe(USERS.staffTsg.userId);

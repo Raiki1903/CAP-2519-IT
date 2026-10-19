@@ -46,7 +46,7 @@ export async function listTransfers(req: Request, res: Response): Promise<void> 
  * Handles PUT /api/asset_transfers/:transferId/decision: approves or declines a pending transfer,
  * then emails the custodian the asset was leaving.
  * Answers `{ success, transfer }` with the updated row, or the AppError's status and message
- * (400 bad id, bad decision word, or transfer not pending; 404 unknown transfer), or 500.
+ * (400 bad id, bad decision word, or transfer not pending; 404 unknown transfer; 409 an approval the asset no longer allows), or 500.
  */
 export async function decideTransfer(req: Request<{ transferId: string }>, res: Response): Promise<void> {
     const transferId = parseInt(req.params.transferId, 10);
