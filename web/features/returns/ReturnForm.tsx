@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
-import { useBrowserOnly } from "@web/state/browserOnly";
+import { useBrowserOnly, type ReturnRequest } from "@web/state/browserOnly";
 import * as returnsApi from "@web/api/returns.api";
 import * as repairsApi from "@web/api/repairs.api";
 import { motion, AnimatePresence } from "motion/react";
@@ -29,6 +29,8 @@ const BRAND = "#005A36";
 
 interface Props {
   asset: AssetDetail;
+  /** The browser request Staff are finalizing, from the Pending Returns row clicked. None from the asset modal. */
+  request?: ReturnRequest;
   onBack: () => void;
   onClose: () => void;
 }
@@ -39,17 +41,18 @@ interface Props {
  *   and, if "flag for repair" is on, files a repair through repairsApi.requestRepair().
  *   Nothing about the return itself reaches the server at this stage.
  * - Staff: records the condition and calls returnsApi.finalizeReturn(), then marks the
- *   browser request finalized and reloads the shared lists. The success screen shows the
- *   server's reference number.
+ *   request passed in (the row clicked) finalized and reloads the shared lists. The success
+ *   screen shows the server's reference number.
  *
  * If a server call fails, the success screen still appears, with a warning line, and
  * the reference shown is a made-up `CLR-` number instead of a database one.
  *
  * @param asset the asset being returned
+ * @param request the Pending Returns request being finalized, if any; only this one is marked
  * @param onBack returns to the asset detail view
  * @param onClose closes the modal from the success screen
  */
-export function ReturnForm({ asset, onBack, onClose }: Props) {
+export function ReturnForm({ asset, request, onBack, onClose }: Props) {
   const { role } = useSession();
   const { syncFromDb } = useServerData();
   const { addReturnRequest, finalizeReturn, returns } = useBrowserOnly();
@@ -63,8 +66,6 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
   const [flagForRepair, setFlagForRepair] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [dbReferenceNumber, setDbReferenceNumber] = useState<string | null>(null);
-
-  const pendingReturn = returns.find(r => r.assetId === asset.id && r.status === "Pending");
 
   const isCustodian = role === "Custodian";
   const canSubmit = isCustodian ? !!returnDate : (!!returnDate && !!condition);
@@ -101,8 +102,6 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
         }
       }
     } else {
-      const reqId = pendingReturn ? pendingReturn.id : `RET-${Date.now().toString().slice(-6)}`;
-
       // The database write: the server adds the asset_returns row and an ACTIVE
       // record under the placeholder custodian (nobody holds it), and closes the asset's approved loans. The custodian's request above stays
       // in the browser only, because asset_returns has no pending state to hold it. (H-02)
@@ -120,13 +119,16 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
         setSubmitError(err.message || "Failed to reach the server.");
       }
 
-      finalizeReturn(
-        reqId,
-        condition,
-        [],
-        inspection,
-        clearanceIssued
-      );
+      // Only the row Staff clicked is marked: with two requests for one asset, the other stays as it was.
+      if (request) {
+        finalizeReturn(
+          request.id,
+          condition,
+          [],
+          inspection,
+          clearanceIssued
+        );
+      }
       syncFromDb();
     }
 
@@ -244,11 +246,11 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
           <Separator />
 
           {/* Pending return info for Staff */}
-          {!isCustodian && pendingReturn && (
+          {!isCustodian && request && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-1">
               <p className="font-extrabold uppercase tracking-wider text-[9px] text-blue-700">Custodian Turn-in Comments</p>
-              <p><strong>Proposed Date:</strong> {pendingReturn.returnDate}</p>
-              <p className="italic">"{pendingReturn.comments || "No comments."}"</p>
+              <p><strong>Proposed Date:</strong> {request.returnDate}</p>
+              <p className="italic">"{request.comments || "No comments."}"</p>
             </div>
           )}
 

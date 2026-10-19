@@ -5,7 +5,7 @@
  * Used by: Staff return finalization.
  */
 import { useState } from "react";
-import { useBrowserOnly } from "@web/state/browserOnly";
+import { useBrowserOnly, type ReturnRequest } from "@web/state/browserOnly";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { ReturnForm } from "@web/features/returns/ReturnForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@web/components/ui/dialog";
@@ -21,7 +21,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export function ReturnsPage() {
   const { returns } = useBrowserOnly();
   const { displayedAssets } = useStaffAssets();
-  const [selectedReturnAsset, setSelectedReturnAsset] = useState<any | null>(null);
+  // The row clicked: its asset for the form, and its request, so that request is the one finalized.
+  const [selected, setSelected] = useState<{ asset: any; request: ReturnRequest } | null>(null);
 
   const pendingReturns = returns.filter(r => r.status === "Pending");
 
@@ -65,18 +66,17 @@ export function ReturnsPage() {
                         size="sm"
                         className="text-xs h-7"
                         onClick={() => {
-                          if (matchingAsset) {
-                            setSelectedReturnAsset(matchingAsset);
-                          } else {
-                            setSelectedReturnAsset({
+                          setSelected({
+                            request: req,
+                            asset: matchingAsset ?? {
                               id: req.assetId,
                               name: req.assetName,
                               custodian: req.custodian,
                               status: "Pending Return",
                               // Used only when the asset is not in the list (for example, deleted since the request).
                               category: "Computing Array"
-                            });
-                          }
+                            },
+                          });
                         }}
                       >
                         Evaluate &amp; Finalize
@@ -91,16 +91,17 @@ export function ReturnsPage() {
       </Card>
 
       {/* Dialog for Finalizing Returns */}
-      <Dialog open={selectedReturnAsset !== null} onOpenChange={open => { if (!open) setSelectedReturnAsset(null); }}>
+      <Dialog open={selected !== null} onOpenChange={open => { if (!open) setSelected(null); }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-sm font-bold text-foreground">Evaluate &amp; Finalize Return</DialogTitle>
           </DialogHeader>
-          {selectedReturnAsset && (
+          {selected && (
             <ReturnForm
-              asset={selectedReturnAsset}
-              onBack={() => setSelectedReturnAsset(null)}
-              onClose={() => setSelectedReturnAsset(null)}
+              asset={selected.asset}
+              request={selected.request}
+              onBack={() => setSelected(null)}
+              onClose={() => setSelected(null)}
             />
           )}
         </DialogContent>
