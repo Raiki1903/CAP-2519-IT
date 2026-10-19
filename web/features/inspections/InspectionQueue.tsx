@@ -115,7 +115,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                 const urgency = a.status === "Maintenance" || a.status === "Overdue" ? "Critical" : (a.condition !== undefined && a.condition < 80 ? "High" : "Normal");
 
                 return {
-                  id: `MNT-${String(a.id).replace(/^[^\d]+/, "").padStart(4, "0")}`,
+                  id: `MNT-${String(a.id)}`,
                   asset: a.name,
                   serial: a.serial || a.id,
                   lab: a.lab || g.labs[0] || "CITe4D",
