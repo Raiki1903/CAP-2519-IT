@@ -13,7 +13,8 @@ Baseline on `main` at `1ce2aaa3` (the PR #101 merge): typecheck **65** errors, `
 
 | Group | Branch | Issues | Status | Commits | Typecheck | Tests | Date |
 |---|---|---|---|---|---|---|---|
-| A | `fix/h05-state-guards` | #51, #54, #28, #53, #69, and the server half of #88 | Built (stop 2); the agent's hand checks H1 to H12 and H14 passed on the local test database; H13 (CCS Cloud, read-only) is Raiki's; pull request next | Plan `6082b361`; `6d9e8164`, `d9c8292c`, `2059d17e`, `caf35fae`, `fca6666b`, `193db447`; docs and comments: the last commit | **65** (unchanged) | **391** to **410** | 2026-10-18, 2026-10-19 |
+| A | `fix/h05-state-guards` | #51, #54, #28, #53, #69, and the server half of #88 | Merged in PR #106; the agent's hand checks H1 to H12 and H14 passed on the local test database; H13 (CCS Cloud, read-only) is Raiki's | Plan `6082b361`; `6d9e8164`, `d9c8292c`, `2059d17e`, `caf35fae`, `fca6666b`, `193db447`; docs and comments: the last commit | **65** (unchanged) | **391** to **410** | 2026-10-18, 2026-10-19 |
+| H | `fix/99-returns` | #99, with #59 as a rider | Built (stop 2); the agent's hand checks H1 to H10 and H12 passed on the local test database; H11 (CCS Cloud, read-only) run by Raiki; pull request next | Plan `a2d316bb`; `59d6c599`, `684f0212`, `cc8a1190`, `791dd3ba`, `365957eb`, `e178991b`, `d0e9b5d0`; docs and comments: the last commit | **65** (unchanged) | **410** to **413** | 2026-10-20 |
 
 ---
 
@@ -340,3 +341,278 @@ Pull and run `npm test` once (410). Screens that send a disposal, return, loan o
 - **Edit Asset can set any status**, Disposed back to Active included (`updateAsset`, `assets.service.ts`, `TODO(H-07)`), and its condition falls back to PERFECT the same way as #53 did. Both are the asset edit's own fixes.
 - **A repair ticket is accepted for a Disposed asset** (`repairs.service.ts:34`, `TODO(H-05)`). The asset modal hides the button on a Disposed asset, so only a direct call can do it. Its own issue.
 - **The bell and the Lab Head analytics panel** swallow decision errors (section 4); for the bell rewrite.
+
+---
+
+## Group H: returns (fix/99-returns)
+
+Issue #99 (a Custodian's return request stays in that Custodian's browser, so Staff on another computer cannot see or finalize it, and a finalized return leaves the loan approved), with issue #59 (a random CLR number on the return form) as a rider in the same file. Branch `fix/99-returns` from `main` at `22e85729` (group A, #35, #62, and #63 merged). Baseline there: typecheck **65**, `npm run build` passes, `npm test` **410** passed. No schema change: the request stays in the browser until Phase 3, and the loan is closed through the free-text `asset_loans.status` column that exists today.
+
+### 1. Where the code is now, and the change
+
+Line numbers are on `main` at `22e85729`.
+
+#### #99, part 1: Staff cannot return an asset without a request in their own browser
+
+**Now.** A Custodian's Return Asset button (the asset detail modal, [AssetDetailModal.tsx:572-589](../../web/features/assets/AssetDetailModal.tsx#L572-L589)) opens `ReturnForm`. Its Custodian branch ([ReturnForm.tsx:77-86](../../web/features/returns/ReturnForm.tsx#L77-L86)) calls `addReturnRequest` in [browserOnly.tsx:81](../../web/state/browserOnly.tsx#L81), which saves the request in that browser's `localStorage` (`ems_returns`); nothing about the return reaches the server. Staff reach the Staff side of the form only from Pending Returns ([ReturnsPage.tsx:22-26](../../web/pages/staff/ReturnsPage.tsx#L22-L26)), which reads the same storage. So Staff on another computer see "No pending return requests in queue." and have no way to return the asset. In the modal, Staff on an asset on loan see only Send to Maintenance (line 554); Return Asset is for the Custodian who holds it (line 573, since 13c). The server needs no request: `finalizeReturn` in [returns.service.ts:29](../../server/features/returns/returns.service.ts#L29) takes a Staff return of any asset that is out and records the holder as returner (line 46).
+
+**Change.** A Staff button **Record Return** in the modal's action grid, on an asset whose status on screen is On Loan or Overdue (Overdue is an ON_LOAN asset past its loan's due date, [assets.service.ts:87](../../server/features/assets/assets.service.ts#L87)). It opens the existing `ReturnForm` in Staff mode with no request attached (`setView("return")`), which finalizes directly with `POST /api/assets/:assetTag/return`, as Pending Returns does. Only Staff see it, and never on an Active, Maintenance, or Disposed asset. The Staff grid on such an asset becomes two tiles: Send to Maintenance and Record Return. On success: the existing "Return Ledger Closed" screen with the server's CLR number; the shared lists reload (`syncFromDb`), so the modal then shows the asset Active, custodian "None". A refusal shows on the form (part 3).
+
+The button checks the status itself, because the modal's last branch (line 512) is also where Staff land on a Maintenance asset. Correction to group A's log ("Differences from the plan"): the Custodian's Return Asset shows on an On Loan **or Overdue** asset the Custodian holds, not only On Loan.
+
+#### #99, part 2: stale requests after a return from another computer
+
+**Now.** Three places show every request with `status === "Pending"`:
+
+| Place | Code |
+|---|---|
+| Pending Returns (Staff) | [ReturnsPage.tsx:26](../../web/pages/staff/ReturnsPage.tsx#L26) |
+| Staff Overview, the "Pending Return Ledgers" count | [OverviewPage.tsx:27](../../web/pages/staff/OverviewPage.tsx#L27), shown at line 78 |
+| The bell, section "D. Return Requests" (Staff, Lab Head, Director, and the Custodian whose name matches) | [NotificationCenter.tsx:310-311](../../web/features/notifications/NotificationCenter.tsx#L310-L311) |
+
+A request whose asset was returned on another computer (or, after this branch, through Record Return) stays Pending in this browser forever. Group A's H2 showed what happens when Staff then finalize it: a 409, shown as if the return had worked.
+
+**Change.** One new function, `openReturnRequests(returns, assets)`, in a new file `web/features/returns/openReturnRequests.ts`: the Pending requests, minus those whose asset is in the server's asset list (`useServerData().assets`) with a status other than On Loan or Overdue. A request whose asset is not in the list (the list not loaded yet, or the asset deleted) is kept, as today. The three places call it instead of their own `status === "Pending"` filter.
+
+In `NotificationCenter.tsx` exactly this changes, nothing else: one import line after line 12, and lines 310 and 311 (`returns.forEach(ret => {` and `if (ret.status === "Pending") {`) become a loop over `openReturnRequests(returns, assets)`, with the closing brace of the `if` removed. `assets` is already read there (line 47) and is already in the `useMemo` list (line 544). The return cards' text, roles, and clicks are unchanged, and nothing about the 404s of #55.
+
+`web/state/browserOnly.tsx` is **not changed** for this with question 2 (a). The filter needs the server's asset list, and `browserOnly.tsx` sits outside `ServerDataProvider` (App.tsx), so it cannot read that list; the filter lives with the return feature instead. With question 2 (b), `browserOnly.tsx` gains one function, `dropReturnRequests(ids)`, the only way to remove rows from `ems_returns`, and `serverData.tsx` calls it after each asset list load (question 2 says why).
+
+#### #99, part 3: a failed finalize looks like a success, and the wrong row is marked
+
+**Now.** In `handleSubmit`, the Staff branch ([ReturnForm.tsx:103-132](../../web/features/returns/ReturnForm.tsx#L103-L132)):
+- calls `returnsApi.finalizeReturn` (line 111) and keeps any error in `submitError`, then calls the browser's `finalizeReturn` (line 124) **whatever the server answered**, and always shows the success screen (line 135). The success screen keeps the heading "Return Ledger Closed" and "Asset return has been finalized and registry status set to Available.", with the amber box (line 176) "Logged locally, but couldn't reach the database to finalize this return: <message>", also for a 409 the server sent on purpose. The request leaves Pending Returns although nothing was saved.
+- picks the request to mark by asset, not by the row clicked: `pendingReturn` (line 67) is the first Pending request for the asset, and `addReturnRequest` puts new requests first, so with two requests for one asset the newer one is marked whichever row was clicked (group A, "Seen besides"). Pending Returns passes only the asset ([ReturnsPage.tsx:67-80](../../web/pages/staff/ReturnsPage.tsx#L67-L80) and 100).
+
+**Change, in two commits.**
+1. **The row clicked.** `ReturnForm` takes an optional `request` prop (the `ReturnRequest`); Pending Returns passes the row's request with its asset. The blue "Custodian Turn-in Comments" box shows that request, and only that request's id is marked. Line 67's search by asset goes; with no `request` (the modal: Custodian, and Staff's Record Return) no browser row is read or marked.
+2. **A failure stays on the form.** If the answer has `success: false`, the form stays open, nothing in the browser is marked, and a red box above the buttons says **"The return was not recorded: <the server's message>"**, for example "The return was not recorded: TEST-0906 is not out with anyone, so there is nothing to return." With no message: "The return was not recorded. Please try again." If the server cannot be reached: "The return was not recorded: the server could not be reached. Please try again." The button works again for a retry. The lists still reload, so after a 409 for an asset that is no longer out, part 2 takes the stale row off Pending Returns. Only a `success: true` answer marks the request (part 3.1), stores the CLR number, and shows "Return Ledger Closed". The Staff text in the amber box goes (it can no longer appear); the Custodian's amber box about the repair ticket stays. The TSDoc's "If a server call fails, the success screen still appears" (lines 45 and 46) is corrected.
+
+#### #99, part 4: the loan stays approved after a return (H-04)
+
+**Now.** `saveReturn` in [returns.repository.ts:32-55](../../server/features/returns/returns.repository.ts#L32-L55) writes the `asset_returns` row and the new ACTIVE record in one transaction and never touches `asset_loans`. The loan stays `approved`, so:
+- Lab Head, Health Benchmarking, the Custodianship & Overdue Delinquencies table lists it once its due date passes (`analytics.service.ts:480-483`, which already leaves out `returned`);
+- the bell's Reminders tab keeps an "Active Equipment Loan" card for it (`NotificationCenter.tsx:466-472`, which already skips RETURNED);
+- an asset put on loan later by a transfer shows the old loan's dates (`assets.service.ts:77-89`, which reads approved loans only).
+The defect is marked at `returns.service.ts:27`, `returns.api.ts:16`, `ReturnForm.tsx:109`, `assets.service.ts:80`, and `analytics.service.ts:480`.
+
+**Change.** Inside the same transaction, after the record, the asset's approved loans become `returned` (which ones: section 3). A failure on any of the three writes leaves none of them, and answers the generic 500 as today. The answer stays `{ success, return }`. `GET /api/asset_loans` shows such a loan as "Returned" (it capitalizes the stored status). This repository writes another feature's table because the three writes must be one transaction; `deleteWithHistory` in `assets.repository.ts` does the same. The TODO(H-04) lines at `returns.service.ts:27`, `returns.api.ts:16`, and `ReturnForm.tsx:109` go; `assets.service.ts:80` and `analytics.service.ts:480` keep a shorter TODO(H-04) about loans returned **before** this branch, which stay approved (old rows, as CCS Cloud may hold; question 4).
+
+#### #59: a random CLR number that changes on every click
+
+**Now.** `displayCertId` at [ReturnForm.tsx:148](../../web/features/returns/ReturnForm.tsx#L148) is the server's number after a finalize, else the `certId` of any finalized browser request for the same asset (line 147, so possibly an older return's number), else `CLR-` plus `Math.random()`, worked out again on every render. With Clearance Issued on, the form's Clearance Certificate ID field (line 401) shows it under "This reference is permanently bound to the return ledger record." (line 407), and it changes with every click on a condition or a key in the notes.
+
+**Change.** Before the finalize, the field shows **"Assigned on finalize"**, and the line under it says **"The server assigns this reference when the return is finalized."** After a successful finalize, the success screen's Clearance Certificate shows the server's `reference_number`, the same as `asset_returns.reference_number`. Line 147 and the random fallback go. `browserOnly.tsx` still makes up a `certId` when a request is marked (line 93), but after this no screen shows it; it is left alone so that `browserOnly.tsx` changes only for question 2 (noted below).
+
+#### The `returnRefusal` comment
+
+[returns.service.ts:67-69](../../server/features/returns/returns.service.ts#L67-L69) says Edit Asset can give an Active asset a custodian, "who then sees Return Asset". The modal shows Return Asset (and after this branch, Record Return) only on an On Loan or Overdue asset, so an Active asset held by a person is returned only by a direct call or an old browser request. The comment is corrected in the docs commit; the rule (group A answer 1b) is unchanged.
+
+### 2. The return flow after this branch
+
+**Path A: Custodian request, then Staff finalize in the same browser.**
+1. Custodian, My Assets, an asset they hold that is On Loan or Overdue, Return Asset. They fill in the date and comments (and may flag a repair), and Submit Return Request.
+2. The request is saved in this browser only (`ems_returns`, Pending). A repair flag posts a repair ticket to the server, as today.
+3. Staff log in **in the same browser**. Pending Returns lists the request, the Overview count and the bell include it, as long as the asset is still On Loan or Overdue.
+4. Staff click Evaluate & Finalize on that row, choose the condition, add notes, may set Clearance Issued ("Assigned on finalize"), and click Finalize Return and Close Ledger.
+5. The server checks the asset is out (group A), then in one transaction writes the `asset_returns` row (returner: the holder; the CLR number), an ACTIVE record under the placeholder (nobody holds it), and sets the asset's approved loans to `returned`.
+6. On success: "Return Ledger Closed" with the server's CLR number, this row is marked Finalized in the browser, the lists reload. On a refusal: the reason on the form, the row stays Pending (and leaves the list if the asset is no longer out).
+
+**Path B: Staff Record Return, no request, any computer.**
+1. Staff, Asset Inventory, the asset (On Loan or Overdue), Record Return.
+2. The same Staff form, with no Custodian comments box. Staff choose the condition and finalize.
+3. Steps 5 and 6 of path A, except that no browser row is marked.
+4. Any request for that asset in another browser is hidden there at its next list reload, because the asset is no longer On Loan (part 2).
+
+**Still only in the browser until Phase 3** (status, requested_by, requested_at, and loan_id on `asset_returns`): the request itself (who asked, when, the proposed date, the comments), its Pending or Finalized state, the clearance flag and its `certId`. So a request is still seen only in the browser that made it: Staff on another computer use path B and do not see the Custodian's comments. On the server today: the finalized return, the record, and (new) the closed loans. With `loan_id` in Phase 3, the loan to close is named by the return instead of found by asset (section 3).
+
+### 3. How "the asset's approved loan" is found
+
+There is no link from a return to a loan, so the loan is found by asset: the `asset_loans` rows with this `asset_id` and `status = 'approved'`, inside the return's transaction. The borrower is not compared: the returner can be a transfer recipient, not the borrower.
+
+| Case | How it happens | What happens |
+|---|---|---|
+| One approved loan | The normal loan: Lab Head approved it, the asset went ON_LOAN to the borrower | It becomes `returned` |
+| Several approved loans | Loans returned before this branch stayed approved (H-04), so an asset lent several times has old approved rows; or a loan, then a transfer onward | Question 1: (a) all become `returned`; (b) only the newest (by `loaned_on`, then `loan_id`) |
+| No approved loan | The asset was put ON_LOAN by a transfer, or is Active and held through Edit Asset, or its loan was declined | No loan changes; the return is saved as today |
+| A pending or declined loan on the asset | Old rows (group A keeps new ones off an asset that is out) | Not touched |
+| A refused return (409) | Group A's rule | Nothing is written, the loan included |
+
+### 4. Tests
+
+`npm test` after every commit; typecheck stays **65** (no new types expected; if it moves, the report says why). The web commits have no tests: `npm test` runs only `tests/**/*.test.ts` (API and seed), so their counts stay the same and their checks are the hand checks.
+
+| Commit | Test file | Change | Count after |
+|---|---|---|---|
+| 1 (H-04) | `tests/api/returns.test.ts` | "finalizing a return leaves the loan open (known defect H-04)" becomes "finalizing a return closes the asset's approved loan, and the loan list shows it as Returned (issue #99, H-04 fixed)": LOAN-1 `returned`, `GET /api/asset_loans` shows "Returned", the asset Active with no due date; same count | |
+| | | New: "closes every approved loan of the asset, and leaves its pending and declined loans and other assets' loans alone (issue #99)" (+1). With question 1 (b): "closes only the newest approved loan of the asset..." (+1, same count) | |
+| | | New: "returns an asset with no approved loan (put on loan by a transfer), and changes no loan (issue #99)" (+1) | |
+| | | New: "a refused return (409) leaves the asset's approved loan approved (issue #99)" (+1) | |
+| | `tests/api/analytics.test.ts` | "still counts a loan as delinquent after the asset is returned through the return route (known defect H-04)" becomes "no longer counts a loan as delinquent once the asset is returned through the return route (issue #99, H-04 fixed)": loan `returned`, `delinquencies` empty; same count | **413** |
+| 2 (the row clicked) | none (web) | | **413** |
+| 3 (a failure stays on the form) | none (web) | | **413** |
+| 4 (#59) | none (web) | | **413** |
+| 5 (stale requests) | none (web) | | **413** |
+| 6 (Record Return) | none (web) | | **413** |
+| 7 (question 3, b) | none (web) | | **413** |
+| 8 (docs) | none | | **413** |
+
+Checked: no other test returns an asset that has a loan. `sessionUser.test.ts` (TEST-0851) and the other `returns.test.ts` returns use extra assets with no loan row, and `session.test.ts` row 27 returns an unknown tag (404). Each test file reseeds the database, so LOAN-1 being `returned` in `returns.test.ts` does not reach `loans.test.ts`.
+
+### 5. Screens and roles that see a difference
+
+| Screen (role) | Part | What changes |
+|---|---|---|
+| Asset detail modal, from Asset Inventory (Staff) | 1 | Record Return on an On Loan or Overdue asset; it finalizes at once, from any computer |
+| Asset detail modal (Custodian, Lab Head) | none | Unchanged: Return Asset for the holder; Custodian History for the Lab Head |
+| Pending Returns (Staff) | 2, 3, #59 | Requests whose asset is no longer On Loan or Overdue are hidden; a refusal or failure shows the reason in red and keeps the request; the row clicked is the one finalized; "Assigned on finalize" until the server's CLR number |
+| System Overview (Staff), "Pending Return Ledgers" | 2 | Counts only requests whose asset is still out |
+| The bell, Requests tab (Staff, Lab Head, Director, the Custodian) | 2 | Return Request cards for assets no longer out are gone |
+| The bell, Reminders tab (Staff, Lab Head, Director, the borrower) | 4 | An "Active Equipment Loan" card goes once the asset is returned (no bell code change: the loan is no longer approved) |
+| My Assets (Custodian) | 1, 4 | After a Record Return from any computer, the asset leaves My Assets at the next reload (as after a same-browser finalize today), with its due date and the "Overdue Return" banner |
+| Health Benchmarking (Lab Head), the delinquency table | 4 | A returned loan is no longer listed as overdue |
+| Custody Transitions (Lab Head) | 4 | A returned loan shows status "Returned" and leaves "Completed This Period" (that count reads "Approved"). With question 3 (b) it shows as completed instead |
+
+**Teammates' files.** `CustodianPortal.tsx` (#88's web part) is **not** touched: the modal change is inside `AssetDetailModal.tsx`, which CustodianPortal only opens. `IntakeWizard.tsx` (#102) is not touched. `NotificationCenter.tsx` (the bell, #55, unassigned): only the import and lines 310 and 311 (part 2). `LabHeadDashboard.tsx` is touched only with question 3 (b); #55's Lab Head return cards may be in that file too, so its owner should know.
+
+### 6. Stop 2 plan
+
+On `fix/99-returns`, in this order. After each commit: `npm run typecheck` (65) and `npm test` (the count above). Commit, never push.
+
+| # | Commit message | Files |
+|---|---|---|
+| 1 | `fix(returns)!: finalizing a return closes the asset's approved loan (#99)` | `server/features/returns/returns.repository.ts`, `returns.service.ts` (TSDoc, TODO), `returns.controller.ts` (TSDoc); TODO(H-04) comment lines in `server/features/assets/assets.service.ts:80`, `server/features/analytics/analytics.service.ts:480`, `web/api/returns.api.ts:16`, `web/features/returns/ReturnForm.tsx:109`; `tests/api/returns.test.ts`, `tests/api/analytics.test.ts` |
+| 2 | `fix(returns)!: finalize the request that was clicked, not the asset's first one (#99)` | `web/features/returns/ReturnForm.tsx`, `web/pages/staff/ReturnsPage.tsx` |
+| 3 | `fix(returns)!: a refused or failed finalize shows the reason and keeps the request (#99)` | `ReturnForm.tsx` |
+| 4 | `fix(returns)!: show "Assigned on finalize" until the server gives the CLR number (#59)` | `ReturnForm.tsx` |
+| 5 | `fix(returns)!: hide return requests whose asset is no longer on loan (#99)` | New `web/features/returns/openReturnRequests.ts`; `ReturnsPage.tsx`, `web/pages/staff/OverviewPage.tsx`, `web/features/notifications/NotificationCenter.tsx` (the import and lines 310 and 311 only). With question 2 (b), also `web/state/browserOnly.tsx` (`dropReturnRequests`) and `web/state/serverData.tsx` (one call) |
+| 6 | `feat(returns)!: Staff can record a return from the asset detail modal (#99)` | `web/features/assets/AssetDetailModal.tsx` (the button, its TSDoc, the header's "Used by"), the header of `ReturnForm.tsx` |
+| 7 | `fix(lab-head)!: show a returned loan as completed in Custody Transitions (#99)`, only if question 3 is (b) | `web/pages/lab-head/LabHeadDashboard.tsx`: "Returned" in `txnBadgeClass` (green), in the card's left edge, in "Completed This Period", and in `VisualTimeline` as done |
+| 8 | `docs(group H): record the build, correct the returnRefusal comment` | `returns.service.ts` lines 67 to 69 (comment only); this log ("Stop 2: what was built", the hand check results), `docs/README.md`, `docs/HANDOFF.md` |
+
+Then `npm run build`, the hand checks below (the agent's, on the local test database), the report, and stop.
+
+### 7. Hand checks
+
+#### Group H hand checks
+
+**H1 to H10 and H12: the agent, in a browser (Playwright MCP), on the local test database `AdRIC_DB_test` only**, after stop 2. Before starting: stop any `npm run dev:all` and make sure ports 4000 and 5173 are free. A start script outside the repository (`%TEMP%\adric-groupH-handchecks\start.mts`, built on group A's) empties and seeds the test database through the test harness, adds the assets below, and starts the server and Vite; reads go through a SELECT-only helper beside it. **Two browser contexts** (separate cookies and `localStorage`) stand for two computers: context 1 and context 2. Screenshots go to `%TEMP%\adric-groupH-handchecks\screenshots\`; `.playwright-mcp` is deleted from the repository afterwards.
+
+Assets: seeded TEST-0001 (Active), TEST-0002 (on loan to Custodian A, LOAN-1 approved), TEST-0003 (under maintenance), TEST-0004 (Disposed). Added: TEST-0901 (on loan to Custodian A, an approved loan), TEST-0902 (on loan to Custodian B, no loan row, as after a transfer), TEST-0903 (on loan to Custodian A, an approved loan), TEST-0904 (on loan to Custodian B, two approved loans: an old one, as H-04 left it, and the current one), TEST-0905 (on loan to Custodian A, an approved loan 5 days past due, so Overdue), TEST-0906 (on loan to Custodian A, an approved loan), TEST-0907 (on loan to Custodian A, an approved loan; a control that is never returned).
+
+**H11: Raiki, on CCS Cloud, read-only (SELECT only).**
+
+| # | Part | Role and screen | Steps | Expected | Database |
+|---|---|---|---|---|---|
+| H1 | #99, the old bug: two computers | Context 1: Custodian A, My Assets. Context 2: Staff, Pending Returns, System Overview, Asset Inventory | Context 1: TEST-0901, Return Asset, comment "H1 request", Submit Return Request. Context 2: open Pending Returns and System Overview; then Asset Inventory, TEST-0901, Record Return, Operational, Finalize Return and Close Ledger | Context 1: "Return Initiated". Context 2: Pending Returns "No pending return requests in queue." and "Pending Return Ledgers" 0 (expected: the request is browser-only until Phase 3); Record Return shows "Return Ledger Closed" with a CLR number; the modal then shows TEST-0901 Active, "None". One `asset_returns` row, returner Custodian A; newest record ACTIVE under the placeholder; its loan `returned` | Local test |
+| H2 | #99, the stale request | Context 1: Custodian A, then Staff | Context 1, reload: the bell and My Assets. Log out; log in as Staff in context 1 (the browser holding the request): Pending Returns, System Overview, the bell | Custodian A: no "Return Request" card for TEST-0901, TEST-0901 not in My Assets. Staff: no TEST-0901 row, "Pending Return Ledgers" 0, no return card in the bell. `ems_returns` (read from the page): with question 2 (a) the request is still there, Pending; with (b) it is gone | Local test |
+| H3 | #99 path A, and #59 | Context 1: Custodian A, then Staff, Pending Returns | Custodian A: TEST-0002, Return Asset. Staff in context 1: Pending Returns, Overview, the bell; Evaluate & Finalize; click several conditions, type in the notes, turn Clearance Issued on and off and on; Finalize | Before: one row, count 1, one bell card. The certificate field reads "Assigned on finalize" and never changes. After: "Return Ledger Closed"; the Clearance Certificate equals the new `asset_returns.reference_number`; the row leaves; LOAN-1 `returned` | Local test |
+| H4 | #99, the row clicked | Context 1: Custodian A, then Staff, Pending Returns | Custodian A: TEST-0903, Return Asset twice, comments "older", then "newer". Staff: Evaluate & Finalize on the "older" row; finalize | The blue box shows "older". After: in `ems_returns` the "older" request is Finalized and "newer" is not (Pending, hidden as stale; or gone with question 2, b). Both rows leave the list. One `asset_returns` row | Local test |
+| H5 | #99, a refused finalize | Context 1: Custodian A, then Staff, Pending Returns. Context 2: Staff, Asset Inventory | Custodian A: TEST-0906, Return Asset. Staff in context 1: Evaluate & Finalize, Operational, do not finalize yet. Context 2: TEST-0906, Record Return, finalize. Context 1: Finalize | Context 1: the form stays open, red "The return was not recorded: TEST-0906 is not out with anyone, so there is nothing to return."; no success screen; the request still Pending in `ems_returns`; after closing the dialog the row is gone (stale). One `asset_returns` row for TEST-0906 (context 2's) | Local test |
+| H6 | Section 3, no loan | Staff, Asset Inventory | TEST-0902, Record Return, finalize | "Return Ledger Closed"; returner Custodian B; the number of `asset_loans` rows per status is the same before and after | Local test |
+| H7 | Section 3, several loans | Staff, Asset Inventory | TEST-0904, Record Return, finalize | Question 1 (a): both its loans `returned`. (b): only the newer one | Local test |
+| H8 | Part 4, overdue | Staff, Asset Inventory and the bell (Reminders); Lab Head, Health Benchmarking; Custodian A, My Assets | Before: TEST-0905 shows Overdue; note the Reminders card and the delinquency row. Staff: Record Return, finalize. Reload each screen | Before: Overdue, an "Active Equipment Loan" reminder, a delinquency row, the "Overdue Return" banner for Custodian A. After: none of them for TEST-0905 | Local test |
+| H9 | Part 1, nearby: who sees Record Return | Staff, Asset Inventory; Custodian A, My Assets; Lab Head, Branch Inventory | Staff: open TEST-0001, TEST-0003, TEST-0004, TEST-0907. Custodian A: open TEST-0907. Lab Head: open TEST-0907 | Staff: Record Return on TEST-0907 only (Active: Send to Maintenance only; Maintenance: no Record Return; Disposed: no actions). Custodian A on TEST-0907: Custodianship Transfer, Request Repair, Return Asset, no Record Return. Lab Head: Custodian History only. TEST-0907 still On Loan, its loan still approved | Local test |
+| H10 | Part 4, Lab Head view | Lab Head, Custody Transitions | Find LOAN-1 (returned in H3) | Status "Returned", no Authorize or Decline. With question 3 (b): green, counted in "Completed This Period", the timeline complete. With (a): as listed in section 5 | Local test |
+| H11 | Part 4, what UAT may meet | Raiki, a MySQL client, CCS Cloud, read-only | Run the SELECT below. Nothing else | Approved loans on assets that are no longer on loan (left by H-04 before this branch). Zero rows is fine. Report the count and the tags | CCS Cloud, SELECT only |
+| H12 | All | The agent, terminal | `npm run typecheck`, `npm run build`, `npm test` with the browser, server, and Vite stopped | 65, passes, 413 | Local test |
+
+H11, the read-only query (SELECT only; it changes nothing):
+
+```sql
+-- Approved loans whose asset's newest record is not ON_LOAN
+SELECT * FROM (
+  SELECT l.loan_id, a.asset_tag, l.due_date,
+    (SELECT r.status FROM asset_records r WHERE r.asset_id = l.asset_id
+     ORDER BY r.date_logged DESC, r.asset_record_id DESC LIMIT 1) AS newest_status
+  FROM asset_loans l JOIN assets a ON a.asset_id = l.asset_id
+  WHERE l.status = 'approved'
+) x
+WHERE x.newest_status IS NULL OR x.newest_status <> 'ON_LOAN';
+```
+
+H11 can run now, before stop 2; it does not depend on this branch.
+
+**Results (2026-10-20). H1 to H10 and H12: all passed** (the agent, on the local `AdRIC_DB_test` only). **H11: run by Raiki** (CCS Cloud, read-only).
+
+How they ran: a real browser (Chrome, driven by the Playwright MCP) against Vite at `http://localhost:5173` (started with `VITE_API_URL=http://localhost:4000`) and `server/main.ts` on port 4000. Ports 4000 and 5173 were free before the start; afterwards their two processes were checked by command line to be the start script's server and this run's Vite, and ended by PID. The start script `%TEMP%\adric-groupH-handchecks\start.mts` (group A's, with this group's seven assets and their loans) emptied and seeded the test database through the test harness and its guard, which takes only `TEST_DATABASE_URL` from `.env`, as `npm test` does; the agent did not open `.env` or `pending_registrations.json`. Reads went through `q.mts` (SELECT only); nothing was written to the database by hand. **Context 1** was the MCP's own browser (its profile still held five Finalized requests from group A's sessions; Finalized rows are never shown or dropped). **Context 2** was a second, empty context in the same browser, with its own cookies and `localStorage`. Screenshots are in `%TEMP%\adric-groupH-handchecks\screenshots\`, context 1's console log in `playwright-logs\`, and the H12 output in `h12-npm-test.txt`, all beside the start script. `.playwright-mcp` was deleted from the repository afterwards.
+
+| Check | Result | What was seen | Screenshots |
+|---|---|---|---|
+| H1 | Passed | Context 1, Custodian A, TEST-0901, Return Asset, "H1 request": "Return Initiated". Context 2, Staff: Pending Returns "No pending return requests in queue.", System Overview "Pending Return Ledgers" 0, and context 2's `ems_returns` empty (the request is browser-only, as expected until Phase 3). Asset Inventory, TEST-0901: Send to Maintenance and Record Return; Record Return showed no Custodian comments box; Operational, Finalize: "Return Ledger Closed". The modal then showed TEST-0901 Active, condition OPERATIONAL, and no Record Return. Database: return 1, `returned_by_id` 6 (Custodian A), CLR-MVFI0DDS; newest record ACTIVE under user 1 (the placeholder); loan 3 `returned` | `h1-1-staff-modal-record-return.png`, `h1-2-record-return-closed.png`, `h1-3-modal-after-return.png` |
+| H2 | Passed | Context 1, Custodian A, reload: TEST-0901 gone from My Assets, no "Return Request" card in the bell. Staff logged in on context 1: Pending Returns empty, "Pending Return Ledgers" 0, no return card in the bell. `ems_returns`: the "H1 request" row is gone (answer 2b) | `h2-1-custodian-bell.png`, `h2-2-staff-same-browser.png` |
+| H3 | Passed | Custodian A, TEST-0002, Return Asset, "H3 request". Staff on context 1, Evaluate & Finalize (the blue box: "H3 request"), Clearance Issued on, Finalize: "Return Ledger Closed", Clearance Certificate CLR-MVFI3JST, equal to return 2's `reference_number`; the row left the list; the request Finalized; LOAN-1 `returned`. The readings before the finalize (the count, the bell, the certificate field) were lost to a script error after the run, and were taken again in H4 | `h3-1-assigned-on-finalize.png`, `h3-2-server-clr.png` |
+| H4 | Passed | Custodian A, TEST-0903, Return Asset twice ("older", "newer"). Staff: "Pending Return Ledgers" 2, two bell cards, two rows. Evaluate & Finalize on the "older" row: the blue box "older". With Clearance Issued on, the certificate field read "Assigned on finalize" at all six readings (after the switch, three condition clicks, typing notes, and the switch off and on), with "The server assigns this reference when the return is finalized." under it. Finalize: Clearance Certificate CLR-MVFI4NJJ (return 3). After: list empty; `ems_returns` holds "older" as Finalized, and "newer" was dropped (answer 2b) | `h4-1-assigned-on-finalize.png` |
+| H5 | Passed | Custodian A, TEST-0906, Return Asset. Staff on context 1 opened Evaluate & Finalize (Operational). Context 2, Record Return on TEST-0906: "Return Ledger Closed" (return 4). Context 1, Finalize: the form stayed open with red "The return was not recorded: TEST-0906 is not out with anyone, so there is nothing to return.", no success screen, the button usable again. The request was never marked Finalized; the reload after the refusal dropped it (TEST-0906 now Active, answer 2b), so its row left the list. Still one `asset_returns` row for TEST-0906 | `h5-1-refused-on-form.png` |
+| H5b | Passed (added) | The server cannot be reached: Custodian A, TEST-0907, Return Asset; Staff, Evaluate & Finalize, with the browser made to fail that one POST. Red "The return was not recorded: the server could not be reached. Please try again."; the request stays Pending in `ems_returns` and in the list (TEST-0907 is still on loan). Nothing written | `h5-2-unreachable-on-form.png` |
+| H6 | Passed | Context 2, TEST-0902 (on loan to Custodian B, no loan row), Record Return: "Return Ledger Closed"; return 5, `returned_by_id` 7 (Custodian B). It has no loan row, and no other asset's loan changed (TEST-0907's loan 6 still approved, LOAN-2 still pending) | none |
+| H7 | Passed | Context 2, TEST-0904 (two approved loans), Record Return: return 6; loans 7 and 8 both `returned` (answer 1a) | none |
+| H8 | Passed | Before: Asset Inventory TEST-0905 "Overdue"; Lab Head, Health Benchmarking, the delinquency table "2 Overdue Items" (TEST-0904's old loan, 60 days, and TEST-0905); Custodian A's My Assets with the "Overdue Return" banner (read at the start of H1); the Staff bell's Reminders had cards for TEST-0904 (twice), TEST-0907, and TEST-0905's loan 9, which the loan list names "ASUS TUF Gaming A15" (H-08, below). Context 2, the TEST-0905 modal "Overdue", Record Return: return 7, loan 9 `returned`. After: "0 Overdue Items", "No overdue student loans currently flagged in TEST."; Staff Reminders only TEST-0907; Custodian A: no banner, no TEST-0905 | `h8-1-delinquency-before.png`, `h8-2-overdue-record-return.png`, `h8-3-delinquency-after.png` |
+| H9 | Passed | Staff: TEST-0001 (Active) and TEST-0003 (Maintenance) only Send to Maintenance; TEST-0004 (Disposed) no Asset Actions; TEST-0907 (On Loan) Send to Maintenance and Record Return. Custodian A on TEST-0907: Custodianship Transfer, Request Repair, Return Asset, no Record Return. Lab Head, Branch Inventory, TEST-0907: Custodian History only. TEST-0907 still ON_LOAN, loan 6 still approved | `h9-1-staff-maintenance-no-record-return.png`, `h9-2-custodian-0907.png` |
+| H10 | Passed | Lab Head, Custody Transitions: seven loans "Returned" (LOAN-1, 3, 4, 5, 7, 8, 9), each with the green badge and edge, a complete timeline, and no Authorize or Decline; "Completed This Period" 8 (the seven, and TEST-0907's approved loan); "1 Pending" (LOAN-2) | `h10-1-returned-loan-custody.png` |
+| H11 | Run by Raiki | See below | |
+| H12 | Passed | With the browser, server, and Vite stopped: typecheck **65**, build passes, `npm test` 16 files, **413 passed** | `h12-npm-test.txt` |
+
+**H11 result (Raiki, CCS Cloud, read-only, 2026-10-20): 17 approved loans whose asset is not on loan.** As reported: loan_id 1, 2, 3, 4 (EQ-2026-8652), 5 and 7 (CIVI-0001, Disposed), 6 (GAME-0001), 11, 12 (CITe4D-0003), 14 (CITe4D-0006), 15 (CITe4D-0007), 17 (CNIS-0001, Maintenance), 18 (CITe4D-0009, Maintenance), 19 (CITe4D-0010), 20 (CITe4D-0011), 23 (CITe4D-0013), 30 (CITe4D-0002). The other assets are Active. **With answer 4a these stay approved until their asset is lent and returned again:** an Active asset cannot be returned (group A), so a loan on one closes only after a new loan is approved and the asset is returned, which then closes every approved loan of the asset (answer 1a). The two on the Disposed CIVI-0001 never close; the two under maintenance close only if the repair puts the asset back on loan and it is then returned. So **the Lab Head overdue numbers at UAT include these loans** (the delinquency table, once their due dates are past), and the bell's Reminders keep an "Active Equipment Loan" card for each. Any data cleanup is a team decision outside this branch.
+
+**Seen besides, not caused by this branch:** the console showed only what the checks asked for (the 409 in H5, the failed POST in H5b), `GET /api/auth/me` 401 on the login page before each login, the `favicon.ico` 404, and React's development warnings about refs and a dialog description; the server log has no error and seven "Return finalized". Two older bugs showed up: the loan list names loan 9 "ASUS TUF Gaming A15" whatever its asset (`listLoans`, the H-08 seed block; TEST-0905's loan was number 9 here), and Staff see Send to Maintenance on an asset already under maintenance (the modal's last branch, noted in section 1).
+
+### 8. Questions for Raiki
+
+1. **Which loans a return closes when an asset has several approved loans.** Pending Returns and Record Return (Staff); it shows in the Lab Head's delinquency table and Custody Transitions, and in the bell's reminders. Loans returned before this branch stayed approved, so an asset lent more than once can have several.
+   - (a) Every approved loan of the asset becomes `returned`. After a return the asset is back in the pool, so none of them can still be out.
+   - (b) Only the newest approved loan (by request date, then loan number). Older ones stay approved.
+   - **Recommendation: (a).** An asset in the pool has no open loan, and it also clears old H-04 rows on that asset.
+2. **What happens to a stale browser request.** Pending Returns and System Overview (Staff), the bell (every role). The team decision is to hide a request when its asset is no longer On Loan. A repair ends with the asset back on loan to the same person, so a request hidden during a repair should come back; but one hidden after a return also comes back if the same asset is lent again later, and then looks like a new request for the new loan.
+   - (a) Hide only, as decided. No change to `browserOnly.tsx`.
+   - (b) Hide, and also drop the request from this browser once its asset is Active or Disposed (returned or retired), at the next list reload. Under maintenance it is only hidden. Adds one function to `browserOnly.tsx` and one call in `serverData.tsx`.
+   - **Recommendation: (b).** An old request cannot come back as a phantom when the asset is lent again, which UAT testers repeating a flow would meet.
+3. **How Custody Transitions shows a returned loan.** Custody Transitions (Lab Head). Today it knows only Pending, Approved, and Declined, so a returned loan gets a plain badge, an amber edge, an unfinished timeline, and drops out of "Completed This Period".
+   - (a) Leave it for #55 (Lab Head screens, unassigned).
+   - (b) One small web commit here (commit 7): "Returned" shows green, counts as completed, and its timeline is complete. Touches `LabHeadDashboard.tsx` only.
+   - **Recommendation: (b).** Every return creates such a loan from this branch on, and UAT Lab Heads would otherwise see it as stuck.
+4. **Loans returned before this branch** (H11 counts them on CCS Cloud). Health Benchmarking (Lab Head), the bell's reminders (all roles). They stay approved, so they still count as overdue or as active loans.
+   - (a) Leave them. With question 1 (a) each one closes the next time its asset is returned. The team knows how many from H11.
+   - (b) Close them with a one-time data migration in `prisma/migrations/`. That changes CCS Cloud when it is deployed and needs your go-ahead for a migration.
+   - **Recommendation: (a).** No database change on the day before UAT; H11 tells you whether it matters.
+
+**Answers (Raiki, 2026-10-20):** 1 (a), 2 (b), 3 (b), 4 (a). H11 was run on CCS Cloud (read-only); its result, and what 4 (a) means for UAT, are under "Group H hand checks".
+
+### 9. Stop 2: what was built (2026-10-20)
+
+On `fix/99-returns`, in the planned order. After every commit: typecheck **65**, build passes, `npm test` as below. Nothing pushed.
+
+| Commit | Kind | What it does | Tests |
+|---|---|---|---|
+| `59d6c599` | **Behavior change** (H-04) | In the return's transaction, every approved loan of the asset becomes `returned` (answer 1a); the TODO(H-04) lines go, or are narrowed to loans returned before this branch | **413** |
+| `684f0212` | **Behavior change** (#99) | Pending Returns passes the clicked request to `ReturnForm`, which shows and marks only that one | **413** |
+| `cc8a1190` | **Behavior change** (#99) | A refused or failed finalize stays on the form with "The return was not recorded: ..." in red and marks nothing; only a success shows "Return Ledger Closed" | **413** |
+| `791dd3ba` | **Behavior change** (#59) | "Assigned on finalize" until the server's CLR number; no random or borrowed number | **413** |
+| `365957eb` | **Behavior change** (#99) | `openReturnRequests` hides requests whose asset is not On Loan or Overdue (Pending Returns, Overview, the bell); `dropReturnRequests` removes those whose asset is Active or Disposed after each asset list load (answer 2b) | **413** |
+| `e178991b` | **Behavior change** (#99) | Record Return for Staff in the asset detail modal, on an On Loan or Overdue asset | **413** |
+| `d0e9b5d0` | **Behavior change** (answer 3b) | Custody Transitions shows a Returned loan as completed | **413** |
+| this commit | Docs and comments | The `returnRefusal` comment; this section, the hand check results, `docs/README.md`, `docs/HANDOFF.md` | **413** |
+
+**Test count: 410 to 413**, all in the first commit, as planned in section 4. The typecheck stayed at **65** in every commit. No schema, migration, `package.json`, or CCS Cloud change.
+
+#### Differences from the plan, and why
+
+- **The bell changed by one line, not two:** the loop runs over `openReturnRequests(returns, assets)`, and its section comment says so. The `if (ret.status === "Pending")` under it stays (now always true, but removing it would reindent the whole block in a teammate's file). Nothing else in `NotificationCenter.tsx` changed.
+- **`dropReturnRequests` takes asset tags, not request ids.** `serverData.tsx` holds the asset list but not the requests, so after each successful asset list load it passes the tags of the assets that are Active or Disposed, and `browserOnly.tsx` removes the Pending requests for them. If the list fails to load, nothing is dropped.
+- **Pending Returns and the Overview filter against `useServerData().assets`**, the list that reloads after every finalize, not the page's own `useStaffAssets` copy, which loads once.
+- **H5's expectation changed with answer 2b:** after the 409, the reload drops the request because its asset is now Active, so it is not "still Pending" as the plan wrote. What matters held: it is never marked Finalized and no success screen shows. H5b was added for the case where the request must stay: the server cannot be reached.
+- **Commit 1 also corrected the header of `tests/api/returns.test.ts`**, which said TEST-0002 is returned "for H-04".
+- **H3's readings before the finalize** were lost to a script error after the run; H4 took the same readings (the count, the bell, the certificate field), and they passed.
+
+#### What every teammate must do
+
+Pull and run `npm test` once (413). After a return, a loan's status is "Returned" (`asset_loans.status = 'returned'`); a screen that lists loans by status should treat it as finished, as the bell, the analytics, and now Custody Transitions do.
+
+### Noticed, not in this branch
+
+- **A pending transfer survives a return.** A transfer can be requested on an asset on loan; after the return the asset is Active, and group A's approval check allows Active, so approving the old transfer gives the returned asset to the recipient. Same before this branch; for the transfer rules (issue #22).
+- **The browser still makes up a `certId`** when a request is marked (`browserOnly.tsx:93`). After #59 no screen shows it; it goes with the request when Phase 3 moves it to `asset_returns`.
+- **Record Return is not offered on an Active asset held by a person** (given through Edit Asset), which the server accepts (group A answer 1b). The issue asks for On Loan assets only.
+- **The bell matches a Custodian's return cards by name** (`NotificationCenter.tsx:323`, `ret.custodian === currentUserName`, issue #32 style). Left for the bell rewrite.
+- **The loan list names loan 9 "ASUS TUF Gaming A15"** whatever its asset (`listLoans`, part of the H-08 seed block). Seen in H8; on CCS Cloud it shows only if a real loan has id 9.
+- **Staff see Send to Maintenance on an asset already under maintenance** (the modal's last branch). Seen in H9; harmless, its own fix.

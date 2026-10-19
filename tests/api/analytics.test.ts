@@ -452,7 +452,7 @@ describe("GET /api/analytics/lab-head", () => {
     }
   });
 
-  it("still counts a loan as delinquent after the asset is returned through the return route (known defect H-04)", async () => {
+  it("no longer counts a loan as delinquent once the asset is returned through the return route (issue #99, H-04 fixed)", async () => {
     const overdue = await addOverdueLoan("TEST-0727", 5);
     try {
       const returned = await asStaff.post(`/api/assets/${overdue.asset.tag}/return`, {
@@ -464,8 +464,8 @@ describe("GET /api/analytics/lab-head", () => {
 
       const res = await labHead(TEST_LAB_QUERY);
 
-      expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: overdue.loan.loan_id } })).status).toBe("approved");
-      expect(res.body.data.delinquencies).toEqual([expect.objectContaining({ id: overdue.loan.loan_id, daysOverdue: 5 })]);
+      expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: overdue.loan.loan_id } })).status).toBe("returned");
+      expect(res.body.data.delinquencies).toEqual([]);
     } finally {
       await removeExtraAssets(db, [overdue.asset.assetId]);
     }

@@ -21,9 +21,9 @@ export function findListLookups() {
 }
 
 /**
- * Writes a finalized return: the asset_returns row, then the asset's new record, in one transaction.
- * The asset's latest record is read inside the transaction and handed to the service
- * to build the new record from.
+ * Writes a finalized return in one transaction: the asset_returns row, the asset's new record,
+ * and every approved loan of the asset set to "returned". The asset's latest record is read inside
+ * the transaction and handed to the service to build the new record from.
  *
  * @param returnData the asset_returns row to insert
  * @param buildTurnInRecord builds the new asset_records row from the latest one
@@ -33,8 +33,8 @@ export function saveReturn(
     returnData: Prisma.asset_returnsUncheckedCreateInput,
     buildTurnInRecord: (latestRecord: asset_records | null) => Prisma.asset_recordsUncheckedCreateInput,
 ) {
-    // The return and the record are written together, so a failure on either leaves neither:
-    // a recorded return always has the asset back in the pool.
+    // The return, the record, and the loans are written together, so a failure on any leaves none:
+    // a recorded return always has the asset back in the pool and its loans closed.
     return prisma.$transaction(async (tx) => {
         const ret = await tx.asset_returns.create({
             data: returnData,
@@ -48,6 +48,14 @@ export function saveReturn(
 
         await tx.asset_records.create({
             data: buildTurnInRecord(latestRecord),
+        });
+
+        // A return names no loan (asset_returns has no loan_id until Phase 3), so the loans are found by
+        // asset. Every approved one closes: the asset is back in the pool, so none of them is still out,
+        // and loans returned before issue #99 were left approved. (answer 1a of the group H questions)
+        await tx.asset_loans.updateMany({
+            where: { asset_id: returnData.asset_id, status: "approved" },
+            data: { status: "returned" },
         });
 
         return ret;

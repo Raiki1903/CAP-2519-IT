@@ -35,6 +35,8 @@ const statusClass: Record<string, string> = {
 const txnBadgeClass: Record<string, string> = {
   Pending: "bg-amber-50  text-amber-700  border-amber-200",
   Approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  // A loan whose asset came back: the server closes it when the return is finalized. (issue #99)
+  Returned: "bg-emerald-50 text-emerald-700 border-emerald-200",
   Declined: "bg-red-50    text-red-700    border-red-200",
 };
 
@@ -72,7 +74,9 @@ function ConditionState({ value }: { value?: string }) {
   );
 }
 
-function VisualTimeline({ status }: { status: string }) {
+function VisualTimeline({ status: shownStatus }: { status: string }) {
+  // A returned loan went through every step, so its timeline is drawn as an approved one.
+  const status = shownStatus === "Returned" ? "Approved" : shownStatus;
   const steps = [
     { label: "Initiated", completed: true, active: false, failed: false },
     {
@@ -141,7 +145,7 @@ interface LoanRequest {
   destinationLab?: string;
   requestedOn: string;
   dueDate: string;
-  status: "Pending" | "Approved" | "Declined";
+  status: "Pending" | "Approved" | "Returned" | "Declined";
   location: string;
   lab: string;
 }
@@ -505,7 +509,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   // ── Custody ───────────────────────────────────────────────────────────────
   if (activeTab === "custody") {
     const pendingCount = branchLoanRequests.filter(l => l.status === "Pending").length;
-    const approvedCount = branchLoanRequests.filter(l => l.status === "Approved").length;
+    const approvedCount = branchLoanRequests.filter(l => l.status === "Approved" || l.status === "Returned").length;
     const declinedCount = branchLoanRequests.filter(l => l.status === "Declined").length;
     const pendingTransferCount = branchDbTransfers.filter(t => t.status === "Pending").length;
     return (
@@ -538,7 +542,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
               const isPending = loan.status === "Pending";
               const isActing = loanActionId === loan.loanId;
               return (
-                <Card key={loan.id} className={cn("border-l-4", loan.status === "Approved" ? "border-l-emerald-500" : loan.status === "Declined" ? "border-l-red-500" : "border-l-amber-500")} style={{ borderLeftWidth: 4 }}>
+                <Card key={loan.id} className={cn("border-l-4", loan.status === "Approved" || loan.status === "Returned" ? "border-l-emerald-500" : loan.status === "Declined" ? "border-l-red-500" : "border-l-amber-500")} style={{ borderLeftWidth: 4 }}>
                   <CardContent className="pt-4 pb-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">

@@ -1,13 +1,14 @@
 /**
  * Return form: a Custodian asks to hand an asset back, and Staff finalize the return.
- * Layer: feature component. Called by features/assets/AssetDetailModal.tsx (Custodian) and pages/staff/ReturnsPage.tsx (Staff pending returns).
+ * Layer: feature component. Called by features/assets/AssetDetailModal.tsx (Custodian return request, Staff Record Return)
+ * and pages/staff/ReturnsPage.tsx (Staff pending returns).
  * Calls: api/returns.api.ts finalizeReturn(), api/repairs.api.ts requestRepair(), state/browserOnly.tsx (the request list).
- * Used by: Custodian return request, Staff return finalization.
+ * Used by: Custodian return request, Staff return finalization, Staff Record Return.
  */
 import { useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
-import { useBrowserOnly } from "@web/state/browserOnly";
+import { useBrowserOnly, type ReturnRequest } from "@web/state/browserOnly";
 import * as returnsApi from "@web/api/returns.api";
 import * as repairsApi from "@web/api/repairs.api";
 import { motion, AnimatePresence } from "motion/react";
@@ -29,6 +30,8 @@ const BRAND = "#005A36";
 
 interface Props {
   asset: AssetDetail;
+  /** The browser request Staff are finalizing, from the Pending Returns row clicked. None from the asset modal. */
+  request?: ReturnRequest;
   onBack: () => void;
   onClose: () => void;
 }
@@ -39,20 +42,23 @@ interface Props {
  *   and, if "flag for repair" is on, files a repair through repairsApi.requestRepair().
  *   Nothing about the return itself reaches the server at this stage.
  * - Staff: records the condition and calls returnsApi.finalizeReturn(), then marks the
- *   browser request finalized and reloads the shared lists. The success screen shows the
- *   server's reference number.
+ *   request passed in (the row clicked) finalized and reloads the shared lists. The success
+ *   screen shows the server's reference number. From the asset modal (Record Return) there is
+ *   no request: the return is recorded on the server alone.
  *
- * If a server call fails, the success screen still appears, with a warning line, and
- * the reference shown is a made-up `CLR-` number instead of a database one.
+ * If the server refuses a Staff finalize or cannot be reached, the form stays open with the reason
+ * in red, and nothing in the browser is marked. A Custodian's request is saved even if its repair
+ * ticket fails; the success screen then says so in an amber line.
  *
  * @param asset the asset being returned
+ * @param request the Pending Returns request being finalized, if any; only this one is marked
  * @param onBack returns to the asset detail view
  * @param onClose closes the modal from the success screen
  */
-export function ReturnForm({ asset, onBack, onClose }: Props) {
+export function ReturnForm({ asset, request, onBack, onClose }: Props) {
   const { role } = useSession();
   const { syncFromDb } = useServerData();
-  const { addReturnRequest, finalizeReturn, returns } = useBrowserOnly();
+  const { addReturnRequest, finalizeReturn } = useBrowserOnly();
 
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
   const [condition, setCondition] = useState("");
@@ -63,8 +69,6 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
   const [flagForRepair, setFlagForRepair] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [dbReferenceNumber, setDbReferenceNumber] = useState<string | null>(null);
-
-  const pendingReturn = returns.find(r => r.assetId === asset.id && r.status === "Pending");
 
   const isCustodian = role === "Custodian";
   const canSubmit = isCustodian ? !!returnDate : (!!returnDate && !!condition);
@@ -101,12 +105,10 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
         }
       }
     } else {
-      const reqId = pendingReturn ? pendingReturn.id : `RET-${Date.now().toString().slice(-6)}`;
-
-      // The database write: the server adds the asset_returns row and an ACTIVE
-      // record under the placeholder custodian (nobody holds it). The custodian's request above stays
-      // in the browser only, because asset_returns has no pending state to hold it. (H-02)
-      // TODO(H-04): the matching loan is not closed, it stays approved. Phase 3.
+      // The database write: the server adds the asset_returns row and an ACTIVE record under the
+      // placeholder custodian (nobody holds it), and closes the asset's approved loans. The custodian's
+      // request stays in the browser only, because asset_returns has no pending state to hold it. (H-02)
+      let notRecorded: string | null = null;
       try {
         const data = await returnsApi.finalizeReturn(asset.id, {
           condition,
@@ -115,20 +117,31 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
         if (data.success) {
           setDbReferenceNumber(data.return.reference_number);
         } else {
-          setSubmitError(data.error || "Failed to finalize return in the database.");
+          notRecorded = data.error ? `The return was not recorded: ${data.error}` : "The return was not recorded. Please try again.";
         }
-      } catch (err: any) {
-        setSubmitError(err.message || "Failed to reach the server.");
+      } catch {
+        notRecorded = "The return was not recorded: the server could not be reached. Please try again.";
       }
 
-      finalizeReturn(
-        reqId,
-        condition,
-        [],
-        inspection,
-        clearanceIssued
-      );
+      // The lists reload either way: after a refusal for an asset that is no longer out, they show it back in the pool.
       syncFromDb();
+
+      if (notRecorded) {
+        setSubmitError(notRecorded);
+        setSubmitting(false);
+        return;
+      }
+
+      // Only the row Staff clicked is marked: with two requests for one asset, the other stays as it was.
+      if (request) {
+        finalizeReturn(
+          request.id,
+          condition,
+          [],
+          inspection,
+          clearanceIssued
+        );
+      }
     }
 
     setSubmitting(false);
@@ -143,9 +156,8 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
     CRITICAL_DEFECT: "text-red-700",
   };
 
-  // Find certId if finalized
-  const finalizedRequest = returns.find(r => r.assetId === asset.id && r.status === "Finalized");
-  const displayCertId = dbReferenceNumber || finalizedRequest?.certId || `CLR-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  // The server makes the CLR- number when it records the return, so there is none to show before. (issue #59)
+  const displayCertId = dbReferenceNumber ?? "Assigned on finalize";
 
   return (
     <AnimatePresence mode="wait">
@@ -169,11 +181,9 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
                 : "Asset return has been finalized and registry status set to Available."}
             </p>
           </div>
-          {submitError && (
+          {isCustodian && submitError && (
             <div className="w-full rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs px-3 py-2 text-left">
-              {isCustodian
-                ? <>Return logged locally, but the repair ticket couldn't reach the database: {submitError}</>
-                : <>Logged locally, but couldn't reach the database to finalize this return: {submitError}</>}
+              Return logged locally, but the repair ticket couldn't reach the database: {submitError}
             </div>
           )}
           <div className="w-full rounded-xl bg-[#F3F4F6] border border-border p-4 text-left space-y-2">
@@ -245,11 +255,11 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
           <Separator />
 
           {/* Pending return info for Staff */}
-          {!isCustodian && pendingReturn && (
+          {!isCustodian && request && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-1">
               <p className="font-extrabold uppercase tracking-wider text-[9px] text-blue-700">Custodian Turn-in Comments</p>
-              <p><strong>Proposed Date:</strong> {pendingReturn.returnDate}</p>
-              <p className="italic">"{pendingReturn.comments || "No comments."}"</p>
+              <p><strong>Proposed Date:</strong> {request.returnDate}</p>
+              <p className="italic">"{request.comments || "No comments."}"</p>
             </div>
           )}
 
@@ -404,13 +414,17 @@ export function ReturnForm({ asset, onBack, onClose }: Props) {
                         className="font-mono font-bold text-primary bg-white border-emerald-200"
                       />
                       <p className="text-[10px] text-emerald-700">
-                        This reference is permanently bound to the return ledger record.
+                        The server assigns this reference when the return is finalized.
                       </p>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
             </>
+          )}
+
+          {!isCustodian && submitError && (
+            <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{submitError}</div>
           )}
 
           <Separator />

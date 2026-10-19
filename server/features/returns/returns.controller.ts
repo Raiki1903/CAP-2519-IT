@@ -12,7 +12,7 @@ import { checkReturnInput } from './returns.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles POST /api/assets/:assetTag/return: finalizes a return.
+ * Handles POST /api/assets/:assetTag/return: finalizes a return and closes the asset's approved loans.
  * Answers `{ success, return }` with the new row, or the AppError's status and message
  * (400 missing or unknown condition, 404 unknown tag, 409 an asset that is not out), or 500.
  */

@@ -477,7 +477,7 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
 
     const allLoansForDelinquency = await analyticsRepository.findLoansForDelinquency(prefixFilter);
 
-    // TODO(H-04): a loan counts as overdue unless its status is returned or declined. A pending request past its due date counts, although nothing was handed over, and a loan whose asset came back through the return route still counts, because finalizing a return does not close the loan. With H-04, Phase 3.
+    // TODO(H-04): a loan counts as overdue unless its status is returned or declined. A pending request past its due date counts, although nothing was handed over, and a loan returned before issue #99 is still approved and counts until its asset's next return. Phase 3.
     const overdueLoans = allLoansForDelinquency.filter(l => {
         const dueDate = new Date(l.due_date);
         return dueDate.getTime() < now.getTime() && l.status !== 'returned' && l.status !== 'declined';

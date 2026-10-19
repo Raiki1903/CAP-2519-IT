@@ -180,12 +180,13 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  * - `pendingRegistrations`, `approveRegistration`, `rejectRegistration`: authApi.
  * - `isDbLoading`: true while a reload is running. `syncFromDb()`: runs one.
  *
- * Must sit inside BrowserOnlyProvider, because each reload also re-reads the browser-only lists.
+ * Must sit inside BrowserOnlyProvider, because each reload also re-reads the browser-only lists and
+ * drops the return requests whose asset is back in the pool or disposed.
  *
  * @param children the rest of the app
  */
 export function ServerDataProvider({ children }: { children: React.ReactNode }) {
-  const { reloadFromStorage } = useBrowserOnly();
+  const { reloadFromStorage, dropReturnRequests } = useBrowserOnly();
   const { role } = useSession();
   const [isDbLoading, setIsDbLoading] = useState<boolean>(true);
 
@@ -201,11 +202,16 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   // TODO(M-01): six requests on every reload, and GET /api/assets alone reads nine tables. Pages loading their own data (01D), and the asset list rewrite (issue #76).
   const syncFromDb = async () => {
     setIsDbLoading(true);
+    // Tags of assets back in the pool or retired, from this reload's asset list. Empty when the list did not load.
+    let doneAssetTags: string[] = [];
     try {
       try {
         const jsonAssets = await assetsApi.listAssets();
         if (jsonAssets.success && Array.isArray(jsonAssets.assets)) {
           setAssets(jsonAssets.assets);
+          doneAssetTags = jsonAssets.assets
+            .filter((a: Asset) => a.status === "Active" || a.status === "Disposed")
+            .map((a: Asset) => a.id);
           // First guess at transfers and reports from the rows inside each asset.
           // The two dedicated requests below replace them when they succeed.
           const allTransfers = jsonAssets.assets.flatMap((a: any) => a.asset_transfers || []);
@@ -269,6 +275,8 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       }
 
       reloadFromStorage();
+      // A return request for an asset that is now Active or Disposed is done, wherever it was finalized.
+      dropReturnRequests(doneAssetTags);
     } finally {
       setIsDbLoading(false);
     }

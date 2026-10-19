@@ -1137,3 +1137,58 @@ None for the agent. H13 (CCS Cloud, read-only) is Raiki's.
 1. Raiki runs H13 and reviews the branch, then pushes and opens the group A pull request (`Closes #51`, `#54`, `#28`, `#53`, `#69`; #88 stays open for its web part).
 2. Everyone pulls and runs `npm test` once (410).
 3. Issue #99 (Staff "Record Return") on a fresh branch from the merge.
+
+## UAT fixes, group H (returns) stop 1, 2026-10-20
+
+**Prompt followed:** Raiki's group H prompt in chat (issue #99, with #59 as a rider; UAT 2026-10-21, code freeze 2026-10-20, 6 pm), stop 1 only: the plan, no code. On `fix/99-returns` from a fresh `main` at `22e85729` (group A, #35, #62, and #63 merged). Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Group H: returns (fix/99-returns)".
+
+### What was produced
+
+- **The group H plan** in the log: where each part is in the code and the exact change with its messages; the return flow after the branch for both paths (Custodian request then Staff finalize in the same browser; Staff Record Return from any computer) and what stays browser-only until Phase 3; how the asset's approved loan is found; the tests per commit (410 to 413); the screens and roles that see a difference; the stop 2 commit order (7 or 8 commits); 12 hand checks ("Group H hand checks"); 4 questions.
+- The log's status table: group A merged in PR #106, group H planned. `docs/README.md`: next is group H stop 2.
+
+### Key findings
+
+- **"On Loan" on screen includes "Overdue"** (an ON_LOAN asset past its due date). The Custodian's Return Asset already shows on both; group A's log said On Loan only. Record Return and the stale filter treat both as on loan.
+- **The modal's last branch is also where Staff land on a Maintenance asset**, so Record Return must check the status itself.
+- **The filter cannot live in `browserOnly.tsx`**: that provider sits outside `ServerDataProvider` and cannot read the asset list. It goes in a new `web/features/returns/openReturnRequests.ts`; `browserOnly.tsx` changes only if question 2 is (b).
+- **A hidden request can come back**: a repair ends with the asset on loan again (right), but so does a new loan of a returned asset (a phantom request). Question 2.
+- **`tests/api/analytics.test.ts` pins H-04** (a returned loan still delinquent); it changes in the H-04 commit with `returns.test.ts`.
+- **Custody Transitions knows only Pending, Approved, and Declined**, so a returned loan looks unfinished there. Question 3.
+- `CustodianPortal.tsx` (#88's web part) and `IntakeWizard.tsx` (#102) are not touched; `NotificationCenter.tsx` only at the import and lines 310 and 311.
+
+### Open questions
+
+Four, in the log, section 8: which loans a return closes when there are several; hide only or also drop a stale request; how Custody Transitions shows a returned loan; loans returned before this branch.
+
+### Exact next step
+
+1. Raiki answers the 4 questions, and may run hand check H11 now (CCS Cloud, SELECT only).
+2. Stop 2: the commits in the log's section 6, typecheck and tests after each, then the build and the agent's hand checks on the local test database.
+3. Then the group H pull request (`Closes #99`, `Closes #59`).
+
+## UAT fixes, group H (returns) stop 2, 2026-10-20
+
+**Prompt followed:** Raiki's answers to the group H plan (1a, 2b, 3b, 4a) and the H11 result from CCS Cloud (read-only), stop 2: build in the planned order, typecheck, build, and tests after every commit, then the hand checks by Playwright on the local test database, with two browser contexts. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Group H: returns (fix/99-returns)", section 9 and "Group H hand checks".
+
+### What was produced
+
+- Seven labelled behavior-change commits: a return closes the asset's approved loans (`59d6c599`, H-04, answer 1a); the clicked request is the one finalized (`684f0212`); a refused or failed finalize stays on the form with the reason (`cc8a1190`); "Assigned on finalize" instead of a random CLR number (`791dd3ba`, #59); stale requests hidden, and dropped once the asset is Active or Disposed (`365957eb`, answer 2b); Staff Record Return in the asset detail modal (`e178991b`); Custody Transitions shows a Returned loan as completed (`d0e9b5d0`, answer 3b).
+- The docs and comments commit: the `returnRefusal` comment; the log's section 9, the hand check results, and the H11 result; `docs/README.md`.
+- Tests **410 to 413** (commit 1); typecheck **65** in every commit; build passes.
+
+### Key findings
+
+- **All hand checks passed**, including the two-computer case (H1), the stale request (H2), and a refusal on the form (H5). H5b (server not reached) was added: with answer 2b, a 409 for an asset returned elsewhere ends with the request dropped, not kept Pending, so the "kept" case needed its own check.
+- **H11 on CCS Cloud: 17 approved loans on assets not on loan.** With 4a they close only after a new loan and return (an Active asset cannot be returned; the two on a Disposed asset never close), so the Lab Head overdue numbers at UAT include them. Cleanup is a team decision.
+- **The bell changed by one line**, and `dropReturnRequests` takes asset tags (serverData holds the asset list, not the requests). Both are in the log's "Differences from the plan".
+- Two older bugs seen: the loan list names loan 9 "ASUS TUF Gaming A15" (H-08 seed block), and Staff see Send to Maintenance on an asset already under maintenance.
+
+### Open questions
+
+None for the agent. For the team: whether to clean up the 17 old approved loans on CCS Cloud (outside this branch).
+
+### Exact next step
+
+1. Raiki reviews the branch, then pushes and opens the group H pull request (`Closes #99`, `Closes #59`).
+2. Everyone pulls and runs `npm test` once (413).
