@@ -1,11 +1,14 @@
 /**
  * Staff Pending Returns: custodian return requests waiting to be checked and finalized.
  * Layer: page. Called by app/routes.tsx at /staff/returns.
- * Calls: state/browserOnly.tsx (the requests), features/assets/useStaffAssets.ts, features/returns/ReturnForm.tsx.
+ * Calls: state/browserOnly.tsx (the requests), state/serverData.tsx (the asset list), features/assets/useStaffAssets.ts,
+ * features/returns/openReturnRequests.ts, features/returns/ReturnForm.tsx.
  * Used by: Staff return finalization.
  */
 import { useState } from "react";
 import { useBrowserOnly, type ReturnRequest } from "@web/state/browserOnly";
+import { useServerData } from "@web/state/serverData";
+import { openReturnRequests } from "@web/features/returns/openReturnRequests";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { ReturnForm } from "@web/features/returns/ReturnForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@web/components/ui/dialog";
@@ -20,11 +23,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 // TODO(H-02): the requests live in this browser only, so Staff on another machine never see them. Phase 3.
 export function ReturnsPage() {
   const { returns } = useBrowserOnly();
+  const { assets } = useServerData();
   const { displayedAssets } = useStaffAssets();
   // The row clicked: its asset for the form, and its request, so that request is the one finalized.
   const [selected, setSelected] = useState<{ asset: any; request: ReturnRequest } | null>(null);
 
-  const pendingReturns = returns.filter(r => r.status === "Pending");
+  // A request whose asset is no longer out (returned on another computer, say) is not listed.
+  const pendingReturns = openReturnRequests(returns, assets);
 
   return (
     <div>

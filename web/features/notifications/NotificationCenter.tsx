@@ -10,6 +10,7 @@ import { useNavigate } from "react-router";
 import { useSession, roleToSlug } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";
+import { openReturnRequests } from "@web/features/returns/openReturnRequests";
 import * as transfersApi from "@web/api/transfers.api";
 import * as disposalsApi from "@web/api/disposals.api";
 import type { Role } from "@shared/enums/role";
@@ -306,8 +307,8 @@ export function NotificationCenter() {
       }
     });
 
-    // D. Return Requests
-    returns.forEach(ret => {
+    // D. Return Requests, only those whose asset is still out (issue #99)
+    openReturnRequests(returns, assets).forEach(ret => {
       if (ret.status === "Pending") {
         let isRelevant = false;
         let actionRequired = false;

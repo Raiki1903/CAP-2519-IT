@@ -1,12 +1,15 @@
 /**
  * Staff Overview: asset, repair, and return counts, quick links to the other tabs, campus totals, alerts, and recent registrations.
  * Layer: page. Called by app/routes.tsx at /staff/overview.
- * Calls: features/assets/useStaffAssets.ts, features/repairs/useRepairTickets.ts, state/browserOnly.tsx (pending returns), state/session.tsx.
+ * Calls: features/assets/useStaffAssets.ts, features/repairs/useRepairTickets.ts, state/browserOnly.tsx (pending returns),
+ * state/serverData.tsx (the asset list), features/returns/openReturnRequests.ts, state/session.tsx.
  * Used by: Staff.
  */
 import { useNavigate } from "react-router";
 import { roleToSlug } from "@web/state/session";
 import { useBrowserOnly } from "@web/state/browserOnly";
+import { useServerData } from "@web/state/serverData";
+import { openReturnRequests } from "@web/features/returns/openReturnRequests";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { useRepairTickets } from "@web/features/repairs/useRepairTickets";
 import { Button } from "@web/components/ui/button";
@@ -20,11 +23,12 @@ import { CheckCircle, Clock, Package, ChevronRight, Bell, AlertTriangle, Shield 
 export function OverviewPage() {
   const navigate = useNavigate();
   const { returns } = useBrowserOnly();
+  const { assets } = useServerData();
   const { displayedAssets } = useStaffAssets();
   const { combinedRepairs } = useRepairTickets();
 
   const unacknowledged = combinedRepairs.filter(r => !r.acknowledged);
-  const pendingReturns = returns.filter(r => r.status === "Pending");
+  const pendingReturns = openReturnRequests(returns, assets);
 
   const overviewSlug = roleToSlug.Staff;
 

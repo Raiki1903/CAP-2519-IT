@@ -43,6 +43,7 @@ interface BrowserOnlyContextType {
   returns: ReturnRequest[];
   addReturnRequest: (req: ReturnRequest) => void;
   finalizeReturn: (id: string, condition: string, checklist: string[], notes: string, clearanceIssued: boolean) => void;
+  dropReturnRequests: (assetTags: string[]) => void;
   manualClearanceHolds: AffiliateClearance[];
   reloadFromStorage: () => void;
 }
@@ -55,7 +56,7 @@ const BrowserOnlyContext = createContext<BrowserOnlyContextType | null>(null);
  * (keys `ems_returns`, `ems_manual_clearance_holds`).
  *
  * What it shares:
- * - `returns`, `addReturnRequest(req)`, `finalizeReturn(...)`: custodian return requests.
+ * - `returns`, `addReturnRequest(req)`, `finalizeReturn(...)`, `dropReturnRequests(tags)`: custodian return requests.
  * - `manualClearanceHolds`: read only. Nothing writes this list.
  * - `reloadFromStorage()`: reads returns again.
  *
@@ -103,10 +104,25 @@ export function BrowserOnlyProvider({ children }: { children: React.ReactNode })
     });
   };
 
+  // Removes the Pending requests for these asset tags from this browser. serverData.tsx calls it after each
+  // asset list load with the assets that are Active or Disposed: they were returned (perhaps on another
+  // computer) or retired, so their requests are done, and an old request cannot come back as a new one
+  // when the asset is lent again. An asset under maintenance is not passed: its request is only hidden,
+  // and shows again when the repair puts the asset back on loan. (issue #99, answer 2b of the group H questions)
+  const dropReturnRequests = (assetTags: string[]) => {
+    const done = new Set(assetTags);
+    setReturns(prev => {
+      const next = prev.filter(r => !(r.status === "Pending" && done.has(r.assetId)));
+      if (next.length === prev.length) return prev;
+      localStorage.setItem("ems_returns", JSON.stringify(next));
+      return next;
+    });
+  };
+
   return (
     <BrowserOnlyContext.Provider
       value={{
-        returns, addReturnRequest, finalizeReturn,
+        returns, addReturnRequest, finalizeReturn, dropReturnRequests,
         manualClearanceHolds,
         reloadFromStorage
       }}
