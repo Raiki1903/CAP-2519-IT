@@ -37,7 +37,7 @@ import {
 /**
  * Builds the role's notifications from the shared lists and offers the decisions that role
  * may make from the bell: Lab Heads approve or decline transfers, the Director authorizes or
- * rejects disposals, Lab Heads authorize loans, Staff acknowledge repair tickets.
+ * rejects disposals, Lab Heads authorize or decline loans, Staff acknowledge repair tickets.
  * Each decision calls the API and then reloads the shared lists. Clicking a card opens the
  * matching tab. Takes no props.
  */
@@ -782,25 +782,43 @@ export function NotificationCenter() {
                             </button>
                           )}
 
-                          {/* Authorize Equipment Loan Button */}
+                          {/* Equipment Loan Decision Buttons */}
                           {/* Lab Head only: the server refuses a loan decision from any other role (13b role table). */}
                           {item.type === "loan" && role === "LabHead" && (
-                            <button
-                              type="button"
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                try {
-                                  await authorizeLoan(item.id, "approve");
-                                  await syncFromDb();
-                                } catch (err: any) {
-                                  console.error("Failed to authorize loan:", err);
-                                }
-                              }}
-                              className="text-[10px] font-bold text-white bg-[#005A36] hover:bg-[#004225] px-3 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                            >
-                              <CheckCircle size={10} /> Authorize Loan
-                            </button>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  try {
+                                    await authorizeLoan(item.id, "approve");
+                                    await syncFromDb();
+                                  } catch (err: any) {
+                                    console.error("Failed to authorize loan:", err);
+                                  }
+                                }}
+                                className="text-[10px] font-bold text-white bg-[#005A36] hover:bg-[#004225] px-3 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                              >
+                                <CheckCircle size={10} /> Authorize Loan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  try {
+                                    await authorizeLoan(item.id, "decline");
+                                    await syncFromDb();
+                                  } catch (err: any) {
+                                    console.error("Failed to decline loan:", err);
+                                  }
+                                }}
+                                className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Decline
+                              </button>
+                            </div>
                           )}
 
                           {/* Authorize Custody Transfer Buttons */}
