@@ -31,8 +31,14 @@ interface IntakeForm {
   remarks?: string;
 }
 
+const generateAdricSerial = () => {
+  const year = new Date().getFullYear();
+  const hex = Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(6, "0").toUpperCase();
+  return `ADRIC-${year}-${hex}`;
+};
+
 const createEmptyForm = (): IntakeForm => ({
-  name: "", serial: "", manufacturer: "", category: "CPU",
+  name: "", serial: generateAdricSerial(), manufacturer: "", category: "CPU",
   funding: "DOST", acquisitionValue: 0, procured: new Date().toISOString().split("T")[0],
   warranty: "", location: "Manila", lab: "CITe4D", image: "", remarks: ""
 });
