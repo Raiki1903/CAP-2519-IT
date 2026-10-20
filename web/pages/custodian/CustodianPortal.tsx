@@ -129,16 +129,18 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   // A disposal keeps the last custodian on the DISPOSED record, so the name match
   // alone would keep listing assets that are no longer in service.
   const custodianAssets = displayedAssets.filter(a => a.custodian === currentUserName && a.status !== "Disposed");
+  // Only borrowed equipment under the custodian's custody can be picked for an inspection report.
+  // Assets in Maintenance or Disposed cannot be inspected again. (issue #88)
+  const reportEligibleAssets = custodianAssets.filter(a => a.status === "On Loan" || a.status === "Overdue");
 
   useEffect(() => {
-    if (activeTab === "report" && !reportAsset) {
-      if (custodianAssets.length > 0) {
-        setReportAsset(custodianAssets[0].id || custodianAssets[0].asset_tag);
-      } else if (displayedAssets.length > 0) {
-        setReportAsset(displayedAssets[0].id || displayedAssets[0].asset_tag);
+    if (activeTab === "report") {
+      const eligibleIds = new Set(reportEligibleAssets.map(a => a.id || a.asset_tag));
+      if (!reportAsset || !eligibleIds.has(reportAsset)) {
+        setReportAsset(reportEligibleAssets[0]?.id || reportEligibleAssets[0]?.asset_tag || "");
       }
     }
-  }, [activeTab, custodianAssets, displayedAssets, reportAsset]);
+  }, [activeTab, reportEligibleAssets, reportAsset]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -322,7 +324,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   };
 
   const handleSubmitReport = async () => {
-    const selectedAssetId = reportAsset || custodianAssets[0]?.id || displayedAssets[0]?.id || displayedAssets[0]?.asset_tag;
+    const eligibleAsset = reportEligibleAssets.find(a => a.id === reportAsset || a.asset_tag === reportAsset) || reportEligibleAssets[0];
+    const selectedAssetId = eligibleAsset?.id || eligibleAsset?.asset_tag;
     if (!selectedAssetId) {
       alert("Please select an asset to inspect.");
       return;
@@ -332,7 +335,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
     const ref = `RPT-2026-${String(Math.floor(Math.random() * 900 + 100))}`;
     setSubmittedRef(ref);
-    const assetObj = displayedAssets.find(a => a.id === selectedAssetId || a.asset_tag === selectedAssetId) || assets.find(a => a.id === selectedAssetId);
+    const assetObj = eligibleAsset;
     const targetTag = assetObj?.id || assetObj?.asset_tag || selectedAssetId;
     const assetName = assetObj?.name || targetTag;
 
@@ -735,42 +738,31 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         </Card>
       )}
 
-      {!submitResult && (
+      {!submitResult && reportEligibleAssets.length === 0 && (
+        <Card className="text-center p-8 text-muted-foreground">No assets to report.</Card>
+      )}
+
+      {!submitResult && reportEligibleAssets.length > 0 && (
         <>
           {/* Asset selector */}
           <div className="mb-4">
             <Label className="text-[11px] font-bold tracking-widest text-muted-foreground uppercase mb-2 block">Select Asset Under Inspection</Label>
-            {custodianAssets.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {custodianAssets.map(asset => (
-                  <button key={asset.id} type="button" onClick={() => setReportAsset(asset.id)}
-                    className={cn("flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer text-left transition-all w-full", reportAsset === asset.id ? "border-primary bg-emerald-50" : "border-border hover:border-primary/40 bg-white")}>
-                    <div className="w-12 h-9 rounded overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image || (asset as any).image_url} /></div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-foreground">{asset.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{asset.id} · {asset.lab}</p>
-                    </div>
-                    {reportAsset === asset.id && <CheckCircle size={15} className="text-emerald-500 flex-shrink-0" />}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <select
-                value={reportAsset}
-                onChange={(e) => setReportAsset(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-bold"
-              >
-                <option value="" disabled>-- Select an Asset from Database --</option>
-                {displayedAssets.map((a: any) => (
-                  <option key={a.id || a.asset_tag} value={a.id || a.asset_tag}>
-                    {a.name || a.assetName} ({a.id || a.asset_tag}) — {a.lab || "CITe4D"}
-                  </option>
-                ))}
-              </select>
-            )}
+            <div className="flex flex-col gap-2">
+              {reportEligibleAssets.map(asset => (
+                <button key={asset.id} type="button" onClick={() => setReportAsset(asset.id)}
+                  className={cn("flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer text-left transition-all w-full", reportAsset === asset.id ? "border-primary bg-emerald-50" : "border-border hover:border-primary/40 bg-white")}>
+                  <div className="w-12 h-9 rounded overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image || (asset as any).image_url} /></div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-foreground">{asset.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{asset.id} · {asset.lab}</p>
+                  </div>
+                  {reportAsset === asset.id && <CheckCircle size={15} className="text-emerald-500 flex-shrink-0" />}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Report form container — border changes based on state */}
+          {/* Report form container: border changes based on state */}
           <div className={cn("rounded-xl border-2 p-5 bg-white transition-all", containerBorderClass)}>
             {/* State banner */}
             {selectedPill && (
