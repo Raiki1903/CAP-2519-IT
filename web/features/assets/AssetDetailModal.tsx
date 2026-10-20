@@ -89,14 +89,21 @@ interface Props {
  * a transfer, repair, or return (On Loan); Staff can send it to maintenance, and record its return
  * when it is On Loan or Overdue; a Lab Head can open the full custodian history. Calls assetsApi.getCustodianHistory() when it opens.
  *
- * @param asset the asset to show, or null for a closed modal. The live copy from
- *   useServerData() is preferred when one exists, so the modal reflects a reload.
+ * @param asset the asset to show, or null for a closed modal. It is shown as passed, the row of the list it
+ *   was opened from, until the shared list reloads (for example after a form here saves); from then on the
+ *   copy from useServerData() is shown, so the modal reflects the save.
  * @param onClose called when the modal closes, including after a form succeeds
  */
 export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const { role, currentUser } = useSession();
-  const { assets, addRepairRequest, dbLoans, dbTransfers } = useServerData();
-  const asset = propAsset ? (assets.find(a => a.id === propAsset.id) || propAsset) : null;
+  const { assets, assetsVersion, addRepairRequest, dbLoans, dbTransfers } = useServerData();
+  // The shared list can be older than the page's own list, so its copy is used only once it reloaded after
+  // this asset was opened. Until then the modal shows the same status as the row that was clicked. (issue #89)
+  const [openedUnder, setOpenedUnder] = useState({ tag: propAsset?.id, version: assetsVersion });
+  if (openedUnder.tag !== propAsset?.id) setOpenedUnder({ tag: propAsset?.id, version: assetsVersion });
+  const openedVersion = openedUnder.tag === propAsset?.id ? openedUnder.version : assetsVersion;
+  const reloadedCopy = propAsset && assetsVersion > openedVersion ? assets.find(a => a.id === propAsset.id) : undefined;
+  const asset = propAsset ? (reloadedCopy || propAsset) : null;
 
   // The server refuses a second loan or transfer while either is pending, so the
   // request buttons are swapped for a notice instead of leading to that refusal. (H-05)

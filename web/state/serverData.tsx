@@ -147,6 +147,7 @@ export interface PendingRegistration {
 
 interface ServerDataContextType {
   assets: Asset[];
+  assetsVersion: number;
   repairRequests: RepairRequest[];
   addRepairRequest: (req: RepairRequest) => void;
   acknowledgeRepair: (id: string) => void;
@@ -175,7 +176,7 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  * something, and empties them on logout. Each role loads only the lists the server lets it read.
  *
  * What it shares, and the api function behind each:
- * - `assets`: assetsApi.listAssets.
+ * - `assets`: assetsApi.listAssets. `assetsVersion`: goes up by one each time a new asset list is stored.
  * - `repairRequests`, `unacknowledgedCount`: repairsApi.listRepairs.
  * - `addRepairRequest(req)`: repairsApi.requestRepairRaw. `acknowledgeRepair(id)` and
  *   `updateRepairStatus(id, status)`: repairsApi.updateRepairRaw. Each reloads afterwards.
@@ -200,6 +201,8 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
   const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
+  // Lets a screen tell whether the list reloaded after a moment it remembers (the asset detail modal). (issue #89)
+  const [assetsVersion, setAssetsVersion] = useState(0);
   const [dbTransfers, setDbTransfers] = useState<any[]>([]);
   const [dbReports, setDbReports] = useState<any[]>([]);
   const [dbLoans, setDbLoans] = useState<any[]>([]);
@@ -231,6 +234,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
         const jsonAssets = await assetsApi.listAssets();
         if (jsonAssets.success && Array.isArray(jsonAssets.assets)) {
           setAssets(jsonAssets.assets);
+          setAssetsVersion(v => v + 1);
           doneAssetTags = jsonAssets.assets
             .filter((a: Asset) => a.status === "Active" || a.status === "Disposed")
             .map((a: Asset) => a.id);
@@ -441,7 +445,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   return (
     <ServerDataContext.Provider
       value={{
-        assets,
+        assets, assetsVersion,
         repairRequests, addRepairRequest, acknowledgeRepair, updateRepairStatus,
         unacknowledgedCount,
         pendingDisposals,
