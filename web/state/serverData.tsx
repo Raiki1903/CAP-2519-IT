@@ -7,7 +7,7 @@
  * Temporary home. 01D gives each page its own data loading; these lists move out as the
  * dashboards are split in step 8 and the notification bell is rewritten.
  */
-import { createContext, useContext, useState, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import * as loansApi from "../api/loans.api";
 import * as assetsApi from "../api/assets.api";
 import * as transfersApi from "../api/transfers.api";
@@ -163,6 +163,7 @@ interface ServerDataContextType {
   isDbLoading: boolean;
   syncFromDb: () => Promise<void>;
   refreshSharedLists: () => Promise<void>;
+  reloadLoans: () => Promise<ApiResult>;
   authorizeLoan: (loanId: string, decision?: "approve" | "decline") => Promise<void>;
 }
 
@@ -178,7 +179,8 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  * - `repairRequests`, `unacknowledgedCount`: repairsApi.listRepairs.
  * - `addRepairRequest(req)`: repairsApi.requestRepairRaw. `acknowledgeRepair(id)` and
  *   `updateRepairStatus(id, status)`: repairsApi.updateRepairRaw. Each reloads afterwards.
- * - `dbLoans`: loansApi.listLoans. `authorizeLoan(loanId, decision)`: loansApi.decideLoan.
+ * - `dbLoans`: loansApi.listLoans. `reloadLoans()`: reloads only this list and returns the answer.
+ *   `authorizeLoan(loanId, decision)`: loansApi.decideLoan.
  * - `dbTransfers`: transfersApi.listTransfers. `dbReports`: inspectionsApi.listReportSummaries.
  * - `pendingDisposals`: disposalsApi.listDisposals, pending ones only.
  * - `pendingRegistrations`, `approveRegistration`, `rejectRegistration`: authApi.
@@ -205,6 +207,15 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   // When the last reload started, and how many are running. Refs, because only refreshSharedLists reads them.
   const lastSyncStartedAt = useRef(0);
   const runningSyncs = useRef(0);
+
+  // The one place the loan list is loaded, so the bell and Custody Transitions show the same loans. (issue #57)
+  const reloadLoans = useCallback(async () => {
+    const data = await loansApi.listLoans();
+    if (data.success && Array.isArray(data.loans)) {
+      setDbLoans(data.loans);
+    }
+    return data;
+  }, []);
 
   // Each list has its own try block so one failed request does not stop the
   // others. A list whose request fails keeps what it showed before.
@@ -251,10 +262,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       }
 
       try {
-        const jsonL = await loansApi.listLoans();
-        if (jsonL.success && Array.isArray(jsonL.loans)) {
-          setDbLoans(jsonL.loans);
-        }
+        await reloadLoans();
       } catch (e) {}
 
       if (role && DISPOSAL_READERS.includes(role)) {
@@ -440,7 +448,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
         pendingRegistrations, addPendingRegistration, approveRegistration, rejectRegistration,
         dbTransfers, dbReports, dbLoans,
         isDbLoading,
-        syncFromDb, refreshSharedLists, authorizeLoan
+        syncFromDb, refreshSharedLists, reloadLoans, authorizeLoan
       }}
     >
       {children}
