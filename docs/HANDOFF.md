@@ -1221,3 +1221,29 @@ Three, in the log, section 7: whether a disposal decision on Approvals and Holds
 1. Raiki answers the 3 questions.
 2. Stop 2: the commits in the log's section 5, typecheck and tests after each, then the build and the agent's hand checks on the local test database.
 3. Then the group F pull request (`Closes #92`, `Closes #57`, `Closes #89`).
+
+## UAT fixes, group F (data loading) stop 2, 2026-10-20
+
+**Prompt followed:** Raiki's answers to the group F plan (1a, 2a, 3a), and a request to list every screen or bell card that relied on the Director's tab-click reload and fix any left stale until the next login. Stop 2: build in the planned order, typecheck, build, and tests after every commit, then the hand checks by Playwright on the local test database, with a tab-switching check for every role. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Group F: data loading (fix/92-data-loading)", section 8 and "Group F hand checks".
+
+### What was produced
+
+- Eight labelled behavior-change commits: each page mounts once (`05fccb46`); the Director loads once per tab with one shared reload (`c40280b9`, answer 1a); the Lab Head (`03a7fb1c`) and Custodian (`e8208ddb`) load once per tab; Custody Transitions and the bell share `dbLoans` through `reloadLoans()` (`059ee8bb`, #57); the modal shows the row it was opened from (`f3516874`, #89); added after hand checks: the modal reloads the loan list when it opens (`128dce87`) and the Staff list follows the shared list after a save (`22ad1dd0`).
+- The docs commit: the log's section 8, the hand check results, `docs/README.md`.
+- Tests **413** in every commit (web only); typecheck **65** in every commit; build passes.
+
+### Key findings
+
+- **Only a Director session relied on the tab-click reload**, and it was that session's only way to see other people's changes (new disposal requests in the bell, analytics). Answer 1's "one reload after the action" cannot follow an action on another computer, so the Director gets one shared reload per tab open, skipped within 5 s of the last one. Director requests: login 38 to 7, a tab click 26 to 7 or 8 (1 or 2 within 5 s).
+- **Two #89 follow-ups found by the hand checks:** the modal's pending notice read a stale loan list (H6), and showing the opener's row made Asset Inventory offer Record Return again after a return (H7). Both fixed in their own commits, no extra request for the second.
+- **H-08 seen live:** when no loan is pending, the loan list writes loan 9 as pending (H3).
+- `npm test` resets the database the hand-check server uses; the start script was rerun after each test run.
+
+### Open questions
+
+None for the agent.
+
+### Exact next step
+
+1. Raiki reviews the branch, then pushes and opens the group F pull request (`Closes #92`, `Closes #57`, `Closes #89`).
+2. Joel: `CustodianPortal.tsx` changed only at lines 122 to 132; `NotificationCenter.tsx` is untouched.
