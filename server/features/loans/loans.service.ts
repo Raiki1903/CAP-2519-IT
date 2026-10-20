@@ -24,26 +24,7 @@ import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/s
  */
 // TODO(M-02): scoping by lab happens only in the browser. Server-side with lab scoping, after step 14 (a lab_id on assets).
 export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]> {
-    let dbLoans = await loansRepository.findAllNewestFirst();
-
-    // TODO(H-08): a read writes data. With no pending loan and no loan 9, this inserts loan 9 as pending on the first asset for the first student, and the list names its asset "ASUS TUF Gaming A15". Delete the block, its own fix.
-    if (!dbLoans.some(l => l.loan_id === 9 || l.status === "pending" || l.status === "Pending")) {
-        const firstAsset = await loansRepository.findFirstAsset();
-        const firstUser = await loansRepository.findFirstStudent();
-        if (firstAsset && firstUser) {
-            try {
-                const seeded = await loansRepository.create({
-                    loan_id: 9,
-                    asset_id: firstAsset.asset_id,
-                    borrower_id: firstUser.user_id,
-                    purpose: "Graphics & AI Performance Testing",
-                    status: "pending",
-                    due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-                });
-                dbLoans.unshift(seeded);
-            } catch (err) { }
-        }
-    }
+    const dbLoans = await loansRepository.findAllNewestFirst();
 
     const [dbUsers, dbAssets, dbUserCenters] = await loansRepository.findListLookups();
 
@@ -72,8 +53,8 @@ export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]
             loan_id: l.loan_id,
             asset_id: l.asset_id,
             assetId: asset?.asset_tag || `EQ-2024-${l.asset_id}`,
-            asset: l.loan_id === 9 ? "ASUS TUF Gaming A15" : (asset?.name || "ASUS TUF Gaming A15"),
-            assetName: l.loan_id === 9 ? "ASUS TUF Gaming A15" : (asset?.name || "ASUS TUF Gaming A15"),
+            asset: asset?.name || "Unknown asset",
+            assetName: asset?.name || "Unknown asset",
             borrower_id: l.borrower_id,
             borrower: borrowerUser ? `${borrowerUser.first_name} ${borrowerUser.last_name}` : `Borrower ID: ${l.borrower_id}`,
             purpose: cleanPurpose || "Research Project Use",

@@ -13,18 +13,6 @@ export function findAllNewestFirst() {
     });
 }
 
-// The next three read other features' tables, for the H-08 seed and the loan list only.
-
-/** The first asset row, for the H-08 seed in listLoans. */
-export function findFirstAsset() {
-    return prisma.assets.findFirst();
-}
-
-/** The first STUDENT user, for the H-08 seed in listLoans. */
-export function findFirstStudent() {
-    return prisma.users.findFirst({ where: { user_type: 'STUDENT' } });
-}
-
 /**
  * Every user, asset, and user-to-center link (with its center), read together
  * so the list can name each loan's borrower, asset, and campus.

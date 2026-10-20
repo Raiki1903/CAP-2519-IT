@@ -292,7 +292,7 @@ export function NotificationCenter() {
         }
 
         if (isRelevant) {
-          const assetName = loan.assetName || loan.asset || loan.assetId || "ASUS TUF Gaming A15";
+          const assetName = loan.assetName || loan.asset || loan.assetId || "Unknown asset";
           requests.push({
             id: loan.id || `LOAN-${loan.loanId || loan.loan_id}`,
             type: "loan",
@@ -499,7 +499,7 @@ export function NotificationCenter() {
         }
 
         if (isRelevant) {
-          const assetName = loan.assetName || loan.asset || loan.assetId || "ASUS TUF Gaming A15";
+          const assetName = loan.assetName || loan.asset || loan.assetId || "Unknown asset";
           const dueDate = loan.dueDate || loan.due_date || loan.returnDate || "2026-08-25";
           const labName = loan.lab || "Center for ICT for Development (CITE4D)";
 
