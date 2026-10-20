@@ -9,7 +9,7 @@ import { AppError } from '../../shared/errors/AppError';
 /**
  * Checks that a borrow body has a purpose and a due date. The borrower is the session user, so a
  * `borrower` field is neither required nor read. Only presence is checked: not that the due date is
- * a date, or in the future.
+ * a date. requestLoan refuses a due date before today.
  *
  * @param data the request body
  * @throws AppError 400 if either is missing or empty

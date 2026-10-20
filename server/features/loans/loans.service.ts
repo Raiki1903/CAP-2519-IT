@@ -71,6 +71,13 @@ export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]
     return withoutOthersNames(loans, viewer);
 }
 
+/** Today as yyyy-mm-dd in the server's local time zone (the Node process's TZ), not in UTC. */
+function serverToday(): string {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 /** For a Custodian, leaves the borrower name out of every loan that is not their own. Other roles get the list as is. (D2) */
 function withoutOthersNames(loans: LoanListItem[], viewer: SessionIdentity): LoanListItem[] {
     if (viewer.role !== "Custodian") return loans;
@@ -88,10 +95,16 @@ function withoutOthersNames(loans: LoanListItem[], viewer: SessionIdentity): Loa
  * @param data the checked borrow body: optional destination lab, purpose, due date
  * @param borrowerId the session user, who borrows as themselves; any borrower name in the body is ignored (issue #32)
  * @returns the created asset_loans row
+ * @throws AppError 400 if the due date is before today
  * @throws AppError 404 if no asset has this tag
  * @throws AppError 409 if the guard refuses the request
  */
 export async function requestLoan(assetTag: string, data: LoanRequestInput, borrowerId: number): Promise<asset_loans> {
+    // Dates only, so a loan due today is accepted. A past due date makes the loan overdue as soon as it is approved.
+    if (String(data.dueDate).slice(0, 10) < serverToday()) {
+        throw new AppError(400, "The due date cannot be in the past.");
+    }
+
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);

@@ -20,6 +20,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const inDays = (days: number) => new Date(Date.now() + days * DAY_MS).toISOString().slice(0, 10);
 
+/** Today as yyyy-mm-dd in local time, the date requestLoan compares with (the tests run in the server's process). */
+const localToday = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+
 /** What LoanForm sends: the borrower's typed name (not read since 13c: the borrower is the session user), the destination lab, the purpose, and the due date. */
 const borrowBody = (borrower: TestUser | string, extra: Record<string, unknown> = {}) => ({
   borrower: typeof borrower === "string" ? borrower : borrower.fullName,
@@ -177,6 +183,25 @@ describe("POST /api/assets/:tag/borrow", () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
     expect(await db.asset_loans.count()).toBe(before);
+  });
+
+  it("answers 400 for a due date before today, and writes nothing", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0106" });
+
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA, { dueDate: inDays(-2) }));
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ success: false, error: "The due date cannot be in the past." });
+    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId } })).toBe(0);
+  });
+
+  it("accepts a due date of today", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0107" });
+
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA, { dueDate: localToday() }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.loan.status).toBe("pending");
   });
 
   it("answers 404 for an unknown tag", async () => {
