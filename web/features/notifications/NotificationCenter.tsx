@@ -292,7 +292,7 @@ export function NotificationCenter() {
         }
 
         if (isRelevant) {
-          const assetName = loan.assetName || loan.asset || loan.assetId || "ASUS TUF Gaming A15";
+          const assetName = loan.assetName || loan.asset || loan.assetId || "Unknown asset";
           requests.push({
             id: loan.id || `LOAN-${loan.loanId || loan.loan_id}`,
             type: "loan",
@@ -352,11 +352,15 @@ export function NotificationCenter() {
       }
 
       if (isRelevant) {
+        // The list sends one packed `reason` text (M-13), so the pathway and the justification are read out of it
+        // by the labels the server writes. A reason without the labels is shown whole.
+        const pathway = disp.reason.match(/Disposal Pathway:\s*(.+)/i)?.[1].trim() || "Not stated";
+        const justification = (disp.reason.match(/Breakdown Justification:\s*([\s\S]+)/i)?.[1] ?? disp.reason).replace(/\s+/g, " ").trim();
         requests.push({
           id: disp.id,
           type: "disposal",
           title: `Disposal Authorization: ${disp.assetName}`,
-          description: `Decommission request: "${disp.breakdownReasons}". Pathway: ${disp.disposalPathway}. Requested by: ${disp.requestedBy}.`,
+          description: `Decommission request: "${justification}". Pathway: ${pathway}. Requested by: ${disp.requestedBy}.`,
           date: disp.requestedAt,
           needsAction: actionRequired,
           targetTab: "disposals",
@@ -499,7 +503,7 @@ export function NotificationCenter() {
         }
 
         if (isRelevant) {
-          const assetName = loan.assetName || loan.asset || loan.assetId || "ASUS TUF Gaming A15";
+          const assetName = loan.assetName || loan.asset || loan.assetId || "Unknown asset";
           const dueDate = loan.dueDate || loan.due_date || loan.returnDate || "2026-08-25";
           const labName = loan.lab || "Center for ICT for Development (CITE4D)";
 

@@ -78,8 +78,11 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
           });
         };
 
+        // A disposed asset has left the registry, and the server refuses a report for it (409).
+        const queueAssets = displayedAssets.filter(a => a.status !== "Disposed");
+
         const getGroupAssets = (groupId: string, labs: string[]) => {
-          return displayedAssets.filter(a => {
+          return queueAssets.filter(a => {
             if (matchesLab(a.lab, labs)) return true;
             // An asset whose lab matches no known lab, or has none, is listed under Group A so it is not lost.
             if (groupId === "A" && (!a.lab || !allKnownLabs.some(kl => matchesLab(a.lab, [kl])))) {
@@ -324,24 +327,33 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                   try {
                     // Save report under asset_reports table in MySQL database before reloading data
                     if (selectedQueueItem.rawAsset?.id || selectedQueueItem.id) {
+                      const conditionEnumMap: Record<string, string> = {
+                        "Perfect": "PERFECT",
+                        "Operational": "OPERATIONAL",
+                        "Minor Drift": "MINOR_DRIFT",
+                        "Degraded Performance": "DEGRADED",
+                        "Critical Defect": "CRITICAL_DEFECT",
+                      };
+                      const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
+                      let res: Response;
                       try {
-                        const conditionEnumMap: Record<string, string> = {
-                          "Perfect": "PERFECT",
-                          "Operational": "OPERATIONAL",
-                          "Minor Drift": "MINOR_DRIFT",
-                          "Degraded Performance": "DEGRADED",
-                          "Critical Defect": "CRITICAL_DEFECT",
-                        };
-                        const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
-                        await inspectionsApi.submitInspectionRaw(targetTag, {
+                        res = await inspectionsApi.submitInspectionRaw(targetTag, {
                           reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
                           reportRemarks: fullNotes,
                           reportImg: inspectionImgOption || null,
                         });
-                        await onReportSaved();
                       } catch (e) {
                         console.error("Failed to save asset inspection report in MySQL asset_reports:", e);
+                        alert("The inspection report could not be saved: the server could not be reached. Please try again.");
+                        return;
                       }
+                      if (!res.ok) {
+                        const body = await res.json().catch(() => null);
+                        // The dialog stays open, so the inspector sees why and can cancel.
+                        alert(body?.error || "The inspection report could not be saved. Please try again.");
+                        return;
+                      }
+                      await onReportSaved();
                     }
 
                     if (selectedQueueItem.rawAsset) {
@@ -353,7 +365,6 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                     setInspectionImgOption("");
                     setTsgRemarksOption("");
                     setItsRemarksOption("");
-                    // TODO(H-16): this success message shows even when the post failed, because the answer is never read. Step 13 (typed errors).
                     alert(`Inspection Report logged & saved under asset_reports table in MySQL for ${selectedQueueItem.asset}!`);
                   } finally {
                     setIsSubmitting(false);

@@ -4,7 +4,7 @@
  * Workflow: borrowing (Custodian files a request, Lab Head approves or declines, custody moves on approval).
  * Fixtures: the seeded loans (LOAN-1 approved on TEST-0002, LOAN-2 pending on TEST-0005), the seeded assets in
  * each state, and the accounts (USERS). The list tests run first. The write tests use their own extra assets
- * (TEST-0101 onward, see extraAssets.ts) and change no seeded row; the H-08 test puts LOAN-2 back and removes LOAN-9.
+ * (TEST-0101 onward, see extraAssets.ts) and change no seeded row; the H-08 test puts LOAN-2 back to pending.
  */
 import { describe, expect, it } from "vitest";
 import { addExtraAsset } from "../setup/extraAssets";
@@ -17,11 +17,14 @@ const asLabHead = as(USERS.labHead);
 const asStaff = as(USERS.staffTsg);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** The loan id and asset name GET /api/asset_loans invents. (H-08) */
-const INVENTED_LOAN_ID = 9;
-const INVENTED_ASSET_NAME = "ASUS TUF Gaming A15";
 
 const inDays = (days: number) => new Date(Date.now() + days * DAY_MS).toISOString().slice(0, 10);
+
+/** Today as yyyy-mm-dd in local time, the date requestLoan compares with (the tests run in the server's process). */
+const localToday = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
 
 /** What LoanForm sends: the borrower's typed name (not read since 13c: the borrower is the session user), the destination lab, the purpose, and the due date. */
 const borrowBody = (borrower: TestUser | string, extra: Record<string, unknown> = {}) => ({
@@ -97,35 +100,19 @@ describe("GET /api/asset_loans", () => {
     expect(await db.asset_loans.count()).toBe(before);
   });
 
-  it("inserts a pending loan with id 9 for the first asset and first student when no loan is pending, and names its asset ASUS TUF Gaming A15 (known defect H-08)", async () => {
+  it("writes nothing when no loan is pending, and lists only the real loans (H-08 fixed)", async () => {
     const pendingIds = (await db.asset_loans.findMany({ where: { status: "pending" }, select: { loan_id: true } })).map((l) => l.loan_id);
     await db.asset_loans.updateMany({ where: { loan_id: { in: pendingIds } }, data: { status: "declined" } });
     try {
-      const before = await db.asset_loans.count();
+      const before = await db.asset_loans.findMany({ select: { loan_id: true }, orderBy: { loan_id: "asc" } });
 
       const res = await asLabHead.get("/api/asset_loans");
 
       expect(res.status).toBe(200);
-      expect(res.body.loans[0]).toMatchObject({
-        id: `LOAN-${INVENTED_LOAN_ID}`,
-        assetId: ASSETS.available.tag,
-        asset: INVENTED_ASSET_NAME,
-        assetName: INVENTED_ASSET_NAME,
-        borrower: USERS.custodianA.fullName,
-        purpose: "Graphics & AI Performance Testing",
-        status: "Pending",
-      });
-      expect(await db.asset_loans.findUniqueOrThrow({ where: { loan_id: INVENTED_LOAN_ID } })).toMatchObject({
-        asset_id: ASSETS.available.assetId,
-        borrower_id: USERS.custodianA.userId,
-        status: "pending",
-      });
-      expect(await db.asset_loans.count()).toBe(before + 1);
-
-      await asLabHead.get("/api/asset_loans");
-      expect(await db.asset_loans.count()).toBe(before + 1);
+      expect(res.body.loans.some((l: { status: string }) => l.status === "Pending")).toBe(false);
+      expect(res.body.loans).toHaveLength(before.length);
+      expect(await db.asset_loans.findMany({ select: { loan_id: true }, orderBy: { loan_id: "asc" } })).toEqual(before);
     } finally {
-      await db.asset_loans.deleteMany({ where: { loan_id: INVENTED_LOAN_ID } });
       await db.asset_loans.updateMany({ where: { loan_id: { in: pendingIds } }, data: { status: "pending" } });
     }
   });
@@ -196,6 +183,25 @@ describe("POST /api/assets/:tag/borrow", () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
     expect(await db.asset_loans.count()).toBe(before);
+  });
+
+  it("answers 400 for a due date before today, and writes nothing", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0106" });
+
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA, { dueDate: inDays(-2) }));
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ success: false, error: "The due date cannot be in the past." });
+    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId } })).toBe(0);
+  });
+
+  it("accepts a due date of today", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0107" });
+
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA, { dueDate: localToday() }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.loan.status).toBe("pending");
   });
 
   it("answers 404 for an unknown tag", async () => {

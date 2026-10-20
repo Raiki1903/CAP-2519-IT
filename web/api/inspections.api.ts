@@ -7,8 +7,8 @@ import type { InspectionReportInput } from "@shared/types/inspections";
 import { apiGet, apiPostRaw, type ApiResult } from "./client";
 
 /**
- * Files an inspection report for an asset. Returns the untouched Response
- * because both callers send the report and never read the answer.
+ * Files an inspection report for an asset. Returns the untouched Response, so each caller reads the answer itself:
+ * InspectionQueue shows the server's error, CustodianPortal does not read it yet (H-16).
  *
  * @param assetTag the asset's tag, sent as is (not URL-encoded)
  * @param input reporter, condition, remarks, and an optional image

@@ -24,6 +24,13 @@ const BRAND = "#005A36";
 // TODO(M-03): one more hardcoded lab list, in short codes, separate from shared/constants/labs.ts and research_centers. Phase 3.
 const LABS = ["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"];
 
+/** Today as yyyy-mm-dd in the browser's time zone. toISOString() would give the UTC date, a day early before 8 AM in Manila. */
+function localToday(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 type PipelineStatus = "pending" | "active" | "done";
 
 interface PipelineStep {
@@ -106,7 +113,10 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
     { label: "Staff Verification", sublabel: "Asset check-out complete", status: "pending" },
   ];
 
-  const canSubmit = selectedLab && purpose && dueDate;
+  const today = localToday();
+  // The picker's min stops a click on a past day, but a typed date still gets through, so it is checked here too.
+  const dueDateInPast = !!dueDate && dueDate < today;
+  const canSubmit = selectedLab && purpose && dueDate && !dueDateInPast;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -231,9 +241,13 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
               <Input
                 type="date"
                 value={dueDate}
+                min={today}
                 onChange={e => setDueDate(e.target.value)}
                 className="h-9 text-xs"
               />
+              {dueDateInPast && (
+                <p className="text-xs text-red-600 mt-1">The due date cannot be in the past.</p>
+              )}
             </div>
 
             <Separator className="my-2" />
