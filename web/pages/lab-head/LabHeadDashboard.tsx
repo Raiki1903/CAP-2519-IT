@@ -169,8 +169,8 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const [showAuditModal, setShowAuditModal] = useState(false);
 
   // ── Live registry data (asset_records-backed, via /api/assets) ─────────────
-  // Fetched again whenever Branch Inventory opens, so it shows changes made since the
-  // shared list last reloaded. The shared list is used until the first answer arrives.
+  // Fetched again whenever a tab opens, so it shows changes made since the shared list
+  // last reloaded. The shared list is used until the first answer arrives.
   const [dbAssets, setDbAssets] = useState<any[]>([]);
   const [loadingDbAssets, setLoadingDbAssets] = useState(false);
   const [dbAssetsError, setDbAssetsError] = useState<string | null>(null);
@@ -191,16 +191,6 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
       setLoadingDbAssets(false);
     }
   }, []);
-
-  useEffect(() => {
-    fetchDbAssets();
-  }, [fetchDbAssets]);
-
-  useEffect(() => {
-    if (activeTab === "inventory") {
-      fetchDbAssets();
-    }
-  }, [activeTab, fetchDbAssets]);
 
   const displayedAssets = dbAssets.length > 0 ? dbAssets : assets;
 
@@ -245,16 +235,6 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
       setLoansLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    fetchLoanRequests();
-  }, [fetchLoanRequests]);
-
-  useEffect(() => {
-    if (activeTab === "custody") {
-      fetchLoanRequests();
-    }
-  }, [activeTab, fetchLoanRequests]);
 
   const [loanActionId, setLoanActionId] = useState<number | null>(null);
 
@@ -312,15 +292,13 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     }
   }, []);
 
+  // One load of each list per tab: every tab change mounts this screen again (RootLayout keys the page
+  // by its URL). The three loaders never change, so this runs once per tab. (issue #92)
   useEffect(() => {
+    fetchDbAssets();
+    fetchLoanRequests();
     fetchTransferRequests();
-  }, [fetchTransferRequests]);
-
-  useEffect(() => {
-    if (activeTab === "custody") {
-      fetchTransferRequests();
-    }
-  }, [activeTab, fetchTransferRequests]);
+  }, [activeTab, fetchDbAssets, fetchLoanRequests, fetchTransferRequests]);
 
   const [transferActionId, setTransferActionId] = useState<number | null>(null);
 
