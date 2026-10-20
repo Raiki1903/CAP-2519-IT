@@ -1247,3 +1247,31 @@ None for the agent.
 
 1. Raiki reviews the branch, then pushes and opens the group F pull request (`Closes #92`, `Closes #57`, `Closes #89`).
 2. Joel: `CustodianPortal.tsx` changed only at lines 122 to 132; `NotificationCenter.tsx` is untouched.
+
+## UAT fixes, pre-deploy fixes, 2026-10-20
+
+**Prompt followed:** Raiki's pre-deploy prompt in chat (deploy tonight, UAT 2026-10-21): four small fixes for problems the agent's smoke test of `main` found, planned and built in one go, one commit per fix, then the hand checks by Playwright on the local test database. On `fix/pre-deploy` from `main` at `8fb0e2bb`. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Pre-deploy fixes (fix/pre-deploy)", heading "Pre-deploy hand checks".
+
+### What was produced
+
+- `5aad7d4f` (**behavior change**, H-08): the loan list no longer inserts a pending loan 9, and names each asset from its row ("Unknown asset" if gone); the ASUS special case is gone from the server and the bell's loan cards.
+- `b25ee9cd` (**behavior change**, H-13): the Director's bell disposal card reads the pathway and justification out of the list's `reason` text instead of two fields nothing filled; `PendingDisposal` in `serverData.tsx` declares `reason`.
+- `1a8dc20a` (**behavior change**): the Inspection Operations Manager leaves Disposed assets out; its submit shows the server's error and keeps the dialog open on a refusal (H-16, that dialog only).
+- `518c0159` (**behavior change**): `requestLoan` answers 400 "The due date cannot be in the past." for a due date before today (dates only, the server's local time zone); `LoanForm`'s date input has min today. Two tests added.
+- The docs commit: the log section, this entry, `docs/README.md`.
+- Tests **413** to **415** (commit 4); typecheck **65** in every commit; build passes.
+
+### Key findings
+
+- All four hand checks passed on `AdRIC_DB_test`, H3 with a real 409 (the inspection dialog was left open on an asset while it was disposed from another context).
+- The server's time zone decides "today" for the due date check. On a UTC host, yesterday is accepted between midnight and 8 AM Manila time; `TZ=Asia/Manila` on the host avoids it.
+- A loan 9 that the old code inserted on CCS Cloud stays; fix 1 only stops new ones. A read-only query is in the log, "Before deploying".
+
+### Open questions
+
+None for the agent.
+
+### Exact next step
+
+1. Raiki reviews `fix/pre-deploy`, then pushes and opens its pull request before the deploy.
+2. Joel: this branch changes `NotificationCenter.tsx` at the loan cards' fallback name (lines 295 and 502) and the disposal card (lines 354 to 364), not the session-user or lab-matching lines PR #112 touches. The stale "Includes LOAN-9" comment at line 272 is left for after #112.
