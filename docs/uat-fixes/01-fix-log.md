@@ -14,7 +14,8 @@ Baseline on `main` at `1ce2aaa3` (the PR #101 merge): typecheck **65** errors, `
 | Group | Branch | Issues | Status | Commits | Typecheck | Tests | Date |
 |---|---|---|---|---|---|---|---|
 | A | `fix/h05-state-guards` | #51, #54, #28, #53, #69, and the server half of #88 | Merged in PR #106; the agent's hand checks H1 to H12 and H14 passed on the local test database; H13 (CCS Cloud, read-only) is Raiki's | Plan `6082b361`; `6d9e8164`, `d9c8292c`, `2059d17e`, `caf35fae`, `fca6666b`, `193db447`; docs and comments: the last commit | **65** (unchanged) | **391** to **410** | 2026-10-18, 2026-10-19 |
-| H | `fix/99-returns` | #99, with #59 as a rider | Built (stop 2); the agent's hand checks H1 to H10 and H12 passed on the local test database; H11 (CCS Cloud, read-only) run by Raiki; pull request next | Plan `a2d316bb`; `59d6c599`, `684f0212`, `cc8a1190`, `791dd3ba`, `365957eb`, `e178991b`, `d0e9b5d0`; docs and comments: the last commit | **65** (unchanged) | **410** to **413** | 2026-10-20 |
+| H | `fix/99-returns` | #99, with #59 as a rider | Merged in PR #108; the agent's hand checks H1 to H10 and H12 passed on the local test database; H11 (CCS Cloud, read-only) run by Raiki | Plan `a2d316bb`; `59d6c599`, `684f0212`, `cc8a1190`, `791dd3ba`, `365957eb`, `e178991b`, `d0e9b5d0`; docs and comments: `44dcb6bd` | **65** (unchanged) | **410** to **413** | 2026-10-20 |
+| F | `fix/92-data-loading` | #92, with #57 and #89 | Built (stop 2); the agent's hand checks H1 to H9 passed on the local test database; pull request next | Plan `14f01629`; `05fccb46`, `c40280b9`, `03a7fb1c`, `e8208ddb`, `059ee8bb`, `f3516874`, `128dce87`, `22ad1dd0`; docs: the last commit | **65** (unchanged) | **413** (unchanged) | 2026-10-20 |
 
 ---
 
@@ -616,3 +617,233 @@ Pull and run `npm test` once (413). After a return, a loan's status is "Returned
 - **The bell matches a Custodian's return cards by name** (`NotificationCenter.tsx:323`, `ret.custodian === currentUserName`, issue #32 style). Left for the bell rewrite.
 - **The loan list names loan 9 "ASUS TUF Gaming A15"** whatever its asset (`listLoans`, part of the H-08 seed block). Seen in H8; on CCS Cloud it shows only if a real loan has id 9.
 - **Staff see Send to Maintenance on an asset already under maintenance** (the modal's last branch). Seen in H9; harmless, its own fix.
+
+---
+
+## Group F: data loading (fix/92-data-loading)
+
+Issue #92 (the Director and Lab Head dashboards ask for the same lists up to 9 times after login), with #57 (a loan decided in the bell or in Custody Transitions does not show in the other) and #89 (the asset detail modal shows an older status than the list it was opened from). Branch `fix/92-data-loading` from `main` at `0053be6b` (groups A and H merged). Baseline there: typecheck **65**, `npm run build` passes, `npm test` **413** passed. Web only: no schema, migration, server, or test change. The goal for UAT on the slow CCS Cloud database is fewer requests with the same screens; pages loading their own data (01D) and the asset list rewrite (#76) stay after UAT.
+
+### 1. Where the code is now, and the change
+
+Line numbers are on `main` at `0053be6b`.
+
+#### #92, cause 1: every page mounts twice when the URL changes
+
+**Now.** Login sends the user to the role's tree, not to a tab: `navigate(`/${roleToSlug[determinedRole]}`)` in `handleSubmit`, [Login.tsx:78](../../web/pages/auth/Login.tsx#L78). Each tree's index route redirects to the default tab (`<Navigate to="overview" replace />` and the like, [routes.tsx](../../web/app/routes.tsx), the four `index: true` lines). `RootLayout` ([RootLayout.tsx:146-156](../../web/app/layouts/RootLayout.tsx#L146-L156)) wraps the page in `<AnimatePresence mode="wait">` with a `motion.div` keyed by `location.pathname`, and puts `<Outlet />` inside it. When the path changes, the leaving `motion.div` stays on screen for its 0.22 s fade, and its `<Outlet />` reads the router's current match, so it renders the **new** page. Then the entering `motion.div` mounts the new page again. So every page mounts twice on every URL change: after login (`/adric-director` to `/adric-director/overview`) and on every tab click. On a tab click of the Director, Lab Head, or Custodian screen, the leaving copy is the old dashboard instance with a new `activeTab`, so its `[activeTab]` effect runs once more as well. The network log confirms it (section 2): the Director's tab click asks for `/api/analytics/director` twice, once per mount.
+
+**Change.** `RootLayout` keeps the page element it rendered: `const outlet = useOutlet();` (from `react-router`, next to the other hooks at the top of the function, before the early returns, so the hook order never changes), and the `motion.div` renders `{outlet}` instead of `<Outlet />`. `AnimatePresence` then keeps the old element in the leaving wrapper, so the old page fades out and the new page mounts once. The import line (line 8) swaps `Outlet` for `useOutlet`. Nothing else in the file changes. `Login.tsx` and `routes.tsx` do not change: with the frozen outlet, the leaving wrapper after login holds only the index `<Navigate>`, which renders nothing, so going straight to the default tab would save no request.
+
+#### #92, cause 2: two loading effects per dashboard
+
+**Now.** Every tab change already remounts the dashboard (cause 1, the key), so an effect with `[]` and one with `[activeTab]` both run on every mount.
+
+| Screen | Effects (line) | Each mount asks for |
+|---|---|---|
+| Director, `AdRICDirectorDashboard` | `[]` (233-237) and `[activeTab]` (239-243), each calls `fetchDbAssets()`, `fetchDbDisposals()`, `syncFromDb()` | assets 2 + 2, disposals 2 + 2, and the four other shared lists 2 each |
+| Lab Head, `LabHeadDashboard` | assets: `[fetchDbAssets]` (195-197) and `[activeTab]` for Branch Inventory (199-203); loans: 249-251 and 253-257 for Custody; transfers: 315-317 and 319-323 for Custody | assets 1 (2 on Branch Inventory), loans 2 and transfers 2 on Custody (1 each elsewhere) |
+| Custodian, `CustodianPortal` | `[]` (122-124) and `[activeTab]` for My Assets, Available Equipment, and Send Inspection Report (128-132) | assets 2 (1 on QR Scan) |
+| Staff pages | `useStaffAssets` (`useStaffAssets.ts:44`), `useRepairTickets` (line 48), `useInspectionReports` (line 30): one `[]` effect each | 1 per hook: no duplicate effect; Staff's extra requests come from cause 1 only |
+
+**Change.** One loading effect per dashboard, keyed on `[activeTab]`, which loads what the mount loads today, once:
+- **Director** (lines 233 to 243): one effect, `fetchDbAssets()` and `fetchDbDisposals()`, `[activeTab]`. The `syncFromDb()` calls go (cause 3).
+- **Lab Head** (the six effects at 195-203, 249-257, 315-323): one effect after `fetchTransferRequests` is defined, calling `fetchDbAssets()`, `fetchLoanRequests()`, `fetchTransferRequests()`, with `[activeTab, fetchDbAssets, fetchLoanRequests, fetchTransferRequests]` (all three are `useCallback` with stable dependencies, so it runs once per tab). Every tab still gets all three lists, as each mount does today.
+- **Custodian** (lines 122 to 132 only): one effect, `fetchDbAssets()`, `[activeTab]`, on every tab (QR Scan included, as the `[]` effect does today). The comment above it says so.
+- **Staff:** nothing to change.
+
+#### #92, cause 3: `syncFromDb()` from a page that loads the same lists
+
+**Now.** `syncFromDb()` in [serverData.tsx:203-283](../../web/state/serverData.tsx#L203-L283) asks, one after another, for assets, transfers, reports (Staff, Director), loans, disposals (Staff, Director, Lab Head), and repairs, then re-reads the browser lists and drops finished return requests (`reloadFromStorage`, `dropReturnRequests`, group H). `ServerDataProvider` runs it once when the role is set (line 344). The Director dashboard runs it twice more per mount (lines 236 and 242), although it loads its own assets and disposals. No other page calls it on load; forms call it after a save, the bell after a decision.
+
+**Change.** The Director dashboard no longer calls `syncFromDb()` when a tab opens (above). The provider's call at login stays, so the bell and the shared lists load once. `syncFromDb()` itself is unchanged by #92: `openReturnRequests()` and the `dropReturnRequests()` call keep working as group H left them. With question 1 (a), Approvals and Holds calls `syncFromDb()` once after a successful decision (line 253, after `fetchDbDisposals()`), so the bell drops the disposal card; today the next tab click does that.
+
+#### #57: the bell and Custody Transitions keep separate loan lists
+
+**Now.**
+- The bell (`NotificationCenter.tsx`) builds its loan cards from `dbLoans` (line 51), the shared list. Its Authorize Loan button (lines 756 and 757) calls `authorizeLoan` ([serverData.tsx:397-412](../../web/state/serverData.tsx#L397-L412), which changes the one loan's status in `dbLoans`) and then `syncFromDb()`.
+- Custody Transitions keeps its own `loanRequests` ([LabHeadDashboard.tsx:228](../../web/pages/lab-head/LabHeadDashboard.tsx#L228)), filled by `fetchLoanRequests` (lines 232 to 247, `loansApi.listLoans()`) when the tab opens, and shown through `branchLoanRequests` (line 501). Its Authorize and Decline buttons call `decideLoan` (lines 261 to 278), which reloads only `loanRequests` (line 270).
+
+So a decision in the bell leaves Custody Transitions showing the loan as Pending until the tab is opened again (and clicking Authorize there then gets the group A 409), and a decision in Custody Transitions leaves the bell card until the next `syncFromDb()`. `dbLoans` loads at login and after any save that calls `syncFromDb()`.
+
+**Change.** One loan list, the shared `dbLoans`:
+- `serverData.tsx`: a new `reloadLoans()`, wrapped in `useCallback` so it is stable: `loansApi.listLoans()`, `setDbLoans` on success, and it returns the answer. The loan block in `syncFromDb()` (lines 242 to 247) calls it, so the request and the list are the same. It is added to the context type and value, with TSDoc.
+- `LabHeadDashboard.tsx`: the `loanRequests` state goes; `branchLoanRequests` filters `dbLoans`. `fetchLoanRequests` keeps its loading flag and red error line but calls `reloadLoans()` instead of `loansApi.listLoans()`. `decideLoan` is unchanged: after a success it calls `fetchLoanRequests()`, which now reloads the shared list, so the bell drops the card.
+- The bell is **not changed**: its path already reloads `dbLoans`, which Custody Transitions now shows. Transfers stay as they are (question 3).
+
+#### #89: the asset detail modal prefers the shared list
+
+**Now.** [AssetDetailModal.tsx:98](../../web/features/assets/AssetDetailModal.tsx#L98): `const asset = propAsset ? (assets.find(a => a.id === propAsset.id) || propAsset) : null;`. The shared `assets` copy wins whenever it exists. It loads at login and after any `syncFromDb()`. My Assets and Available Equipment show `CustodianPortal`'s own list (`displayedAssets`, line 134), which reloads on every tab change (`fetchDbAssets`, lines 104 to 132) and never refreshes the shared one. So after a Lab Head approves a Custodian's loan, the Custodian's next tab click shows the asset On Loan in My Assets, while the modal still reads the login-time copy: Active, with Request Loan. The same holds for the Lab Head's Branch Inventory and the Staff Asset Inventory, which also show their own lists. The shared copy is preferred on purpose: after a form inside the modal saves, `syncFromDb()` runs and the modal shows the new status (group H relies on it: after Record Return the modal shows the asset Active, "None").
+
+**Change (question 2, a).** The modal shows the copy it was opened with, until the shared list reloads after it opened:
+- `serverData.tsx`: a counter `assetsVersion`, raised by one each time `syncFromDb()` stores a new asset list (next to `setAssets`, line 211), in the context type and value.
+- `AssetDetailModal.tsx`, line 98: the modal remembers the `assetsVersion` at the moment an asset is opened (state keyed by the asset tag, set during render when the tag changes, so the first frame is already right). It uses the shared copy only when `assetsVersion` is higher than that, otherwise `propAsset`. The TSDoc of `asset` (lines 92 and 93) says so.
+
+So the modal opens with the status of the row that was clicked, and after a save inside the modal it still shows the reloaded status. `CustodianPortal.tsx` is **not changed** for #89.
+
+### 2. Request counts per role
+
+Measured by Playwright on the local `AdRIC_DB_test` (seeded by the test harness, nothing else), `main` at `0053be6b`, 2026-10-20: `GET /api/...` requests, not counting `/api/auth`. "Login" is the 6 s after Sign In; "tab" is the 5 s after one sidebar click. Every login also sends `POST /api/auth/login` and `GET /api/auth/me` (1 each, unchanged); the Lab Head also `GET /api/auth/pending-registrations` (1, unchanged). The Director's 38 plus `/me` are the issue's 39.
+
+| Role | Moment | Before (measured) | After (expected) |
+|---|---|---|---|
+| Director | Login, Executive Overview | **38**: assets 9, asset_disposals 9, asset_transfers 5, asset_reports 5, asset_loans 5, asset_repairs 5 | **8**: assets 2, asset_disposals 2, the other four 1 each |
+| Director | Tab, Descriptive Analytics | **26**: analytics/director 2, assets 6, asset_disposals 6, asset_transfers 3, asset_reports 3, asset_loans 3, asset_repairs 3 | **3**: analytics/director 1, assets 1, asset_disposals 1 |
+| Lab Head | Login, Custody Transitions | **15**: assets 3, asset_loans 5, asset_transfers 5, asset_disposals 1, asset_repairs 1 | **8**: assets 2, asset_loans 2, asset_transfers 2, asset_disposals 1, asset_repairs 1 |
+| Lab Head | Tab, Branch Inventory | **5**: assets 3, asset_loans 1, asset_transfers 1 | **3**: 1 each |
+| Staff | Login, System Overview | **10**: assets 3, asset_repairs 3, asset_transfers 1, asset_reports 1, asset_loans 1, asset_disposals 1 | **8**: assets 2, asset_repairs 2, the other four 1 each |
+| Staff | Tab, Asset Inventory | **2**: assets 2 | **1** |
+| Custodian | Login, My Assets | **8**: assets 5, asset_transfers 1, asset_loans 1, asset_repairs 1 | **5**: assets 2, the other three 1 each |
+| Custodian | Tab, Available Equipment | **3**: assets 3 | **1** |
+
+Why "after" is not 1 each: at login the provider loads the shared lists for the bell, and the page loads its own copy of the lists it shows (the second `assets`, and the Lab Head's second loans and transfers). Merging those copies is 01D and #76, after UAT. With question 1 (a), a disposal decision on Approvals and Holds adds one `syncFromDb()` (6 requests), only when the Director decides one. `GET /api/assets` is the slow one (it reads nine tables, `TODO(M-01)`), and it goes from 9 to 2 for the Director at login.
+
+### 3. Tests
+
+`npm test` runs only `tests/**/*.test.ts` (API and seed), and every commit here is web only, so **no test changes or is added**, and the count stays **413** after every commit. The typecheck stays **65** (no new types expected; `reloadLoans` and `assetsVersion` are typed in the context; if the count moves, the report says why). The checks are the hand checks below.
+
+| Commit | Tests | Count after |
+|---|---|---|
+| 1 to 6 | none (web) | **413** |
+| 7 (docs) | none | **413** |
+
+### 4. Screens and roles that see a difference
+
+| Screen (role) | Issue | What changes |
+|---|---|---|
+| Every signed-in screen (all roles) | #92 | Each page mounts once per URL change; fewer requests (section 2). The fade between tabs shows the old page fading out, then the new one fading in |
+| Executive Overview, Descriptive Analytics, Approvals and Holds, Audit Generator (Director) | #92 | Opening a tab loads assets and disposals once and no longer reloads the bell's lists. With question 1 (a), a decision there reloads them |
+| Custody Transitions (Lab Head) | #57 | A loan decided in the bell shows Approved or Declined at once; a decision here removes the bell card. A refusal still shows in the red line |
+| The bell (Lab Head) | #57 | Its loan cards follow decisions made in Custody Transitions. No code change in the bell |
+| Asset detail modal (Custodian, Lab Head, Staff) | #89 | Opens with the status of the list it was opened from; after a save inside it, shows the reloaded status as today |
+| My Assets, Available Equipment, QR Scan, Send Inspection Report (Custodian) | #92 | One asset request per tab instead of two or three |
+
+**The page transition.** The animation (fade and slide, 0.22 s, `mode="wait"`) is the same; what changes is the content of the leaving wrapper. Today it fades out a second copy of the new page, so a tab click shows the new page twice (fade out, then fade in). After, the old page fades out and the new one fades in, which is what the code means. Risks, each checked by H2: (1) the old page stays mounted 0.22 s longer with its old props; no page under `web/pages` or `web/features` reads `useLocation`, `useParams`, or `useSearchParams`, so none reacts to the new URL meanwhile. (2) The index `<Navigate>` stays in the leaving wrapper after login; its target is worked out from its own route, so it does not navigate again (H1 counts would show a repeat). (3) A form or dialog open on the old page fades out with it, as today.
+
+**Teammates' files.**
+- `CustodianPortal.tsx` (Joel, #88 web part): **only lines 122 to 132**, the two effects and their comment, become one effect of four lines. Nothing in the Send Inspection Report code (`handleSubmitReport`, line 330 on) or elsewhere.
+- `NotificationCenter.tsx` (Joel, #55): **not touched**.
+- `LabHeadDashboard.tsx` (#55's Lab Head return cards are in the bell, not here; #96 dashboard numbers may be): lines 195 to 203, 228 to 257, 270 (unchanged, now reloads the shared list), 315 to 323, 501, the `useServerData()` line (165), and the header and TSDoc.
+- `AdRICDirectorDashboard.tsx` (#96 may touch the numbers): lines 112 (the `syncFromDb` name, kept with question 1 a), 233 to 243, 253 with question 1 (a), and the TSDoc at line 101.
+- `IntakeWizard.tsx` (Aryan, #102): not touched. It calls `syncFromDb()` after a save, which keeps working.
+- Shared by everyone: `RootLayout.tsx` (lines 8, 27 (the new hook), and 154) and `serverData.tsx` (new `reloadLoans`, `assetsVersion`; the loan block of `syncFromDb`).
+
+### 5. Stop 2 plan
+
+On `fix/92-data-loading`, in this order. After each commit: `npm run typecheck` (65) and `npm test` (413). Commit, never push.
+
+| # | Commit message | Files |
+|---|---|---|
+| 1 | `fix(layout)!: mount each page once during the page transition (#92)` | `web/app/layouts/RootLayout.tsx` (`useOutlet`, the header's "Calls") |
+| 2 | `fix(director)!: load each Director list once per tab (#92)` | `web/pages/director/AdRICDirectorDashboard.tsx`: one effect, no `syncFromDb()` on load; with question 1 (a), one `syncFromDb()` after a decision; the TSDoc |
+| 3 | `fix(lab-head)!: load each Lab Head list once per tab (#92)` | `web/pages/lab-head/LabHeadDashboard.tsx`: the six effects become one; the comment above `dbAssets` |
+| 4 | `fix(custodian)!: load the Custodian asset list once per tab (#92)` | `web/pages/custodian/CustodianPortal.tsx`, lines 122 to 132 only |
+| 5 | `fix(lab-head)!: Custody Transitions and the bell share one loan list (#57)` | `web/state/serverData.tsx` (`reloadLoans`, the loan block of `syncFromDb`, the TSDoc list), `LabHeadDashboard.tsx` (`loanRequests` goes, `fetchLoanRequests` calls `reloadLoans`, the header) |
+| 6 | `fix(assets)!: the asset modal shows the list it was opened from (#89)` | `web/state/serverData.tsx` (`assetsVersion`), `web/features/assets/AssetDetailModal.tsx` (line 98, its TSDoc) |
+| 7 | `docs(group F): record the build` | This log ("Stop 2: what was built", the hand check results), `docs/README.md`, `docs/HANDOFF.md` |
+
+With question 2 (b), commit 6 is instead `fix(custodian)!: the Custodian screens show the shared asset list (#89)`, in `CustodianPortal.tsx` (its own list goes; a new `reloadAssets()` in `serverData.tsx`) and the modal is not changed. With question 3 (b), commit 5 also moves Custody Transitions' transfers onto `dbTransfers`. Then `npm run build`, the hand checks below (the agent's, on the local test database), the report, and stop.
+
+### 6. Hand checks
+
+#### Group F hand checks
+
+**H1 to H9: the agent, in a browser (Playwright MCP), on the local test database `AdRIC_DB_test` only**, after stop 2. Raiki may run any of them again the same way. Before starting: stop any `npm run dev:all` and make sure ports 4000 and 5173 are free. The start script `%TEMP%\adric-groupF-handchecks\start.mts` (group H's, without the extra assets) empties and seeds the test database through the test harness, moves the fixture emails to `@dlsu.edu.ph`, and starts the server; Vite runs with `VITE_API_URL=http://localhost:4000`. Reads go through `q.mts` beside it (SELECT only). Each role gets its own browser context; "context 1" and "context 2" stand for two computers. Screenshots go to `%TEMP%\adric-groupF-handchecks\screenshots\`; `.playwright-mcp` is deleted from the repository afterwards. The before counts in section 2 were measured this way on 2026-10-20 (`before-counts.txt` beside the script). Seeded assets used: TEST-0001 (Active, nobody holds it), TEST-0002 (on loan to Custodian A), TEST-0005 (Active, pending loan LOAN-2 from Custodian B), TEST-0006 (Active). **No check touches CCS Cloud.**
+
+| # | Issue | Role and screen | Steps | Expected | Database |
+|---|---|---|---|---|---|
+| H1 | #92, the old bug: request counts | Director, Lab Head, Staff, Custodian, each in a new context | Log in; count the `GET /api/` requests (not `/api/auth`) in the network log for 6 s; click the tab of section 2; count for 5 s | The "After" column of section 2, each list exactly. Any list above it fails the check | Local test |
+| H2 | #92, nearby: the transition | Each role | Click every sidebar tab once, slowly; reload the browser on `/lab-head/inventory` and on `/custodian/available`; log out and log in as another role | Each tab shows its own screen after one fade; no blank page, no second fade of the same page; the reloads open the typed tab (issue #49); the console shows no new error | Local test |
+| H3 | #57, the old bug: bell to Custody | Lab Head, Custody Transitions | Note LOAN-2 (TEST-0005) Pending and the "Pending" count. Open the bell, Authorize Loan on LOAN-2. Do not click any tab | Custody Transitions shows LOAN-2 Approved and the Pending count one lower, without a tab click; the bell card is gone | Local test |
+| H4 | #57, the old bug: Custody to bell | Context 1: Custodian A, Available Equipment. Context 2: Lab Head | Context 1: TEST-0001, Request Loan. Context 2: log in, open the bell (the TEST-0001 card is there), close it; Custody Transitions, Decline the TEST-0001 loan; open the bell | The loan shows Declined; the bell has no TEST-0001 card | Local test |
+| H5 | #57, nearby: a new request appears | Context 1: Custodian B. Context 2: Lab Head, on Branch Inventory | Context 1: TEST-0006, Request Loan. Context 2: click Custody Transitions | The new TEST-0006 loan is listed Pending (the tab still reloads the list when it opens) | Local test |
+| H6 | #89, the old bug | Context 1: Custodian B, Available Equipment. Context 2: Lab Head, Custody Transitions | Context 1 logs in first. Context 2: Authorize the TEST-0006 loan (H5). Context 1: click My Assets; open TEST-0006 | My Assets lists TEST-0006 On Loan; the modal shows On Loan and Custodianship Transfer, Request Repair, Return Asset; no Request Loan | Local test |
+| H7 | #89, nearby: the modal after a save | Staff, Asset Inventory | Open TEST-0002 (On Loan), Record Return, Operational, finalize; close the success screen | The modal shows TEST-0002 Active, custodian "None", no Record Return (group H, H1) | Local test |
+| H8 | #92, question 1 | Staff, then Director | Staff: Asset Inventory, Decommission TEST-0001 (Active after H4). Director: log in; the bell has the disposal card; Approvals and Holds, Reject & Recirculate it | With 1 (a): the bell card is gone at once. With 1 (b): it stays until the next reload. TEST-0001 stays Active | Local test |
+| H9 | All | The agent, terminal | `npm run typecheck`, `npm run build`, `npm test` with the browser, server, and Vite stopped | 65, passes, 413 | Local test |
+
+**Results (2026-10-20). H1 to H9: all passed** (the agent, on the local `AdRIC_DB_test` only). No check touched CCS Cloud.
+
+How they ran: a real browser (Chrome, driven by the Playwright MCP) against Vite at `http://localhost:5173` (started with `VITE_API_URL=http://localhost:4000`) and `server/main.ts` on port 4000, started by `%TEMP%\adric-groupF-handchecks\start.mts`, which empties and seeds the test database through the test harness and its guard (it takes only `TEST_DATABASE_URL` from `.env`, as `npm test` does; the agent did not open `.env` or `pending_registrations.json`). Ports 4000 and 5173 were free before each start; afterwards their processes were ended by PID and the ports checked free. Each role, and each "computer", had its own browser context. Reads went through `q.mts` (SELECT only); nothing was written to the database by hand. `npm test` resets the same test database, so after each test run during the build the start script was run again before the next check (H6 to H8 ran on a fresh seed). Screenshots are in `%TEMP%\adric-groupF-handchecks\screenshots\`, the console logs in `playwright-logs\`, the H9 output in `h9-npm-test.txt`, and the before counts in `before-counts.txt`, all beside the start script. `.playwright-mcp` was deleted from the repository afterwards. H1 and H2 were run again on the final commit, with the same results.
+
+| Check | Result | What was seen | Screenshots |
+|---|---|---|---|
+| H1 | Passed | `GET /api` (not `/api/auth`), 6 s after login and 5 s after one tab click. **Director** login 7 (assets 1, asset_disposals 2, asset_transfers 1, asset_reports 1, asset_loans 1, asset_repairs 1); tab (Descriptive Analytics) 8 (analytics/director 1, asset_disposals 2, the other five shared lists 1 each). **Lab Head** login 8 (assets 2, asset_loans 2, asset_transfers 2, asset_disposals 1, asset_repairs 1); tab (Branch Inventory) 3 (1 each). **Staff** login 8 (assets 2, asset_repairs 2, the other four 1 each); tab (Asset Inventory) 1. **Custodian** login 5 (assets 2, the other three 1 each); tab (Available Equipment) 1. The Director's counts are the ones of the changed commit 2 (see section 8), the others are section 2's "After" exactly | none (network log) |
+| H2 | Passed | Every sidebar tab of every role, in turn (Director 4, Lab Head 4, Staff 8, Custodian 4): the URL is the tab's; 60 ms after the click the page area holds one wrapper showing the **old** page (the leaving copy keeps its content), and 1.2 s later one wrapper with the new page. Reloads on `/lab-head/inventory` and `/custodian/available` open those tabs; Sign Out goes to `/login` and the Lab Head then lands on Custody Transitions. Console: only React's development warning about `ref` (from `AnimatePresence` in the bell, seen in groups A and H). Requests per click, Lab Head: 3 per tab, Health Benchmarking 8 (its own analytics, 5); Staff: 0 to 4 (each page's own lists, once); Custodian: 1; Director: 1 or 2, and 7 when the shared reload runs (more than 5 s since the last one) | none |
+| H3 | Passed | Lab Head, Custody Transitions: LOAN-2 (TEST-0005) Pending. The bell, Authorize Loan on it, no tab click: Custody Transitions shows LOAN-2 Approved; its bell card is gone. The bell then showed a new LOAN-9 card: with no pending loan left, the loan list wrote loan 9 as pending (the known `TODO(H-08)` in `loans.service.ts:29`, not this branch); it is the "1 Pending" | `h3-1-bell-approve-shows-in-custody.png` |
+| H4 | Passed, on LOAN-9 | A new TEST-0001 request could not be filed (LOAN-9, from H-08, was already pending on it), so LOAN-9 was used. The bell had its card; Custody Transitions, Decline on LOAN-9: it shows Declined, and the bell has no LOAN-9 card | `h4-1-custody-decline-leaves-bell.png` |
+| H5 | Passed | Lab Head on Branch Inventory. Custodian B (another context): Available Equipment, TEST-0006, Request Loan: "Loan Request Lodged". Lab Head clicks Custody Transitions: the TEST-0006 loan is listed Pending | `h5-1-new-request-on-tab-open.png` |
+| H6 | Passed (after commit `128dce87`) | Custodian B requests TEST-0006; the Lab Head (another context) authorizes it; Custodian B clicks My Assets: TEST-0006 On Loan, due Nov 15, 2026; opens it: status On Loan, buttons Custodianship Transfer, Request Repair, Return Asset; no Request Loan; one `GET /api/asset_loans` when the asset opened. The first run (before `128dce87`) showed On Loan and Return Asset but "Your request is pending" in place of Custodianship Transfer (section 8) | `h6-1-modal-matches-my-assets.png` |
+| H7 | Passed (after commit `22ad1dd0`) | Staff, Asset Inventory, TEST-0002 (On Loan): Record Return, Operational, Finalize: "Return Ledger Closed"; Close. The list row shows TEST-0002 custodian None, OPERATIONAL, ACTIVE; reopened, the modal has no Record Return (Send to Maintenance only). The first run (before `22ad1dd0`) left the row On Loan and the reopened modal offered Record Return again (section 8) | `h7-0-reopen-after-record-return.png` (the first run), `h7-1-record-return-closed.png`, `h7-2-modal-after-return.png` |
+| H8 | Passed, with a second part | TEST-0002 (Active after H7) instead of TEST-0001 (on loan by then). The Director logs in first; bell: no disposal card. Staff (another context) Decommissions TEST-0002: "Disposal Request Submitted". The Director's bell still has none; more than 5 s later the Director clicks a tab: 7 requests (`asset_disposals` and the six shared lists), and the bell has the card (counted on Descriptive Analytics, so the queue's own button is not counted). Approvals and Holds, Reject & Recirculate: `PUT /api/asset_disposals/<n>/decision`, then the disposal list and the shared reload; the bell has no card at once (answer 1a). Run twice, same result; TEST-0002 stays Active | `h8-1-reject-bell-updated.png` |
+| H9 | Passed | With the browser, server, and Vite stopped: typecheck **65**, build passes, `npm test` 16 files, **413 passed** | `h9-npm-test.txt` |
+
+### 7. Questions for Raiki
+
+1. **Should a disposal decision on Approvals and Holds also refresh the bell?** Approvals and Holds and the bell (Director). Today the bell's disposal card goes after the Director's next tab click, because each tab reloads every shared list; this branch stops that reload, which costs 6 requests per tab.
+   - (a) After a successful Authorize or Reject there, reload the shared lists once (`syncFromDb()`), so the bell card goes at once. 6 requests per decision, none per tab.
+   - (b) No reload: the card stays until the next login or save elsewhere.
+   - **Recommendation: (a).** Decisions are rare and the bell stays right; tab clicks stay cheap.
+2. **How #89 is fixed.** The asset detail modal (Custodian My Assets and Available Equipment; also Lab Head Branch Inventory and Staff Asset Inventory).
+   - (a) The modal shows the row it was opened from, and switches to the shared list only after that list reloads (after a save in the modal). Changes the modal and `serverData.tsx`; `CustodianPortal.tsx` is not touched.
+   - (b) The Custodian screens drop their own asset list and show the shared one, reloaded on each tab change. List and modal then read one list, but it changes more lines in `CustodianPortal.tsx`, which Joel is editing for #88, and fixes only the Custodian side.
+   - **Recommendation: (a).** Smaller, stays out of Joel's file, and fixes all three roles the same way.
+3. **Transfers in Custody Transitions too?** Custody Transitions and the bell (Lab Head). The same split exists for transfers: the bell reloads the shared list after a transfer decision, but Custody Transitions keeps its own list until the tab opens again.
+   - (a) Loans only, as #57 asks. Transfers after UAT.
+   - (b) Transfers too, in commit 5. The shared transfer list is filled first from rows inside the asset list, which have a different shape, so the transfer table would need checks for that.
+   - **Recommendation: (a).** The issue is about loans, and the transfer list's mixed shape is a risk the day before UAT.
+
+**Answers (Raiki, 2026-10-20):** 1 (a), 2 (a), 3 (a). Also asked: list every screen or bell card that relied on the Director's tab-click reload, say how each still refreshes, and fix any that would stay stale until the next login with one reload after the action. That list is in section 8.
+
+### 8. Stop 2: what was built (2026-10-20)
+
+On `fix/92-data-loading`, in the planned order, with two commits added after hand checks found them (H6, H7). After every commit: typecheck **65**, build passes, `npm test` **413**. Nothing pushed.
+
+| Commit | Kind | What it does | Tests |
+|---|---|---|---|
+| `05fccb46` | **Behavior change** (#92) | `RootLayout` renders `useOutlet()`; each page mounts once per URL change, and the leaving wrapper fades out the old page | **413** |
+| `c40280b9` | **Behavior change** (#92, answer 1a) | Director: one effect per tab loads the disposal queue and calls the new `refreshSharedLists()` (skipped when a reload started less than 5 s ago or is running, as at login); the dashboard shows the shared asset list instead of its own copy; a decision on Approvals and Holds reloads the shared lists | **413** |
+| `03a7fb1c` | **Behavior change** (#92) | Lab Head: the six effects become one per tab | **413** |
+| `e8208ddb` | **Behavior change** (#92) | Custodian: one effect per tab (`CustodianPortal.tsx`, the lines 122 to 132 only) | **413** |
+| `059ee8bb` | **Behavior change** (#57) | `reloadLoans()` in `serverData.tsx`, the one loader of `dbLoans` (`syncFromDb()` uses it); Custody Transitions shows `dbLoans` and reloads through it. The bell is not changed. Transfers stay (answer 3a) | **413** |
+| `f3516874` | **Behavior change** (#89, answer 2a) | `assetsVersion` in `serverData.tsx`; the modal shows the row it was opened from until the shared list reloads after that | **413** |
+| `128dce87` | **Behavior change** (#89, added) | The modal reloads the loan list (one request) each time an asset opens | **413** |
+| `22ad1dd0` | **Behavior change** (#89, added) | `useStaffAssets` shows the shared list once it has reloaded after the page's own list arrived (no extra request) | **413** |
+| this commit | Docs | This section, the hand check results, `docs/README.md`, `docs/HANDOFF.md` | **413** |
+
+**Test count: 413 in every commit** (all web changes; no test file changed). The typecheck stayed at **65** in every commit. No schema, migration, server, `package.json`, or CCS Cloud change. `NotificationCenter.tsx` is not touched; `CustodianPortal.tsx` only at the planned lines.
+
+#### What relied on the Director's tab-click reload, and how it refreshes now
+
+Only the Director dashboard called `syncFromDb()` when a tab opened, so only a Director session relied on that reload; no Staff, Lab Head, or Custodian screen or bell card did (their screens reload their own lists per tab, as before; their bells refresh at login, at a browser reload, and after their own saves and decisions, as before). In a Director session the reload refreshed every shared list, which is the only way that session picked up **other people's** changes:
+
+| What the Director sees | Shared list | How it refreshes after this branch |
+|---|---|---|
+| The bell, disposal cards (the Director's action cards) | `pendingDisposals` | Each tab open (`refreshSharedLists`, H8); after a decision on Approvals and Holds (answer 1a, H8); after a decision in the bell (as before) |
+| The bell, repair, transfer, loan, and return cards; Reminders (overdue, high value degraded, active loans); Holds (overdue custodians) | `repairRequests`, `dbTransfers`, `dbLoans`, `assets` | Each tab open; after any save or decision in this session (as before) |
+| Descriptive Analytics widgets (distribution, funding, campus transfer flow, utilization) | `assets`, `dbReports`, `pendingDisposals`, `dbTransfers`, `dbLoans` | Each tab open; its own `/api/analytics/director` once per open (as before) |
+| Executive Overview and Audit Generator numbers, the audit list | `assets` (before: the page's own copy) | Each tab open |
+| Audit Generator CSV, repair logs | `repairRequests` | Each tab open |
+| Approvals and Holds queue | the page's own disposal list | Each tab open; after its own decision (as before) |
+
+**None stays stale until the next login.** Because "one reload after that action" cannot run after an action on another computer, the action it follows here is the Director opening a tab: one shared reload per tab open, never two, and none when a reload started less than 5 s ago (so not right after login, and not on quick clicks). This is a change to the plan (below).
+
+#### Differences from the plan, and why
+
+- **Commit 2 keeps one shared reload per Director tab.** The plan removed it, which would have left everything in the table above stale for changes made by other people until the next login or browser reload. Instead the dashboard reads the shared asset list (one asset request fewer per tab) and calls `refreshSharedLists()` once per tab. Counts: Director login **7** (plan 8), a tab click **7** when the shared reload runs (**8** on Descriptive Analytics, with its own analytics request; plan 3), **1 or 2** within 5 s of the last reload. Before: 38 and 26.
+- **`128dce87` (added, #89).** H6's first run showed the modal On Loan, as My Assets does, but with "Your request is pending" in place of Custodianship Transfer: that notice reads the shared loan list, also older than the page's list. One loan request per opened asset fixes it.
+- **`22ad1dd0` (added, #89).** With the modal showing the row it was opened from, H7's first run found a regression: after Record Return, Asset Inventory's own list (loaded once per tab) still said On Loan, and the reopened modal offered Record Return again (before this branch the modal read the shared list, which had reloaded). The Staff list now shows the shared list once that has reloaded after the page's own list. Record Return is the only save inside the modal that changes an asset's status, so the Lab Head and Custodian lists need no such change.
+- **H4 and H8 used other assets** than planned (LOAN-9 from H-08, and TEST-0002), for the reasons in the results table.
+- Commit 1 did not change the header's "Calls" line (it already names what the file calls).
+
+#### What every teammate must do
+
+Pull and run `npm test` once (413). `serverData.tsx` now has `refreshSharedLists()` (for a screen that opens), `reloadLoans()` (the loan list only), and `assetsVersion`. A screen that needs fresh shared lists when it opens should call `refreshSharedLists()`, not `syncFromDb()`; a save still calls `syncFromDb()`. Joel: `CustodianPortal.tsx` changed only at lines 122 to 132 (the two loading effects); `NotificationCenter.tsx` is untouched.
+
+### Noticed, not in this branch
+
+- **Loan 9 is written by a read** (`TODO(H-08)`, `loans.service.ts:29`): once no loan is pending, the next loan list inserts loan 9 as pending on the first asset for the first student. Seen in H3. On CCS Cloud it appears whenever every loan is decided.
+- **Health Benchmarking (Lab Head) asks for its analytics five times per open**, once per section (`LabHeadAnalyticsView.tsx`). For #96 (dashboard numbers).
+- **Approvals and Holds does not see a decision made in the bell** until its tab opens again (the same split as #57, for disposals); with the fix of cause 1 a click on the same tab does not reload it either, as today.
+- **`syncFromDb()` asks for its lists one after another**, so on CCS Cloud the bell's lists arrive as slowly as the six requests added together. Asking in parallel would be faster but puts six queries on the Prisma pool at once, where UAT already saw pool timeouts. After UAT, with #76.
+- **Staff pages load their own asset list** (`useStaffAssets`) on top of the shared one, so Staff still ask for assets twice at login. 01D.
+- **`handleLoanDecision` and `handleTransferDecision` in `LabHeadAnalyticsView.tsx`** are not called anywhere (their comment says so). Left alone.

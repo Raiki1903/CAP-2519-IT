@@ -1,7 +1,7 @@
 /**
  * Director screen: Executive Overview, Descriptive Analytics, Approvals and Holds, and the Audit Generator, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
- * Calls: api/assets.api.ts listAssets(), api/disposals.api.ts listDisposals() and decideDisposal(),
+ * Calls: api/disposals.api.ts listDisposals() and decideDisposal(),
  * features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
  * Used by: AdRIC Director (disposal decisions, audit reports).
  */
@@ -10,7 +10,6 @@ import { useNavigate } from "react-router";
 import DirectorAnalyticsView from "@web/features/analytics/director/DirectorAnalyticsView";
 import { useSession } from "@web/state/session";
 import { useServerData, type Asset } from "@web/state/serverData";
-import * as assetsApi from "@web/api/assets.api";
 import * as disposalsApi from "@web/api/disposals.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
@@ -98,7 +97,8 @@ export function getLatestRecordConditionScore(asset: any): number {
  * - analytics: the Director analytics view.
  * - clearance-disposal: the pending disposal queue, authorized or rejected through disposalsApi.decideDisposal().
  * - reports: the audit report generator, with a per-asset lifecycle trail and CSV export.
- * Loads its own asset and disposal lists (assetsApi.listAssets, disposalsApi.listDisposals).
+ * Shows the shared asset list. Each time a tab opens it loads its own disposal list (disposalsApi.listDisposals)
+ * and reloads the shared lists once (refreshSharedLists), so the bell and the analytics show other people's changes.
  *
  * @param activeTab "overview", "analytics", "clearance-disposal", or "reports"
  */
@@ -109,17 +109,16 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     assets,
     repairRequests = [],
     isDbLoading: isGlobalDbLoading,
-    syncFromDb
+    syncFromDb,
+    refreshSharedLists
   } = useServerData();
 
-  const [dbAssets, setDbAssets] = useState<any[]>([]);
-  const [loadingDbAssets, setLoadingDbAssets] = useState(false);
   const [dbDisposals, setDbDisposals] = useState<any[]>([]);
   const [loadingDbDisposals, setLoadingDbDisposals] = useState(false);
   const [dbDisposalsError, setDbDisposalsError] = useState<string | null>(null);
   const [disposalActionId, setDisposalActionId] = useState<number | null>(null);
 
-  const isDashboardLoading = isGlobalDbLoading || loadingDbAssets;
+  const isDashboardLoading = isGlobalDbLoading;
 
   const exportLifecycleCSV = (asset: any) => {
     if (!asset) return;
@@ -198,20 +197,6 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     document.body.removeChild(link);
   };
 
-  const fetchDbAssets = async () => {
-    setLoadingDbAssets(true);
-    try {
-      const data = await assetsApi.listAssets();
-      if (data.success && Array.isArray(data.assets)) {
-        setDbAssets(data.assets);
-      }
-    } catch (err) {
-      console.error("❌ Failed to fetch database assets in Director Dashboard:", err);
-    } finally {
-      setLoadingDbAssets(false);
-    }
-  };
-
   const fetchDbDisposals = async () => {
     setLoadingDbDisposals(true);
     setDbDisposalsError(null);
@@ -230,16 +215,11 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     }
   };
 
+  // One load per tab: every tab change mounts this screen again (RootLayout keys the page by its URL).
+  // The shared reload is skipped when one started moments ago, as at login. (issue #92)
   useEffect(() => {
-    fetchDbAssets();
     fetchDbDisposals();
-    syncFromDb();
-  }, []);
-
-  useEffect(() => {
-    fetchDbAssets();
-    fetchDbDisposals();
-    syncFromDb();
+    refreshSharedLists();
   }, [activeTab]);
 
   const decideDisposal = async (disposalId: number, decision: "approve" | "reject") => {
@@ -251,6 +231,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         return;
       }
       await fetchDbDisposals();
+      // The bell's disposal cards come from the shared lists, so it drops this one at once.
+      syncFromDb();
     } catch (err: any) {
       setDbDisposalsError(err.message || `Failed to ${decision} disposal.`);
     } finally {
@@ -283,8 +265,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const [selectedHoldAffiliate, setSelectedHoldAffiliate] = useState<any | null>(null);
   const [overrideNotes, setOverrideNotes] = useState("");
 
-  // Calculated properties using live dbAssets fetched from MySQL API
-  const activeAssetList = dbAssets.length > 0 ? dbAssets : assets;
+  // The shared asset list. Typed loosely because the server sends fields the Asset type does not declare (H-13).
+  const activeAssetList: any[] = assets;
   const activeAssets = activeAssetList.filter(a => a.status !== "Disposed");
   const degradingAssets = activeAssets.filter(a => getLatestRecordConditionScore(a) <= 60);
   const maintenanceCount = activeAssets.filter(a => a.status === "Maintenance" || a.status === "In Repair").length;
@@ -584,7 +566,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
   // 4. Custom Report Generator (Audit Readiness) render
   const renderReports = () => {
-    const assetSourceList = dbAssets.length > 0 ? dbAssets : assets;
+    const assetSourceList: any[] = assets;
 
     const filteredAssets = assetSourceList.filter(a => {
       const query = searchQuery.toLowerCase().trim();

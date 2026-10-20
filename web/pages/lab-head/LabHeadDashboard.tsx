@@ -2,7 +2,7 @@
  * Lab Head screen: Custody Transitions, Branch Inventory, Health Benchmarking, and Account Approvals, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /lab-head/* (the tab comes from the URL).
  * Calls: api/assets.api.ts, api/loans.api.ts, api/transfers.api.ts, features/assets/AssetDetailModal.tsx,
- * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (repairs, sign-ups and their decisions).
+ * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (the loan list, repairs, sign-ups and their decisions).
  * Used by: Lab Head (loan and transfer decisions, sign-up approval, branch audit).
  */
 import { useState, useEffect, useCallback } from "react";
@@ -153,7 +153,7 @@ interface LoanRequest {
 /**
  * Shows one Lab Head tab, scoped to the Lab Head's own branch.
  * - custody: the branch's loan and transfer requests, with approve and decline
- *   (loansApi.listLoans, decideLoan; transfersApi.listTransfers, decideTransfer).
+ *   (the shared loan list, reloaded through reloadLoans, and loansApi.decideLoan; transfersApi.listTransfers, decideTransfer).
  * - inventory: the branch's assets, decommissioned assets, repairs, custody trail, and a printable audit report.
  * - health: the Lab Head analytics view for the branch.
  * - approvals: pending sign-ups for the branch, approved or rejected through useServerData().
@@ -162,15 +162,15 @@ interface LoanRequest {
  */
 export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const { currentUser } = useSession();
-  const { assets, repairRequests, pendingRegistrations = [], approveRegistration, rejectRegistration } = useServerData();
+  const { assets, repairRequests, pendingRegistrations = [], approveRegistration, rejectRegistration, dbLoans, reloadLoans } = useServerData();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "gallery">("gallery");
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
   const [showAuditModal, setShowAuditModal] = useState(false);
 
   // ── Live registry data (asset_records-backed, via /api/assets) ─────────────
-  // Fetched again whenever Branch Inventory opens, so it shows changes made since the
-  // shared list last reloaded. The shared list is used until the first answer arrives.
+  // Fetched again whenever a tab opens, so it shows changes made since the shared list
+  // last reloaded. The shared list is used until the first answer arrives.
   const [dbAssets, setDbAssets] = useState<any[]>([]);
   const [loadingDbAssets, setLoadingDbAssets] = useState(false);
   const [dbAssetsError, setDbAssetsError] = useState<string | null>(null);
@@ -191,16 +191,6 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
       setLoadingDbAssets(false);
     }
   }, []);
-
-  useEffect(() => {
-    fetchDbAssets();
-  }, [fetchDbAssets]);
-
-  useEffect(() => {
-    if (activeTab === "inventory") {
-      fetchDbAssets();
-    }
-  }, [activeTab, fetchDbAssets]);
 
   const displayedAssets = dbAssets.length > 0 ? dbAssets : assets;
 
@@ -225,18 +215,16 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   });
 
   // ── Loan / Borrow Requests (asset_loans) ──────────────────────────────────
-  const [loanRequests, setLoanRequests] = useState<LoanRequest[]>([]);
   const [loansLoading, setLoansLoading] = useState(false);
   const [loanError, setLoanError] = useState<string | null>(null);
 
+  // The shared loan list, so a decision in the bell shows here and one made here leaves the bell. (issue #57)
   const fetchLoanRequests = useCallback(async () => {
     setLoansLoading(true);
     setLoanError(null);
     try {
-      const data = await loansApi.listLoans();
-      if (data.success) {
-        setLoanRequests(data.loans);
-      } else {
+      const data = await reloadLoans();
+      if (!data.success) {
         setLoanError(data.error || "Failed to load loan requests.");
       }
     } catch (err: any) {
@@ -244,17 +232,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     } finally {
       setLoansLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    fetchLoanRequests();
-  }, [fetchLoanRequests]);
-
-  useEffect(() => {
-    if (activeTab === "custody") {
-      fetchLoanRequests();
-    }
-  }, [activeTab, fetchLoanRequests]);
+  }, [reloadLoans]);
 
   const [loanActionId, setLoanActionId] = useState<number | null>(null);
 
@@ -312,15 +290,13 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     }
   }, []);
 
+  // One load of each list per tab: every tab change mounts this screen again (RootLayout keys the page
+  // by its URL). The three loaders never change, so this runs once per tab. (issue #92)
   useEffect(() => {
+    fetchDbAssets();
+    fetchLoanRequests();
     fetchTransferRequests();
-  }, [fetchTransferRequests]);
-
-  useEffect(() => {
-    if (activeTab === "custody") {
-      fetchTransferRequests();
-    }
-  }, [activeTab, fetchTransferRequests]);
+  }, [activeTab, fetchDbAssets, fetchLoanRequests, fetchTransferRequests]);
 
   const [transferActionId, setTransferActionId] = useState<number | null>(null);
 
@@ -498,7 +474,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const branchInventory = displayedAssets.filter(a => matchesBranch(a.lab) && a.status !== "Disposed");
   const decommissionedAssets = displayedAssets.filter(a => matchesBranch(a.lab) && a.status === "Disposed");
 
-  const branchLoanRequests = loanRequests.filter(l => matchesBranch(l.lab));
+  const branchLoanRequests: LoanRequest[] = dbLoans.filter(l => matchesBranch(l.lab));
   const branchDbTransfers = dbTransfers.filter(t => matchesBranch(t.lab));
 
   const branchPendingRegistrations = pendingRegistrations.filter(r => matchesBranch(r.labAffiliation));

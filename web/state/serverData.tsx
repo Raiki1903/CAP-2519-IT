@@ -7,7 +7,7 @@
  * Temporary home. 01D gives each page its own data loading; these lists move out as the
  * dashboards are split in step 8 and the notification bell is rewritten.
  */
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import * as loansApi from "../api/loans.api";
 import * as assetsApi from "../api/assets.api";
 import * as transfersApi from "../api/transfers.api";
@@ -25,6 +25,9 @@ import type { Role } from "@shared/enums/role";
 const REPORT_READERS: Role[] = ["Staff", "AdRICDirector"];
 const DISPOSAL_READERS: Role[] = ["Staff", "AdRICDirector", "LabHead"];
 const REGISTRATION_READERS: Role[] = ["LabHead"];
+
+// refreshSharedLists() skips a reload that started less than this long ago, or is still running.
+const RECENT_SYNC_MS = 5000;
 
 /** A repair ticket as `GET /api/asset_repairs` returns it, and as the repair forms build one to send. */
 export interface RepairRequest {
@@ -144,6 +147,7 @@ export interface PendingRegistration {
 
 interface ServerDataContextType {
   assets: Asset[];
+  assetsVersion: number;
   repairRequests: RepairRequest[];
   addRepairRequest: (req: RepairRequest) => void;
   acknowledgeRepair: (id: string) => void;
@@ -159,6 +163,8 @@ interface ServerDataContextType {
   dbLoans: any[];
   isDbLoading: boolean;
   syncFromDb: () => Promise<void>;
+  refreshSharedLists: () => Promise<void>;
+  reloadLoans: () => Promise<ApiResult>;
   authorizeLoan: (loanId: string, decision?: "approve" | "decline") => Promise<void>;
 }
 
@@ -170,15 +176,18 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  * something, and empties them on logout. Each role loads only the lists the server lets it read.
  *
  * What it shares, and the api function behind each:
- * - `assets`: assetsApi.listAssets.
+ * - `assets`: assetsApi.listAssets. `assetsVersion`: goes up by one each time a new asset list is stored.
  * - `repairRequests`, `unacknowledgedCount`: repairsApi.listRepairs.
  * - `addRepairRequest(req)`: repairsApi.requestRepairRaw. `acknowledgeRepair(id)` and
  *   `updateRepairStatus(id, status)`: repairsApi.updateRepairRaw. Each reloads afterwards.
- * - `dbLoans`: loansApi.listLoans. `authorizeLoan(loanId, decision)`: loansApi.decideLoan.
+ * - `dbLoans`: loansApi.listLoans. `reloadLoans()`: reloads only this list and returns the answer.
+ *   `authorizeLoan(loanId, decision)`: loansApi.decideLoan.
  * - `dbTransfers`: transfersApi.listTransfers. `dbReports`: inspectionsApi.listReportSummaries.
  * - `pendingDisposals`: disposalsApi.listDisposals, pending ones only.
  * - `pendingRegistrations`, `approveRegistration`, `rejectRegistration`: authApi.
  * - `isDbLoading`: true while a reload is running. `syncFromDb()`: runs one.
+ * - `refreshSharedLists()`: runs one too, unless one is running or started in the last few seconds.
+ *   For a screen that opens, not for a save (a save needs the lists as they are after it).
  *
  * Must sit inside BrowserOnlyProvider, because each reload also re-reads the browser-only lists and
  * drops the return requests whose asset is back in the pool or disposed.
@@ -192,15 +201,31 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
   const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
+  // Lets a screen tell whether the list reloaded after a moment it remembers (the asset detail modal). (issue #89)
+  const [assetsVersion, setAssetsVersion] = useState(0);
   const [dbTransfers, setDbTransfers] = useState<any[]>([]);
   const [dbReports, setDbReports] = useState<any[]>([]);
   const [dbLoans, setDbLoans] = useState<any[]>([]);
   const [pendingDisposals, setPendingDisposals] = useState<PendingDisposal[]>([]);
+  // When the last reload started, and how many are running. Refs, because only refreshSharedLists reads them.
+  const lastSyncStartedAt = useRef(0);
+  const runningSyncs = useRef(0);
+
+  // The one place the loan list is loaded, so the bell and Custody Transitions show the same loans. (issue #57)
+  const reloadLoans = useCallback(async () => {
+    const data = await loansApi.listLoans();
+    if (data.success && Array.isArray(data.loans)) {
+      setDbLoans(data.loans);
+    }
+    return data;
+  }, []);
 
   // Each list has its own try block so one failed request does not stop the
   // others. A list whose request fails keeps what it showed before.
   // TODO(M-01): six requests on every reload, and GET /api/assets alone reads nine tables. Pages loading their own data (01D), and the asset list rewrite (issue #76).
   const syncFromDb = async () => {
+    lastSyncStartedAt.current = Date.now();
+    runningSyncs.current += 1;
     setIsDbLoading(true);
     // Tags of assets back in the pool or retired, from this reload's asset list. Empty when the list did not load.
     let doneAssetTags: string[] = [];
@@ -209,6 +234,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
         const jsonAssets = await assetsApi.listAssets();
         if (jsonAssets.success && Array.isArray(jsonAssets.assets)) {
           setAssets(jsonAssets.assets);
+          setAssetsVersion(v => v + 1);
           doneAssetTags = jsonAssets.assets
             .filter((a: Asset) => a.status === "Active" || a.status === "Disposed")
             .map((a: Asset) => a.id);
@@ -240,10 +266,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       }
 
       try {
-        const jsonL = await loansApi.listLoans();
-        if (jsonL.success && Array.isArray(jsonL.loans)) {
-          setDbLoans(jsonL.loans);
-        }
+        await reloadLoans();
       } catch (e) {}
 
       if (role && DISPOSAL_READERS.includes(role)) {
@@ -278,8 +301,16 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       // A return request for an asset that is now Active or Disposed is done, wherever it was finalized.
       dropReturnRequests(doneAssetTags);
     } finally {
+      runningSyncs.current -= 1;
       setIsDbLoading(false);
     }
+  };
+
+  // A screen that opens gets fresh lists without repeating the reload made a moment ago, for example the
+  // one at login, which is still running when the first screen opens. (issue #92)
+  const refreshSharedLists = async () => {
+    if (runningSyncs.current > 0 || Date.now() - lastSyncStartedAt.current < RECENT_SYNC_MS) return;
+    await syncFromDb();
   };
 
 
@@ -414,14 +445,14 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   return (
     <ServerDataContext.Provider
       value={{
-        assets,
+        assets, assetsVersion,
         repairRequests, addRepairRequest, acknowledgeRepair, updateRepairStatus,
         unacknowledgedCount,
         pendingDisposals,
         pendingRegistrations, addPendingRegistration, approveRegistration, rejectRegistration,
         dbTransfers, dbReports, dbLoans,
         isDbLoading,
-        syncFromDb, authorizeLoan
+        syncFromDb, refreshSharedLists, reloadLoans, authorizeLoan
       }}
     >
       {children}

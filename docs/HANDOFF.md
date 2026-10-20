@@ -1192,3 +1192,58 @@ None for the agent. For the team: whether to clean up the 17 old approved loans 
 
 1. Raiki reviews the branch, then pushes and opens the group H pull request (`Closes #99`, `Closes #59`).
 2. Everyone pulls and runs `npm test` once (413).
+
+## UAT fixes, group F (data loading) stop 1, 2026-10-20
+
+**Prompt followed:** group F, stop 1: a plan only (docs), for issue #92 with #57 and #89, on `fix/92-data-loading` from `main` at `0053be6b`. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Group F: data loading (fix/92-data-loading)".
+
+### What was produced
+
+- **The plan** in the log: where each issue is in the code, the cause, and the exact change (section 1); request counts per role before (measured) and after (expected) (section 2); tests (none change, 413) (section 3); screens, the page transition, and teammates' files (section 4); 7 commits for stop 2 (section 5); 9 hand checks under "Group F hand checks", all on the local test database (section 6); 3 questions (section 7).
+- `docs/README.md`: next is group F stop 2; group H merged in PR #108.
+- **Before counts measured** by Playwright on the local `AdRIC_DB_test` (seeded by the test harness; start script `%TEMP%\adric-groupF-handchecks\start.mts`, outside the repository; ports 4000 and 5173 free before and after; `.playwright-mcp` deleted). No code, test, schema, or database change on the branch.
+
+### Key findings
+
+- **The double mount is the main cause, for every role**, not only the Director and Lab Head: `RootLayout` keys the page wrapper by path inside `AnimatePresence mode="wait"`, and the leaving wrapper's `<Outlet />` renders the new page. It happens on every tab click too, where the leaving copy also reruns its `[activeTab]` effect: the Director's tab click asks for 26 lists, the Custodian's for assets 3 times.
+- **Measured at login:** Director 38 data requests (assets 9, disposals 9, four others 5 each; the issue's 39 with `/me`), Lab Head 15, Staff 10, Custodian 8. **Expected after:** 8, 8, 8, 5. On a tab click: 26, 5, 2, 3 before; 3, 3, 1, 1 after.
+- **Staff pages have no duplicate effect**; their extra requests come only from the double mount. The Custodian portal has two effects, like the dashboards.
+- **#57 needs no bell change:** the bell already reloads the shared loans after its decision; Custody Transitions only has to read them, and its own decision reloads them.
+- **#89 can be fixed without touching `CustodianPortal.tsx`**, through the modal (question 2).
+- **`CustodianPortal.tsx` changes only at lines 122 to 132** (the two effects); `NotificationCenter.tsx` is not touched.
+
+### Open questions
+
+Three, in the log, section 7: whether a disposal decision on Approvals and Holds also refreshes the bell; how #89 is fixed (the modal, or the Custodian screens on the shared list); whether transfers in Custody Transitions move to the shared list too.
+
+### Exact next step
+
+1. Raiki answers the 3 questions.
+2. Stop 2: the commits in the log's section 5, typecheck and tests after each, then the build and the agent's hand checks on the local test database.
+3. Then the group F pull request (`Closes #92`, `Closes #57`, `Closes #89`).
+
+## UAT fixes, group F (data loading) stop 2, 2026-10-20
+
+**Prompt followed:** Raiki's answers to the group F plan (1a, 2a, 3a), and a request to list every screen or bell card that relied on the Director's tab-click reload and fix any left stale until the next login. Stop 2: build in the planned order, typecheck, build, and tests after every commit, then the hand checks by Playwright on the local test database, with a tab-switching check for every role. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Group F: data loading (fix/92-data-loading)", section 8 and "Group F hand checks".
+
+### What was produced
+
+- Eight labelled behavior-change commits: each page mounts once (`05fccb46`); the Director loads once per tab with one shared reload (`c40280b9`, answer 1a); the Lab Head (`03a7fb1c`) and Custodian (`e8208ddb`) load once per tab; Custody Transitions and the bell share `dbLoans` through `reloadLoans()` (`059ee8bb`, #57); the modal shows the row it was opened from (`f3516874`, #89); added after hand checks: the modal reloads the loan list when it opens (`128dce87`) and the Staff list follows the shared list after a save (`22ad1dd0`).
+- The docs commit: the log's section 8, the hand check results, `docs/README.md`.
+- Tests **413** in every commit (web only); typecheck **65** in every commit; build passes.
+
+### Key findings
+
+- **Only a Director session relied on the tab-click reload**, and it was that session's only way to see other people's changes (new disposal requests in the bell, analytics). Answer 1's "one reload after the action" cannot follow an action on another computer, so the Director gets one shared reload per tab open, skipped within 5 s of the last one. Director requests: login 38 to 7, a tab click 26 to 7 or 8 (1 or 2 within 5 s).
+- **Two #89 follow-ups found by the hand checks:** the modal's pending notice read a stale loan list (H6), and showing the opener's row made Asset Inventory offer Record Return again after a return (H7). Both fixed in their own commits, no extra request for the second.
+- **H-08 seen live:** when no loan is pending, the loan list writes loan 9 as pending (H3).
+- `npm test` resets the database the hand-check server uses; the start script was rerun after each test run.
+
+### Open questions
+
+None for the agent.
+
+### Exact next step
+
+1. Raiki reviews the branch, then pushes and opens the group F pull request (`Closes #92`, `Closes #57`, `Closes #89`).
+2. Joel: `CustodianPortal.tsx` changed only at lines 122 to 132; `NotificationCenter.tsx` is untouched.
