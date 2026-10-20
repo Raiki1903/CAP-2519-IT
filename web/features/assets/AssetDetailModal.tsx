@@ -1,7 +1,7 @@
 /**
  * Asset detail modal: one asset's facts, QR tag, custodian history, and the request forms each role may open from it.
  * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and pages/staff/InventoryPage.tsx.
- * Calls: api/assets.api.ts getCustodianHistory(), state/serverData.tsx addRepairRequest(), and the loan, transfer, return, and repair forms.
+ * Calls: api/assets.api.ts getCustodianHistory(), state/serverData.tsx addRepairRequest() and reloadLoans(), and the loan, transfer, return, and repair forms.
  * Used by: Custodian requests, Lab Head custody review, Staff maintenance flagging and Record Return.
  */
 import { useState, useEffect } from "react";
@@ -87,7 +87,8 @@ interface Props {
  * Shows one asset and switches between its detail view, custodian history, and the request forms.
  * The buttons depend on role and status: a Custodian can request a loan (Active),
  * a transfer, repair, or return (On Loan); Staff can send it to maintenance, and record its return
- * when it is On Loan or Overdue; a Lab Head can open the full custodian history. Calls assetsApi.getCustodianHistory() when it opens.
+ * when it is On Loan or Overdue; a Lab Head can open the full custodian history. Calls assetsApi.getCustodianHistory() and
+ * reloads the shared loan list (reloadLoans) when it opens.
  *
  * @param asset the asset to show, or null for a closed modal. It is shown as passed, the row of the list it
  *   was opened from, until the shared list reloads (for example after a form here saves); from then on the
@@ -96,7 +97,7 @@ interface Props {
  */
 export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const { role, currentUser } = useSession();
-  const { assets, assetsVersion, addRepairRequest, dbLoans, dbTransfers } = useServerData();
+  const { assets, assetsVersion, addRepairRequest, dbLoans, dbTransfers, reloadLoans } = useServerData();
   // The shared list can be older than the page's own list, so its copy is used only once it reloaded after
   // this asset was opened. Until then the modal shows the same status as the row that was clicked. (issue #89)
   const [openedUnder, setOpenedUnder] = useState({ tag: propAsset?.id, version: assetsVersion });
@@ -161,6 +162,14 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset?.id]);
+
+  // The pending-request notice reads the shared loan list, which can be older than the list this asset was
+  // opened from: a loan approved since would still show "Your request is pending". One reload per opened asset. (issue #89)
+  useEffect(() => {
+    if (propAsset?.id) {
+      reloadLoans().catch(() => {});
+    }
+  }, [propAsset?.id, reloadLoans]);
 
   // History comes back oldest -> newest, with the current holder flagged.
   // "Previous custodian" walks back from just before the current entry to
