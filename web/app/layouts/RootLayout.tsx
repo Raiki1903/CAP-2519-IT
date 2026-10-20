@@ -5,7 +5,7 @@
  * Used by: every role.
  */
 import { useState, useEffect } from "react";
-import { Outlet, Navigate, useLocation, useNavigate } from "react-router";
+import { useOutlet, Navigate, useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { useSession, roleToSlug, roleDefaultPath } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
@@ -24,6 +24,10 @@ export function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  // The page is taken once per render and kept by the leaving wrapper below. A plain <Outlet /> there
+  // reads the router's current match, so the leaving wrapper rendered the new page too and every page
+  // mounted twice on each URL change, loading its lists twice. (issue #92)
+  const outlet = useOutlet();
 
   // After a reload or a typed URL the role is not known until /me answers. Redirecting before that
   // sent every reload to /login. (issue #49)
@@ -151,7 +155,7 @@ export function RootLayout() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
-              <Outlet />
+              {outlet}
             </motion.div>
           </AnimatePresence>
         </div>
