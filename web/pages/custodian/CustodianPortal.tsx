@@ -119,16 +119,10 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     }
   };
 
+  // Loaded once each time a tab opens (every tab change mounts this screen again), so a transfer
+  // or loan elsewhere shows up without a full page reload. (issue #92)
   useEffect(() => {
     fetchDbAssets();
-  }, []);
-
-  // Refresh whenever the custodian looks at a tab backed by live asset data,
-  // so a transfer/loan elsewhere shows up without a full page reload.
-  useEffect(() => {
-    if (activeTab === "myassets" || activeTab === "available" || activeTab === "report") {
-      fetchDbAssets();
-    }
   }, [activeTab]);
 
   const displayedAssets = dbAssets.length > 0 ? dbAssets : assets;
