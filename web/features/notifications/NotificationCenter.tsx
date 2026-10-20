@@ -7,7 +7,7 @@
  */
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
-import { useSession, roleToSlug } from "@web/state/session";
+import { useSession, roleToSlug, roleDefaultPath } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";
 import { openReturnRequests } from "@web/features/returns/openReturnRequests";
@@ -316,9 +316,6 @@ export function NotificationCenter() {
         if (role === "Staff") {
           isRelevant = true;
           actionRequired = true;
-        } else if (role === "LabHead") {
-          isRelevant = true;
-          actionRequired = true;
         } else if (role === "AdRICDirector") {
           isRelevant = true;
         } else if (role === "Custodian" && ret.custodian === currentUserName) {
@@ -578,14 +575,55 @@ export function NotificationCenter() {
     await syncFromDb();
   };
 
-  const handleCardClick = (targetTab?: string) => {
-    if (targetTab && role) {
-      const slug = roleToSlug[role];
-      let actualTab = targetTab;
-      if (role === "Custodian" && (targetTab === "inventory" || targetTab === "custody")) {
-        actualTab = "myassets";
+  /**
+   * Resolves the target URL for a notification card based on the role and card type.
+   * Directs to the role's matching tab or falls back to roleDefaultPath.
+   */
+  const getCardPath = (cardRole: Role, cardType?: string, targetTab?: string): string => {
+    const fallback = roleDefaultPath[cardRole];
+
+    if (cardRole === "AdRICDirector") {
+      if (cardType === "disposal" || targetTab === "disposals" || targetTab === "clearance-disposal") {
+        return "/adric-director/clearance-disposal";
       }
-      navigate(`/${slug}/${actualTab}`);
+      return fallback;
+    }
+
+    if (cardRole === "LabHead") {
+      if (cardType === "loan" || cardType === "transfer" || targetTab === "custody" || targetTab === "transfers") {
+        return "/lab-head/custody";
+      }
+      if (targetTab === "inventory" || cardType === "overdue" || cardType === "duesoon" || cardType === "active_loan") {
+        return "/lab-head/inventory";
+      }
+      return fallback;
+    }
+
+    if (cardRole === "Custodian") {
+      // Repairs, loans, transfers, and asset reminders all live in myassets.
+      return "/custodian/myassets";
+    }
+
+    if (cardRole === "Staff") {
+      if (cardType === "repair" || cardType === "degraded" || targetTab === "repairs") {
+        return "/staff/repairs";
+      }
+      if (cardType === "return" || targetTab === "returns") {
+        return "/staff/returns";
+      }
+      if (targetTab === "inventory" || cardType === "overdue" || cardType === "duesoon" || cardType === "active_loan") {
+        return "/staff/inventory";
+      }
+      return fallback;
+    }
+
+    return fallback;
+  };
+
+  const handleCardClick = (cardType?: string, targetTab?: string) => {
+    if (role) {
+      const destination = getCardPath(role, cardType, targetTab);
+      navigate(destination);
       setIsOpen(false);
     }
   };
@@ -690,7 +728,7 @@ export function NotificationCenter() {
                   {requestsList.map(item => (
                     <div
                       key={item.id}
-                      onClick={() => handleCardClick(item.targetTab)}
+                      onClick={() => handleCardClick(item.type, item.targetTab)}
                       className={`p-3.5 rounded-xl border transition-all flex flex-col gap-2 cursor-pointer hover:border-primary/50 group ${item.needsAction
                         ? "bg-amber-50/50 dark:bg-amber-950/10 border-amber-300/60 shadow-xs"
                         : "bg-card border-border/80 hover:bg-muted/10"
@@ -839,7 +877,7 @@ export function NotificationCenter() {
                   {remindersList.map(item => (
                     <div
                       key={item.id}
-                      onClick={() => handleCardClick(item.targetTab)}
+                      onClick={() => handleCardClick(item.type, item.targetTab)}
                       className={`p-3.5 rounded-xl border transition-all flex flex-col gap-1.5 cursor-pointer hover:border-primary/50 group ${item.needsAction
                         ? "bg-red-50/20 dark:bg-red-950/10 border-red-300/40"
                         : "bg-card border-border/80 hover:bg-muted/10"
