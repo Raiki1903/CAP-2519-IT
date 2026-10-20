@@ -113,7 +113,6 @@ export interface Asset {
 }
 
 /** A disposal request waiting for the Director's decision. */
-// TODO(H-13): lastCustodian, breakdownReasons, and disposalPathway are declared here but never filled. The server sends one `reason` text instead (M-13), so the bell shows "undefined" for them. Fix with the bell rewrite.
 export interface PendingDisposal {
   /** Display id, for example "DISP-12". */
   id: string;
@@ -121,9 +120,8 @@ export interface PendingDisposal {
   disposalId?: number;
   assetId: string;
   assetName: string;
-  lastCustodian: string;
-  breakdownReasons: string;
-  disposalPathway: string;
+  /** The server's packed reason text: "Disposal Pathway:", optional custodian and date lines, then "Breakdown Justification:". (M-13) */
+  reason: string;
   requestedBy: string;
   requestedAt: string;
 }

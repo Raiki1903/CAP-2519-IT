@@ -352,11 +352,15 @@ export function NotificationCenter() {
       }
 
       if (isRelevant) {
+        // The list sends one packed `reason` text (M-13), so the pathway and the justification are read out of it
+        // by the labels the server writes. A reason without the labels is shown whole.
+        const pathway = disp.reason.match(/Disposal Pathway:\s*(.+)/i)?.[1].trim() || "Not stated";
+        const justification = (disp.reason.match(/Breakdown Justification:\s*([\s\S]+)/i)?.[1] ?? disp.reason).replace(/\s+/g, " ").trim();
         requests.push({
           id: disp.id,
           type: "disposal",
           title: `Disposal Authorization: ${disp.assetName}`,
-          description: `Decommission request: "${disp.breakdownReasons}". Pathway: ${disp.disposalPathway}. Requested by: ${disp.requestedBy}.`,
+          description: `Decommission request: "${justification}". Pathway: ${pathway}. Requested by: ${disp.requestedBy}.`,
           date: disp.requestedAt,
           needsAction: actionRequired,
           targetTab: "disposals",
