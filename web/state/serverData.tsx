@@ -7,7 +7,7 @@
  * Temporary home. 01D gives each page its own data loading; these lists move out as the
  * dashboards are split in step 8 and the notification bell is rewritten.
  */
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import * as loansApi from "../api/loans.api";
 import * as assetsApi from "../api/assets.api";
 import * as transfersApi from "../api/transfers.api";
@@ -25,6 +25,9 @@ import type { Role } from "@shared/enums/role";
 const REPORT_READERS: Role[] = ["Staff", "AdRICDirector"];
 const DISPOSAL_READERS: Role[] = ["Staff", "AdRICDirector", "LabHead"];
 const REGISTRATION_READERS: Role[] = ["LabHead"];
+
+// refreshSharedLists() skips a reload that started less than this long ago, or is still running.
+const RECENT_SYNC_MS = 5000;
 
 /** A repair ticket as `GET /api/asset_repairs` returns it, and as the repair forms build one to send. */
 export interface RepairRequest {
@@ -159,6 +162,7 @@ interface ServerDataContextType {
   dbLoans: any[];
   isDbLoading: boolean;
   syncFromDb: () => Promise<void>;
+  refreshSharedLists: () => Promise<void>;
   authorizeLoan: (loanId: string, decision?: "approve" | "decline") => Promise<void>;
 }
 
@@ -179,6 +183,8 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  * - `pendingDisposals`: disposalsApi.listDisposals, pending ones only.
  * - `pendingRegistrations`, `approveRegistration`, `rejectRegistration`: authApi.
  * - `isDbLoading`: true while a reload is running. `syncFromDb()`: runs one.
+ * - `refreshSharedLists()`: runs one too, unless one is running or started in the last few seconds.
+ *   For a screen that opens, not for a save (a save needs the lists as they are after it).
  *
  * Must sit inside BrowserOnlyProvider, because each reload also re-reads the browser-only lists and
  * drops the return requests whose asset is back in the pool or disposed.
@@ -196,11 +202,16 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   const [dbReports, setDbReports] = useState<any[]>([]);
   const [dbLoans, setDbLoans] = useState<any[]>([]);
   const [pendingDisposals, setPendingDisposals] = useState<PendingDisposal[]>([]);
+  // When the last reload started, and how many are running. Refs, because only refreshSharedLists reads them.
+  const lastSyncStartedAt = useRef(0);
+  const runningSyncs = useRef(0);
 
   // Each list has its own try block so one failed request does not stop the
   // others. A list whose request fails keeps what it showed before.
   // TODO(M-01): six requests on every reload, and GET /api/assets alone reads nine tables. Pages loading their own data (01D), and the asset list rewrite (issue #76).
   const syncFromDb = async () => {
+    lastSyncStartedAt.current = Date.now();
+    runningSyncs.current += 1;
     setIsDbLoading(true);
     // Tags of assets back in the pool or retired, from this reload's asset list. Empty when the list did not load.
     let doneAssetTags: string[] = [];
@@ -278,8 +289,16 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       // A return request for an asset that is now Active or Disposed is done, wherever it was finalized.
       dropReturnRequests(doneAssetTags);
     } finally {
+      runningSyncs.current -= 1;
       setIsDbLoading(false);
     }
+  };
+
+  // A screen that opens gets fresh lists without repeating the reload made a moment ago, for example the
+  // one at login, which is still running when the first screen opens. (issue #92)
+  const refreshSharedLists = async () => {
+    if (runningSyncs.current > 0 || Date.now() - lastSyncStartedAt.current < RECENT_SYNC_MS) return;
+    await syncFromDb();
   };
 
 
@@ -421,7 +440,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
         pendingRegistrations, addPendingRegistration, approveRegistration, rejectRegistration,
         dbTransfers, dbReports, dbLoans,
         isDbLoading,
-        syncFromDb, authorizeLoan
+        syncFromDb, refreshSharedLists, authorizeLoan
       }}
     >
       {children}
