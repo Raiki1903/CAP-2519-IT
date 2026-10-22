@@ -546,7 +546,10 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                             <p className="max-w-[220px] truncate" title={loan.purpose}>{loan.purpose}</p>
                           </div>
                           <div className="ml-auto text-right">
-                            <p><Calendar size={10} className="inline mr-1" />Due {loan.dueDate}</p>
+                            {/* A declined or returned loan has no due date that matters any more. */}
+                            {(loan.status === "Pending" || loan.status === "Approved") && (
+                              <p><Calendar size={10} className="inline mr-1" />Due {loan.dueDate}</p>
+                            )}
                             <p>Requested {loan.requestedOn}</p>
                           </div>
                         </div>
