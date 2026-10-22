@@ -14,6 +14,7 @@ import {
   Tag, MapPin, Building2, Calendar, Activity, Bookmark, History, ArrowLeft, Clock
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
+import { assetStatusLabel } from "./assetBadges";
 import { TransferForm } from "@web/features/transfers/TransferForm";
 import { ReturnForm } from "@web/features/returns/ReturnForm";
 import { RepairForm } from "@web/features/repairs/RepairForm";
@@ -318,7 +319,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         {asset.category}
                       </Badge>
                       <Badge className={cn("text-[10px]", STATUS_CLASS[asset.status] ?? "bg-muted text-muted-foreground")}>
-                        {asset.status}
+                        {assetStatusLabel(asset.status)}
                       </Badge>
                     </div>
                   )}
@@ -745,8 +746,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                     <span className="font-mono text-slate-700 font-bold">{entry.custodianEmail || "—"}</span>
                                   </div>
                                   <div>
-                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Status / Asset Condition:</span>
-                                    <span className="font-semibold text-slate-700">{entry.status} · {entry.condition || "Functional"}</span>
+                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Availability / Condition:</span>
+                                    <span className="font-semibold text-slate-700">{assetStatusLabel(entry.status)} · {entry.condition || "Functional"}</span>
                                   </div>
                                   <div className="col-span-2">
                                     <span className="text-slate-400 font-semibold block text-[9px] uppercase">Location:</span>

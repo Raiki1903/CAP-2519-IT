@@ -10,6 +10,7 @@ import { useNavigate } from "react-router";
 import DirectorAnalyticsView from "@web/features/analytics/director/DirectorAnalyticsView";
 import { useSession } from "@web/state/session";
 import { useServerData, type Asset } from "@web/state/serverData";
+import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import * as disposalsApi from "@web/api/disposals.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
@@ -145,7 +146,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     csvContent += `Purchase Valuation,"PHP ${(asset.asset_monetary?.acquisition_value || asset.cost || 0).toLocaleString()}"\n`;
     csvContent += `ITS Property Tag,"${asset.itsPropertyTag || `DLSU-ITS-${asset.id}`}"\n`;
     csvContent += `TSG Property Tag,"${asset.tsgPropertyTag || `DLSU-TSG-${asset.id}`}"\n`;
-    csvContent += `Current Status,"${asset.status || ""}"\n\n`;
+    csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n\n`;
 
     csvContent += `CUSTODIANSHIP & TRANSFER HISTORY\n`;
     csvContent += `Transfer ID,Requested On,From Custodian,To Custodian,Justification,Status\n`;
@@ -606,7 +607,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     };
 
     const triggerExportCSV = () => {
-      const headers = ["Asset ID", "Property Tag", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Acquisition Date", "Valuation", "Status", "Custodian", "Lab"];
+      const headers = ["Asset ID", "Property Tag", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Acquisition Date", "Valuation", "Availability", "Custodian", "Lab"];
       const rows = filteredAssets.map(a => [
         a.id,
         a.itsPropertyTag || `DLSU-ITS-${a.id}`,
@@ -617,7 +618,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         a.asset_monetary?.funding_source || a.funding || "Unspecified",
         a.procurement_date || a.procured || "",
         a.asset_monetary?.acquisition_value || a.cost || 0,
-        a.status,
+        assetStatusLabel(a.status),
         a.custodian || "None",
         a.lab || "CITe4D"
       ]);
@@ -721,13 +722,13 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
               <Table>
                 <TableHeader className="print:border-slate-300">
                   <TableRow className="print:border-slate-300">
-                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Equipment ID</TableHead>
+                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Asset ID</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Physical Tag</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Details</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-center">Funding</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-center">Acquired</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right">Valuation</TableHead>
-                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right font-bold">Status / Custodian</TableHead>
+                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right font-bold">Availability / Custodian</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right print:hidden">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -784,7 +785,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                                     item.status === "On Loan" ? "bg-blue-50 text-blue-700 border-blue-200" :
                                       "bg-amber-50 text-amber-700 border-amber-200"
                                 )}>
-                                  {item.status}
+                                  {assetStatusLabel(item.status)}
                                 </Badge>
                                 <p className="text-[9px] text-muted-foreground print:text-slate-600 font-semibold">{item.custodian || "None"}</p>
                               </div>
@@ -797,7 +798,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                               className="text-[#005A36] hover:text-[#004225] text-[10px] font-bold h-7 px-2"
                               onClick={() => setSelectedAssetForAudit(item)}
                             >
-                              Full Lifecycle
+                              History
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -851,7 +852,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <p><span>TSG Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.tsgPropertyTag || `DLSU-TSG-${selectedAssetForAudit.id}`}</span></p>
                     <p><span>Deed of Donation Ref:</span> <span className="font-semibold text-[#005A36]">DOD-2024-{selectedAssetForAudit.id.split("-").pop()}</span></p>
                     <p><span>Purchase Valuation:</span> PHP {selectedAssetForAudit.cost?.toLocaleString() || "0"}</p>
-                    <p><span>Current Status:</span> <span className="font-bold text-[#005A36]">{selectedAssetForAudit.status}</span></p>
+                    <p><span>Availability:</span> <span className="font-bold text-[#005A36]">{assetStatusLabel(selectedAssetForAudit.status)}</span></p>
                   </div>
                 </div>
 

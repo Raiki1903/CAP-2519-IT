@@ -317,9 +317,9 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
                 <YAxis stroke="#64748B" fontSize={11} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="ACTIVE" stackId="statusStack" fill="#10B981" name="ACTIVE (Green)" />
-                <Bar dataKey="ON_LOAN" stackId="statusStack" fill="#F59E0B" name="ON_LOAN (Yellow)" />
-                <Bar dataKey="MAINTENANCE" stackId="statusStack" fill="#EF4444" name="MAINTENANCE (Red)" />
+                <Bar dataKey="ACTIVE" stackId="statusStack" fill="#10B981" name="Available" />
+                <Bar dataKey="ON_LOAN" stackId="statusStack" fill="#F59E0B" name="On Loan" />
+                <Bar dataKey="MAINTENANCE" stackId="statusStack" fill="#EF4444" name="Maintenance" />
               </BarChart>
             </ResponsiveContainer>
           </div>

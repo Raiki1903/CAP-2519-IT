@@ -11,6 +11,7 @@ import { useServerData } from "@web/state/serverData";
 import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, Printer, Download, ArrowRight, ShieldCheck, CheckCircle, XCircle } from "lucide-react";
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
+import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { LabHeadAnalyticsView } from "@web/features/analytics/labHead/LabHeadAnalyticsView";
 import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
@@ -777,7 +778,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
             <Card key={eq.id} className={cn("overflow-hidden p-0 gap-0 transition-all cursor-pointer", eq.status === "Disposed" ? "opacity-60 grayscale bg-muted/20 border-dashed border-muted-foreground/30 shadow-none hover:opacity-75" : "hover:shadow-md")} onClick={() => setSelectedAsset(openAsset(eq))}>
               <div className="relative">
                 <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image || (eq as any).image_url} />
-                <Badge className={cn("absolute top-2 right-2 text-[9px]", statusClass[eq.status] ?? statusClass["Active"])}>{eq.status}</Badge>
+                <Badge className={cn("absolute top-2 right-2 text-[9px]", statusClass[eq.status] ?? statusClass["Active"])}>{assetStatusLabel(eq.status)}</Badge>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-border">
                   <div className={cn("h-full w-full", CONDITION_DOT_CLASS[eq.assetCondition] ?? "bg-emerald-400")} />
                 </div>
@@ -801,7 +802,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                {["", "Asset ID", "Name", "Category", "Status", "Custodian", "Location", "Cond.", "Funding"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
+                {["", "Asset ID", "Name", "Category", "Availability", "Custodian", "Location", "Cond.", "Funding"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -811,7 +812,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                   <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                   <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{eq.category}</TableCell>
-                  <TableCell><Badge className={cn("text-[10px]", statusClass[eq.status] ?? statusClass["Active"])}>{eq.status}</Badge></TableCell>
+                  <TableCell><Badge className={cn("text-[10px]", statusClass[eq.status] ?? statusClass["Active"])}>{assetStatusLabel(eq.status)}</Badge></TableCell>
                   <TableCell className="text-xs text-muted-foreground">{eq.custodian || "None"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{eq.currentLocation || eq.location}</TableCell>
                   <TableCell><ConditionState value={eq.assetCondition} /></TableCell>
@@ -870,7 +871,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                 <Table className="min-w-full text-[11px]">
                   <TableHeader>
                     <TableRow className="bg-emerald-50/30">
-                      {["Asset ID", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Condition", "Current Location", "Status", "Custodian"].map(h => (
+                      {["Asset ID", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Condition", "Current Location", "Availability", "Custodian"].map(h => (
                         <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
                       ))}
                     </TableRow>
@@ -886,7 +887,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                         <TableCell>{a.funding}</TableCell>
                         <TableCell className="font-bold">{(a.assetCondition || "PERFECT").replace(/_/g, " ")}</TableCell>
                         <TableCell>{a.currentLocation || a.location}</TableCell>
-                        <TableCell>{a.status}</TableCell>
+                        <TableCell>{assetStatusLabel(a.status)}</TableCell>
                         <TableCell className="font-medium text-emerald-950">{a.custodian || "None"}</TableCell>
                       </TableRow>
                     ))}

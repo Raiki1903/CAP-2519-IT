@@ -12,7 +12,7 @@ import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholde
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { EditAssetDialog } from "@web/features/assets/EditAssetDialog";
 import { DeleteAssetDialog } from "@web/features/assets/DeleteAssetDialog";
-import { statusBadgeClass, ConditionState } from "@web/features/assets/assetBadges";
+import { statusBadgeClass, ConditionState, assetStatusLabel } from "@web/features/assets/assetBadges";
 import { fundingSources } from "@web/features/assets/assetFields";
 import { DisposalFormDialog } from "@web/features/disposals/DisposalFormDialog";
 import { Button } from "@web/components/ui/button";
@@ -89,13 +89,13 @@ export function InventoryPage() {
           onClick={() => setInventorySubTab("active")}
           className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "active" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
         >
-          Active Registry ({displayedAssets.filter(a => a.status !== "Disposed").length})
+          In Service ({displayedAssets.filter(a => a.status !== "Disposed").length})
         </button>
         <button
           onClick={() => setInventorySubTab("disposed")}
           className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "disposed" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
         >
-          Decommissioned Archive ({displayedAssets.filter(a => a.status === "Disposed").length})
+          Disposed ({displayedAssets.filter(a => a.status === "Disposed").length})
         </button>
       </div>
 
@@ -161,7 +161,7 @@ export function InventoryPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  {["", "Asset ID", "Name", "Category", "Status", "Custodian", "Location", "Cond.", "Funding", "Action"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
+                  {["", "Asset ID", "Name", "Category", "Availability", "Custodian", "Location", "Cond.", "Funding", "Action"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -171,7 +171,7 @@ export function InventoryPage() {
                     <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                     <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{eq.category}</TableCell>
-                    <TableCell><Badge className={cn("text-[10px]", statusBadgeClass[eq.status])}>{eq.status}</Badge></TableCell>
+                    <TableCell><Badge className={cn("text-[10px]", statusBadgeClass[eq.status])}>{assetStatusLabel(eq.status)}</Badge></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{eq.custodian || "None"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{eq.currentLocation || eq.location}</TableCell>
                     <TableCell><ConditionState value={eq.assetCondition} /></TableCell>

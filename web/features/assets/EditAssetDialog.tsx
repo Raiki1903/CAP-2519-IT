@@ -13,7 +13,7 @@ import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { cn } from "@web/components/ui/utils";
 import { Trash2 } from "lucide-react";
-import { CONDITION_PILL_CLASS } from "./assetBadges";
+import { CONDITION_PILL_CLASS, assetStatusLabel } from "./assetBadges";
 
 /**
  * Edits one asset and saves it through assetsApi.updateAssetRaw(). Shows the server's error text
@@ -145,11 +145,11 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-bold text-foreground">Asset Status</Label>
+            <Label className="text-xs font-bold text-foreground">Availability</Label>
             <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {["Active", "On Loan", "Maintenance"].map(s => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>{assetStatusLabel(s)}</option>
               ))}
             </select>
           </div>

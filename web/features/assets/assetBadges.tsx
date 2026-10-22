@@ -1,8 +1,9 @@
 /**
  * Asset badge styles: colours for an asset's status and condition, the status's display name, and the condition label component.
- * Layer: feature component. Called by features/assets/AssetGalleryCard.tsx, EditAssetDialog.tsx, and pages/staff/InventoryPage.tsx.
+ * Layer: feature component. Called by features/assets/AssetGalleryCard.tsx, AssetDetailModal.tsx, EditAssetDialog.tsx, pages/staff/InventoryPage.tsx,
+ * and, for assetStatusLabel, the Lab Head, Custodian, and Director pages.
  * Calls: ui/utils.ts.
- * Used by: Staff inventory and asset editing.
+ * Used by: Staff inventory and asset editing; every screen that shows an asset's availability.
  */
 import { cn } from "@web/components/ui/utils";
 

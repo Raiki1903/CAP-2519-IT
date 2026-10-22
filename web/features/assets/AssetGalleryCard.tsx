@@ -5,7 +5,7 @@
  * Used by: Staff inventory.
  */
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
-import { statusBadgeClass, CONDITION_DOT_CLASS, ConditionState } from "./assetBadges";
+import { statusBadgeClass, CONDITION_DOT_CLASS, ConditionState, assetStatusLabel } from "./assetBadges";
 import { Button } from "@web/components/ui/button";
 import { Badge } from "@web/components/ui/badge";
 import { Card, CardContent } from "@web/components/ui/card";
@@ -27,7 +27,7 @@ export function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommissio
     <Card onClick={onSelect} className={cn("overflow-hidden p-0 gap-0 transition-all relative cursor-pointer", isDisposed ? "opacity-85 bg-red-50/20 border-dashed border-red-200 shadow-none hover:opacity-100" : "hover:shadow-md")}>
       <div className="relative">
         <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image || eq.image_url} />
-        <Badge className={cn("absolute top-2.5 right-2.5 text-[9px] border font-bold uppercase tracking-wider", statusBadgeClass[eq.status])}>{eq.status}</Badge>
+        <Badge className={cn("absolute top-2.5 right-2.5 text-[9px] border font-bold uppercase tracking-wider", statusBadgeClass[eq.status])}>{assetStatusLabel(eq.status)}</Badge>
         {
           isDisposed && eq.disposalId && (
             <Badge className="absolute top-2.5 left-2.5 text-[9px] font-mono font-extrabold bg-red-100 text-red-800 border-red-300 shadow-sm">

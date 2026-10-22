@@ -10,6 +10,7 @@ import jsQR from "jsqr";
 import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
+import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { useSession } from "@web/state/session";
 import { useServerData, holderLabel } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
@@ -429,7 +430,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
                       <span className="text-[10px] font-bold text-primary">{asset.id}</span>
-                      <Badge className={cn("text-[9px] px-1.5 py-0.5", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{asset.status}</Badge>
+                      <Badge className={cn("text-[9px] px-1.5 py-0.5", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{assetStatusLabel(asset.status)}</Badge>
                     </div>
                     <p className="text-xs font-bold text-foreground mb-1 line-clamp-1">{asset.name}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{asset.serial} · {asset.lab}</p>
@@ -458,7 +459,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[11px] font-bold text-primary">{asset.id}</span>
-                        <Badge className={cn("text-[10px]", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{asset.status}</Badge>
+                        <Badge className={cn("text-[10px]", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{assetStatusLabel(asset.status)}</Badge>
                       </div>
                       <p className="text-sm font-bold text-foreground mb-2">{asset.name}</p>
                       <div className="flex gap-4 text-xs text-muted-foreground">
@@ -558,7 +559,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
                       <span className="text-[10px] font-bold text-primary">{asset.id}</span>
-                      <Badge className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">{asset.status}</Badge>
+                      <Badge className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">{assetStatusLabel(asset.status)}</Badge>
                     </div>
                     <p className="text-xs font-bold text-foreground mb-1 line-clamp-1">{asset.name}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{asset.serial} · {asset.lab}</p>
@@ -585,7 +586,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[11px] font-bold text-primary">{asset.id}</span>
-                        <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">{asset.status}</Badge>
+                        <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">{assetStatusLabel(asset.status)}</Badge>
                       </div>
                       <p className="text-sm font-bold text-foreground mb-2">{asset.name}</p>
                       <div className="flex gap-4 text-xs text-muted-foreground">
@@ -647,7 +648,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 w-full text-left space-y-1">
                   <p className="text-xs font-bold text-emerald-900">{scannedAssetData?.id || scanResult} · {scannedAssetData?.name || "Equipment"}</p>
                   <p className="text-[11px] text-emerald-700 font-medium">
-                    Status: <strong className="font-bold">{scannedAssetData?.status || "Active"}</strong> · Lab: {scannedAssetData?.lab || "CITe4D"} · {scannedAssetData?.location || "Manila"}
+                    Availability: <strong className="font-bold">{assetStatusLabel(scannedAssetData?.status || "Active")}</strong> · Lab: {scannedAssetData?.lab || "CITe4D"} · {scannedAssetData?.location || "Manila"}
                   </p>
                   {scannedAssetData && (
                     <p className="text-[10px] text-emerald-600 font-mono">Custodian: {holderLabel(scannedAssetData.custodian, scannedAssetData.custodianHidden)}</p>
