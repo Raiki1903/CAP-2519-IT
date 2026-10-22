@@ -5,7 +5,7 @@
  * Used by: every role.
  */
 import { useState, useRef, useEffect } from "react";
-import { useSession } from "@web/state/session";
+import { useSession, roleLabel } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Label } from "@web/components/ui/label";
@@ -123,15 +123,7 @@ export function AccountDetailsPage() {
     }
   };
 
-  const getRoleLabel = () => {
-    switch (role) {
-      case "AdRICDirector": return "AdRIC Director";
-      case "Custodian": return "Active Custodian";
-      case "Staff": return "Staff";
-      case "LabHead": return "Lab Head";
-      default: return "User";
-    }
-  };
+  const getRoleLabel = () => (role ? roleLabel[role] : "User");
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -147,7 +139,7 @@ export function AccountDetailsPage() {
         </Button>
         <div>
           <h1 className="text-xl font-bold text-slate-800 leading-none">Account Settings</h1>
-          <p className="text-xs text-muted-foreground mt-1.5">Manage your active profile credentials and session state</p>
+          <p className="text-xs text-muted-foreground mt-1.5">Your profile and sign-in details.</p>
         </div>
       </div>
 
@@ -215,7 +207,7 @@ export function AccountDetailsPage() {
                   id="firstName"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="Joel P."
+                  placeholder="e.g. Juan"
                   className="h-9 text-xs border-slate-200 focus-visible:ring-[#005A36] focus-visible:border-[#005A36]"
                 />
               </div>
@@ -226,7 +218,7 @@ export function AccountDetailsPage() {
                   id="lastName"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Balanay II"
+                  placeholder="e.g. Dela Cruz"
                   className="h-9 text-xs border-slate-200 focus-visible:ring-[#005A36] focus-visible:border-[#005A36]"
                 />
               </div>
@@ -254,7 +246,7 @@ export function AccountDetailsPage() {
           <CardContent className="space-y-4 text-slate-600">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Assigned Security Role</Label>
+                <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Role</Label>
                 <div className="relative">
                   <Input
                     value={getRoleLabel()}
@@ -266,7 +258,7 @@ export function AccountDetailsPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Institutional ID Number</Label>
+                <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">ID Number</Label>
                 <div className="relative">
                   <Input
                     value={dbUser?.idNumber || currentUser?.idNumber || "12345678"}
@@ -279,7 +271,7 @@ export function AccountDetailsPage() {
 
               {role !== "AdRICDirector" && role !== "Staff" && (
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Institutional Lab Affiliation</Label>
+                  <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Lab</Label>
                   <div className="relative">
                     <Input
                       value={dbUser?.labAffiliation || (currentUser as any)?.labAffiliation || labAffiliation}
@@ -304,7 +296,7 @@ export function AccountDetailsPage() {
         {success && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-800 flex items-center gap-2 animate-fadeIn">
             <Check size={14} className="text-emerald-600" />
-            <span>Profile successfully updated! Changes are synchronized across your active session block.</span>
+            <span>Profile saved.</span>
           </div>
         )}
 

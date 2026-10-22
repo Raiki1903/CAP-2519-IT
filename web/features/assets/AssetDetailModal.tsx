@@ -231,8 +231,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const metaRows = asset ? [
     { icon: Tag, label: "Serial No.", value: asset.serial ?? "—" },
     { icon: Tag, label: "Property Tag", value: asset.id },
-    { icon: Building2, label: "Funding Org.", value: asset.funding || "DOST" },
-    { icon: Activity, label: "Condition State", value: descriptiveCond },
+    { icon: Building2, label: "Funding Source", value: asset.funding || "DOST" },
+    { icon: Activity, label: "Condition", value: descriptiveCond },
     { icon: MapPin, label: "Campus", value: asset.location ?? "—" },
     { icon: MapPin, label: "Current Location", value: asset.currentLocation ?? asset.location ?? "—" },
     { icon: Building2, label: "Lab", value: asset.lab ?? "—" },
@@ -707,7 +707,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
 
                         {loadingHistory ? (
                           <div className="py-8 text-center text-xs text-muted-foreground animate-pulse font-mono">
-                            Fetching custodian records from MySQL database…
+                            Loading custodian history…
                           </div>
                         ) : historyError ? (
                           <div className="p-3 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded-lg">
@@ -715,7 +715,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           </div>
                         ) : custodianHistoryList.length === 0 ? (
                           <div className="py-8 text-center text-xs text-muted-foreground font-mono">
-                            No historical custodian records logged for this asset in the database.
+                            No custodian history for this asset yet.
                           </div>
                         ) : (
                           <div className="relative pl-6 space-y-4 pt-1 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
@@ -742,7 +742,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
 
                                 <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 font-sans">
                                   <div>
-                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Email / Institutional Contact:</span>
+                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Email:</span>
                                     <span className="font-mono text-slate-700 font-bold">{entry.custodianEmail || "—"}</span>
                                   </div>
                                   <div>

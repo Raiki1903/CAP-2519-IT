@@ -60,7 +60,7 @@ export function NotFound() {
           Page Not Found
         </h2>
         <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>
-          The route you requested does not exist in this system.
+          This page does not exist.
         </p>
       </div>
 
