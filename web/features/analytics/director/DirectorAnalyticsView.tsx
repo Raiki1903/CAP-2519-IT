@@ -323,7 +323,7 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
         </CardContent>
       </Card>
 
-      {/* 3. Line Graph (Audit Compliance) with live dbReports */}
+      {/* 3. Inspection reports per month, from dbReports */}
       <Card className="border border-border bg-card shadow-sm rounded-xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">

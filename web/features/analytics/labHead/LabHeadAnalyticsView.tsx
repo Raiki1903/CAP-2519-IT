@@ -121,7 +121,7 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
       <div className="space-y-6 animate-pulse p-4 bg-card rounded-xl border border-border">
         <div className="flex items-center gap-2 text-[#005A36] font-bold text-sm">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Synchronizing Lab Analytics with MySQL Database...</span>
+          <span>Loading analytics...</span>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="h-48 bg-muted/40 rounded-xl" />
@@ -443,7 +443,7 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
                   </Badge>
                   <h4 className="text-xl sm:text-2xl font-black leading-tight">{allocationItems[0]?.name}</h4>
                   <p className="text-xs sm:text-sm text-emerald-100 mt-2 leading-relaxed">
-                    Lead research cohort assigned hardware equipment from MySQL database.
+                    The project with the most assets from your lab.
                   </p>
                 </div>
                 <div className="flex items-end justify-between border-t border-emerald-600/50 pt-4">

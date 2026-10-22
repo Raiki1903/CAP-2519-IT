@@ -900,7 +900,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
               </div>
             </div>
 
-            {/* Section 2: Custody Handshake Logs */}
+            {/* Section 2: loans and transfers */}
             <div>
               <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">II. Loans and Transfers</h3>
               <div className="overflow-x-auto">

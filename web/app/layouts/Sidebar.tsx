@@ -506,7 +506,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                     
                     <div className="space-y-1.5 text-[11px]">
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Authorized User:</span>
+                        <span className="text-slate-400">Signed in as:</span>
                         <span className="font-semibold text-white truncate max-w-[200px]" title={currentUser?.email || ""}>
                           {currentUser?.email || "Loading..."}
                         </span>
