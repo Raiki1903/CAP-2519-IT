@@ -222,12 +222,6 @@ export function IntakeWizard() {
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
               />
             </div>
-            <div className="p-4 bg-muted/40 rounded-xl border border-border text-xs space-y-1.5 text-muted-foreground">
-              <p className="font-bold text-foreground">Procurement Compliance Checklist:</p>
-              <p>✓ Registry tagging matches barcode guidelines</p>
-              <p>✓ Campus location matches real-time room assignments</p>
-              <p>✓ Funding boundaries bound to academic allocations</p>
-            </div>
           </div>
         )}
 

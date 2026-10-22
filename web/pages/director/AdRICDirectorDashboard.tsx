@@ -849,7 +849,6 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   <div className="space-y-1.5 border-l border-border pl-4">
                     <p><span>ITS Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.itsPropertyTag || "None"}</span></p>
                     <p><span>TSG Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.tsgPropertyTag || "None"}</span></p>
-                    <p><span>Deed of Donation Ref:</span> <span className="font-semibold text-[#005A36]">DOD-2024-{selectedAssetForAudit.id.split("-").pop()}</span></p>
                     <p><span>Purchase Valuation:</span> PHP {selectedAssetForAudit.cost?.toLocaleString() || "0"}</p>
                     <p><span>Availability:</span> <span className="font-bold text-[#005A36]">{assetStatusLabel(selectedAssetForAudit.status)}</span></p>
                   </div>

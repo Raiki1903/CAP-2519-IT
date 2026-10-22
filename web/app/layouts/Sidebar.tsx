@@ -371,34 +371,8 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
 
         <Separator style={{ background: "rgba(16,185,129,0.12)" }} />
 
-        {/* ── System status + logout ────────────────────────────────────── */}
+        {/* ── Preferences + logout ─────────────────────────────────────── */}
         <div className="p-3 space-y-2">
-          <AnimatePresence initial={false}>
-            {!collapsed && (
-              <motion.div
-                key="status"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.18 }}
-                className="overflow-hidden"
-              >
-                <div className="rounded-lg p-2.5 mb-2" style={{ background: "rgba(0,0,0,0.25)" }}>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[8px] font-bold tracking-[1.5px]" style={{ color: "#4ADE80" }}>SYSTEM STATUS</span>
-                    <motion.div
-                      animate={{ scale: [1, 1.3, 1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="w-1.5 h-1.5 rounded-full bg-emerald-400"
-                    />
-                  </div>
-                  <p className="text-[10px]" style={{ color: "#6EE7B7" }}>All services operational</p>
-                  <p className="text-[9px] mt-0.5" style={{ color: "#4B5563" }}>Last sync: 2 min ago</p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {/* Preferences Settings Button */}
           <Tooltip>
             <TooltipTrigger asChild>

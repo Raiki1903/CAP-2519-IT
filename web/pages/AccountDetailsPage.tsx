@@ -287,7 +287,7 @@ export function AccountDetailsPage() {
             <div className="rounded-lg bg-slate-100 border border-slate-200 p-3 text-slate-500 text-[10.5px] leading-relaxed flex items-start gap-2 mt-2">
               <Shield size={14} className="text-slate-500 flex-shrink-0 mt-0.5" />
               <p>
-                <strong>Security Lockout:</strong> Under DLSU Laboratory Infrastructure Policy, you are barred from changing your system role, user type, ID number{role !== "AdRICDirector" && role !== "Staff" ? ", or lab affiliation" : ""}. Contact your AdRIC Director or IT Services for authorization overrides.
+                You cannot change your role, user type, or ID number{role !== "AdRICDirector" && role !== "Staff" ? ", or your lab" : ""} here. Ask the AdRIC Director if one of them is wrong.
               </p>
             </div>
           </CardContent>

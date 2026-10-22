@@ -1031,20 +1031,6 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                 </Table>
               </div>
             </div>
-
-            {/* Compliance & Approvals Footer */}
-            <div className="flex justify-between items-end border-t border-emerald-200 pt-6 mt-8">
-              <div>
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest font-sans">Auditor Signature</p>
-                <div className="h-10 w-40 border-b border-gray-400 mt-2 flex items-center justify-center italic text-xs text-gray-500 font-sans">Digital Signature Verified</div>
-                <p className="text-[10px] text-gray-500 mt-1 font-sans">CITe4D Lab Head / Project Leader</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[9px] font-bold text-emerald-800 uppercase tracking-widest font-sans">Compliance Status</p>
-                <p className="text-xs font-bold text-emerald-700 mt-1 font-sans">✓ AdRIC Assets Compliant</p>
-                <p className="text-[10px] text-gray-400 mt-0.5 font-sans">DLSU Engineering Standards</p>
-              </div>
-            </div>
           </div>
 
           <DialogFooter className="print:hidden flex-shrink-0 pt-2 border-t border-border">

@@ -62,7 +62,7 @@ export function OverviewPage() {
         <p className="text-muted-foreground text-xs">Assets, repairs, and returns at a glance, with shortcuts.</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border border-border bg-card shadow-sm rounded-xl">
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-extrabold text-foreground font-mono">{displayedAssets.length}</p>
@@ -81,13 +81,6 @@ export function OverviewPage() {
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-extrabold text-foreground font-mono">{pendingReturns.length}</p>
             <p className="text-xs text-muted-foreground mt-0.5 font-medium">Pending Returns</p>
-          </CardContent>
-        </Card>
-        <Card className="border border-border bg-card shadow-sm rounded-xl">
-          <CardContent className="pt-4 pb-4">
-            {/* TODO(H-09): the operational index is a fixed number, not computed from anything. */}
-            <p className="text-3xl font-extrabold text-emerald-700 font-mono">97.8%</p>
-            <p className="text-xs text-muted-foreground mt-0.5 font-medium">System Operational Index</p>
           </CardContent>
         </Card>
       </div>
