@@ -1,5 +1,5 @@
 /**
- * Director screen: Executive Overview, Descriptive Analytics, Approvals and Holds, and the Audit Generator, one tab at a time.
+ * Director screen: Executive Overview, Analytics, Approvals and Holds, and the Audit Generator, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
  * Calls: api/disposals.api.ts listDisposals() and decideDisposal(),
  * features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.

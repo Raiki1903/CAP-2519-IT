@@ -1059,10 +1059,10 @@ export const DirectorAnalyticsView: React.FC = () => {
         <div>
           <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
             <Building2 className="w-6 h-6 text-[#005A36]" />
-            AdRIC Director Executive Dashboard
+            Analytics
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Governance &amp; Funding analytics: capital valuation, cross-campus transfer flows, grant renewal readiness, audit readiness, and procurement budget justification.
+            Value, funding, transfers, and use of assets across AdRIC.
           </p>
         </div>
 

@@ -44,7 +44,7 @@ const roleConfig: Record<Role, {
       { id: "inspections", label: "Inspection Manager",   icon: ClipboardCheck },
       { id: "returns",     label: "Pending Returns",       icon: ClipboardList },
       { id: "qrtags",      label: "QR Tag Wizard",         icon: QrCode        },
-      { id: "health",      label: "Health Benchmarking",   icon: BarChart3     },
+      { id: "health",      label: "Analytics",             icon: BarChart3     },
     ],
   },
   LabHead: {
@@ -53,7 +53,7 @@ const roleConfig: Record<Role, {
     nav: [
       { id: "custody",     label: "Requests",            icon: Users         },
       { id: "inventory",   label: "Branch Inventory",    icon: ClipboardList },
-      { id: "health",      label: "Health Benchmarking",   icon: BarChart3     },
+      { id: "health",      label: "Analytics",             icon: BarChart3     },
       { id: "approvals",   label: "Account Approvals",   icon: ShieldCheck   },
     ],
   },
@@ -72,7 +72,7 @@ const roleConfig: Record<Role, {
     subtitle: "Executive Oversight",
     nav: [
       { id: "overview",           label: "Executive Overview",  icon: Monitor       },
-      { id: "analytics",          label: "Descriptive Analytics",icon: BarChart3     },
+      { id: "analytics",          label: "Analytics",            icon: BarChart3     },
       { id: "clearance-disposal", label: "Approvals & Holds",     icon: ClipboardCheck },
       { id: "reports",            label: "Audit Generator",     icon: ClipboardList },
     ],

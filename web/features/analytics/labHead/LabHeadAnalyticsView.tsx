@@ -933,15 +933,12 @@ export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "CITe4D
         <div>
           <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
             <Users className="w-6 h-6 text-[#005A36]" />
-            Lab Head Project Allocation & Efficiency Dashboard ({lab})
+            Analytics: {lab}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Real operational equipment loan & transfer approvals, hardware utilization gauge, category breakdown, project allocation matrix, overdue delinquencies report, accountability scatter plot, and 2D heatmap matrix.
+            Loans, transfers, project use, and overdue items for your lab.
           </p>
         </div>
-        <Badge variant="outline" className="border-[#005A36] text-[#005A36] bg-emerald-50 px-3 py-1 text-xs font-bold self-start md:self-auto">
-          {lab} Research Laboratory Restricted
-        </Badge>
       </div>
 
       <LabHeadOperationalSection lab={lab} />

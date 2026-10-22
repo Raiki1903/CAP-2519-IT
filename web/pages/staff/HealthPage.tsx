@@ -1,5 +1,5 @@
 /**
- * Staff Health: the Staff analytics view, and a benchmark grid for component health.
+ * Staff Analytics: the Staff analytics view, and a benchmark grid for component health that shows fixed sample numbers.
  * Layer: page. Called by app/routes.tsx at /staff/health.
  * Calls: features/analytics/staff/StaffAnalyticsView.tsx. The benchmark grid calls nothing.
  * Used by: Staff.
@@ -21,7 +21,7 @@ function MetricBar({ value, color }: { value: number; color: string }) {
   return <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-1 w-12"><div className={cn("h-full rounded-full", color)} style={{ width: `${Math.min(100, value)}%` }} /></div>;
 }
 
-/** Switches between Advanced Analytics (the default, StaffAnalyticsView) and the benchmark grid. Takes no props. */
+/** Switches between Charts (the default, StaffAnalyticsView) and the benchmark grid. Takes no props. */
 export function HealthPage() {
   const [healthEdits, setHealthEdits] = useState<Record<string, Record<string, string>>>({});
   const [showAdvancedAnalytics, setShowAdvancedAnalytics] = useState(true);
@@ -32,12 +32,12 @@ export function HealthPage() {
         <div>
           <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
             <Wrench className="w-6 h-6 text-[#005A36]" />
-            {showAdvancedAnalytics ? "Staff Maintenance & Workflows Dashboard" : "Numeric Health Benchmarking Grid"}
+            {showAdvancedAnalytics ? "Analytics" : "Condition Benchmarks (sample data)"}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
             {showAdvancedAnalytics
-              ? "Real-time tracking, repair operations, condition traffic light heatmap, 90-day warranty calendar, and staggered routine inspection progress."
-              : "Track physical component breakdown relative to Day 1 baseline performance logs."}
+              ? "Repairs, condition, warranties, and inspections."
+              : "Battery, storage, and uptime per asset. These numbers are samples, not your data."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -53,7 +53,7 @@ export function HealthPage() {
               onClick={() => setShowAdvancedAnalytics(false)}
               className={cn("text-xs h-8 font-bold", !showAdvancedAnalytics ? "bg-[#10B981] text-white hover:bg-[#10B981]/90" : "text-muted-foreground")}
             >
-              Benchmarks Grid
+              Benchmarks
             </Button>
             <Button
               size="sm"
@@ -61,7 +61,7 @@ export function HealthPage() {
               onClick={() => setShowAdvancedAnalytics(true)}
               className={cn("text-xs h-8 font-bold", showAdvancedAnalytics ? "bg-[#10B981] text-white hover:bg-[#10B981]/90" : "text-muted-foreground")}
             >
-              Advanced Analytics
+              Charts
             </Button>
           </div>
         </div>

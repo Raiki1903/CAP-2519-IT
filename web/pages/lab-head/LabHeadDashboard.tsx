@@ -1,5 +1,5 @@
 /**
- * Lab Head screen: Requests, Branch Inventory, Health Benchmarking, and Account Approvals, one tab at a time.
+ * Lab Head screen: Requests, Branch Inventory, Analytics, and Account Approvals, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /lab-head/* (the tab comes from the URL).
  * Calls: api/assets.api.ts, api/loans.api.ts, api/transfers.api.ts, features/assets/AssetDetailModal.tsx,
  * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (the loan list, repairs, sign-ups and their decisions).
@@ -734,7 +734,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     );
   }
 
-  // ── Health Benchmarking ───────────────────────────────────────────────────
+  // ── Analytics ───────────────────────────────────────────────────
   if (activeTab === "health") {
     return <LabHeadAnalyticsView lab={userLab} />;
   }
