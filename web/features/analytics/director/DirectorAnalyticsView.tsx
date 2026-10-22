@@ -274,7 +274,7 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
               <h2 className="text-3xl font-extrabold text-[#005A36] mt-1 font-mono">
                 ₱{totalValuation.toLocaleString()}
               </h2>
-              <p className="text-[11px] text-muted-foreground mt-1">Filtered acquisition valuation from MySQL database</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Total value of the filtered assets</p>
             </div>
             <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl text-[#005A36]">
               <DollarSign size={28} />
@@ -289,7 +289,7 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
               <h2 className="text-3xl font-extrabold text-amber-600 mt-1 font-mono">
                 {pendingDisposalsCount} Items
               </h2>
-              <p className="text-[11px] text-muted-foreground mt-1">Filtered items awaiting decommissioning sign-off</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Filtered disposal requests waiting for your approval</p>
             </div>
             <div className="p-3 bg-amber-50 dark:bg-amber-500/10 rounded-xl text-amber-600">
               <AlertTriangle size={28} />
@@ -302,11 +302,8 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
       <Card className="border border-border bg-card shadow-sm rounded-xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-[#005A36]" /> Stacked Column Chart: Location vs. Status
+            <Building2 className="w-5 h-5 text-[#005A36]" /> Assets by Campus and Availability
           </CardTitle>
-          <CardDescription className="text-xs text-muted-foreground">
-            X-axis: Location ('MANILA', 'LAGUNA'). Y-axis: Stacked asset counts color-coded by status (ACTIVE=Green, ON_LOAN=Yellow, MAINTENANCE=Red).
-          </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
           <div className="h-72">
@@ -330,10 +327,10 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
       <Card className="border border-border bg-card shadow-sm rounded-xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-            <FileCheck className="w-5 h-5 text-[#005A36]" /> Line Graph: Audit Compliance (`asset_reports` over time)
+            <FileCheck className="w-5 h-5 text-[#005A36]" /> Inspection Reports per Month
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground">
-            Counts of asset_reports submitted over time (Months timeline aggregated from live database).
+            Inspection reports filed each month.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
@@ -404,7 +401,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
             <div className="flex items-center gap-2">
               <PieIcon className="w-5 h-5 text-[#005A36]" />
               <CardTitle className="text-sm font-bold text-foreground">
-                Funding Capital & Valuation Breakdown
+                Value by Funding Source
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-0.5">
@@ -658,7 +655,7 @@ export const CampusTransferFlow: React.FC = () => {
             <div className="flex items-center gap-2">
               <ArrowRightLeft className="w-5 h-5 text-[#005A36]" />
               <CardTitle className="text-sm font-bold text-foreground">
-                Cross-Campus Resource Transfer Flow (Dynamic Sankey Diagram)
+                Transfers Between Campuses
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-0.5">
@@ -926,7 +923,7 @@ export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selecte
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-[#005A36]" />
                 <CardTitle className="text-sm font-bold text-foreground">
-                  Descriptive — Asset Utilization Preview
+                  Asset Use
                 </CardTitle>
               </div>
               <CardDescription className="text-muted-foreground text-xs mt-0.5">
