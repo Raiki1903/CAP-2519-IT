@@ -1,16 +1,18 @@
 /**
  * Not-found screen for any URL the router does not know.
- * Layer: page. Called by app/routes.tsx (the "*" route). Calls nothing.
+ * Layer: page. Called by app/routes.tsx (the "*" route). Calls state/session.tsx (the role and its home page).
  * Used by: every role, and visitors who are not signed in.
  */
 import { useNavigate } from "react-router";
+import { useSession, roleDefaultPath } from "@web/state/session";
 import { Shield, AlertTriangle } from "lucide-react";
 
 const BRAND = "#005A36";
 
-/** Says the page does not exist and offers Go Back and the login page. Takes no props. */
+/** Says the page does not exist and offers Go Back, and the user's home page when signed in or else the login page. Takes no props. */
 export function NotFound() {
   const navigate = useNavigate();
+  const { role } = useSession();
   return (
     <div
       style={{
@@ -81,7 +83,7 @@ export function NotFound() {
           Go Back
         </button>
         <button
-          onClick={() => navigate("/login")}
+          onClick={() => navigate(role ? roleDefaultPath[role] : "/login")}
           style={{
             padding: "9px 18px",
             border: "none",
@@ -97,7 +99,7 @@ export function NotFound() {
             fontFamily: "'Montserrat', sans-serif",
           }}
         >
-          <Shield size={14} /> Return to Login
+          <Shield size={14} /> {role ? "Go to my home page" : "Return to Login"}
         </button>
       </div>
     </div>
