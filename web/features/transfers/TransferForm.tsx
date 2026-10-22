@@ -40,7 +40,7 @@ function ApprovalPipeline({ steps }: { steps: PipelineStep[] }) {
   return (
     <div>
       <p className="text-[10px] font-extrabold text-muted-foreground tracking-[2px] uppercase mb-3">
-        Governance Approvals Pipeline
+        Approval Steps
       </p>
       <div className="flex items-start">
         {steps.map((step, i) => (
@@ -109,9 +109,9 @@ export function TransferForm({ asset, onBack, onClose }: Props) {
   const [refId] = useState(`TRF-${Date.now().toString().slice(-6)}`);
 
   const pipelineSteps: PipelineStep[] = [
-    { label: "Current Owner Sign-off", sublabel: "Custodian confirmation", status: submitted ? "done" : "active" },
-    { label: "Lab Head Approval", sublabel: "Digital handshake auth", status: submitted ? "active" : "pending" },
-    { label: "Staff Log Verification", sublabel: "Registry update", status: "pending" },
+    { label: "Your Request", sublabel: "By you", status: submitted ? "done" : "active" },
+    { label: "Lab Head Approval", sublabel: "Approve or decline", status: submitted ? "active" : "pending" },
+    { label: "Done", sublabel: "The asset moves to the new custodian", status: "pending" },
   ];
 
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail);
@@ -158,10 +158,10 @@ export function TransferForm({ asset, onBack, onClose }: Props) {
           </div>
           <div>
             <h3 className="font-extrabold text-foreground mb-1" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-              Handshake Initiated
+              Transfer Request Sent
             </h3>
             <p className="text-sm text-muted-foreground">
-              Transfer request logged. Lab Head approval is now pending.
+              Your transfer request is waiting for the Lab Head.
             </p>
           </div>
           <div className="w-full rounded-xl bg-[#F3F4F6] border border-border p-4 text-left">
@@ -185,7 +185,7 @@ export function TransferForm({ asset, onBack, onClose }: Props) {
               <p className="text-sm font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 Custodianship Transfer
               </p>
-              <p className="text-[11px] text-muted-foreground">Initiate formal liability handoff between research personnel</p>
+              <p className="text-[11px] text-muted-foreground">Ask to move this asset to another custodian.</p>
             </div>
           </div>
 
@@ -296,7 +296,7 @@ export function TransferForm({ asset, onBack, onClose }: Props) {
               {submitting ? (
                 <><span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full" /> Submitting…</>
               ) : (
-                <><ArrowRightLeft size={14} /> Initiate Handshake</>
+                <><ArrowRightLeft size={14} /> Send Transfer Request</>
               )}
             </Button>
           </div>
