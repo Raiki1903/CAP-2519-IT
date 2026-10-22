@@ -495,10 +495,12 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
           <h1 className="text-foreground mb-1">Loan and Transfer Requests</h1>
           <p className="text-muted-foreground text-sm">Loan and transfer requests for {userLab}. Approve or decline the pending ones.</p>
         </div>
-        <div className="grid grid-cols-3 gap-4 mb-5">
-          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-amber-600">{pendingCount}</p><p className="text-xs text-muted-foreground">Pending</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-emerald-700">{approvedCount}</p><p className="text-xs text-muted-foreground">Completed This Period</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-red-700">{declinedCount}</p><p className="text-xs text-muted-foreground">Declined</p></CardContent></Card>
+        {/* The first three count loans only, so their labels say so; approved includes returned loans, all time. */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-amber-600">{pendingCount}</p><p className="text-xs text-muted-foreground">Loans pending</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-emerald-700">{approvedCount}</p><p className="text-xs text-muted-foreground">Loans approved</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-red-700">{declinedCount}</p><p className="text-xs text-muted-foreground">Loans declined</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-amber-600">{pendingTransferCount}</p><p className="text-xs text-muted-foreground">Transfers pending</p></CardContent></Card>
         </div>
 
         <h3 className="text-xs font-extrabold text-foreground uppercase tracking-widest mb-2.5">Equipment Loan Requests</h3>
