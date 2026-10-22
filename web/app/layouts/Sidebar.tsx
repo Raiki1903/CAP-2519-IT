@@ -46,7 +46,7 @@ const roleConfig: Record<Role, {
   LabHead: {
     nav: [
       { id: "custody",     label: "Requests",            icon: Users         },
-      { id: "inventory",   label: "Branch Inventory",    icon: ClipboardList },
+      { id: "inventory",   label: "Lab Inventory",       icon: ClipboardList },
       { id: "health",      label: "Analytics",             icon: BarChart3     },
       { id: "approvals",   label: "Account Approvals",   icon: ShieldCheck   },
     ],

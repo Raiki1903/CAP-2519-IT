@@ -162,14 +162,14 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
           <div>
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Zap className="w-5 h-5 text-[#005A36]" /> Utilization Gauge: Lab Assets Assigned to Projects
+                <Zap className="w-5 h-5 text-[#005A36]" /> Assets Assigned to Projects
               </h3>
               <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-extrabold text-xs">
                 {utilization.utilizationPercentage}% Assigned
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Query DB: percentage of lab assets actively assigned to a valid project_id versus unassigned (null).
+              Share of your lab's assets that belong to a project.
             </p>
           </div>
 
@@ -351,7 +351,7 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-[#005A36]" />
                 <CardTitle className="text-sm font-bold text-foreground">
-                  Project-to-Asset Allocation Matrix (Treemap Preview)
+                  Assets by Project
                 </CardTitle>
               </div>
               <CardDescription className="text-muted-foreground text-xs mt-0.5">
@@ -364,9 +364,9 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
                 size="sm"
                 onClick={() => setIsMaximized(true)}
                 className="text-xs gap-1 border-[#005A36]/30 text-[#005A36] hover:bg-emerald-50 font-bold shrink-0"
-                title="Maximize window tab"
+                title="Expand"
               >
-                <Maximize2 size={13} /> Maximize Tab
+                <Maximize2 size={13} /> Expand
               </Button>
             )}
           </CardHeader>
@@ -429,7 +429,7 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
           <DialogHeader className="border-b border-border pb-3">
             <DialogTitle className="text-lg sm:text-xl font-extrabold text-[#005A36] flex items-center gap-2">
               <Layers className="w-6 h-6 text-[#005A36]" />
-              Project-to-Asset Allocation Matrix ({lab})
+              Assets by Project ({lab})
             </DialogTitle>
           </DialogHeader>
 
@@ -567,7 +567,7 @@ export const DelinquencyTable: React.FC<{ lab: string }> = ({ lab }) => {
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-red-600" />
               <CardTitle className="text-sm font-bold text-foreground">
-                Custodianship & Overdue Delinquencies — {lab}
+                Overdue Loans: {lab}
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-1">
@@ -663,7 +663,7 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-red-600" />
                 <CardTitle className="text-sm font-bold text-foreground">
-                  Diagnostic — Accountability Scatter Plot ({lab})
+                  Overdue Loans by Borrower ({lab})
                 </CardTitle>
               </div>
               <CardDescription className="text-muted-foreground text-xs mt-0.5">
@@ -681,7 +681,7 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
                   onClick={() => setIsMaximized(true)}
                   className="text-xs gap-1 border-red-600/30 text-red-700 hover:bg-red-50 font-bold shrink-0"
                 >
-                  <Maximize2 size={13} /> Maximize Tab
+                  <Maximize2 size={13} /> Expand
                 </Button>
               </div>
             )}
@@ -754,7 +754,7 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
           <DialogHeader className="border-b border-border pb-3">
             <DialogTitle className="text-lg sm:text-xl font-extrabold text-red-700 flex items-center gap-2">
               <Clock className="w-6 h-6 text-red-600" />
-              Accountability Scatter Plot — Complete Cohort Analysis ({lab})
+              Overdue Loans by Borrower ({lab})
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               Full-screen scatter plot distribution plotting average days overdue against unreturned equipment count.
@@ -835,7 +835,7 @@ export const AccountabilityHeatmapWidget: React.FC<{ lab: string }> = ({ lab }) 
             <div className="flex items-center gap-2">
               <Layers className="w-5 h-5 text-red-600" />
               <CardTitle className="text-sm font-bold text-foreground">
-                Diagnostic — Cohort Accountability Heatmap Matrix ({lab})
+                Overdue Loans by Group ({lab})
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-0.5">
