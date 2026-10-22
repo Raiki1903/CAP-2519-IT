@@ -246,7 +246,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     transfer: "Custodianship Transfer",
     return: "Return Asset",
     repair: "Request Repair",
-    loan: "Request Equipment Loan",
+    loan: "Request a Loan",
   };
 
   return (
@@ -304,7 +304,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                   >
                     {view !== "detail" && (
                       <span className="text-muted-foreground font-normal mr-1.5 text-sm">
-                        {viewTitles[view]} —
+                        {viewTitles[view]}:
                       </span>
                     )}
                     {asset.name}
