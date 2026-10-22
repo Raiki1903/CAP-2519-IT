@@ -8,7 +8,6 @@ import { useState } from "react";
 import StaffAnalyticsView from "@web/features/analytics/staff/StaffAnalyticsView";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
-import { Badge } from "@web/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { cn } from "@web/components/ui/utils";
@@ -41,11 +40,6 @@ export function HealthPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {showAdvancedAnalytics && (
-            <Badge variant="outline" className="border-[#005A36] text-[#005A36] bg-emerald-50 px-3 py-1 text-xs font-bold">
-              Technical Support Group Active
-            </Badge>
-          )}
           <div className="flex items-center gap-1.5 bg-[#0A1F14]/20 border border-emerald-500/10 p-1 rounded-xl">
             <Button
               size="sm"

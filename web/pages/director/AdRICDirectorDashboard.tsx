@@ -144,8 +144,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     csvContent += `Funding Source,"${(asset.asset_monetary?.funding_source || asset.funding || "").replace(/"/g, '""')}"\n`;
     csvContent += `Acquisition Date,"${asset.procurement_date || asset.procured || ""}"\n`;
     csvContent += `Purchase Valuation,"PHP ${(asset.asset_monetary?.acquisition_value || asset.cost || 0).toLocaleString()}"\n`;
-    csvContent += `ITS Property Tag,"${asset.itsPropertyTag || `DLSU-ITS-${asset.id}`}"\n`;
-    csvContent += `TSG Property Tag,"${asset.tsgPropertyTag || `DLSU-TSG-${asset.id}`}"\n`;
+    csvContent += `ITS Property Tag,"${asset.itsPropertyTag || "None"}"\n`;
+    csvContent += `TSG Property Tag,"${asset.tsgPropertyTag || "None"}"\n`;
     csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n\n`;
 
     csvContent += `CUSTODIANSHIP & TRANSFER HISTORY\n`;
@@ -607,10 +607,10 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     };
 
     const triggerExportCSV = () => {
-      const headers = ["Asset ID", "Property Tag", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Acquisition Date", "Valuation", "Availability", "Custodian", "Lab"];
+      const headers = ["Asset ID", "ITS Property Tag", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Acquisition Date", "Valuation", "Availability", "Custodian", "Lab"];
       const rows = filteredAssets.map(a => [
         a.id,
-        a.itsPropertyTag || `DLSU-ITS-${a.id}`,
+        a.itsPropertyTag || "None",
         a.name,
         a.serial || a.serial_number || "",
         a.manufacturer || "",
@@ -723,7 +723,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                 <TableHeader className="print:border-slate-300">
                   <TableRow className="print:border-slate-300">
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Asset ID</TableHead>
-                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Physical Tag</TableHead>
+                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Property Tags</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Details</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-center">Funding</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-center">Acquired</TableHead>
@@ -760,8 +760,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                         <TableRow key={item.id} className="print:border-slate-200 hover:bg-muted/30 transition-colors">
                           <TableCell className="font-mono text-xs text-[#005A36] print:text-slate-900 font-bold">{item.id}</TableCell>
                           <TableCell className="text-xs">
-                            <p className="font-mono text-foreground print:text-slate-900 font-semibold">{item.itsPropertyTag || `DLSU-ITS-${item.id}`}</p>
-                            <p className="text-[9px] text-muted-foreground/60 font-mono mt-0.5">{item.tsgPropertyTag || `DLSU-TSG-${item.id}`}</p>
+                            <p className="font-mono text-foreground print:text-slate-900 font-semibold">ITS: {item.itsPropertyTag || "None"}</p>
+                            <p className="text-[9px] text-muted-foreground/60 font-mono mt-0.5">TSG: {item.tsgPropertyTag || "None"}</p>
                           </TableCell>
                           <TableCell className="text-xs">
                             <p className="font-bold text-foreground print:text-slate-900">{item.name}</p>
@@ -848,8 +848,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <p><span>Acquisition Date:</span> {selectedAssetForAudit.procured}</p>
                   </div>
                   <div className="space-y-1.5 border-l border-border pl-4">
-                    <p><span>ITS Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.itsPropertyTag || `DLSU-ITS-${selectedAssetForAudit.id}`}</span></p>
-                    <p><span>TSG Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.tsgPropertyTag || `DLSU-TSG-${selectedAssetForAudit.id}`}</span></p>
+                    <p><span>ITS Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.itsPropertyTag || "None"}</span></p>
+                    <p><span>TSG Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.tsgPropertyTag || "None"}</span></p>
                     <p><span>Deed of Donation Ref:</span> <span className="font-semibold text-[#005A36]">DOD-2024-{selectedAssetForAudit.id.split("-").pop()}</span></p>
                     <p><span>Purchase Valuation:</span> PHP {selectedAssetForAudit.cost?.toLocaleString() || "0"}</p>
                     <p><span>Availability:</span> <span className="font-bold text-[#005A36]">{assetStatusLabel(selectedAssetForAudit.status)}</span></p>

@@ -219,7 +219,7 @@ export function OverviewPage() {
               <div key={asset.id} className="p-2.5 bg-muted/20 border border-border rounded-xl flex items-center justify-between text-xs">
                 <div>
                   <span className="font-bold text-foreground block">{asset.name} <span className="font-mono text-primary text-[11px]">({asset.id})</span></span>
-                  <span className="text-[10px] text-muted-foreground">{asset.category} · {asset.location || asset.lab || "ITS Warehouse"}</span>
+                  <span className="text-[10px] text-muted-foreground">{asset.category} · {asset.location || asset.lab || "Unknown location"}</span>
                 </div>
                 <Badge variant="outline" className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border-emerald-200">
                   {asset.status || "Active"}

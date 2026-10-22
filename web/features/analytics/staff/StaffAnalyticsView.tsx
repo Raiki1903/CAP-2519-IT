@@ -363,7 +363,7 @@ export const LocationStatusWidget: React.FC<{
       // TODO(H-09): these are invented shares of the asset count, shown as if they were real figures. Step 12 (analytics).
       const locMap: Record<string, number> = {};
       contextAssets.forEach(a => {
-        const loc = a.lab || "ITS Main Warehouse";
+        const loc = a.lab || "Unknown location";
         locMap[loc] = (locMap[loc] || 0) + 1;
       });
 
