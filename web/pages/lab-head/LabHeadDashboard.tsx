@@ -551,7 +551,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                       </div>
                       {isPending && (
                         <div className="flex gap-2 flex-shrink-0">
-                          <Button size="sm" className="text-xs" disabled={isActing} onClick={() => decideLoan(loan.loanId, "approve")}><CheckCircle size={11} />{isActing ? "Working…" : "Authorize"}</Button>
+                          <Button size="sm" className="text-xs" disabled={isActing} onClick={() => decideLoan(loan.loanId, "approve")}><CheckCircle size={11} />{isActing ? "Working…" : "Approve"}</Button>
                           <Button size="sm" variant="outline" className="text-xs border-red-200 text-red-600 hover:bg-red-50" disabled={isActing} onClick={() => decideLoan(loan.loanId, "decline")}><XCircle size={11} />{isActing ? "Working…" : "Decline"}</Button>
                         </div>
                       )}
@@ -618,7 +618,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                         </div>
                         {isPending && (
                           <div className="flex gap-2 flex-shrink-0">
-                            <Button size="sm" className="text-xs" disabled={isActing} onClick={() => decideTransfer(t.transferId, "approve")}><CheckCircle size={11} />{isActing ? "Working…" : "Authorize"}</Button>
+                            <Button size="sm" className="text-xs" disabled={isActing} onClick={() => decideTransfer(t.transferId, "approve")}><CheckCircle size={11} />{isActing ? "Working…" : "Approve"}</Button>
                             <Button size="sm" variant="outline" className="text-xs border-red-200 text-red-600 hover:bg-red-50" disabled={isActing} onClick={() => decideTransfer(t.transferId, "decline")}><XCircle size={11} />{isActing ? "Working…" : "Decline"}</Button>
                           </div>
                         )}
@@ -642,10 +642,10 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
           <div>
             <h1 className="text-xl font-bold text-[#005A36] flex items-center gap-2">
               <ShieldCheck size={22} className="text-[#005A36]" />
-              Lab Head Account Approvals
+              Account Approvals
             </h1>
             <p className="text-xs text-muted-foreground mt-1">
-              Authorize or reject pending institutional user registration requests for your assigned research laboratory.
+              Approve or decline sign-up requests for your lab.
             </p>
           </div>
           <Badge className="bg-emerald-100 text-[#005A36] border-emerald-300 font-extrabold text-xs px-3 py-1.5 self-start md:self-auto">

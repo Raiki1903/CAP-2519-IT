@@ -804,7 +804,7 @@ export function NotificationCenter() {
                                 }}
                                 className="text-[10px] font-bold text-white bg-[#005A36] hover:bg-[#004225] px-3 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                               >
-                                <CheckCircle size={10} /> Authorize Loan
+                                <CheckCircle size={10} /> Approve Loan
                               </button>
                               <button
                                 type="button"
@@ -859,7 +859,7 @@ export function NotificationCenter() {
                                 }}
                                 className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Authorize Disposal
+                                Approve Disposal
                               </button>
                               <button
                                 onClick={async (e) => {
@@ -868,7 +868,7 @@ export function NotificationCenter() {
                                 }}
                                 className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                               >
-                                Reject
+                                Decline
                               </button>
                             </div>
                           )}

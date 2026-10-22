@@ -534,7 +534,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                           className="border-red-200 text-red-650 hover:bg-red-50 text-[10px] font-bold h-8"
                           onClick={() => decideDisposal(req._disposalId, "reject")}
                         >
-                          {isActing ? "Working…" : "Reject & Recirculate"}
+                          {isActing ? "Working…" : "Decline"}
                         </Button>
                         <Button
                           size="sm"
@@ -542,7 +542,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                           className="bg-[#005A36] hover:bg-[#004225] text-white text-[10px] font-bold h-8 border-none"
                           onClick={() => decideDisposal(req._disposalId, "approve")}
                         >
-                          {isActing ? "Working…" : "Authorize Disposal"}
+                          {isActing ? "Working…" : "Approve Disposal"}
                         </Button>
                       </div>
                     </CardContent>
