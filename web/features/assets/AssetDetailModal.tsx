@@ -351,14 +351,14 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       transition={{ duration: 0.18 }}
                     >
                       {/* Image + metadata */}
-                      <div className={cn("flex gap-4 mb-5", asset.status === "Disposed" && "opacity-60 filter grayscale")}>
+                      <div className={cn("flex flex-wrap gap-4 mb-5", asset.status === "Disposed" && "opacity-60 filter grayscale")}>
                         <div
                           className="rounded-xl overflow-hidden border border-border flex-shrink-0"
                           style={{ width: 148 }}
                         >
                           <AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image || (asset as any).image_url} />
                         </div>
-                        <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-3 content-start">
+                        <div className="flex-1 min-w-[16rem] grid grid-cols-2 gap-x-4 gap-y-3 content-start">
                           {metaRows.map(({ icon: Icon, label, value }) => (
                             <div key={label}>
                               <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-1 mb-0.5">

@@ -346,7 +346,7 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
     <>
       <motion.div variants={cardAnimation} initial="hidden" animate="visible">
         <Card className="border border-border bg-card text-card-foreground shadow-sm rounded-xl flex flex-col justify-between h-full">
-          <CardHeader className="pb-2 flex flex-row items-start justify-between">
+          <CardHeader className="pb-2 flex flex-row flex-wrap items-start justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-[#005A36]" />
@@ -658,7 +658,7 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
     <>
       <motion.div variants={cardAnimation} initial="hidden" animate="visible">
         <Card className="border border-border bg-card text-card-foreground shadow-sm rounded-xl">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardHeader className="pb-3 flex flex-row flex-wrap items-center justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-red-600" />
@@ -671,7 +671,7 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
               </CardDescription>
             </div>
             {scatterData.length > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge className="bg-red-600 text-white font-bold text-xs px-3 py-1">
                   {criticalCount} Critical Bottlenecks
                 </Badge>

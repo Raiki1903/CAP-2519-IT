@@ -523,14 +523,14 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
               return (
                 <Card key={loan.id} className={cn("border-l-4", loan.status === "Approved" || loan.status === "Returned" ? "border-l-emerald-500" : loan.status === "Declined" ? "border-l-red-500" : "border-l-amber-500")} style={{ borderLeftWidth: 4 }}>
                   <CardContent className="pt-4 pb-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="flex-1 min-w-[16rem]">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[11px] font-bold text-primary">{loan.id}</span>
                           <Badge className={cn("text-[10px]", txnBadgeClass[loan.status])}>{loan.status}</Badge>
                         </div>
                         <p className="text-sm font-bold text-foreground mb-2">{loan.asset} <span className="font-normal text-muted-foreground">({loan.assetId})</span></p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground mb-3">
                           <div>
                             <p className="text-[9px] font-bold text-muted-foreground tracking-widest mb-0.5">BORROWER</p>
                             <p className="font-semibold text-foreground">{loan.borrower}</p>
@@ -593,14 +593,14 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                 return (
                   <Card key={t.id} className={cn("border-l-4", t.status === "Approved" ? "border-l-emerald-500" : t.status === "Declined" ? "border-l-red-500" : "border-l-amber-500")} style={{ borderLeftWidth: 4 }}>
                     <CardContent className="pt-4 pb-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="flex-1 min-w-[16rem]">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-[11px] font-bold text-primary">{t.id}</span>
                             <Badge className={cn("text-[10px]", txnBadgeClass[t.status] || "bg-amber-50 text-amber-700 border-amber-200")}>{t.status}</Badge>
                           </div>
                           <p className="text-sm font-bold text-foreground mb-2">{t.asset} <span className="font-normal text-muted-foreground">({t.assetId})</span></p>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground mb-3">
                             <div>
                               <p className="text-[9px] font-bold text-muted-foreground tracking-widest mb-0.5">FROM CUSTODIAN</p>
                               <p className="font-semibold text-foreground">{t.from}</p>
@@ -749,7 +749,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const filtered = branchInventory.filter(eq => eq.name.toLowerCase().includes(search.toLowerCase()));
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-foreground mb-1">Lab Inventory: {userLab}</h1>
           <p className="text-muted-foreground text-sm">Only your lab's assets are shown.</p>
@@ -760,7 +760,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
             <p className="text-xs text-amber-700 mt-1">{dbAssetsError} Showing the last list loaded.</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button className="gap-1.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-bold h-8" onClick={() => setShowAuditModal(true)}>
             <Download size={13} />Inventory Report
           </Button>
