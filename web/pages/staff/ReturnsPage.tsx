@@ -34,7 +34,7 @@ export function ReturnsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-foreground mb-1">Pending Returns Ledger</h1>
+        <h1 className="text-foreground mb-1">Pending Returns</h1>
         <p className="text-muted-foreground text-sm">Verify physical equipment presence, condition check, and close borrow records.</p>
       </div>
 

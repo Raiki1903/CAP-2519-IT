@@ -153,7 +153,7 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
               <Wrench className="w-5 h-5 text-[#005A36]" /> Repair Operations Kanban Board (`asset_repairs`)
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Move repair cards across columns: "Reported", "Diagnosing", "Waiting for Parts", "Resolved" to trigger MySQL DB progress_status updates.
+              Move repair cards across columns: "Reported", "Diagnosing", "Waiting for Parts", "Resolved" to update the repair's progress.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -419,7 +419,7 @@ export const LocationStatusWidget: React.FC<{
           <div className="flex items-center gap-2">
             <MapPin className="w-5 h-5 text-[#005A36]" />
             <CardTitle className="text-sm font-bold text-foreground">
-              Real-Time Location & Inventory Distribution
+              Assets by Lab
             </CardTitle>
           </div>
           <CardDescription className="text-muted-foreground text-xs">
@@ -556,7 +556,7 @@ export const WarrantyCalendarWidget: React.FC = () => {
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-amber-600" />
               <CardTitle className="text-sm font-bold text-foreground">
-                Warranty Expiration & Vendor Lifecycle Calendar (90-Day Filter)
+                Warranties Ending in 90 Days
               </CardTitle>
             </div>
             <Badge variant="outline" className="border-amber-300 text-amber-800 bg-amber-50 font-extrabold text-xs">
@@ -637,7 +637,7 @@ export const InspectionProgressTracker: React.FC = () => {
             <div className="flex items-center gap-2">
               <ListOrdered className="w-5 h-5 text-indigo-600" />
               <CardTitle className="text-sm font-bold text-foreground">
-                Staggered Routine Inspection Progress Tracker
+                Inspection Progress
               </CardTitle>
             </div>
             <Button

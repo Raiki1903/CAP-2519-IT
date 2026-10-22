@@ -164,8 +164,8 @@ export function QrTagsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-foreground mb-1">QR Tag Layout Wizard</h1>
-        <p className="text-muted-foreground text-sm">Generate and export printable physical tracking barcodes for laboratory assets.</p>
+        <h1 className="text-foreground mb-1">QR Tags</h1>
+        <p className="text-muted-foreground text-sm">Pick assets and print their QR tags.</p>
       </div>
       <div className="flex gap-4">
         <Card className="flex-1 overflow-hidden p-0">

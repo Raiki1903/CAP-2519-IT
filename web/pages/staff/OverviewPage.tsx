@@ -59,7 +59,7 @@ export function OverviewPage() {
     <div className="space-y-6">
       <div className="mb-2">
         <h1 className="text-foreground text-2xl font-extrabold tracking-tight mb-1">System Overview</h1>
-        <p className="text-muted-foreground text-xs">Real-time status summaries, operational telemetry, and quick action routing controls.</p>
+        <p className="text-muted-foreground text-xs">Assets, repairs, and returns at a glance, with shortcuts.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -80,7 +80,7 @@ export function OverviewPage() {
         <Card className="border border-border bg-card shadow-sm rounded-xl">
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-extrabold text-foreground font-mono">{pendingReturns.length}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 font-medium">Pending Return Ledgers</p>
+            <p className="text-xs text-muted-foreground mt-0.5 font-medium">Pending Returns</p>
           </CardContent>
         </Card>
         <Card className="border border-border bg-card shadow-sm rounded-xl">
@@ -94,12 +94,12 @@ export function OverviewPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="col-span-2 border border-border bg-card shadow-sm rounded-xl">
-          <CardHeader><CardTitle className="text-sm font-bold text-foreground">Quick Action Operations</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm font-bold text-foreground">Shortcuts</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between p-3.5 bg-muted/30 border border-border rounded-xl">
               <div>
-                <p className="text-xs font-bold text-foreground">Asset Procurement Registration</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Log new hardware items into AdRIC databases</p>
+                <p className="text-xs font-bold text-foreground">Register Equipment</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Add newly acquired equipment to the inventory</p>
               </div>
               <Button size="sm" onClick={() => navigate(`/${overviewSlug}/register`)} className="gap-1 text-xs font-bold bg-[#005A36] text-white hover:bg-[#005A36]/90">
                 Intake Wizard <ChevronRight size={13} />
@@ -107,7 +107,7 @@ export function OverviewPage() {
             </div>
             <div className="flex items-center justify-between p-3.5 bg-muted/30 border border-border rounded-xl">
               <div>
-                <p className="text-xs font-bold text-foreground">Repair Operations Manager</p>
+                <p className="text-xs font-bold text-foreground">Repairs</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Handle queued repair tickets and component servicing</p>
               </div>
               <Button size="sm" onClick={() => navigate(`/${overviewSlug}/repairs`)} className="gap-1 text-xs font-bold bg-[#005A36] text-white hover:bg-[#005A36]/90">
@@ -116,7 +116,7 @@ export function OverviewPage() {
             </div>
             <div className="flex items-center justify-between p-3.5 bg-muted/30 border border-border rounded-xl">
               <div>
-                <p className="text-xs font-bold text-foreground">Inspection Operations Manager</p>
+                <p className="text-xs font-bold text-foreground">Inspections</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Inspect assets and review custodian condition reports</p>
               </div>
               <Button size="sm" onClick={() => navigate(`/${overviewSlug}/inspections`)} className="gap-1 text-xs font-bold bg-[#005A36] text-white hover:bg-[#005A36]/90">
@@ -125,8 +125,8 @@ export function OverviewPage() {
             </div>
             <div className="flex items-center justify-between p-3.5 bg-muted/30 border border-border rounded-xl">
               <div>
-                <p className="text-xs font-bold text-foreground">Barcoding &amp; QR Tag Wizards</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Generate, select, and preview barcode stickers</p>
+                <p className="text-xs font-bold text-foreground">QR Tags</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Pick assets and print their QR tags</p>
               </div>
               <Button size="sm" onClick={() => navigate(`/${overviewSlug}/qrtags`)} className="gap-1 text-xs font-bold bg-[#005A36] text-white hover:bg-[#005A36]/90">
                 Generate Tags <ChevronRight size={13} />
@@ -136,7 +136,7 @@ export function OverviewPage() {
         </Card>
 
         <Card className="border border-border bg-card shadow-sm rounded-xl">
-          <CardHeader><CardTitle className="text-sm font-bold text-foreground">Campus Affiliations</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm font-bold text-foreground">Assets by Campus</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-foreground">Manila (Taft) Campus</span>

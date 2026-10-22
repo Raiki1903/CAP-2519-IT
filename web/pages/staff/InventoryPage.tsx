@@ -73,7 +73,7 @@ export function InventoryPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-foreground mb-1">Asset Inventory</h1>
-          <p className="text-muted-foreground text-sm">Complete hardware registry · {displayedAssets.filter(a => a.status !== "Disposed").length} active assets across 2 campuses</p>
+          <p className="text-muted-foreground text-sm">{displayedAssets.filter(a => a.status !== "Disposed").length} assets in service across 2 campuses</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg overflow-hidden border border-border">
@@ -106,7 +106,7 @@ export function InventoryPage() {
         </div>
         <select value={filterFunding} onChange={e => setFilterFunding(e.target.value)}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <option value="All">All Funding Origins</option>
+          <option value="All">All Funding Sources</option>
           {fundingSources.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
         <select value={filterLoc} onChange={e => setFilterLoc(e.target.value)}
@@ -161,7 +161,7 @@ export function InventoryPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  {["", "Asset ID", "Name", "Category", "Availability", "Custodian", "Location", "Cond.", "Funding", "Action"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
+                  {["", "Asset ID", "Name", "Category", "Availability", "Custodian", "Location", "Condition", "Funding", "Action"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -202,7 +202,7 @@ export function InventoryPage() {
                             size="icon"
                             className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
                             onClick={() => setAssetToDelete(eq.id)}
-                            title="Remove Asset"
+                            title="Delete Asset"
                           >
                             <Trash2 size={13} />
                           </Button>

@@ -438,9 +438,9 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-foreground">Permanent QR Tag</p>
+                                <p className="text-xs font-bold text-foreground">QR Tag</p>
                                 <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
-                                  Scannable routing node link:
+                                  Link:
                                   <span className="font-mono text-primary select-all text-[9px] block mt-1 bg-background p-1.5 rounded border border-border truncate">https://adric.dlsu.edu.ph/assets/{asset.id}</span>
                                 </p>
                               </div>

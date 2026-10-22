@@ -66,7 +66,7 @@ export function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommissio
                   size="icon"
                   className="h-6 w-6 rounded-md hover:bg-red-600 opacity-90 shadow-sm"
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  title="Remove Asset"
+                  title="Delete Asset"
                 >
                   <Trash2 size={11} />
                 </Button>

@@ -364,7 +364,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                     setInspectionImgOption("");
                     setTsgRemarksOption("");
                     setItsRemarksOption("");
-                    alert(`Inspection Report logged & saved under asset_reports table in MySQL for ${selectedQueueItem.asset}!`);
+                    alert(`Inspection report saved for ${selectedQueueItem.asset}.`);
                   } finally {
                     setIsSubmitting(false);
                   }

@@ -73,8 +73,8 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
     <Dialog open={!!asset} onOpenChange={open => { if (!open) onClose(); }}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-sm font-bold text-foreground">Edit Registry Asset — {asset?.id}</DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">Modify registry information to correct configuration errors or entry mistakes.</DialogDescription>
+          <DialogTitle className="text-sm font-bold text-foreground">Edit Asset: {asset?.id}</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">Correct this asset's details.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3 py-3">
           <div className="flex flex-col gap-1.5 col-span-2">
@@ -99,7 +99,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
             </select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-bold text-foreground">Funding Origin</Label>
+            <Label className="text-xs font-bold text-foreground">Funding Source</Label>
             <select value={form.funding} onChange={e => setForm({ ...form, funding: e.target.value })}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {["DOST", "USAID", "CHED", "Internal Grants"].map(f => (
@@ -124,7 +124,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
             </select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-bold text-foreground">Responsible Laboratory Group</Label>
+            <Label className="text-xs font-bold text-foreground">Lab</Label>
             <select value={form.lab} onChange={e => setForm({ ...form, lab: e.target.value })}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"].map(l => (
@@ -154,7 +154,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
             </select>
           </div>
           <div className="flex flex-col gap-1.5 col-span-2">
-            <Label className="text-xs font-bold text-foreground">Condition State</Label>
+            <Label className="text-xs font-bold text-foreground">Condition</Label>
             <div className="grid grid-cols-3 gap-2">
               {ASSET_CONDITIONS.map(c => (
                 <button
@@ -174,7 +174,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
             </div>
           </div>
           <div className="flex flex-col gap-1.5 col-span-2">
-            <Label className="text-xs font-bold text-foreground">Current Custodian Assignment</Label>
+            <Label className="text-xs font-bold text-foreground">Custodian</Label>
             <Input value={form.custodian} onChange={e => setForm({ ...form, custodian: e.target.value })} placeholder="None / Custodian Name" className="text-xs" />
           </div>
           <div className="flex flex-col gap-1.5 col-span-2 border-t border-border pt-2 mt-1">
@@ -227,7 +227,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
         <DialogFooter className="gap-2 mt-4">
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={handleSave} disabled={saving} className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold">
-            {saving ? "Saving..." : "Save Modifications"}
+            {saving ? "Saving..." : "Save Changes"}
           </Button>
         </DialogFooter>
       </DialogContent>
