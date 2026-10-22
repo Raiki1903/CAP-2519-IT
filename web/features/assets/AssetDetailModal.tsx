@@ -405,15 +405,15 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           ) : (
                             <>
                               <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                                <span>Current Custodian: <strong className="text-emerald-700">{currentHistoryEntry ? holderLabel(currentHistoryEntry.custodianName, currentHistoryEntry.custodianHidden) : holderLabel(asset.custodian, asset.custodianHidden)}</strong></span>
+                                <span>Current custodian: <strong className="text-emerald-700">{currentHistoryEntry ? holderLabel(currentHistoryEntry.custodianName, currentHistoryEntry.custodianHidden) : holderLabel(asset.custodian, asset.custodianHidden)}</strong></span>
                                 <span className="text-[10px] text-slate-400">Present</span>
                               </div>
                               <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                                <span>Prior Custodian: <strong>{priorHistoryEntry ? holderLabel(priorHistoryEntry.custodianName, priorHistoryEntry.custodianHidden) : "No prior custodian on record"}</strong></span>
+                                <span>Previous custodian: <strong>{priorHistoryEntry ? holderLabel(priorHistoryEntry.custodianName, priorHistoryEntry.custodianHidden) : "None"}</strong></span>
                                 <span className="text-[10px] text-slate-400">{priorHistoryEntry?.dateLogged || "—"}</span>
                               </div>
                               <div className="flex justify-between items-center py-1">
-                                <span>Original Intake: <strong>{originalHistoryEntry ? holderLabel(originalHistoryEntry.custodianName, originalHistoryEntry.custodianHidden) : "Staff Tagging Registry"}</strong></span>
+                                <span>First custodian: <strong>{originalHistoryEntry ? holderLabel(originalHistoryEntry.custodianName, originalHistoryEntry.custodianHidden) : "Not assigned"}</strong></span>
                                 <span className="text-[10px] text-slate-400">{originalHistoryEntry?.dateLogged || asset.procured || "—"}</span>
                               </div>
                             </>
