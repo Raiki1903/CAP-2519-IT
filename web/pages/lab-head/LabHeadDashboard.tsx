@@ -3,7 +3,7 @@
  * Layer: page. Called by app/routes.tsx at /lab-head/* (the tab comes from the URL).
  * Calls: api/assets.api.ts, api/loans.api.ts, api/transfers.api.ts, features/assets/AssetDetailModal.tsx,
  * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (the loan list, repairs, sign-ups and their decisions).
- * Used by: Lab Head (loan and transfer decisions, sign-up approval, branch audit).
+ * Used by: Lab Head (loan and transfer decisions, sign-up approval, the lab inventory report).
  */
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "@web/state/session";
@@ -154,7 +154,7 @@ interface LoanRequest {
  * Shows one Lab Head tab, scoped to the Lab Head's own branch.
  * - custody: the branch's loan and transfer requests, with approve and decline
  *   (the shared loan list, reloaded through reloadLoans, and loansApi.decideLoan; transfersApi.listTransfers, decideTransfer).
- * - inventory: the branch's assets, decommissioned assets, repairs, custody trail, and a printable audit report.
+ * - inventory: the branch's assets, decommissioned assets, repairs, custody trail, and a printable inventory report.
  * - health: the Lab Head analytics view for the branch.
  * - approvals: pending sign-ups for the branch, approved or rejected through useServerData().
  *
@@ -327,7 +327,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Equipment Audit Report - CITe4D</title>
+          <title>Inventory Report - ${userLab}</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@700;800&display=swap');
             body {
@@ -756,7 +756,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
         </div>
         <div className="flex items-center gap-2">
           <Button className="gap-1.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-bold h-8" onClick={() => setShowAuditModal(true)}>
-            <Download size={13} />Generate Audit Report
+            <Download size={13} />Inventory Report
           </Button>
           <div className="flex rounded-lg overflow-hidden border border-border">
             <Button variant={viewMode === "gallery" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("gallery")} className="rounded-none text-xs gap-1.5"><LayoutGrid size={13} />Gallery</Button>
@@ -825,37 +825,36 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
       <AssetDetailModal asset={selectedAsset} onClose={() => setSelectedAsset(null)} />
 
-      {/* Audit Document Dialog */}
+      {/* Inventory Report Dialog */}
       <Dialog open={showAuditModal} onOpenChange={setShowAuditModal}>
         <DialogContent className="max-w-none sm:max-w-[98vw] w-[98vw] max-h-[96vh] h-[95vh] flex flex-col p-6 gap-4 overflow-hidden print:max-h-none print:p-0">
           <DialogHeader className="print:hidden flex-shrink-0">
-            <DialogTitle className="text-sm font-bold text-foreground">Generate Lab Audit Report</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">Preview the audit report for DLSU AdRIC {userLab} research center equipment.</DialogDescription>
+            <DialogTitle className="text-sm font-bold text-foreground">Lab Inventory Report</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">Preview and print the inventory report for {userLab}.</DialogDescription>
           </DialogHeader>
 
-          {/* Audit Document Content */}
+          {/* Inventory Report Content */}
           <div id="audit-document" className="flex-1 overflow-y-auto border rounded-xl p-6 bg-white text-black font-sans leading-relaxed space-y-6">
             {/* Header */}
             <div className="flex justify-between items-start border-b-2 border-emerald-800 pb-4">
               <div>
                 <h2 className="text-xl font-bold uppercase tracking-wide text-emerald-800 font-sans">DLSU AdRIC Research Laboratory</h2>
                 <p className="text-xs text-gray-500 mt-0.5 font-sans">De La Salle University · {userLab}</p>
-                <p className="text-[10px] text-gray-400 mt-1 font-sans">Audit Ledger ID: AUD-{userLab.replace(/[^a-zA-Z0-9]/g, "")}-2026</p>
               </div>
               <div className="text-right">
-                <p className="text-xs font-bold text-emerald-800 uppercase tracking-widest font-sans">EQUIPMENT AUDIT REPORT</p>
+                <p className="text-xs font-bold text-emerald-800 uppercase tracking-widest font-sans">INVENTORY REPORT</p>
                 <p className="text-[11px] text-gray-500 mt-0.5 font-sans">Date Generated: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
-                <p className="text-[11px] text-gray-500 font-semibold font-sans">Generated By: {userLab} Lab Head / Project Leader</p>
+                <p className="text-[11px] text-gray-500 font-semibold font-sans">Generated by: {currentUser ? `${currentUser.firstName} ${currentUser.lastName}, ` : ""}Lab Head</p>
               </div>
             </div>
 
             {/* Summary Statistics */}
             <div className="grid grid-cols-4 gap-3 bg-emerald-50/50 p-4 border border-emerald-100 rounded-xl print:grid-cols-4">
               {[
-                { label: "Active Equipment Count", val: branchInventory.length },
-                { label: "Pending Custody Handshakes", val: branchDbTransfers.filter(t => t.status === "Pending").length },
-                { label: "Maintenance Operations Logged", val: branchRepairs.length },
-                { label: "Average Equipment Health Score", val: `${Math.round(branchInventory.reduce((acc, a) => acc + a.condition, 0) / (branchInventory.length || 1))}%` }
+                { label: "Assets in Service", val: branchInventory.length },
+                { label: "Pending Transfers", val: branchDbTransfers.filter(t => t.status === "Pending").length },
+                { label: "Repair Tickets", val: branchRepairs.length },
+                { label: "Average Condition Score", val: `${Math.round(branchInventory.reduce((acc, a) => acc + a.condition, 0) / (branchInventory.length || 1))}%` }
               ].map(({ label, val }) => (
                 <div key={label} className="text-center">
                   <p className="text-lg font-bold text-emerald-950 font-sans">{val}</p>
@@ -866,7 +865,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
             {/* Section 1: Active Asset Inventory */}
             <div>
-              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">I. Branch Asset Registry</h3>
+              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">I. Assets</h3>
               <div className="overflow-x-auto">
                 <Table className="min-w-full text-[11px]">
                   <TableHeader>
@@ -898,12 +897,12 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
             {/* Section 2: Custody Handshake Logs */}
             <div>
-              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">II. Custody Transitions, Loans &amp; Transfer Trail</h3>
+              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">II. Loans and Transfers</h3>
               <div className="overflow-x-auto">
                 <Table className="min-w-full text-[11px]">
                   <TableHeader>
                     <TableRow className="bg-emerald-50/30">
-                      {["Transaction ID", "Type", "Asset Name", "From Custodian", "To Custodian", "Transfer Location", "Date", "Status"].map(h => (
+                      {["Request ID", "Type", "Asset Name", "From Custodian", "To Custodian", "Transfer Location", "Date", "Status"].map(h => (
                         <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
                       ))}
                     </TableRow>
@@ -940,7 +939,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
                       if (custodyTrail.length === 0) {
                         return (
-                          <TableRow><TableCell colSpan={8} className="text-center text-gray-400 py-4 font-sans">No loan or transfer operations logged for {userLab} branch.</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={8} className="text-center text-gray-400 py-4 font-sans">No loans or transfers for {userLab}.</TableCell></TableRow>
                         );
                       }
 
@@ -964,19 +963,19 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
             {/* Section 3: Repair & Maintenance Operations History */}
             <div>
-              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">III. Component Maintenance &amp; Troubleshooting Operations</h3>
+              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">III. Repairs</h3>
               <div className="overflow-x-auto">
                 <Table className="min-w-full text-[11px]">
                   <TableHeader>
                     <TableRow className="bg-emerald-50/30">
-                      {["Ticket ID", "Asset ID", "Asset Name", "Issue Description", "Submitted At", "Urgency Status", "Acknowledge State"].map(h => (
+                      {["Ticket ID", "Asset ID", "Asset Name", "Issue Description", "Submitted At", "Priority", "Acknowledged"].map(h => (
                         <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {branchRepairs.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="text-center text-gray-400 py-4 font-sans">No maintenance tickets logged for CITe4D branch.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="text-center text-gray-400 py-4 font-sans">No repair tickets for {userLab}.</TableCell></TableRow>
                     ) : (
                       branchRepairs.map(r => (
                         <TableRow key={r.id}>
@@ -986,7 +985,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                           <TableCell className="italic max-w-[200px] truncate" title={r.description}>"{r.description}"</TableCell>
                           <TableCell>{r.submittedAt}</TableCell>
                           <TableCell className="font-bold">{r.priority}</TableCell>
-                          <TableCell className="font-medium">{r.acknowledged ? "Resolved & Acknowledged" : "Pending Evaluation"}</TableCell>
+                          <TableCell className="font-medium">{r.acknowledged ? "Yes" : "Not yet"}</TableCell>
                         </TableRow>
                       ))
                     )}
@@ -997,19 +996,19 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
             {/* Section 4: Decommissioned & Disposed Assets Archive */}
             <div>
-              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">IV. Decommissioned &amp; Disposed Assets Archive</h3>
+              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">IV. Disposed Assets</h3>
               <div className="overflow-x-auto">
                 <Table className="min-w-full text-[11px]">
                   <TableHeader>
                     <TableRow className="bg-emerald-50/30">
-                      {["Asset ID", "Disposal ID", "Asset Name", "Decommission Date", "Last Custodian", "Primary Breakdown Reason", "Disposal Pathway", "Decommissioned By"].map(h => (
+                      {["Asset ID", "Disposal ID", "Asset Name", "Decommission Date", "Last Custodian", "Reason", "Disposal Pathway", "Decommissioned By"].map(h => (
                         <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {decommissionedAssets.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="text-center text-gray-400 py-4 font-sans">No decommissioned or disposed assets recorded for {userLab} branch.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center text-gray-400 py-4 font-sans">No disposed assets for {userLab}.</TableCell></TableRow>
                     ) : (
                       decommissionedAssets.map(a => (
                         <TableRow key={a.id}>
@@ -1049,7 +1048,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
           <DialogFooter className="print:hidden flex-shrink-0 pt-2 border-t border-border">
             <Button variant="outline" onClick={() => setShowAuditModal(false)}>Close</Button>
             <Button className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold gap-1.5" onClick={handlePrintAudit}>
-              <Printer size={13} />Print Audit Ledger
+              <Printer size={13} />Print Report
             </Button>
           </DialogFooter>
         </DialogContent>

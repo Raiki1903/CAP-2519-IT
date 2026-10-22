@@ -74,7 +74,7 @@ const roleConfig: Record<Role, {
       { id: "overview",           label: "Executive Overview",  icon: Monitor       },
       { id: "analytics",          label: "Analytics",            icon: BarChart3     },
       { id: "clearance-disposal", label: "Approvals & Holds",     icon: ClipboardCheck },
-      { id: "reports",            label: "Audit Generator",     icon: ClipboardList },
+      { id: "reports",            label: "Inventory Report",    icon: ClipboardList },
     ],
   },
 };

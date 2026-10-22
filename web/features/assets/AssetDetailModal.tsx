@@ -60,7 +60,7 @@ const viewTitles: Record<FormView, string> = {
   return: "Asset Return",
   repair: "Request Repair",
   loan: "Request Loan",
-  custodianHistory: "Custodian History Audit Trail",
+  custodianHistory: "Custodian History",
 };
 
 const STATUS_CLASS: Record<string, string> = {
@@ -151,7 +151,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const goBack = () => setView("detail");
 
   // Fetch real custody history as soon as the modal opens for an asset, so
-  // the inline "Custodian History & Lifecycle Audit Trail" preview on the
+  // the inline "Custodian History" preview on the
   // detail screen has live data — not just when the dedicated (LabHead-only)
   // full-history button is clicked.
   useEffect(() => {
@@ -365,7 +365,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         </div>
                       </div>
 
-                      {/* Decommissioned Audit Details Card */}
+                      {/* Disposal details card */}
                       {asset.status === "Disposed" && (
                         <div className="bg-red-50/50 border border-red-200/50 rounded-xl p-4 mt-4">
                           <p className="text-xs font-bold text-red-800">Asset Decommissioned &amp; Disposed</p>
@@ -393,7 +393,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       {/* Collapsible Custodian History Lifecycle View */}
                       <details className="mt-4 bg-white border border-slate-200 rounded-xl p-3 text-xs group">
                         <summary className="font-extrabold text-slate-700 cursor-pointer flex items-center justify-between uppercase tracking-wider text-[10px]">
-                          <span>Custodian History &amp; Lifecycle Audit Trail</span>
+                          <span>Custodian History</span>
                           <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
                         </summary>
                         <div className="mt-3 pt-3 border-t border-slate-100 space-y-2 font-mono text-[11px] text-slate-600">
@@ -693,7 +693,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         <div className="flex items-center justify-between border-b pb-3">
                           <div>
                             <h3 className="text-sm font-extrabold text-[#005A36] uppercase tracking-wider flex items-center gap-1.5 font-sans">
-                              <History size={16} /> Custodian History Audit Trail
+                              <History size={16} /> Custodian History
                             </h3>
                             <p className="text-xs text-muted-foreground mt-0.5 font-sans">
                               Chronological record of all custodians pulled from database (from oldest to newest).

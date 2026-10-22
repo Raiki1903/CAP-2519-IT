@@ -1,9 +1,9 @@
 /**
- * Director screen: Executive Overview, Analytics, Approvals and Holds, and the Audit Generator, one tab at a time.
+ * Director screen: Executive Overview, Analytics, Approvals and Holds, and the Inventory Report, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
  * Calls: api/disposals.api.ts listDisposals() and decideDisposal(),
  * features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
- * Used by: AdRIC Director (disposal decisions, audit reports).
+ * Used by: AdRIC Director (disposal decisions, inventory reports).
  */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
@@ -96,7 +96,7 @@ export function getLatestRecordConditionScore(asset: any): number {
  * - overview: campus distribution and the status of every lab.
  * - analytics: the Director analytics view.
  * - clearance-disposal: the pending disposal queue, authorized or rejected through disposalsApi.decideDisposal().
- * - reports: the audit report generator, with a per-asset lifecycle trail and CSV export.
+ * - reports: the inventory report, with a per-asset history and CSV export.
  * Shows the shared asset list. Each time a tab opens it loads its own disposal list (disposalsApi.listDisposals)
  * and reloads the shared lists once (refreshSharedLists), so the bell and the analytics show other people's changes.
  *
@@ -132,7 +132,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     // Only the reports saved in asset_reports, the same ones the Staff inspection log shows. (F-28)
     const assetReports = asset.asset_reports || [];
 
-    let csvContent = `Asset Lifecycle Audit Trail Report\n`;
+    let csvContent = `Asset History Report\n`;
     csvContent += `Generated On,"${new Date().toLocaleString()}"\n\n`;
 
     csvContent += `CORE METADATA\n`;
@@ -564,7 +564,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     );
   };
 
-  // 4. Custom Report Generator (Audit Readiness) render
+  // 4. Inventory Report render
   const renderReports = () => {
     const assetSourceList: any[] = assets;
 
@@ -627,7 +627,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `AdRIC_Audit_Report_${fundingFilter}_Funding.csv`);
+      link.setAttribute("download", `AdRIC_Inventory_Report_${fundingFilter}_Funding.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -638,7 +638,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         {/* Filters Panel */}
         <Card className="shadow-sm print:hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Custom Audit Report Generator Filters</CardTitle>
+            <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Inventory Report Filters</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -656,7 +656,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Funding Source (Segregated)</Label>
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Funding Source</Label>
                 <select
                   value={fundingFilter}
                   onChange={e => setFundingFilter(e.target.value)}
@@ -700,24 +700,21 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                 onClick={triggerExportCSV}
               >
                 <Download className="size-3.5 mr-2" />
-                Export CSV Archive
+                Export CSV
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Audit Results Table */}
+        {/* Inventory Report Table */}
         <Card className="shadow-sm print:border-none print:bg-white print:text-black">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground print:text-slate-800">
-                AdRIC Compliance Audit Report ({isDashboardLoading ? "..." : `${filteredAssets.length} ASSETS FOUND`})
+                Inventory Report ({isDashboardLoading ? "..." : `${filteredAssets.length} assets`})
               </CardTitle>
               <p className="text-[10px] text-muted-foreground/60 print:block hidden mt-1">Generated on: {new Date().toLocaleString()} · DLSU AdRIC Director Office</p>
             </div>
-            <Badge className="bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[9px] uppercase print:hidden">
-              Audit Ready
-            </Badge>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -748,7 +745,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   ) : filteredAssets.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-xs italic">
-                        0 ASSETS FOUND matching the active filter criteria.
+                        No assets match these filters.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -822,10 +819,10 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   <div>
                     <DialogTitle className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                       <Tag className="text-[#005A36] size-4" />
-                      Asset Lifecycle Audit Trail: {selectedAssetForAudit.id}
+                      Asset History: {selectedAssetForAudit.id}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                      Full chronological registry logs mapping physical location, history, and custody transitions.
+                      Transfers, repairs, inspections, and disposal of this asset.
                     </DialogDescription>
                   </div>
                   <Button
@@ -965,7 +962,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   onClick={() => setSelectedAssetForAudit(null)}
                   className="bg-[#005A36] hover:bg-[#004225] text-white text-xs font-bold border-none"
                 >
-                  Close Audit Trail
+                  Close
                 </Button>
               </DialogFooter>
             </DialogContent>
