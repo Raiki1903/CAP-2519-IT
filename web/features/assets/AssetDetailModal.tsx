@@ -85,7 +85,7 @@ interface Props {
 }
 
 /**
- * Shows one asset and switches between its detail view, custodian history, and the request forms.
+ * Shows one asset, with its current custodian under the name, and switches between its detail view, custodian history, and the request forms.
  * The buttons depend on role and status: a Custodian can request a loan (Active),
  * a transfer, repair, or return (On Loan); Staff can send it to maintenance, and record its return
  * when it is On Loan or Overdue; a Lab Head can open the full custodian history. Calls assetsApi.getCustodianHistory() and
@@ -322,6 +322,12 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         {assetStatusLabel(asset.status)}
                       </Badge>
                     </div>
+                  )}
+                  {/* The holder at a glance; a Custodian sees "Not shown" for someone else's asset, as everywhere else. (D2) */}
+                  {view === "detail" && (
+                    <p className="text-xs text-muted-foreground mt-1.5 truncate">
+                      Custodian: <strong className="text-foreground">{holderLabel(asset.custodian, asset.custodianHidden)}</strong>
+                    </p>
                   )}
                 </div>
                 <Button
