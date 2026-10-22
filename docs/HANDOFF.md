@@ -1304,3 +1304,29 @@ Seven, in the log section 7: Dashboard or Analytics; ITS text that is saved; the
 1. Raiki answers the seven questions.
 2. The agent builds stop 2 on `fix/uat1-labels-ui` in the planned order, runs the checks and hand checks H1 to H13 on the local UAT copy, and stops.
 3. Joel: this branch will touch `NotificationCenter.tsx` at lines 807 and 862 only (the text of two buttons).
+
+## UAT fixes, Batch W (UAT 1 labels and small UI) stop 2, 2026-10-23
+
+**Prompt followed:** Raiki's answers to the seven Batch W questions, with three inventory changes (Decline everywhere, never Reject; the loan and transfer forms' last step describes what happens today; `IntakeWizard.tsx` is ours). Build, checks after every commit, hand checks H1 to H13, report. On `fix/uat1-labels-ui`. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Batch W: UAT 1 labels and small UI (fix/uat1-labels-ui)", section 8 and heading "Batch W hand checks".
+
+### What was produced
+
+- 22 commits, `cafc2810` to `34bb6ca5`: the two display-name helpers; one commit per label group (L1 to L9); five L10 commits (Staff, Lab Head, Custodian, Director, account and login); U2, U8, U10 (with the 404 page, answer 5b), U13 (answer 6a), U14; the phone fix (answer 7, CSS classes only); two added commits (the final sweep, and a modal header dash found by H6).
+- 123 labels changed (section 1 of the log matches the code); "Active" is still the value everywhere it is compared or sent.
+- The docs commit: the log's rows, section 8, and the hand check results; `docs/README.md`; this entry.
+- Typecheck **65** and tests **415** in every commit; build passes.
+
+### Key findings
+
+- All 13 hand checks passed on the local UAT copy (H13 on the test database). Edit Asset still sends `"status":"Active"`; the inspection report still saves `[TSG Remarks]`; another role's URL loads none of that role's data.
+- At 390 px every Lab Head screen now fits (Requests was 713 px wide, Lab Inventory 639, Analytics 467); desktop layout is unchanged.
+- Left for later: the bell's own wording (after PR #112), the timeline truncating on a phone (Requests redesign), and the Transfer form's "recipient must accept" line, which may be wrong (workshop).
+
+### Open questions
+
+None for the agent.
+
+### Exact next step
+
+1. Raiki reviews `fix/uat1-labels-ui`, pushes, and opens the pull request.
+2. Joel: `NotificationCenter.tsx` changes at lines 807, 862, and 871 only (button text). The bell's other wording ("Disposal Authorization:", "(LabHead)", the footer line) is listed for after PR #112.
