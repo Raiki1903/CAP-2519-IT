@@ -1,5 +1,5 @@
 /**
- * Asset badge styles: colours for an asset's status and condition, and the condition label component.
+ * Asset badge styles: colours for an asset's status and condition, the status's display name, and the condition label component.
  * Layer: feature component. Called by features/assets/AssetGalleryCard.tsx, EditAssetDialog.tsx, and pages/staff/InventoryPage.tsx.
  * Calls: ui/utils.ts.
  * Used by: Staff inventory and asset editing.
@@ -15,6 +15,27 @@ export const statusBadgeClass: Record<string, string> = {
   "Maintenance": "bg-amber-50  text-amber-700  border-amber-200",
   "Disposed": "bg-red-50    text-red-700    border-red-200",
 };
+
+const STATUS_LABEL: Record<string, string> = {
+  Active: "Available",
+  ACTIVE: "Available",
+  ON_LOAN: "On Loan",
+  MAINTENANCE: "Maintenance",
+  DISPOSED: "Disposed",
+};
+
+/**
+ * The text a screen shows for an asset's status. Screen text only: comparisons and request bodies keep the
+ * status as it came ("Active"). The asset list sends the display form ("Active", "On Loan"), the custodian
+ * history the stored form ("ACTIVE", "ON_LOAN"), so both are read.
+ *
+ * @param status the status as the server sent it
+ * @returns "Available" for Active, the display form of a stored status, or the status unchanged ("On Loan", "Overdue")
+ */
+export function assetStatusLabel(status: string | undefined | null): string {
+  if (!status) return "";
+  return STATUS_LABEL[status] ?? status;
+}
 
 // Keys are the Prisma enum member names of `asset_records.asset_condition` (underscore
 // form), not the space-separated strings stored in the database; see the @map values

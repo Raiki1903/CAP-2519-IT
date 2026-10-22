@@ -370,6 +370,14 @@ export const roleToSlug: Record<Role, string> = {
   AdRICDirector: "adric-director",
 };
 
+/** The name each role is shown by, on every screen (sidebar, mobile header, Preferences, the no-access screen). */
+export const roleLabel: Record<Role, string> = {
+  Staff: "Staff",
+  LabHead: "Lab Head",
+  Custodian: "Custodian",
+  AdRICDirector: "AdRIC Director",
+};
+
 /** Where each role lands after login, and when it opens a URL that belongs to another role. */
 export const roleDefaultPath: Record<Role, string> = {
   Staff: "/staff/overview",
