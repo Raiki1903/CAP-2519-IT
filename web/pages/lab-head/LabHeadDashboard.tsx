@@ -1,5 +1,5 @@
 /**
- * Lab Head screen: Custody Transitions, Branch Inventory, Health Benchmarking, and Account Approvals, one tab at a time.
+ * Lab Head screen: Requests, Branch Inventory, Health Benchmarking, and Account Approvals, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /lab-head/* (the tab comes from the URL).
  * Calls: api/assets.api.ts, api/loans.api.ts, api/transfers.api.ts, features/assets/AssetDetailModal.tsx,
  * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (the loan list, repairs, sign-ups and their decisions).
@@ -491,8 +491,8 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     return (
       <div>
         <div className="mb-6">
-          <h1 className="text-foreground mb-1">Digital Handshake Monitoring</h1>
-          <p className="text-muted-foreground text-sm">Equipment loan/borrow requests and custodianship transfers for {userLab} research branch, pending your authorization.</p>
+          <h1 className="text-foreground mb-1">Loan and Transfer Requests</h1>
+          <p className="text-muted-foreground text-sm">Loan and transfer requests for {userLab}. Approve or decline the pending ones.</p>
         </div>
         <div className="grid grid-cols-3 gap-4 mb-5">
           <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-amber-600">{pendingCount}</p><p className="text-xs text-muted-foreground">Pending</p></CardContent></Card>
@@ -911,7 +911,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                   <TableBody>
                     {(() => {
                       // Combines loans and transfers into one chronological
-                      // trail, same as the live Custody Transitions tab. Both lists
+                      // trail, same as the live Requests tab. Both lists
                       // come from the database and are already scoped to this Lab Head's branch.
                       const custodyTrail = [
                         ...branchLoanRequests.map(l => ({

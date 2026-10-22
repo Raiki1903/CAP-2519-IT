@@ -51,7 +51,7 @@ const roleConfig: Record<Role, {
     label: "Lab Head / Project Leader",
     subtitle: "Command Suite",
     nav: [
-      { id: "custody",     label: "Custody Transitions", icon: Users         },
+      { id: "custody",     label: "Requests",            icon: Users         },
       { id: "inventory",   label: "Branch Inventory",    icon: ClipboardList },
       { id: "health",      label: "Health Benchmarking",   icon: BarChart3     },
       { id: "approvals",   label: "Account Approvals",   icon: ShieldCheck   },
