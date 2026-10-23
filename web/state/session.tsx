@@ -378,7 +378,7 @@ export const roleLabel: Record<Role, string> = {
   AdRICDirector: "AdRIC Director",
 };
 
-/** Where each role lands after login, and when it opens a URL that belongs to another role. */
+/** Where each role lands after login, and where the no-access and not-found screens send it. */
 export const roleDefaultPath: Record<Role, string> = {
   Staff: "/staff/overview",
   LabHead: "/lab-head/custody",
