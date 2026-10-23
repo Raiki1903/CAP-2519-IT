@@ -6,7 +6,10 @@
  */
 import type { Role, StaffUnit } from '../enums/role';
 
-/** The body of POST /api/auth/register-request, as Register sends it (Register also sends fields the server ignores). */
+/**
+ * The body of POST /api/auth/register-request, as Register sends it (Register also sends fields the server ignores,
+ * such as `requestedRole`: every request is for a Custodian, C-05 family).
+ */
 export interface RegistrationRequestInput {
   firstName: string;
   lastName: string;
@@ -14,8 +17,6 @@ export interface RegistrationRequestInput {
   idNumber: number | string;
   /** STUDENT when not sent. */
   userType?: "STUDENT" | "FACULTY" | "STAFF";
-  /** Free text such as "Custodian" or "Lab Head"; Custodian when not sent. Approval maps its wording to a database role. */
-  requestedRole?: string;
   /** A lab name or code; CITe4D when not sent. */
   labAffiliation?: string;
   /** "password123" when not sent. (C-03) */
@@ -33,6 +34,7 @@ export interface PendingRegistration {
   email: string;
   idNumber: number;
   userType: "STUDENT" | "FACULTY" | "STAFF";
+  /** "Custodian" for every new request; approval always creates a Custodian, whatever an older request says. (C-05 family) */
   requestedRole: string;
   labAffiliation: string;
   /** Plain text in the file (C-03, H-17), and never sent: the answers use PendingRegistrationView. (C-04) */

@@ -59,12 +59,14 @@ export function listPendingRegistrations(): PendingRegistrationView[] {
  * Files a sign-up request for a Lab Head to approve. Nothing is written to the database:
  * the request is kept in memory and in pending_registrations.json until it is approved or rejected. (H-17)
  *
- * @param data the checked body: names, email, id number, and the optional user type, role, lab, password, and picture
+ * Every request asks for the Custodian role: a role in the body is ignored, since this route is public. (C-05 family)
+ *
+ * @param data the checked body: names, email, id number, and the optional user type, lab, password, and picture
  * @returns the stored request, with its REG- id, without its password (C-04)
  * @throws AppError 409 if the email or the id number already belongs to an account, or to a request still waiting (issues #14, #81)
  */
 export async function requestRegistration(data: RegistrationRequestInput): Promise<PendingRegistrationView> {
-    const { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl } = data;
+    const { firstName, lastName, email, idNumber, userType, labAffiliation, password, avatarUrl } = data;
 
     await refuseTakenByAccount(email, Number(idNumber));
 
@@ -85,7 +87,7 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
         email,
         idNumber: Number(idNumber),
         userType: userType || "STUDENT",
-        requestedRole: requestedRole || "Custodian",
+        requestedRole: "Custodian",
         labAffiliation: labAffiliation || "CITe4D",
         // TODO(C-03): a request without a password gets "password123", stored as plain text (issue #10). Phase 3.
         password: password || "password123",
@@ -99,10 +101,10 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
 }
 
 /**
- * Approves a sign-up request: creates the account with its role and lab, then drops the request.
- * The account is built from the stored request only. (C-05)
- * The role comes from the requested role's wording, and the lab is matched by name or short code;
- * "No affiliation" and "Not Affiliated" link no lab.
+ * Approves a sign-up request: creates a Custodian account with its lab, then drops the request.
+ * The account is built from the stored request only (C-05), and is always a Custodian, whatever role the request
+ * names: the sign-up page only asks for Custodian, and the sign-up route is public. (C-05 family)
+ * The lab is matched by name or short code; "No affiliation" and "Not Affiliated" link no lab.
  *
  * @param data `requestId`, the REG- id the server gave the request
  * @returns the new account's id, names, and email (no password or id number: 01C 4.1)
@@ -110,7 +112,6 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
  * @throws AppError 404 if the id matches no pending request
  * @throws AppError 409 if an account has the request's email or id number by now; the request is kept (issue #14)
  */
-// TODO(M-11): "ITS" or "Admin" in the requested role maps to ADMIN, so no ITS_STAFF account can be created here. With the ITS removal branch.
 export async function approveRegistration(data: ApproveRegistrationInput): Promise<ApprovedUser> {
     const { requestId } = data;
     const targetReq = authRepository.findPendingRegistration(requestId);
@@ -123,18 +124,8 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
     // fail inside the database with a 500.
     await refuseTakenByAccount(targetReq.email, targetReq.idNumber);
 
-    // Checked in this order, so "Lab Head" wins over anything else in the text.
-    const requested = (targetReq.requestedRole || "").toUpperCase();
-    let dbRoleName: any = "CUSTODIAN";
-    if (requested.includes("HEAD") || requested.includes("LAB")) dbRoleName = "LAB_HEAD";
-    else if (requested.includes("TSG")) dbRoleName = "TSG_STAFF";
-    else if (requested.includes("ITS") || requested.includes("ADMIN")) dbRoleName = "ADMIN";
-    else dbRoleName = "CUSTODIAN";
-
-    let roleRecord = await authRepository.findRoleByName(dbRoleName);
-    if (!roleRecord) {
-        roleRecord = await authRepository.findRoleByName("CUSTODIAN");
-    }
+    // The request's requestedRole is never read: an older request in the file can still name another role.
+    const roleRecord = await authRepository.findRoleByName("CUSTODIAN");
 
     let centerRecord = null;
     if (targetReq.labAffiliation && targetReq.labAffiliation !== "Not Affiliated" && targetReq.labAffiliation !== "No affiliation") {

@@ -25,14 +25,15 @@ export async function listPendingRegistrations(req: Request, res: Response): Pro
 }
 
 /**
- * Handles POST /api/auth/register-request: files a sign-up request for a Lab Head to approve.
+ * Handles POST /api/auth/register-request: files a sign-up request for a Lab Head to approve. A `requestedRole` in the
+ * body is not read: every request is for a Custodian (C-05 family).
  * Answers `{ success, registration }` with the stored request without its password (C-04),
  * or the AppError's status and message (400 missing field; 409 email or id number taken by an account or by a
  * request still waiting), or 500.
  */
 export async function requestRegistration(req: Request, res: Response): Promise<void> {
-    const { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl } = req.body;
-    const data = { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl };
+    const { firstName, lastName, email, idNumber, userType, labAffiliation, password, avatarUrl } = req.body;
+    const data = { firstName, lastName, email, idNumber, userType, labAffiliation, password, avatarUrl };
 
     checkRegistrationRequest(data);
     const newReq = await authService.requestRegistration(data);

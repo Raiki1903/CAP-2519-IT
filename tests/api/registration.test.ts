@@ -39,7 +39,7 @@ async function requestSignUp(extra: Record<string, unknown> = {}) {
 const pendingIds = async (): Promise<string[]> =>
   (await asLabHead.get("/api/auth/pending-registrations")).body.pendingRegistrations.map((r: { id: string }) => r.id);
 
-const pendingFile = (): { id: string; status: string; email: string; password?: string }[] =>
+const pendingFile = (): { id: string; status: string; email: string; requestedRole: string; password?: string }[] =>
   JSON.parse(fs.readFileSync(path.join(server().workDir, "pending_registrations.json"), "utf-8"));
 
 const roleNamesOf = async (userId: number): Promise<string[]> =>
@@ -78,6 +78,13 @@ describe("POST /api/auth/register-request", () => {
 
     expect(registration).not.toHaveProperty("password");
     expect(registration.id).toMatch(/^REG-\d{6}$/);
+  });
+
+  it("stores Custodian as the requested role whatever role the sign-up asks for (C-05 family)", async () => {
+    const { registration } = await requestSignUp({ requestedRole: "Admin" });
+
+    expect(registration.requestedRole).toBe("Custodian");
+    expect(pendingFile().find((r) => r.id === registration.id)).toMatchObject({ requestedRole: "Custodian" });
   });
 
   it("stores password123 when no password is sent (known defect C-03)", async () => {
@@ -196,16 +203,13 @@ describe("POST /api/auth/approve-registration", () => {
     expect(res.body.user).toEqual({ userId: created.user_id, firstName: body.firstName, lastName: body.lastName, email: body.email });
   });
 
-  it.each<[string, RoleName]>([
-    ["Custodian", "CUSTODIAN"],
-    ["Lab Head", "LAB_HEAD"],
-    ["TSG", "TSG_STAFF"],
-    ["ITS", "ADMIN"],
-  ])("gives a request for role %s the database role %s (M-11: ITS becomes ADMIN)", async (requestedRole, expectedRole) => {
+  it.each(["Custodian", "Lab Head", "TSG", "ITS", "Admin"])("approves a request that asks for role %s as a Custodian (C-05 family)", async (requestedRole) => {
+    const expectedRole: RoleName = "CUSTODIAN";
     const { body, registration } = await requestSignUp({ requestedRole, labAffiliation: LAB.shortCode });
 
-    await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
+    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
 
+    expect(res.status).toBe(200);
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
     expect(await roleNamesOf(created.user_id)).toEqual([expectedRole]);
   });
