@@ -9,27 +9,12 @@
 import type { Request, Response } from 'express';
 import * as authService from './auth.service';
 import { clearedSessionCookieHeader, readCookie, SESSION_COOKIE_NAME, sessionCookieHeader } from '../../shared/services/session';
-import { checkAccountUpdate, checkLogin, checkRegistration, checkRegistrationRequest } from './auth.validation';
+import { checkAccountUpdate, checkLogin, checkRegistrationRequest } from './auth.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 // Each handler reads req.body in one destructuring statement. A request with no JSON body (Express 5 leaves
 // req.body undefined) therefore throws a TypeError there, which errorHandler answers with its generic 500.
 // TODO: a missing body should answer 400, not 500. A body check, its own small fix (not part of step 13a).
-
-/**
- * Handles POST /api/auth/register: creates a Custodian account directly, with no approval step. No screen calls it (deleting it is issue #70).
- * Answers `{ success, user }` with the new account's id, names, and email, or the AppError's status and message
- * (400 missing field, email taken, or id number taken), or 500.
- */
-export async function register(req: Request, res: Response): Promise<void> {
-    const { firstName, lastName, email, password, idNumber, userType, centerId } = req.body;
-    const data = { firstName, lastName, email, password, idNumber, userType, centerId };
-
-    checkRegistration(data);
-    const user = await authService.register(data);
-
-    res.json({ success: true, user });
-}
 
 /**
  * Handles GET /api/auth/pending-registrations: `{ success, pendingRegistrations }`, newest first, without passwords (C-04).

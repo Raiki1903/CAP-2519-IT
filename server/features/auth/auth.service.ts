@@ -15,7 +15,6 @@ import type {
     PendingRegistration,
     PendingRegistrationView,
     ProfileUser,
-    RegisterInput,
     RegistrationRequestInput,
     SessionIdentity,
 } from '@shared/types/auth';
@@ -27,46 +26,6 @@ import { forgetIdentity, recallIdentity, rememberIdentity } from '../../shared/s
 
 // Registration accepts the same email more than once (issue #14), kept as is: the email check looks at accounts only,
 // not at pending sign-ups, so one email can be requested twice; approving the second then fails with a 500.
-
-/**
- * Creates a Custodian account directly, with no approval step. No screen calls it; deleting it is issue #70.
- * The account gets the CUSTODIAN role if that role row exists, and a lab link only when a center id is sent.
- *
- * @param data the checked body: names, email, password, id number, optional user type and center id
- * @returns the new account's id, names, and email
- * @throws AppError 400 if the email or the id number already belongs to an account
- */
-// TODO(C-03): the password is stored as typed (issue #10). Hashing, Phase 3.
-export async function register(data: RegisterInput): Promise<{ userId: number; firstName: string; lastName: string; email: string }> {
-    const { firstName, lastName, email, password, idNumber, userType, centerId } = data;
-
-    const existingEmail = await authRepository.findUserByEmail(email);
-    if (existingEmail) {
-        throw new AppError(400, "A user with this email address already exists.");
-    }
-
-    const existingId = await authRepository.findUserByIdNumber(Number(idNumber));
-    if (existingId) {
-        throw new AppError(400, "A user with this ID number already exists.");
-    }
-
-    const custodianRole = await authRepository.findRoleByName("CUSTODIAN");
-
-    const user = await authRepository.createUser(
-        {
-            first_name: firstName,
-            last_name: lastName,
-            email,
-            password,
-            id_number: Number(idNumber),
-            user_type: userType || "STUDENT"
-        },
-        custodianRole ? custodianRole.role_id : null,
-        centerId ? Number(centerId) : null,
-    );
-
-    return { userId: user.user_id, firstName: user.first_name, lastName: user.last_name, email: user.email };
-}
 
 /** A stored sign-up request without its password, for an answer. (C-04) */
 function withoutPassword(request: PendingRegistration): PendingRegistrationView {

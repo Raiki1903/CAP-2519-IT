@@ -3,21 +3,8 @@
  * Layer: validation. Called by auth.controller.ts. Calls shared/errors/AppError.ts.
  * Used by: login, self-registration, the session reload, and the account page.
  */
-import type { AccountUpdateInput, LoginInput, RegisterInput, RegistrationRequestInput } from '@shared/types/auth';
+import type { AccountUpdateInput, LoginInput, RegistrationRequestInput } from '@shared/types/auth';
 import { AppError } from '../../shared/errors/AppError';
-
-/**
- * Checks that a direct registration has names, email, password, and id number.
- * Only presence is checked; the service looks for duplicates.
- *
- * @param data the fields read from the body
- * @throws AppError 400 if any of the five is missing or empty
- */
-export function checkRegistration(data: any): asserts data is RegisterInput {
-    if (!data.firstName || !data.lastName || !data.email || !data.password || !data.idNumber) {
-        throw new AppError(400, "Missing required registration fields.");
-    }
-}
 
 /**
  * Checks that a sign-up request has names, email, and id number.

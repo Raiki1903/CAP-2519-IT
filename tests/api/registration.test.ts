@@ -1,7 +1,7 @@
 /**
- * Registration API: sign-up requests, the Lab Head's pending list and decisions, and direct registration.
+ * Registration API: sign-up requests, and the Lab Head's pending list and decisions.
  * Covers POST /api/auth/register-request, GET /api/auth/pending-registrations, POST /api/auth/approve-registration,
- * POST /api/auth/reject-registration, POST /api/auth/register. Workflow: account sign-up and approval.
+ * POST /api/auth/reject-registration, and that POST /api/auth/register is gone. Workflow: account sign-up and approval.
  * Fixtures: the seeded accounts (for duplicate checks), the roles (ROLE_IDS), and the TEST lab (LAB). New applicants
  * are invented here. The pending list lives in the server's memory and in pending_registrations.json in its
  * temporary working folder (H-17), so this file has its own server and starts with an empty list.
@@ -244,47 +244,13 @@ describe("POST /api/auth/reject-registration", () => {
   });
 });
 
-describe("POST /api/auth/register (no caller)", () => {
-  it("creates a CUSTODIAN account at once, with no approval step (C-05 family)", async () => {
+describe("POST /api/auth/register (deleted, issue #70)", () => {
+  it("answers 404 for a Lab Head with a full body, and creates no account", async () => {
     const body = applicant({ password: "test-password-direct" });
 
     const res = await asLabHead.post("/api/auth/register", body);
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ success: true, user: { firstName: body.firstName, lastName: body.lastName, email: body.email } });
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(created.user_type).toBe("STUDENT");
-    expect(await roleNamesOf(created.user_id)).toEqual(["CUSTODIAN"]);
-    expect(await db.user_centers.count({ where: { user_id: created.user_id } })).toBe(0);
-  });
-
-  it("links the account to the lab named by centerId", async () => {
-    const body = applicant({ password: "test-password-direct", centerId: LAB.centerId, userType: "FACULTY" });
-
-    await asLabHead.post("/api/auth/register", body);
-
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(created.user_type).toBe("FACULTY");
-    const links = await db.user_centers.findMany({ where: { user_id: created.user_id } });
-    expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
-  });
-
-  it("answers 400 when any of first name, last name, email, password, or id number is missing", async () => {
-    for (const missing of ["firstName", "lastName", "email", "password", "idNumber"] as const) {
-      const body: Record<string, unknown> = applicant({ password: "test-password-direct" });
-      delete body[missing];
-      const res = await asLabHead.post("/api/auth/register", body);
-      expect(res.status, missing).toBe(400);
-    }
-  });
-
-  it("answers 400 for an email or an id number that already belongs to an account", async () => {
-    const usersBefore = await db.users.count();
-    const sameEmail = await asLabHead.post("/api/auth/register", applicant({ password: "x", email: USERS.custodianA.email }));
-    const sameIdNumber = await asLabHead.post("/api/auth/register", applicant({ password: "x", idNumber: USERS.custodianA.idNumber }));
-
-    expect(sameEmail.status).toBe(400);
-    expect(sameIdNumber.status).toBe(400);
-    expect(await db.users.count()).toBe(usersBefore);
+    expect(res.status).toBe(404);
+    expect(await db.users.count({ where: { email: body.email } })).toBe(0);
   });
 });

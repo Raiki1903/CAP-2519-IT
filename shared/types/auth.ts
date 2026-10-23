@@ -6,20 +6,6 @@
  */
 import type { Role, StaffUnit } from '../enums/role';
 
-/** The body of POST /api/auth/register. No screen sends it. */
-export interface RegisterInput {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  /** Stored as a number. */
-  idNumber: number | string;
-  /** STUDENT when not sent. */
-  userType?: "STUDENT" | "FACULTY" | "STAFF";
-  /** research_centers.center_id to link the account to; no link when not sent. */
-  centerId?: number | string;
-}
-
 /** The body of POST /api/auth/register-request, as Register sends it (Register also sends fields the server ignores). */
 export interface RegistrationRequestInput {
   firstName: string;
