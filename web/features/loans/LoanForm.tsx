@@ -43,7 +43,7 @@ function ApprovalPipeline({ steps }: { steps: PipelineStep[] }) {
   return (
     <div>
       <p className="text-[10px] font-extrabold text-muted-foreground tracking-[2px] uppercase mb-3 text-center">
-        Governance Approvals Pipeline
+        Approval Steps
       </p>
       <div className="flex items-start">
         {steps.map((step, i) => (
@@ -108,9 +108,9 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
   const [refId] = useState(`LOAN-${Date.now().toString().slice(-6)}`);
 
   const pipelineSteps: PipelineStep[] = [
-    { label: "Request Lodged", sublabel: "Custodian signature", status: submitted ? "done" : "active" },
-    { label: "Lab Head Approval", sublabel: "Digital handshake auth", status: submitted ? "active" : "pending" },
-    { label: "Staff Verification", sublabel: "Asset check-out complete", status: "pending" },
+    { label: "Request Sent", sublabel: "By you", status: submitted ? "done" : "active" },
+    { label: "Lab Head Approval", sublabel: "Approve or decline", status: submitted ? "active" : "pending" },
+    { label: "Collect the Asset", sublabel: "After approval, get it from the lab", status: "pending" },
   ];
 
   const today = localToday();
@@ -152,10 +152,10 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
           </div>
           <div>
             <h3 className="font-extrabold text-foreground mb-1" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-              Loan Request Lodged
+              Loan Request Sent
             </h3>
             <p className="text-sm text-muted-foreground">
-              Your request has been successfully submitted and forwarded to the Lab Head for approval.
+              Your request went to the Lab Head for approval.
             </p>
           </div>
           <div className="w-full rounded-xl bg-[#F3F4F6] border border-border p-4 text-left">
@@ -176,9 +176,8 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
             </Button>
             <div>
               <h3 className="font-extrabold text-foreground text-sm leading-none" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-                Borrow Equipment Request
+                Request a Loan
               </h3>
-              <p className="text-[10px] text-muted-foreground mt-1">Initiating loan approval chain for active asset</p>
             </div>
           </div>
 
@@ -236,7 +235,7 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
 
             <div>
               <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-1.5">
-                <Calendar size={10} /> Expected Return Date
+                <Calendar size={10} /> Due Date
               </Label>
               <Input
                 type="date"

@@ -14,6 +14,7 @@ import {
   Tag, MapPin, Building2, Calendar, Activity, Bookmark, History, ArrowLeft, Clock
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
+import { assetStatusLabel } from "./assetBadges";
 import { TransferForm } from "@web/features/transfers/TransferForm";
 import { ReturnForm } from "@web/features/returns/ReturnForm";
 import { RepairForm } from "@web/features/repairs/RepairForm";
@@ -60,7 +61,7 @@ const viewTitles: Record<FormView, string> = {
   return: "Asset Return",
   repair: "Request Repair",
   loan: "Request Loan",
-  custodianHistory: "Custodian History Audit Trail",
+  custodianHistory: "Custodian History",
 };
 
 const STATUS_CLASS: Record<string, string> = {
@@ -84,7 +85,7 @@ interface Props {
 }
 
 /**
- * Shows one asset and switches between its detail view, custodian history, and the request forms.
+ * Shows one asset, with its current custodian under the name, and switches between its detail view, custodian history, and the request forms.
  * The buttons depend on role and status: a Custodian can request a loan (Active),
  * a transfer, repair, or return (On Loan); Staff can send it to maintenance, and record its return
  * when it is On Loan or Overdue; a Lab Head can open the full custodian history. Calls assetsApi.getCustodianHistory() and
@@ -151,7 +152,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const goBack = () => setView("detail");
 
   // Fetch real custody history as soon as the modal opens for an asset, so
-  // the inline "Custodian History & Lifecycle Audit Trail" preview on the
+  // the inline "Custodian History" preview on the
   // detail screen has live data — not just when the dedicated (LabHead-only)
   // full-history button is clicked.
   useEffect(() => {
@@ -230,8 +231,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const metaRows = asset ? [
     { icon: Tag, label: "Serial No.", value: asset.serial ?? "—" },
     { icon: Tag, label: "Property Tag", value: asset.id },
-    { icon: Building2, label: "Funding Org.", value: asset.funding || "DOST" },
-    { icon: Activity, label: "Condition State", value: descriptiveCond },
+    { icon: Building2, label: "Funding Source", value: asset.funding || "DOST" },
+    { icon: Activity, label: "Condition", value: descriptiveCond },
     { icon: MapPin, label: "Campus", value: asset.location ?? "—" },
     { icon: MapPin, label: "Current Location", value: asset.currentLocation ?? asset.location ?? "—" },
     { icon: Building2, label: "Lab", value: asset.lab ?? "—" },
@@ -245,7 +246,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     transfer: "Custodianship Transfer",
     return: "Return Asset",
     repair: "Request Repair",
-    loan: "Request Equipment Loan",
+    loan: "Request a Loan",
   };
 
   return (
@@ -303,7 +304,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                   >
                     {view !== "detail" && (
                       <span className="text-muted-foreground font-normal mr-1.5 text-sm">
-                        {viewTitles[view]} —
+                        {viewTitles[view]}:
                       </span>
                     )}
                     {asset.name}
@@ -318,9 +319,15 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         {asset.category}
                       </Badge>
                       <Badge className={cn("text-[10px]", STATUS_CLASS[asset.status] ?? "bg-muted text-muted-foreground")}>
-                        {asset.status}
+                        {assetStatusLabel(asset.status)}
                       </Badge>
                     </div>
+                  )}
+                  {/* The holder at a glance; a Custodian sees "Not shown" for someone else's asset, as everywhere else. (D2) */}
+                  {view === "detail" && (
+                    <p className="text-xs text-muted-foreground mt-1.5 truncate">
+                      Custodian: <strong className="text-foreground">{holderLabel(asset.custodian, asset.custodianHidden)}</strong>
+                    </p>
                   )}
                 </div>
                 <Button
@@ -344,14 +351,14 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       transition={{ duration: 0.18 }}
                     >
                       {/* Image + metadata */}
-                      <div className={cn("flex gap-4 mb-5", asset.status === "Disposed" && "opacity-60 filter grayscale")}>
+                      <div className={cn("flex flex-wrap gap-4 mb-5", asset.status === "Disposed" && "opacity-60 filter grayscale")}>
                         <div
                           className="rounded-xl overflow-hidden border border-border flex-shrink-0"
                           style={{ width: 148 }}
                         >
                           <AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image || (asset as any).image_url} />
                         </div>
-                        <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-3 content-start">
+                        <div className="flex-1 min-w-[16rem] grid grid-cols-2 gap-x-4 gap-y-3 content-start">
                           {metaRows.map(({ icon: Icon, label, value }) => (
                             <div key={label}>
                               <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-1 mb-0.5">
@@ -365,7 +372,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         </div>
                       </div>
 
-                      {/* Decommissioned Audit Details Card */}
+                      {/* Disposal details card */}
                       {asset.status === "Disposed" && (
                         <div className="bg-red-50/50 border border-red-200/50 rounded-xl p-4 mt-4">
                           <p className="text-xs font-bold text-red-800">Asset Decommissioned &amp; Disposed</p>
@@ -393,7 +400,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       {/* Collapsible Custodian History Lifecycle View */}
                       <details className="mt-4 bg-white border border-slate-200 rounded-xl p-3 text-xs group">
                         <summary className="font-extrabold text-slate-700 cursor-pointer flex items-center justify-between uppercase tracking-wider text-[10px]">
-                          <span>Custodian History &amp; Lifecycle Audit Trail</span>
+                          <span>Custodian History</span>
                           <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
                         </summary>
                         <div className="mt-3 pt-3 border-t border-slate-100 space-y-2 font-mono text-[11px] text-slate-600">
@@ -404,15 +411,15 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           ) : (
                             <>
                               <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                                <span>Current Custodian: <strong className="text-emerald-700">{currentHistoryEntry ? holderLabel(currentHistoryEntry.custodianName, currentHistoryEntry.custodianHidden) : holderLabel(asset.custodian, asset.custodianHidden)}</strong></span>
+                                <span>Current custodian: <strong className="text-emerald-700">{currentHistoryEntry ? holderLabel(currentHistoryEntry.custodianName, currentHistoryEntry.custodianHidden) : holderLabel(asset.custodian, asset.custodianHidden)}</strong></span>
                                 <span className="text-[10px] text-slate-400">Present</span>
                               </div>
                               <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                                <span>Prior Custodian: <strong>{priorHistoryEntry ? holderLabel(priorHistoryEntry.custodianName, priorHistoryEntry.custodianHidden) : "No prior custodian on record"}</strong></span>
+                                <span>Previous custodian: <strong>{priorHistoryEntry ? holderLabel(priorHistoryEntry.custodianName, priorHistoryEntry.custodianHidden) : "None"}</strong></span>
                                 <span className="text-[10px] text-slate-400">{priorHistoryEntry?.dateLogged || "—"}</span>
                               </div>
                               <div className="flex justify-between items-center py-1">
-                                <span>Original Intake: <strong>{originalHistoryEntry ? holderLabel(originalHistoryEntry.custodianName, originalHistoryEntry.custodianHidden) : "Staff Tagging Registry"}</strong></span>
+                                <span>First custodian: <strong>{originalHistoryEntry ? holderLabel(originalHistoryEntry.custodianName, originalHistoryEntry.custodianHidden) : "Not assigned"}</strong></span>
                                 <span className="text-[10px] text-slate-400">{originalHistoryEntry?.dateLogged || asset.procured || "—"}</span>
                               </div>
                             </>
@@ -437,9 +444,9 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-foreground">Permanent QR Tag</p>
+                                <p className="text-xs font-bold text-foreground">QR Tag</p>
                                 <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
-                                  Scannable routing node link:
+                                  Link:
                                   <span className="font-mono text-primary select-all text-[9px] block mt-1 bg-background p-1.5 rounded border border-border truncate">https://adric.dlsu.edu.ph/assets/{asset.id}</span>
                                 </p>
                               </div>
@@ -693,7 +700,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         <div className="flex items-center justify-between border-b pb-3">
                           <div>
                             <h3 className="text-sm font-extrabold text-[#005A36] uppercase tracking-wider flex items-center gap-1.5 font-sans">
-                              <History size={16} /> Custodian History Audit Trail
+                              <History size={16} /> Custodian History
                             </h3>
                             <p className="text-xs text-muted-foreground mt-0.5 font-sans">
                               Chronological record of all custodians pulled from database (from oldest to newest).
@@ -706,7 +713,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
 
                         {loadingHistory ? (
                           <div className="py-8 text-center text-xs text-muted-foreground animate-pulse font-mono">
-                            Fetching custodian records from MySQL database…
+                            Loading custodian history…
                           </div>
                         ) : historyError ? (
                           <div className="p-3 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded-lg">
@@ -714,7 +721,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           </div>
                         ) : custodianHistoryList.length === 0 ? (
                           <div className="py-8 text-center text-xs text-muted-foreground font-mono">
-                            No historical custodian records logged for this asset in the database.
+                            No custodian history for this asset yet.
                           </div>
                         ) : (
                           <div className="relative pl-6 space-y-4 pt-1 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
@@ -741,12 +748,12 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
 
                                 <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 font-sans">
                                   <div>
-                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Email / Institutional Contact:</span>
+                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Email:</span>
                                     <span className="font-mono text-slate-700 font-bold">{entry.custodianEmail || "—"}</span>
                                   </div>
                                   <div>
-                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Status / Asset Condition:</span>
-                                    <span className="font-semibold text-slate-700">{entry.status} · {entry.condition || "Functional"}</span>
+                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Availability / Condition:</span>
+                                    <span className="font-semibold text-slate-700">{assetStatusLabel(entry.status)} · {entry.condition || "Functional"}</span>
                                   </div>
                                   <div className="col-span-2">
                                     <span className="text-slate-400 font-semibold block text-[9px] uppercase">Location:</span>

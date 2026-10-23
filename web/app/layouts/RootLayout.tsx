@@ -1,22 +1,24 @@
 /**
  * Signed-in frame: sidebar, mobile header, loading bar, page transition, and the notification bell.
  * Layer: shared (app shell). Called by app/routes.tsx for every route except login, sign-up, and not found.
- * Calls: state/session.tsx, state/serverData.tsx, layouts/Sidebar.tsx, features/notifications/NotificationCenter.tsx.
+ * Calls: state/session.tsx, state/serverData.tsx, layouts/Sidebar.tsx, features/notifications/NotificationCenter.tsx, pages/NoAccess.tsx.
  * Used by: every role.
  */
 import { useState, useEffect } from "react";
 import { useOutlet, Navigate, useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { useSession, roleToSlug, roleDefaultPath } from "@web/state/session";
+import { useSession, roleToSlug, roleDefaultPath, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { Sidebar } from "./Sidebar";
 import { NotificationCenter } from "@web/features/notifications/NotificationCenter";
+import { NoAccess } from "@web/pages/NoAccess";
 import { Menu, Shield } from "lucide-react";
 
 /**
  * Wraps every signed-in screen. Waits while a page load restores the session, then sends a visitor
- * with no role to /login, and a signed-in user who opens another role's URL to their own default page.
- * These redirects only choose screens: the server refuses another role's data by itself (requireRole).
+ * with no role to /login and a signed-in user at "/" to their own default page. A signed-in user who opens
+ * another role's URL gets the no-access screen inside the normal frame, so they see why and can go home.
+ * These only choose screens: the server refuses another role's data by itself (requireRole).
  */
 export function RootLayout() {
   const { role, setRole, currentUser, restoring, restoreAttempt, restoreFailed, retryRestore } = useSession();
@@ -72,7 +74,7 @@ export function RootLayout() {
   const isOnWrongSection =
     !isAtRoot && !location.pathname.startsWith(`/${slug}`);
 
-  if (isAtRoot || isOnWrongSection) {
+  if (isAtRoot) {
     return <Navigate to={roleDefaultPath[role]} replace />;
   }
 
@@ -108,10 +110,7 @@ export function RootLayout() {
         {/* Quick user details & link to account */}
         <div className="flex items-center gap-2.5">
           <span className="text-[9px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-500/10 px-2 py-0.5 rounded uppercase">
-            {role === "AdRICDirector" ? "Director" :
-             role === "Custodian" ? "Custodian" :
-             role === "Staff" ? "Staff" :
-             role === "LabHead" ? "Lab Head" : role}
+            {roleLabel[role]}
           </span>
           <button
             onClick={() => navigate(`/${slug}/account`)}
@@ -155,7 +154,8 @@ export function RootLayout() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
-              {outlet}
+              {/* A silent redirect left people unsure where they were; the other role's page is not mounted at all. */}
+              {isOnWrongSection ? <NoAccess /> : outlet}
             </motion.div>
           </AnimatePresence>
         </div>

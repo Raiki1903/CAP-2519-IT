@@ -209,7 +209,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   const lastSyncStartedAt = useRef(0);
   const runningSyncs = useRef(0);
 
-  // The one place the loan list is loaded, so the bell and Custody Transitions show the same loans. (issue #57)
+  // The one place the loan list is loaded, so the bell and the Lab Head Requests tab show the same loans. (issue #57)
   const reloadLoans = useCallback(async () => {
     const data = await loansApi.listLoans();
     if (data.success && Array.isArray(data.loans)) {

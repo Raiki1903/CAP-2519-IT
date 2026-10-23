@@ -12,7 +12,7 @@ import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholde
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { EditAssetDialog } from "@web/features/assets/EditAssetDialog";
 import { DeleteAssetDialog } from "@web/features/assets/DeleteAssetDialog";
-import { statusBadgeClass, ConditionState } from "@web/features/assets/assetBadges";
+import { statusBadgeClass, ConditionState, assetStatusLabel } from "@web/features/assets/assetBadges";
 import { fundingSources } from "@web/features/assets/assetFields";
 import { DisposalFormDialog } from "@web/features/disposals/DisposalFormDialog";
 import { Button } from "@web/components/ui/button";
@@ -73,7 +73,7 @@ export function InventoryPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-foreground mb-1">Asset Inventory</h1>
-          <p className="text-muted-foreground text-sm">Complete hardware registry · {displayedAssets.filter(a => a.status !== "Disposed").length} active assets across 2 campuses</p>
+          <p className="text-muted-foreground text-sm">{displayedAssets.filter(a => a.status !== "Disposed").length} assets in service across 2 campuses</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg overflow-hidden border border-border">
@@ -89,13 +89,13 @@ export function InventoryPage() {
           onClick={() => setInventorySubTab("active")}
           className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "active" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
         >
-          Active Registry ({displayedAssets.filter(a => a.status !== "Disposed").length})
+          In Service ({displayedAssets.filter(a => a.status !== "Disposed").length})
         </button>
         <button
           onClick={() => setInventorySubTab("disposed")}
           className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "disposed" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
         >
-          Decommissioned Archive ({displayedAssets.filter(a => a.status === "Disposed").length})
+          Disposed ({displayedAssets.filter(a => a.status === "Disposed").length})
         </button>
       </div>
 
@@ -106,7 +106,7 @@ export function InventoryPage() {
         </div>
         <select value={filterFunding} onChange={e => setFilterFunding(e.target.value)}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <option value="All">All Funding Origins</option>
+          <option value="All">All Funding Sources</option>
           {fundingSources.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
         <select value={filterLoc} onChange={e => setFilterLoc(e.target.value)}
@@ -161,7 +161,7 @@ export function InventoryPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  {["", "Asset ID", "Name", "Category", "Status", "Custodian", "Location", "Cond.", "Funding", "Action"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
+                  {["", "Asset ID", "Name", "Category", "Availability", "Custodian", "Location", "Condition", "Funding", "Action"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -171,7 +171,7 @@ export function InventoryPage() {
                     <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                     <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{eq.category}</TableCell>
-                    <TableCell><Badge className={cn("text-[10px]", statusBadgeClass[eq.status])}>{eq.status}</Badge></TableCell>
+                    <TableCell><Badge className={cn("text-[10px]", statusBadgeClass[eq.status])}>{assetStatusLabel(eq.status)}</Badge></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{eq.custodian || "None"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{eq.currentLocation || eq.location}</TableCell>
                     <TableCell><ConditionState value={eq.assetCondition} /></TableCell>
@@ -202,7 +202,7 @@ export function InventoryPage() {
                             size="icon"
                             className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
                             onClick={() => setAssetToDelete(eq.id)}
-                            title="Remove Asset"
+                            title="Delete Asset"
                           >
                             <Trash2 size={13} />
                           </Button>

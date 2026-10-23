@@ -1275,3 +1275,58 @@ None for the agent.
 
 1. Raiki reviews `fix/pre-deploy`, then pushes and opens its pull request before the deploy.
 2. Joel: this branch changes `NotificationCenter.tsx` at the loan cards' fallback name (lines 295 and 502) and the disposal card (lines 354 to 364), not the session-user or lab-matching lines PR #112 touches. The stale "Includes LOAN-9" comment at line 272 is left for after #112.
+
+## UAT fixes, Batch W (UAT 1 labels and small UI) stop 1, 2026-10-23
+
+**Prompt followed:** Raiki's Batch W prompt in chat, stop 1 only: an inventory and a plan, no code, plus the phone check M1. UAT session 1 (a Lab Head) found the labels unusual and inconsistent. On `fix/uat1-labels-ui` from `main` at `5b728d41`. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Batch W: UAT 1 labels and small UI (fix/uat1-labels-ui)", hand checks under "Batch W hand checks".
+
+### What was produced
+
+- The log section: a label inventory in five tables (Lab Head, Staff, Custodian, Director, every role) with 120 labels to change, 10 marked "after workshop" or "after PR #112", 8 kept; the five small UI items (U2, U8, U10, U13, U14) with where the code is and the change; the tests that touch any changed text; a stop 2 plan of 21 commits; hand checks H1 to H13; seven questions.
+- The M1 phone check, run by the agent with Playwright at 390 x 844 on the local UAT copy (`adric_uat_check`, started with `C:\dev\uat-data\start-local-uat.ps1`; every API request went to `localhost:4000`). Screenshots in `%TEMP%\adric-batchW-m1\screenshots\`. Nothing was changed on the copy.
+- `AGENTS.md`: the test count is 415 (it said 391). `docs/README.md`: status.
+- One docs commit. Typecheck **65**, tests **415** (no code changed).
+
+### Key findings
+
+- **On a phone, the Requests page's Approve and Decline buttons are off screen** (x 513 to 713 on a 390 px screen); the page scrolls sideways. Lab Inventory (639 px) and the dashboard (467 px) also scroll sideways. Question 7 asks whether to fix the Requests row here.
+- **The sidebar's role labels and subtitles ("Command Suite", "Borrower Micro-Portal", and the rest) are never shown**: nothing reads them. What users see is separate role text in four places ("Active Custodian", "Staff (ITS)"); the plan replaces both with one `roleLabel` map.
+- **No test asserts on any text this plan changes.** The tests pin the server's "Active", which stays; there are no web tests.
+- The custodian history sends the stored status (`ACTIVE`), the asset list the display form (`Active`), so the one display-label function reads both.
+- Typing `/director/...` (the Director's real tree is `/adric-director/`) shows the 404 page with "Return to Login" to a logged-in user (question 5).
+
+### Open questions
+
+Seven, in the log section 7: Dashboard or Analytics; ITS text that is saved; the invented property tags; the "Completed This Period" rename; the 404 page for a logged-in user; the other unchecked claims; the off-screen Requests buttons.
+
+### Exact next step
+
+1. Raiki answers the seven questions.
+2. The agent builds stop 2 on `fix/uat1-labels-ui` in the planned order, runs the checks and hand checks H1 to H13 on the local UAT copy, and stops.
+3. Joel: this branch will touch `NotificationCenter.tsx` at lines 807 and 862 only (the text of two buttons).
+
+## UAT fixes, Batch W (UAT 1 labels and small UI) stop 2, 2026-10-23
+
+**Prompt followed:** Raiki's answers to the seven Batch W questions, with three inventory changes (Decline everywhere, never Reject; the loan and transfer forms' last step describes what happens today; `IntakeWizard.tsx` is ours). Build, checks after every commit, hand checks H1 to H13, report. On `fix/uat1-labels-ui`. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Batch W: UAT 1 labels and small UI (fix/uat1-labels-ui)", section 8 and heading "Batch W hand checks".
+
+### What was produced
+
+- 22 commits, `cafc2810` to `34bb6ca5`: the two display-name helpers; one commit per label group (L1 to L9); five L10 commits (Staff, Lab Head, Custodian, Director, account and login); U2, U8, U10 (with the 404 page, answer 5b), U13 (answer 6a), U14; the phone fix (answer 7, CSS classes only); two added commits (the final sweep, and a modal header dash found by H6).
+- 123 labels changed (section 1 of the log matches the code); "Active" is still the value everywhere it is compared or sent.
+- The docs commit: the log's rows, section 8, and the hand check results; `docs/README.md`; this entry.
+- Typecheck **65** and tests **415** in every commit; build passes.
+
+### Key findings
+
+- All 13 hand checks passed on the local UAT copy (H13 on the test database). Edit Asset still sends `"status":"Active"`; the inspection report still saves `[TSG Remarks]`; another role's URL loads none of that role's data.
+- At 390 px every Lab Head screen now fits (Requests was 713 px wide, Lab Inventory 639, Analytics 467); desktop layout is unchanged.
+- Left for later: the bell's own wording (after PR #112), the timeline truncating on a phone (Requests redesign), and the Transfer form's "recipient must accept" line, which may be wrong (workshop).
+
+### Open questions
+
+None for the agent.
+
+### Exact next step
+
+1. Raiki reviews `fix/uat1-labels-ui`, pushes, and opens the pull request.
+2. Joel: `NotificationCenter.tsx` changes at lines 807, 862, and 871 only (button text). The bell's other wording ("Disposal Authorization:", "(LabHead)", the footer line) is listed for after PR #112.

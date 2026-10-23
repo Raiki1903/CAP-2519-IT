@@ -219,10 +219,9 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                       <SelectValue placeholder="Select Role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="TSG Staff">TSG Staff (Technical Operations)</SelectItem>
-                      <SelectItem value="ITS Staff">ITS Staff (Central Asset Admin)</SelectItem>
-                      <SelectItem value="Lab Head">Lab Head / Approver</SelectItem>
-                      <SelectItem value="Custodian">Custodian Auditor</SelectItem>
+                      <SelectItem value="TSG Staff">Staff</SelectItem>
+                      <SelectItem value="Lab Head">Lab Head</SelectItem>
+                      <SelectItem value="Custodian">Custodian</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -244,7 +243,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-foreground">TSG Technical &amp; Hardware Remarks</Label>
+                <Label className="text-xs font-bold text-foreground">Hardware Remarks</Label>
                 <textarea
                   value={tsgRemarksOption}
                   onChange={(e) => setTsgRemarksOption(e.target.value)}
@@ -255,11 +254,11 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-foreground">ITS Governance &amp; Compliance Remarks</Label>
+                <Label className="text-xs font-bold text-foreground">Records Remarks</Label>
                 <textarea
                   value={itsRemarksOption}
                   onChange={(e) => setItsRemarksOption(e.target.value)}
-                  placeholder="Enter asset tag verification, warranty claim status, software license check, or audit compliance notes..."
+                  placeholder="Tag check, warranty claim, software licence, or other records notes..."
                   rows={2}
                   className="w-full rounded-md border border-input bg-background p-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1 resize-none"
                 />
@@ -365,7 +364,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                     setInspectionImgOption("");
                     setTsgRemarksOption("");
                     setItsRemarksOption("");
-                    alert(`Inspection Report logged & saved under asset_reports table in MySQL for ${selectedQueueItem.asset}!`);
+                    alert(`Inspection report saved for ${selectedQueueItem.asset}.`);
                   } finally {
                     setIsSubmitting(false);
                   }

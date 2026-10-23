@@ -1,22 +1,22 @@
 /**
- * Director screen: Executive Overview, Descriptive Analytics, Approvals and Holds, and the Audit Generator, one tab at a time.
+ * Director screen: Overview, Analytics, Disposal Approvals, and the Inventory Report, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
  * Calls: api/disposals.api.ts listDisposals() and decideDisposal(),
  * features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
- * Used by: AdRIC Director (disposal decisions, audit reports).
+ * Used by: AdRIC Director (disposal decisions, inventory reports).
  */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import DirectorAnalyticsView from "@web/features/analytics/director/DirectorAnalyticsView";
 import { useSession } from "@web/state/session";
 import { useServerData, type Asset } from "@web/state/serverData";
+import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import * as disposalsApi from "@web/api/disposals.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { Badge } from "@web/components/ui/badge";
 import { Input } from "@web/components/ui/input";
-import { Separator } from "@web/components/ui/separator";
 import { Label } from "@web/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { cn } from "@web/components/ui/utils";
@@ -28,6 +28,14 @@ import {
 interface AdRICDirectorDashboardProps {
   activeTab: "overview" | "analytics" | "clearance-disposal" | "reports";
 }
+
+// The page title is the sidebar's name for the tab. Analytics shows its own title.
+const TAB_TITLES: Record<AdRICDirectorDashboardProps["activeTab"], string> = {
+  overview: "Overview",
+  analytics: "Analytics",
+  "clearance-disposal": "Disposal Approvals",
+  reports: "Inventory Report",
+};
 
 // TODO(M-03): another hardcoded lab list, with campus, separate from research_centers. Phase 3.
 const ALL_10_LABS = [
@@ -96,7 +104,7 @@ export function getLatestRecordConditionScore(asset: any): number {
  * - overview: campus distribution and the status of every lab.
  * - analytics: the Director analytics view.
  * - clearance-disposal: the pending disposal queue, authorized or rejected through disposalsApi.decideDisposal().
- * - reports: the audit report generator, with a per-asset lifecycle trail and CSV export.
+ * - reports: the inventory report, with a per-asset history and CSV export.
  * Shows the shared asset list. Each time a tab opens it loads its own disposal list (disposalsApi.listDisposals)
  * and reloads the shared lists once (refreshSharedLists), so the bell and the analytics show other people's changes.
  *
@@ -132,7 +140,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     // Only the reports saved in asset_reports, the same ones the Staff inspection log shows. (F-28)
     const assetReports = asset.asset_reports || [];
 
-    let csvContent = `Asset Lifecycle Audit Trail Report\n`;
+    let csvContent = `Asset History Report\n`;
     csvContent += `Generated On,"${new Date().toLocaleString()}"\n\n`;
 
     csvContent += `CORE METADATA\n`;
@@ -143,9 +151,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     csvContent += `Funding Source,"${(asset.asset_monetary?.funding_source || asset.funding || "").replace(/"/g, '""')}"\n`;
     csvContent += `Acquisition Date,"${asset.procurement_date || asset.procured || ""}"\n`;
     csvContent += `Purchase Valuation,"PHP ${(asset.asset_monetary?.acquisition_value || asset.cost || 0).toLocaleString()}"\n`;
-    csvContent += `ITS Property Tag,"${asset.itsPropertyTag || `DLSU-ITS-${asset.id}`}"\n`;
-    csvContent += `TSG Property Tag,"${asset.tsgPropertyTag || `DLSU-TSG-${asset.id}`}"\n`;
-    csvContent += `Current Status,"${asset.status || ""}"\n\n`;
+    csvContent += `ITS Property Tag,"${asset.itsPropertyTag || "None"}"\n`;
+    csvContent += `TSG Property Tag,"${asset.tsgPropertyTag || "None"}"\n`;
+    csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n\n`;
 
     csvContent += `CUSTODIANSHIP & TRANSFER HISTORY\n`;
     csvContent += `Transfer ID,Requested On,From Custodian,To Custodian,Justification,Status\n`;
@@ -303,7 +311,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
           <Card>
             <CardContent className="pt-5 flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Registry Valuation</p>
+                <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Total Value</p>
                 {isDashboardLoading ? (
                   <div className="h-7 w-32 bg-muted/60 animate-pulse rounded-md mt-1" />
                 ) : (
@@ -320,12 +328,12 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
           <Card>
             <CardContent className="pt-5 flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Active Inventory</p>
+                <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Assets in Service</p>
                 {isDashboardLoading ? (
                   <div className="h-7 w-28 bg-muted/60 animate-pulse rounded-md mt-1" />
                 ) : (
                   <h3 className="text-2xl font-extrabold mt-1 text-foreground font-mono">
-                    {activeAssetList.filter(a => a.status !== "Disposed" && a.status !== "DISPOSED").length || activeAssetList.length} Equipment
+                    {activeAssetList.filter(a => a.status !== "Disposed" && a.status !== "DISPOSED").length || activeAssetList.length} assets
                   </h3>
                 )}
               </div>
@@ -337,7 +345,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
           <Card>
             <CardContent className="pt-5 flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Maintenance &amp; Degrading</p>
+                <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">In Maintenance or Degraded</p>
                 {isDashboardLoading ? (
                   <div className="h-7 w-44 bg-muted/60 animate-pulse rounded-md mt-1" />
                 ) : (
@@ -395,33 +403,25 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
               <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
                 <div className="bg-[#10B981] h-full transition-all duration-500" style={{ width: `${lagunaPercent}%` }} />
               </div>
-
-              <Separator />
-              <div className="p-4 bg-muted/40 border border-border rounded-xl">
-                <p className="text-[10px] font-bold text-primary tracking-wider uppercase">Administrative Oversight</p>
-                <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                  Active balance is maintained to allow research equipment resource sharing between locations, overseen by the AdRIC Director office.
-                </p>
-              </div>
             </CardContent>
           </Card>
 
           {/* 10 Specialized Laboratories Health & Utilization */}
           <Card className="lg:col-span-2 shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Specialized Laboratories Status Matrix</CardTitle>
+              <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Labs</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-[10px] font-bold tracking-wider uppercase">Laboratory ID</TableHead>
+                      <TableHead className="text-[10px] font-bold tracking-wider uppercase">Lab</TableHead>
                       <TableHead className="text-[10px] font-bold tracking-wider uppercase">Campus</TableHead>
                       <TableHead className="text-[10px] font-bold tracking-wider uppercase text-center">Assets</TableHead>
                       <TableHead className="text-[10px] font-bold tracking-wider uppercase text-center">Health Index</TableHead>
                       <TableHead className="text-[10px] font-bold tracking-wider uppercase text-center">Utilization</TableHead>
-                      <TableHead className="text-[10px] font-bold tracking-wider uppercase text-right">Status</TableHead>
+                      <TableHead className="text-[10px] font-bold tracking-wider uppercase text-right">Condition</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -447,11 +447,11 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                         utilRateStr = "0%";
                       }
 
-                      let statusBadge = <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-250 text-[9px] font-bold uppercase">Safe</Badge>;
+                      let statusBadge = <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-250 text-[9px] font-bold uppercase">Good</Badge>;
                       if (assetCount === 0) {
-                        statusBadge = <Badge variant="outline" className="text-muted-foreground text-[9px] font-bold uppercase">Unassigned</Badge>;
+                        statusBadge = <Badge variant="outline" className="text-muted-foreground text-[9px] font-bold uppercase">No assets</Badge>;
                       } else if (avgConditionNum <= 60) {
-                        statusBadge = <Badge className="bg-red-50 text-red-700 border border-red-255 text-[9px] font-bold uppercase">Critical Watch</Badge>;
+                        statusBadge = <Badge className="bg-red-50 text-red-700 border border-red-255 text-[9px] font-bold uppercase">Critical</Badge>;
                       } else if (avgConditionNum <= 78) {
                         statusBadge = <Badge className="bg-amber-50 text-amber-700 border border-amber-250 text-[9px] font-bold uppercase">Attention</Badge>;
                       }
@@ -485,18 +485,18 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     return <DirectorAnalyticsView />;
   };
 
-  // 3. Regulated Disposal Approvals Queue render
+  // 3. Disposal Approvals render
   const renderClearanceDisposal = () => {
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
         {/* Regulated Disposal Approvals */}
         <Card className="shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Regulated Disposal Approvals Queue</CardTitle>
+            <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Disposal Requests</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-muted-foreground">
-              Assets scheduled for decommissioning by Staff cannot be purged without the Director's authorized sign-off.
+              Staff asked to dispose of these assets. Each one needs your approval.
             </p>
 
             {loadingDbDisposals && pendingDisposals.length === 0 && (
@@ -515,10 +515,10 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                       <div className="flex justify-between items-start">
                         <div>
                           <h4 className="text-xs font-bold text-foreground">{req.assetId} - {req.assetName}</h4>
-                          <p className="text-[10px] text-muted-foreground mt-1">Proposed by: {req.requestedBy} · {new Date(req.requestedAt).toLocaleDateString()}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">Requested by: {req.requestedBy} · {new Date(req.requestedAt).toLocaleDateString()}</p>
                         </div>
                         <Badge className="bg-amber-50 border border-amber-200 text-amber-700 text-[9px] uppercase font-bold">
-                          Pending Sign-off
+                          Pending
                         </Badge>
                       </div>
 
@@ -534,7 +534,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                           className="border-red-200 text-red-650 hover:bg-red-50 text-[10px] font-bold h-8"
                           onClick={() => decideDisposal(req._disposalId, "reject")}
                         >
-                          {isActing ? "Working…" : "Reject & Recirculate"}
+                          {isActing ? "Working…" : "Decline"}
                         </Button>
                         <Button
                           size="sm"
@@ -542,7 +542,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                           className="bg-[#005A36] hover:bg-[#004225] text-white text-[10px] font-bold h-8 border-none"
                           onClick={() => decideDisposal(req._disposalId, "approve")}
                         >
-                          {isActing ? "Working…" : "Authorize Disposal"}
+                          {isActing ? "Working…" : "Approve Disposal"}
                         </Button>
                       </div>
                     </CardContent>
@@ -553,8 +553,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
               {!loadingDbDisposals && pendingDisposals.length === 0 && (
                 <div className="flex flex-col items-center justify-center text-center py-12 border border-dashed border-border rounded-xl text-muted-foreground text-xs bg-muted/10">
                   <CheckCircle2 className="text-[#005A36]/40 mb-2.5 size-9" />
-                  <p className="font-semibold text-foreground">Approvals Queue Empty</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">No assets require decommissioning sign-off.</p>
+                  <p className="font-semibold text-foreground">No Disposal Requests</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Nothing is waiting for your approval.</p>
                 </div>
               )}
             </div>
@@ -564,7 +564,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     );
   };
 
-  // 4. Custom Report Generator (Audit Readiness) render
+  // 4. Inventory Report render
   const renderReports = () => {
     const assetSourceList: any[] = assets;
 
@@ -606,10 +606,10 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     };
 
     const triggerExportCSV = () => {
-      const headers = ["Asset ID", "Property Tag", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Acquisition Date", "Valuation", "Status", "Custodian", "Lab"];
+      const headers = ["Asset ID", "ITS Property Tag", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Acquisition Date", "Valuation", "Availability", "Custodian", "Lab"];
       const rows = filteredAssets.map(a => [
         a.id,
-        a.itsPropertyTag || `DLSU-ITS-${a.id}`,
+        a.itsPropertyTag || "None",
         a.name,
         a.serial || a.serial_number || "",
         a.manufacturer || "",
@@ -617,7 +617,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         a.asset_monetary?.funding_source || a.funding || "Unspecified",
         a.procurement_date || a.procured || "",
         a.asset_monetary?.acquisition_value || a.cost || 0,
-        a.status,
+        assetStatusLabel(a.status),
         a.custodian || "None",
         a.lab || "CITe4D"
       ]);
@@ -627,7 +627,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `AdRIC_Audit_Report_${fundingFilter}_Funding.csv`);
+      link.setAttribute("download", `AdRIC_Inventory_Report_${fundingFilter}_Funding.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -638,7 +638,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         {/* Filters Panel */}
         <Card className="shadow-sm print:hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Custom Audit Report Generator Filters</CardTitle>
+            <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Inventory Report Filters</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -656,7 +656,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Funding Source (Segregated)</Label>
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Funding Source</Label>
                 <select
                   value={fundingFilter}
                   onChange={e => setFundingFilter(e.target.value)}
@@ -700,37 +700,34 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                 onClick={triggerExportCSV}
               >
                 <Download className="size-3.5 mr-2" />
-                Export CSV Archive
+                Export CSV
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Audit Results Table */}
+        {/* Inventory Report Table */}
         <Card className="shadow-sm print:border-none print:bg-white print:text-black">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground print:text-slate-800">
-                AdRIC Compliance Audit Report ({isDashboardLoading ? "..." : `${filteredAssets.length} ASSETS FOUND`})
+                Inventory Report ({isDashboardLoading ? "..." : `${filteredAssets.length} assets`})
               </CardTitle>
               <p className="text-[10px] text-muted-foreground/60 print:block hidden mt-1">Generated on: {new Date().toLocaleString()} · DLSU AdRIC Director Office</p>
             </div>
-            <Badge className="bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[9px] uppercase print:hidden">
-              Audit Ready
-            </Badge>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="print:border-slate-300">
                   <TableRow className="print:border-slate-300">
-                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Equipment ID</TableHead>
-                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Physical Tag</TableHead>
+                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Asset ID</TableHead>
+                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Property Tags</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850">Details</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-center">Funding</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-center">Acquired</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right">Valuation</TableHead>
-                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right font-bold">Status / Custodian</TableHead>
+                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right font-bold">Availability / Custodian</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right print:hidden">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -748,7 +745,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   ) : filteredAssets.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-xs italic">
-                        0 ASSETS FOUND matching the active filter criteria.
+                        No assets match these filters.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -762,8 +759,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                         <TableRow key={item.id} className="print:border-slate-200 hover:bg-muted/30 transition-colors">
                           <TableCell className="font-mono text-xs text-[#005A36] print:text-slate-900 font-bold">{item.id}</TableCell>
                           <TableCell className="text-xs">
-                            <p className="font-mono text-foreground print:text-slate-900 font-semibold">{item.itsPropertyTag || `DLSU-ITS-${item.id}`}</p>
-                            <p className="text-[9px] text-muted-foreground/60 font-mono mt-0.5">{item.tsgPropertyTag || `DLSU-TSG-${item.id}`}</p>
+                            <p className="font-mono text-foreground print:text-slate-900 font-semibold">ITS: {item.itsPropertyTag || "None"}</p>
+                            <p className="text-[9px] text-muted-foreground/60 font-mono mt-0.5">TSG: {item.tsgPropertyTag || "None"}</p>
                           </TableCell>
                           <TableCell className="text-xs">
                             <p className="font-bold text-foreground print:text-slate-900">{item.name}</p>
@@ -787,7 +784,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                                     item.status === "On Loan" ? "bg-blue-50 text-blue-700 border-blue-200" :
                                       "bg-amber-50 text-amber-700 border-amber-200"
                                 )}>
-                                  {item.status}
+                                  {assetStatusLabel(item.status)}
                                 </Badge>
                                 <p className="text-[9px] text-muted-foreground print:text-slate-600 font-semibold">{item.custodian || "None"}</p>
                               </div>
@@ -800,7 +797,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                               className="text-[#005A36] hover:text-[#004225] text-[10px] font-bold h-7 px-2"
                               onClick={() => setSelectedAssetForAudit(item)}
                             >
-                              Full Lifecycle
+                              History
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -822,10 +819,10 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   <div>
                     <DialogTitle className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                       <Tag className="text-[#005A36] size-4" />
-                      Asset Lifecycle Audit Trail: {selectedAssetForAudit.id}
+                      Asset History: {selectedAssetForAudit.id}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                      Full chronological registry logs mapping physical location, history, and custody transitions.
+                      Transfers, repairs, inspections, and disposal of this asset.
                     </DialogDescription>
                   </div>
                   <Button
@@ -850,11 +847,10 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <p><span>Acquisition Date:</span> {selectedAssetForAudit.procured}</p>
                   </div>
                   <div className="space-y-1.5 border-l border-border pl-4">
-                    <p><span>ITS Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.itsPropertyTag || `DLSU-ITS-${selectedAssetForAudit.id}`}</span></p>
-                    <p><span>TSG Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.tsgPropertyTag || `DLSU-TSG-${selectedAssetForAudit.id}`}</span></p>
-                    <p><span>Deed of Donation Ref:</span> <span className="font-semibold text-[#005A36]">DOD-2024-{selectedAssetForAudit.id.split("-").pop()}</span></p>
+                    <p><span>ITS Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.itsPropertyTag || "None"}</span></p>
+                    <p><span>TSG Property Tag:</span> <span className="font-mono text-[#005A36] font-semibold">{selectedAssetForAudit.tsgPropertyTag || "None"}</span></p>
                     <p><span>Purchase Valuation:</span> PHP {selectedAssetForAudit.cost?.toLocaleString() || "0"}</p>
-                    <p><span>Current Status:</span> <span className="font-bold text-[#005A36]">{selectedAssetForAudit.status}</span></p>
+                    <p><span>Availability:</span> <span className="font-bold text-[#005A36]">{assetStatusLabel(selectedAssetForAudit.status)}</span></p>
                   </div>
                 </div>
 
@@ -965,7 +961,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   onClick={() => setSelectedAssetForAudit(null)}
                   className="bg-[#005A36] hover:bg-[#004225] text-white text-xs font-bold border-none"
                 >
-                  Close Audit Trail
+                  Close
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -978,13 +974,11 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   return (
     <div className="space-y-6 font-sans">
       {/* Page Header */}
-      <div className="mb-6 print:hidden">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">AdRIC Director Control Suite</h1>
-          <Badge className="bg-[#005A36] hover:bg-[#004225] text-white font-bold text-[9px] uppercase tracking-wider px-2 py-0.5 border-none">ADMIN OVERWATCH</Badge>
+      {activeTab !== "analytics" && (
+        <div className="mb-6 print:hidden">
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">{TAB_TITLES[activeTab]}</h1>
         </div>
-        <p className="text-xs text-muted-foreground mt-1.5">High-level executive oversight, health tracking, decommissioning approvals, and compliance audit trail reporting.</p>
-      </div>
+      )}
 
       {/* Tabs rendering */}
       {activeTab === "overview" && renderOverview()}

@@ -121,7 +121,7 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
       <div className="space-y-6 animate-pulse p-4 bg-card rounded-xl border border-border">
         <div className="flex items-center gap-2 text-[#005A36] font-bold text-sm">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Synchronizing Lab Analytics with MySQL Database...</span>
+          <span>Loading analytics...</span>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="h-48 bg-muted/40 rounded-xl" />
@@ -162,14 +162,14 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
           <div>
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Zap className="w-5 h-5 text-[#005A36]" /> Utilization Gauge: Lab Assets Assigned to Projects
+                <Zap className="w-5 h-5 text-[#005A36]" /> Assets Assigned to Projects
               </h3>
               <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-extrabold text-xs">
                 {utilization.utilizationPercentage}% Assigned
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Query DB: percentage of lab assets actively assigned to a valid project_id versus unassigned (null).
+              Share of your lab's assets that belong to a project.
             </p>
           </div>
 
@@ -346,12 +346,12 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
     <>
       <motion.div variants={cardAnimation} initial="hidden" animate="visible">
         <Card className="border border-border bg-card text-card-foreground shadow-sm rounded-xl flex flex-col justify-between h-full">
-          <CardHeader className="pb-2 flex flex-row items-start justify-between">
+          <CardHeader className="pb-2 flex flex-row flex-wrap items-start justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-[#005A36]" />
                 <CardTitle className="text-sm font-bold text-foreground">
-                  Project-to-Asset Allocation Matrix (Treemap Preview)
+                  Assets by Project
                 </CardTitle>
               </div>
               <CardDescription className="text-muted-foreground text-xs mt-0.5">
@@ -364,9 +364,9 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
                 size="sm"
                 onClick={() => setIsMaximized(true)}
                 className="text-xs gap-1 border-[#005A36]/30 text-[#005A36] hover:bg-emerald-50 font-bold shrink-0"
-                title="Maximize window tab"
+                title="Expand"
               >
-                <Maximize2 size={13} /> Maximize Tab
+                <Maximize2 size={13} /> Expand
               </Button>
             )}
           </CardHeader>
@@ -429,7 +429,7 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
           <DialogHeader className="border-b border-border pb-3">
             <DialogTitle className="text-lg sm:text-xl font-extrabold text-[#005A36] flex items-center gap-2">
               <Layers className="w-6 h-6 text-[#005A36]" />
-              Project-to-Asset Allocation Matrix ({lab})
+              Assets by Project ({lab})
             </DialogTitle>
           </DialogHeader>
 
@@ -443,7 +443,7 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
                   </Badge>
                   <h4 className="text-xl sm:text-2xl font-black leading-tight">{allocationItems[0]?.name}</h4>
                   <p className="text-xs sm:text-sm text-emerald-100 mt-2 leading-relaxed">
-                    Lead research cohort assigned hardware equipment from MySQL database.
+                    The project with the most assets from your lab.
                   </p>
                 </div>
                 <div className="flex items-end justify-between border-t border-emerald-600/50 pt-4">
@@ -567,7 +567,7 @@ export const DelinquencyTable: React.FC<{ lab: string }> = ({ lab }) => {
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-red-600" />
               <CardTitle className="text-sm font-bold text-foreground">
-                Custodianship & Overdue Delinquencies — {lab}
+                Overdue Loans: {lab}
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-1">
@@ -658,12 +658,12 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
     <>
       <motion.div variants={cardAnimation} initial="hidden" animate="visible">
         <Card className="border border-border bg-card text-card-foreground shadow-sm rounded-xl">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardHeader className="pb-3 flex flex-row flex-wrap items-center justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-red-600" />
                 <CardTitle className="text-sm font-bold text-foreground">
-                  Diagnostic — Accountability Scatter Plot ({lab})
+                  Overdue Loans by Borrower ({lab})
                 </CardTitle>
               </div>
               <CardDescription className="text-muted-foreground text-xs mt-0.5">
@@ -671,7 +671,7 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
               </CardDescription>
             </div>
             {scatterData.length > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge className="bg-red-600 text-white font-bold text-xs px-3 py-1">
                   {criticalCount} Critical Bottlenecks
                 </Badge>
@@ -681,7 +681,7 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
                   onClick={() => setIsMaximized(true)}
                   className="text-xs gap-1 border-red-600/30 text-red-700 hover:bg-red-50 font-bold shrink-0"
                 >
-                  <Maximize2 size={13} /> Maximize Tab
+                  <Maximize2 size={13} /> Expand
                 </Button>
               </div>
             )}
@@ -754,7 +754,7 @@ export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
           <DialogHeader className="border-b border-border pb-3">
             <DialogTitle className="text-lg sm:text-xl font-extrabold text-red-700 flex items-center gap-2">
               <Clock className="w-6 h-6 text-red-600" />
-              Accountability Scatter Plot — Complete Cohort Analysis ({lab})
+              Overdue Loans by Borrower ({lab})
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               Full-screen scatter plot distribution plotting average days overdue against unreturned equipment count.
@@ -835,7 +835,7 @@ export const AccountabilityHeatmapWidget: React.FC<{ lab: string }> = ({ lab }) 
             <div className="flex items-center gap-2">
               <Layers className="w-5 h-5 text-red-600" />
               <CardTitle className="text-sm font-bold text-foreground">
-                Diagnostic — Cohort Accountability Heatmap Matrix ({lab})
+                Overdue Loans by Group ({lab})
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-0.5">
@@ -933,15 +933,12 @@ export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "CITe4D
         <div>
           <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
             <Users className="w-6 h-6 text-[#005A36]" />
-            Lab Head Project Allocation & Efficiency Dashboard ({lab})
+            Analytics: {lab}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Real operational equipment loan & transfer approvals, hardware utilization gauge, category breakdown, project allocation matrix, overdue delinquencies report, accountability scatter plot, and 2D heatmap matrix.
+            Loans, transfers, project use, and overdue items for your lab.
           </p>
         </div>
-        <Badge variant="outline" className="border-[#005A36] text-[#005A36] bg-emerald-50 px-3 py-1 text-xs font-bold self-start md:self-auto">
-          {lab} Research Laboratory Restricted
-        </Badge>
       </div>
 
       <LabHeadOperationalSection lab={lab} />

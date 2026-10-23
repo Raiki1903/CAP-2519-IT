@@ -22,7 +22,7 @@ export function InspectionsPage() {
     <div>
       <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-foreground mb-1">Inspection Operations Manager</h1>
+          <h1 className="text-foreground mb-1">Inspections</h1>
           <p className="text-muted-foreground text-sm">Inspect assets one lab group at a time and review the condition reports on file.</p>
         </div>
       </div>

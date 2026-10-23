@@ -12,7 +12,7 @@ import {
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
   ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck
 } from "lucide-react";
-import { useSession, roleToSlug } from "@web/state/session";
+import { useSession, roleToSlug, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import type { Role } from "@shared/enums/role";
 import { Button } from "@web/components/ui/button";
@@ -29,37 +29,29 @@ const COLLAPSED_W = 64;
 const EXPANDED_W  = 240;
 
 const roleConfig: Record<Role, {
-  label: string;
-  subtitle: string;
   nav: { id: string; label: string; icon: React.ElementType }[];
 }> = {
   Staff: {
-    label: "Staff",
-    subtitle: "Asset Administration & Maintenance",
     nav: [
       { id: "overview",    label: "System Overview",      icon: Monitor       },
       { id: "register",    label: "Register Equipment",   icon: Package       },
       { id: "inventory",   label: "Asset Inventory",      icon: ClipboardList },
-      { id: "repairs",     label: "Repair Manager",       icon: Wrench        },
-      { id: "inspections", label: "Inspection Manager",   icon: ClipboardCheck },
+      { id: "repairs",     label: "Repairs",              icon: Wrench        },
+      { id: "inspections", label: "Inspections",          icon: ClipboardCheck },
       { id: "returns",     label: "Pending Returns",       icon: ClipboardList },
-      { id: "qrtags",      label: "QR Tag Wizard",         icon: QrCode        },
-      { id: "health",      label: "Health Benchmarking",   icon: BarChart3     },
+      { id: "qrtags",      label: "QR Tags",               icon: QrCode        },
+      { id: "health",      label: "Analytics",             icon: BarChart3     },
     ],
   },
   LabHead: {
-    label: "Lab Head / Project Leader",
-    subtitle: "Command Suite",
     nav: [
-      { id: "custody",     label: "Custody Transitions", icon: Users         },
-      { id: "inventory",   label: "Branch Inventory",    icon: ClipboardList },
-      { id: "health",      label: "Health Benchmarking",   icon: BarChart3     },
+      { id: "custody",     label: "Requests",            icon: Users         },
+      { id: "inventory",   label: "Lab Inventory",       icon: ClipboardList },
+      { id: "health",      label: "Analytics",             icon: BarChart3     },
       { id: "approvals",   label: "Account Approvals",   icon: ShieldCheck   },
     ],
   },
   Custodian: {
-    label: "Active Custodian",
-    subtitle: "Borrower Micro-Portal",
     nav: [
       { id: "myassets",  label: "My Assets",           icon: Package },
       { id: "available", label: "Available Equipment", icon: Monitor },
@@ -68,13 +60,11 @@ const roleConfig: Record<Role, {
     ],
   },
   AdRICDirector: {
-    label: "AdRIC Director",
-    subtitle: "Executive Oversight",
     nav: [
-      { id: "overview",           label: "Executive Overview",  icon: Monitor       },
-      { id: "analytics",          label: "Descriptive Analytics",icon: BarChart3     },
-      { id: "clearance-disposal", label: "Approvals & Holds",     icon: ClipboardCheck },
-      { id: "reports",            label: "Audit Generator",     icon: ClipboardList },
+      { id: "overview",           label: "Overview",            icon: Monitor       },
+      { id: "analytics",          label: "Analytics",            icon: BarChart3     },
+      { id: "clearance-disposal", label: "Disposal Approvals",    icon: ClipboardCheck },
+      { id: "reports",            label: "Inventory Report",    icon: ClipboardList },
     ],
   },
 };
@@ -224,10 +214,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                     {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "System User"}
                   </p>
                   <p className="text-[9px] text-[#34D399] truncate font-semibold">
-                    {role === "AdRICDirector" ? "AdRIC Director" :
-                     role === "Custodian" ? "Active Custodian" :
-                     role === "Staff" ? (currentUser?.staffUnit ? `Staff (${currentUser.staffUnit})` : "Staff") :
-                     role === "LabHead" ? "Lab Head" : role}
+                    {roleLabel[role]}
                   </p>
                 </div>
               </button>
@@ -256,13 +243,10 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                 </TooltipTrigger>
                 <TooltipContent side="right">
                   <p className="text-xs font-bold">
-                    {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "A. Dela Cruz (Active Custodian)"}
+                    {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Signed-in user"}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    {role === "AdRICDirector" ? "AdRIC Director" :
-                     role === "Custodian" ? "Active Custodian" :
-                     role === "Staff" ? (currentUser?.staffUnit ? `Staff (${currentUser.staffUnit})` : "Staff") :
-                     role === "LabHead" ? "Lab Head" : role}
+                    {roleLabel[role]}
                   </p>
                   <p className="text-[9px] text-emerald-400 mt-1 uppercase tracking-wider font-extrabold">Active Session (Click to Edit)</p>
                 </TooltipContent>
@@ -387,34 +371,8 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
 
         <Separator style={{ background: "rgba(16,185,129,0.12)" }} />
 
-        {/* ── System status + logout ────────────────────────────────────── */}
+        {/* ── Preferences + logout ─────────────────────────────────────── */}
         <div className="p-3 space-y-2">
-          <AnimatePresence initial={false}>
-            {!collapsed && (
-              <motion.div
-                key="status"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.18 }}
-                className="overflow-hidden"
-              >
-                <div className="rounded-lg p-2.5 mb-2" style={{ background: "rgba(0,0,0,0.25)" }}>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[8px] font-bold tracking-[1.5px]" style={{ color: "#4ADE80" }}>SYSTEM STATUS</span>
-                    <motion.div
-                      animate={{ scale: [1, 1.3, 1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="w-1.5 h-1.5 rounded-full bg-emerald-400"
-                    />
-                  </div>
-                  <p className="text-[10px]" style={{ color: "#6EE7B7" }}>All services operational</p>
-                  <p className="text-[9px] mt-0.5" style={{ color: "#4B5563" }}>Last sync: 2 min ago</p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {/* Preferences Settings Button */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -548,14 +506,14 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                     
                     <div className="space-y-1.5 text-[11px]">
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Authorized User:</span>
+                        <span className="text-slate-400">Signed in as:</span>
                         <span className="font-semibold text-white truncate max-w-[200px]" title={currentUser?.email || ""}>
                           {currentUser?.email || "Loading..."}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Role Context:</span>
-                        <span className="font-semibold text-white">{role}</span>
+                        <span className="text-slate-400">Role:</span>
+                        <span className="font-semibold text-white">{roleLabel[role]}</span>
                       </div>
                       <div className="flex justify-between border-t border-emerald-500/15 pt-2 mt-2">
                         <span className="text-slate-400 font-medium">Session Policy:</span>

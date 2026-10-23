@@ -49,7 +49,7 @@ export function RepairsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-foreground mb-1">Repair Operations Manager</h1>
+        <h1 className="text-foreground mb-1">Repairs</h1>
         <p className="text-muted-foreground text-sm">Track physical equipment component servicing and troubleshooting.</p>
         {loadingDbRepairs && (
           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5"><Clock size={11} className="animate-pulse" />Loading repair tickets from database…</p>
@@ -64,7 +64,7 @@ export function RepairsPage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Wrench size={18} className="text-red-500 animate-pulse" />
-            <h3 className="text-foreground font-bold text-sm tracking-wide uppercase">Maintenance Request &amp; Priority Matrix</h3>
+            <h3 className="text-foreground font-bold text-sm tracking-wide uppercase">Open Repair Requests</h3>
             {unacknowledged.length > 0 && (
               <Badge className="bg-red-500 hover:bg-red-600 text-white font-extrabold text-[9px] px-2 py-0.5 tracking-wider">
                 {unacknowledged.length} ATTENTION REQUIRED
@@ -83,7 +83,7 @@ export function RepairsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  {["Priority", "Ticket ID", "Asset", "Reported by", "Submitted At", "Dispatched To", "Acknowledge State", "Actions"].map(h => (
+                  {["Priority", "Ticket ID", "Asset", "Reported by", "Submitted At", "Dispatched To", "Acknowledged", "Actions"].map(h => (
                     <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>
                   ))}
                 </TableRow>
@@ -210,7 +210,7 @@ export function RepairsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  {["Priority", "Ticket ID", "Asset", "Reported by", "Submitted At", "Dispatched To", "Completion State", "Actions"].map(h => (
+                  {["Priority", "Ticket ID", "Asset", "Reported by", "Submitted At", "Dispatched To", "Completed", "Actions"].map(h => (
                     <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>
                   ))}
                 </TableRow>
