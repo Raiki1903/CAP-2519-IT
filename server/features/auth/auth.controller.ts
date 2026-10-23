@@ -32,17 +32,16 @@ export async function register(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * Handles GET /api/auth/pending-registrations: `{ success, pendingRegistrations }`, newest first.
+ * Handles GET /api/auth/pending-registrations: `{ success, pendingRegistrations }`, newest first, without passwords (C-04).
  * It has no error handling of its own, as before: it reads only the in-memory list.
  */
-// TODO(C-04): each request is sent with its password, to the Lab Head who lists them (issue #72). Phase 3 (the table, H-17).
 export async function listPendingRegistrations(req: Request, res: Response): Promise<void> {
     res.json({ success: true, pendingRegistrations: authService.listPendingRegistrations() });
 }
 
 /**
  * Handles POST /api/auth/register-request: files a sign-up request for a Lab Head to approve.
- * Answers `{ success, registration }` with the stored request, password included (01C 4.1, issue #72),
+ * Answers `{ success, registration }` with the stored request without its password (C-04),
  * or the AppError's status and message (400 missing field, email taken, or id number taken), or 500.
  */
 export async function requestRegistration(req: Request, res: Response): Promise<void> {
@@ -60,7 +59,7 @@ export async function requestRegistration(req: Request, res: Response): Promise<
 /**
  * Handles POST /api/auth/approve-registration: creates the account a sign-up request asked for.
  * Only `requestId` is read: the account comes from the stored request, never from the body. (C-05)
- * Answers `{ success, user, message }` with the whole new users row, password included (01C 4.1, issue #72),
+ * Answers `{ success, user, message }` with the new account's id, names, and email only (01C 4.1),
  * 404 when the request id matches no pending request, or 500 (for example an email already taken).
  */
 export async function approveRegistration(req: Request, res: Response): Promise<void> {
@@ -68,7 +67,7 @@ export async function approveRegistration(req: Request, res: Response): Promise<
 
     const createdUser = await authService.approveRegistration({ requestId });
 
-    console.log(`✅ Lab Head Approved User Registration! Created user in MySQL DB: ID ${createdUser.user_id} (${createdUser.email})`);
+    console.log(`✅ Lab Head Approved User Registration! Created user in MySQL DB: ID ${createdUser.userId} (${createdUser.email})`);
     res.json({ success: true, user: createdUser, message: `Account approved and created in database for ${createdUser.email}.` });
 }
 

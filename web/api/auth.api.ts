@@ -71,9 +71,8 @@ export function requestRegistrationRaw(registration: RegistrationRequestInput): 
 /**
  * Lists sign-up requests waiting for approval.
  *
- * @returns `success` and `pendingRegistrations`
+ * @returns `success` and `pendingRegistrations`, without passwords
  */
-// TODO(C-04): the answer includes each applicant's password, sent to the Lab Head (issue #72). Phase 3.
 export function listPendingRegistrations(): Promise<ApiResult> {
   return apiGet("/api/auth/pending-registrations");
 }

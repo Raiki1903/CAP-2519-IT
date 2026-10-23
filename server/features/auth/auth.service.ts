@@ -10,8 +10,10 @@ import type {
     AccountUpdateInput,
     AccountUser,
     ApproveRegistrationInput,
+    ApprovedUser,
     LoginUser,
     PendingRegistration,
+    PendingRegistrationView,
     ProfileUser,
     RegisterInput,
     RegistrationRequestInput,
@@ -66,13 +68,19 @@ export async function register(data: RegisterInput): Promise<{ userId: number; f
     return { userId: user.user_id, firstName: user.first_name, lastName: user.last_name, email: user.email };
 }
 
+/** A stored sign-up request without its password, for an answer. (C-04) */
+function withoutPassword(request: PendingRegistration): PendingRegistrationView {
+    const { password, ...view } = request;
+    return view;
+}
+
 /**
  * The sign-up requests still waiting for a decision, newest first.
  *
- * @returns the PENDING requests, each with its password (C-04, issue #72)
+ * @returns the PENDING requests, without their passwords (C-04)
  */
-export function listPendingRegistrations(): PendingRegistration[] {
-    return authRepository.listPendingRegistrations().filter(r => r.status === "PENDING");
+export function listPendingRegistrations(): PendingRegistrationView[] {
+    return authRepository.listPendingRegistrations().filter(r => r.status === "PENDING").map(withoutPassword);
 }
 
 /**
@@ -80,10 +88,10 @@ export function listPendingRegistrations(): PendingRegistration[] {
  * the request is kept in memory and in pending_registrations.json until it is approved or rejected. (H-17)
  *
  * @param data the checked body: names, email, id number, and the optional user type, role, lab, password, and picture
- * @returns the stored request, with its REG- id
+ * @returns the stored request, with its REG- id, without its password (C-04)
  * @throws AppError 400 if the email or the id number already belongs to an account
  */
-export async function requestRegistration(data: RegistrationRequestInput): Promise<PendingRegistration> {
+export async function requestRegistration(data: RegistrationRequestInput): Promise<PendingRegistrationView> {
     const { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl } = data;
 
     const existingEmail = await authRepository.findUserByEmail(email);
@@ -114,7 +122,7 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
     };
 
     authRepository.addPendingRegistration(newReq);
-    return newReq;
+    return withoutPassword(newReq);
 }
 
 /**
@@ -124,11 +132,11 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
  * a lab that matches nothing is created as a new research center. (C-05 family, issue #73)
  *
  * @param data `requestId`, the REG- id the server gave the request
- * @returns the created users row, password included (01C 4.1, issue #72)
+ * @returns the new account's id, names, and email (no password or id number: 01C 4.1)
  * @throws AppError 404 if the id matches no pending request
  */
 // TODO(M-11): "ITS" or "Admin" in the requested role maps to ADMIN, so no ITS_STAFF account can be created here. With the ITS removal branch.
-export async function approveRegistration(data: ApproveRegistrationInput): Promise<users> {
+export async function approveRegistration(data: ApproveRegistrationInput): Promise<ApprovedUser> {
     const { requestId } = data;
     const targetReq = authRepository.findPendingRegistration(requestId);
 
@@ -189,7 +197,7 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
     targetReq.status = "APPROVED";
     authRepository.removePendingRegistration(requestId);
 
-    return createdUser;
+    return { userId: createdUser.user_id, firstName: createdUser.first_name, lastName: createdUser.last_name, email: createdUser.email };
 }
 
 /**

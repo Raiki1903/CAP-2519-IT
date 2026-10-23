@@ -39,7 +39,7 @@ async function requestSignUp(extra: Record<string, unknown> = {}) {
 const pendingIds = async (): Promise<string[]> =>
   (await asLabHead.get("/api/auth/pending-registrations")).body.pendingRegistrations.map((r: { id: string }) => r.id);
 
-const pendingFile = (): { id: string; status: string }[] =>
+const pendingFile = (): { id: string; status: string; email: string; password?: string }[] =>
   JSON.parse(fs.readFileSync(path.join(server().workDir, "pending_registrations.json"), "utf-8"));
 
 const roleNamesOf = async (userId: number): Promise<string[]> =>
@@ -73,10 +73,17 @@ describe("POST /api/auth/register-request", () => {
     expect(await db.users.count({ where: { email: body.email } })).toBe(0);
   });
 
+  it("answers a sign-up without its password, with the server's REG- id (C-04 fixed)", async () => {
+    const { registration } = await requestSignUp({ password: "test-password-not-echoed" });
+
+    expect(registration).not.toHaveProperty("password");
+    expect(registration.id).toMatch(/^REG-\d{6}$/);
+  });
+
   it("stores password123 when no password is sent (known defect C-03)", async () => {
     const { registration } = await requestSignUp();
 
-    expect(registration.password).toBe("password123");
+    expect(pendingFile().find((r) => r.id === registration.id)?.password).toBe("password123");
   });
 
   it("answers 400 when the first name, last name, email, or id number is missing", async () => {
@@ -111,13 +118,25 @@ describe("GET /api/auth/pending-registrations", () => {
     expect(res.body.pendingRegistrations.every((r: { status: string }) => r.status === "PENDING")).toBe(true);
   });
 
-  it("includes each applicant's password, to any caller (known defect C-04)", async () => {
-    const { registration } = await requestSignUp({ password: "test-password-visible" });
+  it("lists each request without its password, with the fields the card shows (C-04 fixed)", async () => {
+    const avatarUrl = "data:image/png;base64,iVBORw0KGgo=";
+    const { body, registration } = await requestSignUp({ password: "test-password-hidden", labAffiliation: LAB.shortCode, avatarUrl });
 
     const res = await asLabHead.get("/api/auth/pending-registrations");
 
+    expect(res.body.pendingRegistrations.some((r: object) => "password" in r)).toBe(false);
     const listed = res.body.pendingRegistrations.find((r: { id: string }) => r.id === registration.id);
-    expect(listed.password).toBe("test-password-visible");
+    expect(listed).toMatchObject({
+      firstName: body.firstName,
+      lastName: body.lastName,
+      email: body.email,
+      idNumber: body.idNumber,
+      userType: "STUDENT",
+      requestedRole: "Custodian",
+      labAffiliation: LAB.shortCode,
+      avatarUrl,
+    });
+    expect(listed.submittedAt).toEqual(expect.any(String));
   });
 });
 
@@ -138,12 +157,13 @@ describe("POST /api/auth/approve-registration", () => {
     expect(pendingFile().map((r) => r.id)).not.toContain(registration.id);
   });
 
-  it("answers with the created row, password included (known defect, 01C 4.1)", async () => {
+  it("answers the new account's id, names, and email only (01C 4.1 fixed)", async () => {
     const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode, password: "test-password-echoed" });
 
     const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
 
-    expect(res.body.user).toMatchObject({ email: body.email, password: "test-password-echoed" });
+    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
+    expect(res.body.user).toEqual({ userId: created.user_id, firstName: body.firstName, lastName: body.lastName, email: body.email });
   });
 
   it.each<[string, RoleName]>([

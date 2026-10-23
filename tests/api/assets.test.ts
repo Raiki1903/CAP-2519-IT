@@ -179,11 +179,13 @@ describe("GET /api/assets/:tag/custodian-history", () => {
     expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianId");
   });
 
-  it("includes each custodian's email (known defect, 01C 4.2) but no id number, for any role (answer 6)", async () => {
-    const res = await asStaff.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
+  it("sends each custodian's email to a Lab Head only (01C 4.2), and no id number to any role (answer 6)", async () => {
+    const forLabHead = await as(USERS.labHead).get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
+    const forStaff = await asStaff.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
 
-    expect(res.body.custodianHistory[1]).toMatchObject({ custodianEmail: USERS.custodianA.email });
-    for (const entry of res.body.custodianHistory) expect(entry).not.toHaveProperty("custodianId");
+    expect(forLabHead.body.custodianHistory[1]).toMatchObject({ custodianEmail: USERS.custodianA.email });
+    expect(forStaff.body.custodianHistory[1]).not.toHaveProperty("custodianEmail");
+    for (const entry of [...forLabHead.body.custodianHistory, ...forStaff.body.custodianHistory]) expect(entry).not.toHaveProperty("custodianId");
   });
 
   it("looks a numeric tag up as an asset id", async () => {
@@ -200,8 +202,9 @@ describe("GET /api/assets/:tag/custodian-history", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.custodianHistory).toMatchObject([
-        { sequence: 1, custodianName: "Equipment Custodian", custodianEmail: "custodian@dlsu.edu.ph", status: "ACTIVE", location: "DLSU Campus", isCurrent: true },
+        { sequence: 1, custodianName: "Equipment Custodian", status: "ACTIVE", location: "DLSU Campus", isCurrent: true },
       ]);
+      expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianEmail");
     } finally {
       await db.assets.delete({ where: { asset_id: bare.asset_id } });
     }

@@ -49,13 +49,27 @@ export interface PendingRegistration {
   userType: "STUDENT" | "FACULTY" | "STAFF";
   requestedRole: string;
   labAffiliation: string;
-  /** Plain text, and sent with every listing. (C-03, C-04; issue #72) */
+  /** Plain text in the file (C-03, H-17), and never sent: the answers use PendingRegistrationView. (C-04) */
   password?: string;
   avatarUrl?: string;
   /** A display date such as "Oct 11, 2026", not a timestamp. */
   submittedAt: string;
   /** Always PENDING in the list: approval and rejection remove the request. */
   status: "PENDING" | "APPROVED" | "REJECTED";
+}
+
+/**
+ * A sign-up request as GET /api/auth/pending-registrations and POST /api/auth/register-request send it: the stored
+ * request without its password, which no screen shows. (C-04)
+ */
+export type PendingRegistrationView = Omit<PendingRegistration, "password">;
+
+/** The `user` of a POST /api/auth/approve-registration answer: the new account's id, names, and email only. (01C 4.1) */
+export interface ApprovedUser {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  email: string;
 }
 
 /** The body of POST /api/auth/approve-registration. Any other field is ignored: the account comes from the stored request. (C-05) */
