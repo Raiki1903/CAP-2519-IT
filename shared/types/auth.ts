@@ -58,20 +58,10 @@ export interface PendingRegistration {
   status: "PENDING" | "APPROVED" | "REJECTED";
 }
 
-/**
- * The body of POST /api/auth/approve-registration: the request id, plus the request's own fields when the caller has them.
- * The fields are used only when the id matches no request. (C-05, issue #71)
- */
+/** The body of POST /api/auth/approve-registration. Any other field is ignored: the account comes from the stored request. (C-05) */
 export interface ApproveRegistrationInput {
-  requestId?: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  idNumber?: number | string;
-  userType?: "STUDENT" | "FACULTY" | "STAFF";
-  requestedRole?: string;
-  labAffiliation?: string;
-  password?: string;
+  /** The REG- id the server gave the request. */
+  requestId: string;
 }
 
 /** The body of POST /api/auth/login. */

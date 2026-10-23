@@ -59,13 +59,14 @@ export async function requestRegistration(req: Request, res: Response): Promise<
 
 /**
  * Handles POST /api/auth/approve-registration: creates the account a sign-up request asked for.
+ * Only `requestId` is read: the account comes from the stored request, never from the body. (C-05)
  * Answers `{ success, user, message }` with the whole new users row, password included (01C 4.1, issue #72),
- * 404 when neither the request id nor the body describes an account, or 500 (for example an email already taken).
+ * 404 when the request id matches no pending request, or 500 (for example an email already taken).
  */
 export async function approveRegistration(req: Request, res: Response): Promise<void> {
-    const { requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password } = req.body;
+    const { requestId } = req.body;
 
-    const createdUser = await authService.approveRegistration({ requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password });
+    const createdUser = await authService.approveRegistration({ requestId });
 
     console.log(`✅ Lab Head Approved User Registration! Created user in MySQL DB: ID ${createdUser.user_id} (${createdUser.email})`);
     res.json({ success: true, user: createdUser, message: `Account approved and created in database for ${createdUser.email}.` });

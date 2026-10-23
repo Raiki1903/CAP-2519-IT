@@ -180,14 +180,26 @@ describe("POST /api/auth/approve-registration", () => {
     expect(res.body.success).toBe(false);
   });
 
-  it("creates an account with the requested role from the body alone when the request id is unknown (known defect C-05)", async () => {
-    const body = applicant({ requestId: "REG-000000", requestedRole: "ITS", labAffiliation: LAB.shortCode });
+  it("answers 404 for an unknown request id even with applicant details, and creates no account (C-05 fixed)", async () => {
+    const body = applicant({ requestId: "REG-000000", requestedRole: "ITS", labAffiliation: LAB.shortCode, password: "test-password-body" });
 
     const res = await asLabHead.post("/api/auth/approve-registration", body);
 
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ success: false, error: "Pending registration request details not found." });
+    expect(await db.users.count({ where: { email: body.email as string } })).toBe(0);
+  });
+
+  it("approves from the stored request and ignores other fields in the body", async () => {
+    const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode });
+    const other = applicant({ requestedRole: "ITS" });
+
+    const res = await asLabHead.post("/api/auth/approve-registration", { ...other, requestId: registration.id });
+
     expect(res.status).toBe(200);
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email as string } });
-    expect(await roleNamesOf(created.user_id)).toEqual(["ADMIN"]);
+    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
+    expect(await roleNamesOf(created.user_id)).toEqual(["CUSTODIAN"]);
+    expect(await db.users.count({ where: { email: other.email } })).toBe(0);
   });
 });
 

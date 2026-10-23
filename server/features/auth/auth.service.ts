@@ -119,34 +119,18 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
 
 /**
  * Approves a sign-up request: creates the account with its role and lab, then drops the request.
+ * The account is built from the stored request only. (C-05)
  * The role comes from the requested role's wording, and the lab is matched by name or short code;
  * a lab that matches nothing is created as a new research center. (C-05 family, issue #73)
  *
- * @param data `requestId`, plus the request's own fields when the caller has them
+ * @param data `requestId`, the REG- id the server gave the request
  * @returns the created users row, password included (01C 4.1, issue #72)
- * @throws AppError 404 if the id matches no request and the body has no email and names to fall back on
+ * @throws AppError 404 if the id matches no pending request
  */
-// TODO(C-05): an unknown request id plus a body with an email and names creates that account, with the role it asks for. Removing the fallback is issue #71, which needs issue #68 first: in the tab that filed a sign-up, the list holds the Register page's own REG-<timestamp> id, not the server's, so those approvals work only through this fallback.
 // TODO(M-11): "ITS" or "Admin" in the requested role maps to ADMIN, so no ITS_STAFF account can be created here. With the ITS removal branch.
 export async function approveRegistration(data: ApproveRegistrationInput): Promise<users> {
-    const { requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password } = data;
-    let targetReq = authRepository.findPendingRegistration(requestId);
-
-    if (!targetReq && email && firstName && lastName) {
-        targetReq = {
-            id: requestId || `REG-${Date.now()}`,
-            firstName,
-            lastName,
-            email,
-            idNumber: Number(idNumber) || 10000000,
-            userType: userType || "STUDENT",
-            requestedRole: requestedRole || "Custodian",
-            labAffiliation: labAffiliation || "CITe4D",
-            password: password || "password123",
-            submittedAt: new Date().toLocaleDateString(),
-            status: "PENDING"
-        };
-    }
+    const { requestId } = data;
+    const targetReq = authRepository.findPendingRegistration(requestId);
 
     if (!targetReq) {
         throw new AppError(404, "Pending registration request details not found.");
@@ -202,7 +186,6 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
         centerRecord ? centerRecord.center_id : null,
     );
 
-    // The request is dropped by the id the caller sent, which is also how a fallback approval leaves the list unchanged.
     targetReq.status = "APPROVED";
     authRepository.removePendingRegistration(requestId);
 
