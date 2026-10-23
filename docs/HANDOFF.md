@@ -1359,3 +1359,29 @@ Seven, in the log section 6: who gets the custodian email; the lab Account Setti
 1. Raiki answers the seven questions.
 2. The agent builds stop 2 on `fix/security-batch-l` in the planned order, runs the checks after every commit and hand checks H1 to H11 (H1 to H10 on the local UAT copy through `C:\dev\uat-data\start-local-uat.ps1`), and stops.
 3. Joel (PR #112): `NotificationCenter.tsx` is not touched. Aryan: `AssetDetailModal.tsx` is not touched unless question 1 is (b) (then lines 750 to 753 only).
+
+## UAT fixes, Batch L (sign-up and account security) stop 2, 2026-10-23
+
+**Prompt followed:** Raiki's answers to the seven Batch L questions (1a, 2a, 3a, 4a, 5a, 6b, 7a; the sign-up form unchanged, "DLSU AdRIC" listed under Noticed for Raiki to file; every sign-up the checks file approved or declined, the file never opened). Build, checks after every commit, hand checks H1 to H11, report. On `fix/security-batch-l`. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Batch L: sign-up and account security (fix/security-batch-l)", section 7 and heading "Batch L hand checks: results".
+
+### What was produced
+
+- Six commits, `9f9f304e` to `e5e40ccf`, one per issue: #68 (the server's copy of a same-tab sign-up), #71 (no account from the body, 404; one alert on a refusal), #72 (no passwords in answers; the custodian email for a Lab Head only), #70 (`POST /api/auth/register` deleted), #14 with #81 (409 for a taken or waiting email or ID number), #73 (the real lab in the account answer; unknown labs refused with 400; no research center created; the account page sends no lab).
+- Tests 415, 416, 418, 414, 418, 420; each fail-before test was run against the old server code and failed. Typecheck 65 to 64 in the #73 commit: the deleted `MANILA_CAMPUS` create was one of the old errors. Build passes in every commit.
+- The docs commit: the log's section 7 and the hand check results; `docs/README.md`; this entry; `AGENTS.md` counts (64, 420).
+
+### Key findings
+
+- All 11 hand checks passed on the local UAT copy (H11 on the test database). The same-tab approval now sends the server's ID, and the request leaves the server's list; a refused approval shows one alert with the server's reason.
+- Two `assets.test.ts` tests also pinned the custodian email for Staff; the stop 1 list missed them. Both changed in the #72 commit, with no count change.
+- The local sign-up file holds one request from before the checks (lab "No affiliation"); no Lab Head's list shows it, as Noticed says for "DLSU AdRIC".
+
+### Open questions
+
+None for the agent.
+
+### Exact next step
+
+1. Raiki reviews `fix/security-batch-l`, pushes, and opens the pull request (`Closes #68`, `#71`, `#72`, `#70`, `#14`, `#81`, `#73`).
+2. Raiki files the "DLSU AdRIC" sign-up lab item (log, Batch L, "Noticed, not in this branch").
+3. Next branch: password hashing (#10).
