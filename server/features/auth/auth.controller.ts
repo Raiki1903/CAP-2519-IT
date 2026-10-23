@@ -54,7 +54,7 @@ export async function approveRegistration(req: Request, res: Response): Promise<
 
     const createdUser = await authService.approveRegistration({ requestId });
 
-    console.log(`✅ Lab Head Approved User Registration! Created user in MySQL DB: ID ${createdUser.userId} (${createdUser.email})`);
+    console.log(`✅ Lab Head Approved User Registration! Created user in MySQL DB: ID ${createdUser.userId}`);
     res.json({ success: true, user: createdUser, message: `Account approved and created in database for ${createdUser.email}.` });
 }
 
