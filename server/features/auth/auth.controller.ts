@@ -113,9 +113,11 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * Handles PUT /api/auth/account: saves the name, picture, and lab of the session's own account. An `email` in the
- * body, which older pages still send, is ignored, so no one can change another account. (C-06)
- * Answers `{ success, user }`, or the AppError's status and message (400 missing name, 404 account gone), or 500.
+ * Handles PUT /api/auth/account: saves the name and picture of the session's own account. An `email` in the
+ * body, which older pages still send, is ignored, so no one can change another account (C-06); a `labAffiliation` is
+ * refused, so no one can move to another lab (issue #73).
+ * Answers `{ success, user }` with the account's own lab, or the AppError's status and message (400 missing name or a
+ * lab sent, 404 account gone), or 500.
  */
 export async function updateAccount(req: Request, res: Response): Promise<void> {
     const { firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = req.body;
@@ -124,7 +126,7 @@ export async function updateAccount(req: Request, res: Response): Promise<void> 
     checkAccountUpdate(data);
     const { updatedUser, user } = await authService.updateAccount(sessionUserOf(req).userId, data);
 
-    console.log(`👤 Updated user credentials in MySQL DB: ${updatedUser.email} -> ${firstName} ${lastName} (${labAffiliation}) [img length: ${updatedUser.user_img ? updatedUser.user_img.length : 0}]`);
+    console.log(`👤 Updated user credentials in MySQL DB: ${updatedUser.email} -> ${firstName} ${lastName} [img length: ${updatedUser.user_img ? updatedUser.user_img.length : 0}]`);
     res.json({
         success: true,
         user

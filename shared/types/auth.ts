@@ -72,7 +72,7 @@ export interface LoginInput {
   password: string;
 }
 
-/** What the account page sends when saving a profile. */
+/** What the account page sends when saving a profile. A `labAffiliation` is refused (400): the lab is not changed here. (issue #73) */
 export interface AccountUpdateInput {
   firstName: string;
   lastName: string;
@@ -80,11 +80,6 @@ export interface AccountUpdateInput {
   avatarUrl: string;
   profilePicture: string;
   userImg: string;
-  /**
-   * A research center's short code to move the account to; an unknown code is refused (400). The account page sends
-   * none, so the lab stays as it is. (issue #73)
-   */
-  labAffiliation?: string;
 }
 
 /** The `user` of a login answer: the profile the session keeps. */

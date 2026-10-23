@@ -325,32 +325,21 @@ export async function getProfile(userId: number): Promise<ProfileUser> {
 }
 
 /**
- * Saves the name, picture, and lab of the session user's own account. (C-06)
- * The picture is changed only when one is sent. The lab is changed only when a short code is sent, and only to a
- * research center that exists: an unknown code is refused before anything is saved, and no research center is ever
- * created here. (issue #73, M-03)
+ * Saves the name and picture of the session user's own account. (C-06)
+ * The picture is changed only when one is sent. The lab is never changed here: the validation refuses a body that
+ * sends one (issue #73).
  *
  * @param userId the session user
- * @param data the checked body: names, and the optional picture (under three names) and lab code
+ * @param data the checked body: names, and the optional picture (under three names)
  * @returns the updated users row, for the log line, and the profile the answer sends, with the account's own lab
- * @throws AppError 400 if a lab code is sent that no research center has
  * @throws AppError 404 if the account no longer exists (deleted within the 60-second session cache)
  */
 export async function updateAccount(userId: number, data: AccountUpdateInput): Promise<{ updatedUser: users; user: AccountUser }> {
-    const { firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = data;
+    const { firstName, lastName, avatarUrl, userImg, profilePicture } = data;
 
     const user = await authRepository.findUserById(userId);
     if (!user) {
         throw new AppError(404, "User not found in database.");
-    }
-
-    const labCode = labAffiliation ? String(labAffiliation).trim() : "";
-    let center = null;
-    if (labCode && labCode !== "Not Affiliated") {
-        center = await authRepository.findResearchCenterByCode(labCode);
-        if (!center) {
-            throw new AppError(400, `Unknown lab: ${labCode}.`);
-        }
     }
 
     const imgToSave = avatarUrl || userImg || profilePicture;
@@ -366,16 +355,7 @@ export async function updateAccount(userId: number, data: AccountUpdateInput): P
 
     const updatedUser = await authRepository.updateUser(user.user_id, updateData);
 
-    if (center) {
-        const existingUserCenter = await authRepository.findUserCenterOfUser(user.user_id);
-        if (existingUserCenter) {
-            await authRepository.updateUserCenter(existingUserCenter.user_centers_id, center.center_id);
-        } else {
-            await authRepository.createUserCenter(user.user_id, center.center_id);
-        }
-    }
-
-    // The account's lab after the save, by the same rule as login and /me, so the session and the account page agree.
+    // The account's own lab, by the same rule as login and /me, so the session and the account page agree.
     const profile = await authRepository.findUserProfileById(user.user_id);
     const accountLab = profile?.user_centers[0]?.research_centers?.short_code || "CITe4D";
 
