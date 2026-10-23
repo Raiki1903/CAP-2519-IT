@@ -1033,6 +1033,7 @@ One table per role, then one for screens every role sees. **Mark:** "change" (st
 | C18 | Transfer form | `TransferForm.tsx:186`, `AssetDetailModal.tsx:59`, `:547` | Custodianship Transfer | as now | Custodian wording | | after workshop |
 | C19 | Repair form | `RepairForm.tsx:38`, `:162`, `:298`, `:374` | Approvals Pipeline Monitor; Incident Logged; Log hardware anomalies to the core optimization track; Log Incident to Maintenance Queue | Repair Steps; Repair Request Sent; Report a fault with this asset.; Send Repair Request | Plain | L10 | change |
 | C20 | Repair form | `RepairForm.tsx:117`, `:323-332`, `:191` | ITS Central Override step; Forward Target Department: TSG, ITS, Both | as now | The chosen unit is sent in the request body; waits for the ITS removal branch (answer 2a) | | keep (ITS removal branch) |
+| C21 | Transfer form | `TransferForm.tsx:226` | The recipient must accept this transfer before custody moves. | Once the Lab Head approves, the asset moves to the new custodian. | Says what happens: approval moves the asset at once (follow-up after stop 2) | L10 | change |
 
 #### AdRIC Director
 
@@ -1092,7 +1093,7 @@ One table per role, then one for screens every role sees. **Mark:** "change" (st
 | A22 | Every pending card, modal | `AssetDetailModal.tsx:219` | Requested by another user | as now | Plain | | keep |
 | A23 | Asset modal, header of an open form | `AssetDetailModal.tsx:249`, `:307` | Request Equipment Loan -- {asset} | Request a Loan: {asset} | No dash; the same name as the form's own title (found by H6) | L10 | change |
 
-**Counts (as built, stop 2).** Rows marked "change": Lab Head **34**, Staff **33**, Custodian **14**, Director **23**, every role **19** (A1 to A23 with A6b, less A4, A7, A11, A12, A22): **123** in all. "After workshop" or "after PR #112": 10. "Keep": 9 (C20 joined them with answer 2a). At stop 1 the counts were 33, 32, 15, 23, 17 (120); the rows that changed since are listed in section 8, "Differences from the plan".
+**Counts (as built, stop 2).** Rows marked "change": Lab Head **34**, Staff **33**, Custodian **15** (with C21, a follow-up after stop 2), Director **23**, every role **19** (A1 to A23 with A6b, less A4, A7, A11, A12, A22): **124** in all. "After workshop" or "after PR #112": 10. "Keep": 9 (C20 joined them with answer 2a). At stop 1 the counts were 33, 32, 15, 23, 17 (120); the rows that changed since are listed in section 8, "Differences from the plan".
 
 ### 2. Small UI
 
@@ -1364,5 +1365,5 @@ At 1280 x 800 each screen lays out as before: the wraps only happen when the row
 - **`/lab-headx`** passes the `startsWith("/lab-head")` check in `RootLayout`; a prefix-plus-slash check would be exact. Harmless today (no such route).
 - **Existing em dashes elsewhere** (for example the disposal pathway options, `DisposalFormDialog.tsx`, and the server's "Manila -- CITe4D" location text) are stored data, so they stay.
 - **The loan and transfer timeline truncates on a phone** ("I...", "P...", "Custod...") now that the card fits the screen. The timeline is part of the Requests card redesign after the workshop.
-- **The Transfer form says "The recipient must accept this transfer before custody moves."** Raiki's note for C17 says approval moves the asset right away; if so, this line is wrong. Not changed here: it describes the flow, which the workshop decides.
+- **The Transfer form said "The recipient must accept this transfer before custody moves."** Wrong: `decideTransfer` appends a custody record held by the recipient as soon as the Lab Head approves (`handoverRecord` in `transfers.service.ts`). Fixed after stop 2 in `fix(transfers): say what happens after approval on the transfer form (#115)` (row C21): "Once the Lab Head approves, the asset moves to the new custodian."
 - **The bell's disposal card title** still says "Disposal Authorization:" (A7, after PR #112), with the two stale bell comments at lines 828 and 852.

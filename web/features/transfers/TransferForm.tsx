@@ -223,7 +223,7 @@ export function TransferForm({ asset, onBack, onClose }: Props) {
                 onChange={e => setToEmail(e.target.value)}
                 placeholder="recipient@dlsu.edu.ph"
               />
-              <p className="text-[10px] text-muted-foreground">The recipient must accept this transfer before custody moves.</p>
+              <p className="text-[10px] text-muted-foreground">Once the Lab Head approves, the asset moves to the new custodian.</p>
             </div>
 
             {/* Destination Laboratory */}
