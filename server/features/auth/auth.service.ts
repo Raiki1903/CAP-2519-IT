@@ -102,10 +102,11 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
  * Approves a sign-up request: creates the account with its role and lab, then drops the request.
  * The account is built from the stored request only. (C-05)
  * The role comes from the requested role's wording, and the lab is matched by name or short code;
- * a lab that matches nothing is created as a new research center. (C-05 family, issue #73)
+ * "No affiliation" and "Not Affiliated" link no lab.
  *
  * @param data `requestId`, the REG- id the server gave the request
  * @returns the new account's id, names, and email (no password or id number: 01C 4.1)
+ * @throws AppError 400 if the request's lab matches no research center; nothing is created and the request is kept (issue #73)
  * @throws AppError 404 if the id matches no pending request
  * @throws AppError 409 if an account has the request's email or id number by now; the request is kept (issue #14)
  */
@@ -144,17 +145,10 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
 
         centerRecord = await authRepository.findResearchCenterForLab(labName, extractedCode);
 
+        // A lab that matches nothing (a typo, or a lab with no research center) is refused, never created. The request
+        // stays in the list, so the Lab Head can decline it. (issue #73, M-03)
         if (!centerRecord) {
-            // A failed create is logged and the account is created without a lab.
-            try {
-                centerRecord = await authRepository.createResearchCenter({
-                    name: labName,
-                    short_code: extractedCode,
-                    location: "MANILA"
-                });
-            } catch (e) {
-                console.log(`Note: Research center creation fallback for ${targetReq.labAffiliation}:`, e);
-            }
+            throw new AppError(400, `The lab on this request, ${labName}, is not a known lab. Decline it and ask the applicant to sign up again.`);
         }
     }
 
@@ -341,11 +335,14 @@ export async function getProfile(userId: number): Promise<ProfileUser> {
 
 /**
  * Saves the name, picture, and lab of the session user's own account. (C-06)
- * The picture is changed only when one is sent. A lab code that matches no research center is created as one first.
+ * The picture is changed only when one is sent. The lab is changed only when a short code is sent, and only to a
+ * research center that exists: an unknown code is refused before anything is saved, and no research center is ever
+ * created here. (issue #73, M-03)
  *
  * @param userId the session user
  * @param data the checked body: names, and the optional picture (under three names) and lab code
- * @returns the updated users row, for the log line, and the profile the answer sends
+ * @returns the updated users row, for the log line, and the profile the answer sends, with the account's own lab
+ * @throws AppError 400 if a lab code is sent that no research center has
  * @throws AppError 404 if the account no longer exists (deleted within the 60-second session cache)
  */
 export async function updateAccount(userId: number, data: AccountUpdateInput): Promise<{ updatedUser: users; user: AccountUser }> {
@@ -354,6 +351,15 @@ export async function updateAccount(userId: number, data: AccountUpdateInput): P
     const user = await authRepository.findUserById(userId);
     if (!user) {
         throw new AppError(404, "User not found in database.");
+    }
+
+    const labCode = labAffiliation ? String(labAffiliation).trim() : "";
+    let center = null;
+    if (labCode && labCode !== "Not Affiliated") {
+        center = await authRepository.findResearchCenterByCode(labCode);
+        if (!center) {
+            throw new AppError(400, `Unknown lab: ${labCode}.`);
+        }
     }
 
     const imgToSave = avatarUrl || userImg || profilePicture;
@@ -369,25 +375,18 @@ export async function updateAccount(userId: number, data: AccountUpdateInput): P
 
     const updatedUser = await authRepository.updateUser(user.user_id, updateData);
 
-    if (labAffiliation && labAffiliation !== "Not Affiliated") {
-        let center = await authRepository.findResearchCenterByCode(labAffiliation);
-        if (!center) {
-            // MANILA_CAMPUS is not a research_centers location, so this create always fails, the empty catch
-            // swallows it, and the account keeps its old lab while the answer names the new one.
-            // TODO(M-03): a lab code is turned into a new research center instead of being refused (issue #73). A fixed lab list, Phase 3.
-            try {
-                center = await authRepository.createResearchCenter({ name: `${labAffiliation} Research Laboratory`, short_code: labAffiliation, location: "MANILA_CAMPUS" });
-            } catch (e) { }
-        }
-        if (center) {
-            const existingUserCenter = await authRepository.findUserCenterOfUser(user.user_id);
-            if (existingUserCenter) {
-                await authRepository.updateUserCenter(existingUserCenter.user_centers_id, center.center_id);
-            } else {
-                await authRepository.createUserCenter(user.user_id, center.center_id);
-            }
+    if (center) {
+        const existingUserCenter = await authRepository.findUserCenterOfUser(user.user_id);
+        if (existingUserCenter) {
+            await authRepository.updateUserCenter(existingUserCenter.user_centers_id, center.center_id);
+        } else {
+            await authRepository.createUserCenter(user.user_id, center.center_id);
         }
     }
+
+    // The account's lab after the save, by the same rule as login and /me, so the session and the account page agree.
+    const profile = await authRepository.findUserProfileById(user.user_id);
+    const accountLab = profile?.user_centers[0]?.research_centers?.short_code || "CITe4D";
 
     return {
         updatedUser,
@@ -401,8 +400,7 @@ export async function updateAccount(userId: number, data: AccountUpdateInput): P
             userImg: updatedUser.user_img,
             profilePicture: updatedUser.user_img,
             avatarUrl: updatedUser.user_img,
-            // The lab sent, not the account's lab: with no lab sent this says CITe4D whatever the account's lab is (issue #73).
-            labAffiliation: labAffiliation || "CITe4D"
+            labAffiliation: accountLab
         }
     };
 }

@@ -210,17 +210,27 @@ describe("POST /api/auth/approve-registration", () => {
     expect(await roleNamesOf(created.user_id)).toEqual([expectedRole]);
   });
 
-  it("creates a new research center for a lab it does not know, and links the account to it (new finding)", async () => {
+  it("answers 400 for a lab it does not know, and creates no research center and no account, keeping the request (M-03)", async () => {
     const { body, registration } = await requestSignUp({ labAffiliation: "Test Unknown Lab (TESTX)" });
 
     const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
 
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("The lab on this request, Test Unknown Lab (TESTX), is not a known lab. Decline it and ask the applicant to sign up again.");
+    expect(await db.research_centers.count({ where: { short_code: "TESTX" } })).toBe(0);
+    expect(await db.users.count({ where: { email: body.email } })).toBe(0);
+    expect(await pendingIds()).toContain(registration.id);
+  });
+
+  it("finds the lab by its full name, as the sign-up form sends it", async () => {
+    const { body, registration } = await requestSignUp({ labAffiliation: LAB.name });
+
+    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
+
     expect(res.status).toBe(200);
-    const center = await db.research_centers.findUniqueOrThrow({ where: { short_code: "TESTX" } });
-    expect(center).toMatchObject({ name: "Test Unknown Lab (TESTX)", location: "MANILA" });
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
     const links = await db.user_centers.findMany({ where: { user_id: created.user_id } });
-    expect(links.map((l) => l.center_id)).toEqual([center.center_id]);
+    expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
   });
 
   it("answers 404 for an unknown request id with no applicant details", async () => {

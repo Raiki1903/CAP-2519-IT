@@ -179,13 +179,6 @@ export function findResearchCenterByCode(shortCode: string) {
     return prisma.research_centers.findFirst({ where: { short_code: shortCode } });
 }
 
-/** Inserts a research center and returns it. */
-export function createResearchCenter(data: Prisma.research_centersCreateInput) {
-    return prisma.research_centers.create({
-        data
-    });
-}
-
 /** The user's first lab link, or null. */
 export function findUserCenterOfUser(userId: number) {
     return prisma.user_centers.findFirst({ where: { user_id: userId } });

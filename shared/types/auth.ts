@@ -78,6 +78,10 @@ export interface AccountUpdateInput {
   avatarUrl: string;
   profilePicture: string;
   userImg: string;
+  /**
+   * A research center's short code to move the account to; an unknown code is refused (400). The account page sends
+   * none, so the lab stays as it is. (issue #73)
+   */
   labAffiliation?: string;
 }
 
@@ -115,7 +119,7 @@ export interface AccountUser {
   userImg: string | null;
   profilePicture: string | null;
   avatarUrl: string | null;
-  /** The lab code the request sent, or "CITe4D" when it sent none, whatever the account's lab is. */
+  /** The account's lab after the save: the short code of its first lab link, or "CITe4D" when it has none (as login and /me). */
   labAffiliation: string;
 }
 
