@@ -24,8 +24,21 @@ import { env } from '../../config/env';
 import { createSessionToken, isLoggedOut, markLoggedOut, verifySessionToken } from '../../shared/services/session';
 import { forgetIdentity, recallIdentity, rememberIdentity } from '../../shared/services/sessionCache';
 
-// Registration accepts the same email more than once (issue #14), kept as is: the email check looks at accounts only,
-// not at pending sign-ups, so one email can be requested twice; approving the second then fails with a 500.
+/**
+ * Refuses an email or an id number that already belongs to an account. (issue #14)
+ *
+ * @param email the email to check; the database compares it in any letter case
+ * @param idNumber the id number to check
+ * @throws AppError 409 with the text the sign-up page shows (UAT EV-05)
+ */
+async function refuseTakenByAccount(email: string, idNumber: number): Promise<void> {
+    if (await authRepository.findUserByEmail(email)) {
+        throw new AppError(409, "A registered user with this email already exists.");
+    }
+    if (await authRepository.findUserByIdNumber(idNumber)) {
+        throw new AppError(409, "A registered user with this ID number already exists.");
+    }
+}
 
 /** A stored sign-up request without its password, for an answer. (C-04) */
 function withoutPassword(request: PendingRegistration): PendingRegistrationView {
@@ -48,19 +61,20 @@ export function listPendingRegistrations(): PendingRegistrationView[] {
  *
  * @param data the checked body: names, email, id number, and the optional user type, role, lab, password, and picture
  * @returns the stored request, with its REG- id, without its password (C-04)
- * @throws AppError 400 if the email or the id number already belongs to an account
+ * @throws AppError 409 if the email or the id number already belongs to an account, or to a request still waiting (issues #14, #81)
  */
 export async function requestRegistration(data: RegistrationRequestInput): Promise<PendingRegistrationView> {
     const { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl } = data;
 
-    const existingEmail = await authRepository.findUserByEmail(email);
-    if (existingEmail) {
-        throw new AppError(400, "A registered user with this email already exists.");
-    }
+    await refuseTakenByAccount(email, Number(idNumber));
 
-    const existingId = await authRepository.findUserByIdNumber(Number(idNumber));
-    if (existingId) {
-        throw new AppError(400, "A registered user with this ID number already exists.");
+    const sameEmail = (r: PendingRegistrationView) => String(r.email).trim().toLowerCase() === String(email).trim().toLowerCase();
+    const waiting = listPendingRegistrations();
+    if (waiting.some(sameEmail)) {
+        throw new AppError(409, "A sign-up request with this email is already waiting for approval.");
+    }
+    if (waiting.some(r => r.idNumber === Number(idNumber))) {
+        throw new AppError(409, "A sign-up request with this ID number is already waiting for approval.");
     }
 
     const newReq: PendingRegistration = {
@@ -93,6 +107,7 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
  * @param data `requestId`, the REG- id the server gave the request
  * @returns the new account's id, names, and email (no password or id number: 01C 4.1)
  * @throws AppError 404 if the id matches no pending request
+ * @throws AppError 409 if an account has the request's email or id number by now; the request is kept (issue #14)
  */
 // TODO(M-11): "ITS" or "Admin" in the requested role maps to ADMIN, so no ITS_STAFF account can be created here. With the ITS removal branch.
 export async function approveRegistration(data: ApproveRegistrationInput): Promise<ApprovedUser> {
@@ -102,6 +117,10 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
     if (!targetReq) {
         throw new AppError(404, "Pending registration request details not found.");
     }
+
+    // Checked again here: a request filed before the duplicate checks, or an account created since, would otherwise
+    // fail inside the database with a 500.
+    await refuseTakenByAccount(targetReq.email, targetReq.idNumber);
 
     // Checked in this order, so "Lab Head" wins over anything else in the text.
     const requested = (targetReq.requestedRole || "").toUpperCase();

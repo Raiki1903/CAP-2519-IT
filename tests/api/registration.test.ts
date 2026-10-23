@@ -95,12 +95,42 @@ describe("POST /api/auth/register-request", () => {
     }
   });
 
-  it("answers 400 for an email or an id number that already belongs to an account", async () => {
+  it("answers 409 for an email or an id number that already belongs to an account, with the text UAT EV-05 expects", async () => {
     const sameEmail = await api.post("/api/auth/register-request", applicant({ email: USERS.custodianA.email }));
     const sameIdNumber = await api.post("/api/auth/register-request", applicant({ idNumber: USERS.custodianA.idNumber }));
 
-    expect(sameEmail.status).toBe(400);
-    expect(sameIdNumber.status).toBe(400);
+    expect(sameEmail.status).toBe(409);
+    expect(sameEmail.body.error).toBe("A registered user with this email already exists.");
+    expect(sameIdNumber.status).toBe(409);
+    expect(sameIdNumber.body.error).toBe("A registered user with this ID number already exists.");
+  });
+
+  it("answers 409 for an email a pending request has, in any letter case, and keeps one request (issue #14)", async () => {
+    const { body } = await requestSignUp();
+
+    const again = await api.post("/api/auth/register-request", applicant({ email: ` ${body.email.toUpperCase()} ` }));
+
+    expect(again.status).toBe(409);
+    expect(again.body.error).toBe("A sign-up request with this email is already waiting for approval.");
+    expect(pendingFile().filter((r) => r.email.toLowerCase() === body.email)).toHaveLength(1);
+  });
+
+  it("answers 409 for an id number a pending request has (issue #81)", async () => {
+    const { body } = await requestSignUp();
+
+    const again = await api.post("/api/auth/register-request", applicant({ idNumber: body.idNumber }));
+
+    expect(again.status).toBe(409);
+    expect(again.body.error).toBe("A sign-up request with this ID number is already waiting for approval.");
+  });
+
+  it("accepts an email again once its request was declined", async () => {
+    const { body, registration } = await requestSignUp();
+    await asLabHead.post("/api/auth/reject-registration", { requestId: registration.id });
+
+    const again = await api.post("/api/auth/register-request", { ...body });
+
+    expect(again.status).toBe(200);
   });
 });
 
@@ -220,6 +250,23 @@ describe("POST /api/auth/approve-registration", () => {
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
     expect(await roleNamesOf(created.user_id)).toEqual(["CUSTODIAN"]);
     expect(await db.users.count({ where: { email: other.email } })).toBe(0);
+  });
+
+  it("answers 409, not 500, when an account took the request's email before approval, and keeps the request (issue #14)", async () => {
+    const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode });
+    const taker = await db.users.create({
+      data: { first_name: "Test", last_name: "Email Taker", email: body.email, password: "test-password-taker", id_number: 92000001, user_type: "STUDENT" },
+    });
+    try {
+      const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("A registered user with this email already exists.");
+      expect(await db.users.count({ where: { email: body.email } })).toBe(1);
+      expect(await pendingIds()).toContain(registration.id);
+    } finally {
+      await db.users.delete({ where: { user_id: taker.user_id } });
+    }
   });
 });
 

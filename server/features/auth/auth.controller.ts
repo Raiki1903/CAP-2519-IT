@@ -27,7 +27,8 @@ export async function listPendingRegistrations(req: Request, res: Response): Pro
 /**
  * Handles POST /api/auth/register-request: files a sign-up request for a Lab Head to approve.
  * Answers `{ success, registration }` with the stored request without its password (C-04),
- * or the AppError's status and message (400 missing field, email taken, or id number taken), or 500.
+ * or the AppError's status and message (400 missing field; 409 email or id number taken by an account or by a
+ * request still waiting), or 500.
  */
 export async function requestRegistration(req: Request, res: Response): Promise<void> {
     const { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl } = req.body;
@@ -45,7 +46,7 @@ export async function requestRegistration(req: Request, res: Response): Promise<
  * Handles POST /api/auth/approve-registration: creates the account a sign-up request asked for.
  * Only `requestId` is read: the account comes from the stored request, never from the body. (C-05)
  * Answers `{ success, user, message }` with the new account's id, names, and email only (01C 4.1),
- * 404 when the request id matches no pending request, or 500 (for example an email already taken).
+ * 404 when the request id matches no pending request, 409 when an account has its email or id number by now, or 500.
  */
 export async function approveRegistration(req: Request, res: Response): Promise<void> {
     const { requestId } = req.body;
