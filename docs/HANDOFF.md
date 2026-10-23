@@ -1330,3 +1330,32 @@ None for the agent.
 
 1. Raiki reviews `fix/uat1-labels-ui`, pushes, and opens the pull request.
 2. Joel: `NotificationCenter.tsx` changes at lines 807, 862, and 871 only (button text). The bell's other wording ("Disposal Authorization:", "(LabHead)", the footer line) is listed for after PR #112.
+
+## UAT fixes, Batch L (sign-up and account security) stop 1, 2026-10-23
+
+**Prompt followed:** Raiki's Batch L prompt in chat, stop 1 only: read, plan, ask; no code. Six issues, one commit each: #68, #71 (C-05), #72 (C-04), #70, #14 with #81, #73 (M-03). On `fix/security-batch-l` from `main` at `9d8cc5fa` (PR #117, Batch W, merged). Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Batch L: sign-up and account security (fix/security-batch-l)", hand checks under "Batch L hand checks".
+
+### What was produced
+
+- The log section: for each issue, the cause, where the code is, the change, and the screens and roles; the 14 tests that pin the old behavior and what each becomes (5 of them deleted with #70); 10 new tests (7 fail before the fix, as do the changed tests that replaced a pinned defect); a stop 2 plan of 6 code commits and a docs commit, with the count after each (415, 416, 418, 414, 418, 420); hand checks H1 to H11 for the agent on the local UAT copy; seven questions.
+- `docs/README.md`: status. One docs commit. Typecheck **65**, tests **415** (no code changed).
+- `pending_registrations.json` was not opened: its shape is taken from `auth.repository.ts` and `shared/types/auth.ts`.
+
+### Key findings
+
+- **#68 needs a logged-in Lab Head in the same tab** since 13b: the pending list reloads only when the role changes, so a second login as the same Lab Head keeps the Register page's copy. H1 reproduces it that way.
+- **The custodian history already sends no ID number** (13c, answer 6). Its email shows only in the Lab Head's full history view; Staff, the Director, and a Custodian get emails no screen shows (question 1).
+- **Account Settings always sends a lab, though the field is read-only**, and for the Director and Staff it is `/me`'s fallback "CITe4D", so saving their name links them to CITe4D (from the code; question 2).
+- **Every sign-up form lab matches a research center on the UAT copy except "DLSU AdRIC"**, so today approving one creates a research center. No Lab Head's list shows "DLSU AdRIC" or "No affiliation" requests at all.
+- **A refused approval shows two alerts**, the second wrongly saying the server could not be reached (question 6).
+- The UAT manual (EV-05) is not on this PC; the brief's quoted text is the server's text today, word for word.
+
+### Open questions
+
+Seven, in the log section 6: who gets the custodian email; the lab Account Settings sends; where an unknown sign-up lab is refused; the text for a sign-up already waiting (and EV-05); a test for #68; the double alert; the pending file during the hand checks.
+
+### Exact next step
+
+1. Raiki answers the seven questions.
+2. The agent builds stop 2 on `fix/security-batch-l` in the planned order, runs the checks after every commit and hand checks H1 to H11 (H1 to H10 on the local UAT copy through `C:\dev\uat-data\start-local-uat.ps1`), and stops.
+3. Joel (PR #112): `NotificationCenter.tsx` is not touched. Aryan: `AssetDetailModal.tsx` is not touched unless question 1 is (b) (then lines 750 to 753 only).
