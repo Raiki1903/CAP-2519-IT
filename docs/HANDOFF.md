@@ -1320,7 +1320,7 @@ Seven, in the log section 7: Dashboard or Analytics; ITS text that is saved; the
 
 - All 13 hand checks passed on the local UAT copy (H13 on the test database). Edit Asset still sends `"status":"Active"`; the inspection report still saves `[TSG Remarks]`; another role's URL loads none of that role's data.
 - At 390 px every Lab Head screen now fits (Requests was 713 px wide, Lab Inventory 639, Analytics 467); desktop layout is unchanged.
-- Left for later: the bell's own wording (after PR #112), the timeline truncating on a phone (Requests redesign), and the Transfer form's "recipient must accept" line, which may be wrong (workshop).
+- Left for later: the bell's own wording (after PR #112) and the timeline truncating on a phone (Requests redesign). The Transfer form's "recipient must accept" line was wrong and is fixed (`3f2aa66c`, issue #115, merged with PR #117).
 
 ### Open questions
 
@@ -1384,4 +1384,31 @@ None for the agent.
 
 1. Raiki reviews `fix/security-batch-l`, pushes, and opens the pull request (`Closes #68`, `#71`, `#72`, `#70`, `#14`, `#81`, `#73`).
 2. Raiki files the "DLSU AdRIC" sign-up lab item (log, Batch L, "Noticed, not in this branch").
+3. Next branch: password hashing (#10).
+
+## UAT fixes, Batch L (sign-up and account security) stop 3, 2026-10-23
+
+**Prompt followed:** Raiki's three additions before merging, one commit each, on `fix/security-batch-l`: a sign-up always creates a Custodian; the account update never changes the lab (answer 2 becomes (c)); no email in the approval log line. Checks after each, hand checks H6 (rerun) and H12 to H14 on the local UAT copy, docs. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Batch L: sign-up and account security (fix/security-batch-l)", section 7, "Stop 3: three additions", and heading "Batch L stop 3 hand checks: results".
+
+### What was produced
+
+- `edbd3559`: `register-request` stores "Custodian" whatever role is sent, and approval always creates a CUSTODIAN account (the role mapping and its `TODO(M-11)` go). Tests 420 to 422.
+- `abba774c`: any `labAffiliation` sent to `PUT /api/auth/account` answers 400 "Your lab can't be changed here." and nothing is saved; four unused lab-link repository functions go. Three tests changed (the two B1 lab tests, the unknown-lab test), 422.
+- `3aaa6cd5`: the approval log line keeps the user id only.
+- The docs commit: the log, `docs/README.md`, this entry (and the Batch W stop 2 note on the Transfer form, now fixed by `3f2aa66c`), `AGENTS.md` (422).
+- Typecheck **64** and build passing in every commit.
+
+### Key findings
+
+- All four hand checks passed. Sign-ups asking for "Admin" and "Lab Head" were stored and approved as Custodians; a Lab Head's direct call to move to CAR answered 400 and the lab stayed CITe4D; the approval log lines show IDs only.
+- The sign-up and account update log lines still print emails (Noticed).
+
+### Open questions
+
+None for the agent.
+
+### Exact next step
+
+1. Raiki reviews `fix/security-batch-l`, pushes, and opens the pull request (`Closes #68`, `#71`, `#72`, `#70`, `#14`, `#81`, `#73`).
+2. Raiki files the "DLSU AdRIC" sign-up lab item.
 3. Next branch: password hashing (#10).

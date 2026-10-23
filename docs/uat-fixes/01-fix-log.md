@@ -1585,6 +1585,8 @@ Commit 4 is `refactor`: it removes a route no screen calls; its only behavior ch
 
 **Answers (Raiki, 2026-10-23):** 1 (a), 2 (a), 3 (a), 4 (a), 5 (a), 6 (b), 7 (a). On 3: the sign-up form does not change in this batch; "DLSU AdRIC" is listed under Noticed for Raiki to file. On 7: every sign-up the checks file is approved or declined, so the file ends as it started; the file is never opened.
 
+**Changed before merge (Raiki, 2026-10-23, stop 3):** answer 2 becomes **(c)**: the account update never changes the lab, and any lab sent answers 400. Two more additions: a sign-up always creates a Custodian, whatever role it asks for (C-05 family), and the approval log line has no email. Section 7, "Stop 3: three additions", records them.
+
 ### 7. Stop 2: what was built (2026-10-23)
 
 On `fix/security-batch-l`, in the planned order, one commit per issue. After every commit: `npm run typecheck`, `npm run build`, `npm test`. Each new or changed test that should fail before its fix was run against the old server code (the fix's server files stashed) and failed, then passed with the fix. Nothing pushed.
@@ -1633,11 +1635,36 @@ How they ran: ports 4000 and 5173 were checked free; the app was started only wi
 
 Console errors seen: the expected refusals (404, 401, 409, 400 answers and the Register page's own error line), and an uncaught error from the Lab Head's Approve button after a refusal (Noticed).
 
+#### Stop 3: three additions (2026-10-23)
+
+Raiki asked for three more commits on the same branch before merging. After each: typecheck, build, `npm test`. Each fail-before test was run against the previous commit's server code and failed. Nothing pushed.
+
+| # | Commit | Kind | What it does | Typecheck | Tests |
+|---|---|---|---|---|---|
+| 9 | `edbd3559` | Behavior change (C-05 family) | `register-request` stores "Custodian" whatever `requestedRole` the body sends (the controller no longer reads it; `RegistrationRequestInput` loses the field), and approval always creates a CUSTODIAN account; the role mapping and its `TODO(M-11)` go (the other `TODO(M-11)`, on `ADRIC_SECRETARY` at login, stays) | 64 | **422** |
+| 10 | `abba774c` | Behavior change (#73, answer 2c) | `checkAccountUpdate` answers 400 "Your lab can't be changed here." for any `labAffiliation` in the body (an empty one counts as none), before anything is saved; the service no longer touches the lab and answers the account's own lab; `findResearchCenterByCode`, `findUserCenterOfUser`, `updateUserCenter`, `createUserCenter` had no other caller and go; the account log line drops the lab | 64 | **422** |
+| 11 | `3aaa6cd5` | Log only | The approval log line keeps the user id and drops the email | 64 | **422** |
+| 12 | this commit | Docs | This part, the answer change, the stop 3 hand checks, `docs/README.md`, `docs/HANDOFF.md` (and its stale Transfer form note), `AGENTS.md` (422) | 64 | **422** |
+
+**Tests.** Commit 9: the role table test (`registration.test.ts`, "gives a request for role %s ...", four cases) becomes "approves a request that asks for role %s as a Custodian" for Custodian, Lab Head, TSG, ITS, and **Admin** (one case added); one test added, "stores Custodian as the requested role whatever role the sign-up asks for". 420 to 422; the Lab Head, TSG, ITS, and Admin cases and the new test failed on the old code. Commit 10: three tests changed, none added (422): the B1 test "links an account with no lab to a known lab code" now expects 400 and no link (the Director); the B1 test "moves an account's existing lab link ..." becomes "refuses a Lab Head moving to another known lab: 400, the lab and the name kept" (Raiki's test; it removes its TESTB lab afterwards); the unknown-lab test expects the new text; the rename test no longer sends a lab. All three failed on the old code. Commit 11: no test reads the log.
+
+#### Batch L stop 3 hand checks: results
+
+**H6 (rerun), H12, H13, H14: all passed** (the agent; Chrome driven by the Playwright MCP on the local UAT copy `adric_uat_check`, started only with `C:\dev\uat-data\start-local-uat.ps1`, which printed "Starting on localhost / adric_uat_check", after checking ports 4000 and 5173 free). Every `/api` request went to `http://localhost:4000`; the browser opened only `http://localhost:5173`. Afterwards the servers were stopped by PID, the ports checked free, and `.playwright-mcp` deleted. Screenshots: `%TEMP%\adric-batchL-handchecks\screenshots-stop3\`. Writes to the copy: two accounts by approval (H12), Custodian Four's first name changed and put back (H6), the Lab Head's name saved unchanged (H13). The two sign-ups the checks filed were both approved; the pending list afterwards held only the request from before the checks. No check touched CCS Cloud.
+
+| # | Item | Role and screen | Steps | Expected | Result |
+|---|---|---|---|---|---|
+| H6 | #73, rerun | Custodian Four (CAR), Account Settings, then direct calls | Change the first name, Save; names only; `labAffiliation: "NOLAB"` with another name; `/me`; put the name back | Save 200, the body has no `labAffiliation`, answer lab CAR; names only: CAR; NOLAB: 400 "Your lab can't be changed here."; the name not changed | **Passed**, as expected. `h6-rerun-custodian-car-save.png` |
+| H12 | C-05 family | Signed out, two direct sign-ups; then Lab Head (CITe4D), Account Approvals | Sign-ups with `requestedRole` "Admin" and "Lab Head" (lab CITE4D, `@example.test`); approve both; log each new account in (by direct call: the login form takes only `@dlsu.edu.ph`) | Both answers say `requestedRole: "Custodian"`; both cards read "Requested Role: Custodian"; both approvals 200; both logins answer role Custodian, lab CITe4D | **Passed**, as expected. `h12-approvals-custodian-role.png` |
+| H13 | #73, answer 2c | Lab Head (CITe4D), a direct call, then Account Settings | `PUT /api/auth/account` with another first name and `labAffiliation: "CAR"`; `/me`; then Save on Account Settings | 400 "Your lab can't be changed here."; `/me` still CITe4D, the name unchanged; Save 200 with no `labAffiliation` in the body, answer lab CITe4D | **Passed**, as expected. `h13-labhead-account-save.png` |
+| H14 | The log line | The agent, the server's console output | Read only the approval lines after H12 | "Lab Head Approved User Registration! Created user in MySQL DB: ID {n}", no email | **Passed**: two lines, IDs 15 and 16, no "@" |
+| H11 | All, again | The agent, terminal, servers stopped | `npm run typecheck`, `npm run build`, `npm test` | 64, passes, 422 | **Passed**. `%TEMP%\adric-batchL-handchecks\h11-checks-stop3.txt` |
+
 ### Noticed, not in this branch
 
 - **"DLSU AdRIC" on the sign-up lab list can never be approved:** no research center has that name or code, and no Lab Head's list shows it, so it should be removed from the list or mapped to a lab. Raiki files it. (The same is true of "No affiliation" requests: the Lab Head's list keeps the requests whose lab text contains the Lab Head's lab code, `matchesBranch` in `LabHeadDashboard.tsx`; the local file holds one such request from before the checks.)
 - **A refused approval leaves an uncaught error in the console.** `LabHeadDashboard.tsx`'s Approve handler awaits `approveRegistration`, which throws after its alert so the success alert is skipped, and nothing catches it. Harmless on screen; a `try` in the handler would quiet it.
 - **The request ID is six random digits** (the `REG-` line in `requestRegistration`, `auth.service.ts`): two requests can draw the same one, and approving or declining one then drops both. Small; H-17 (the table) gives real IDs.
-- **Server log lines print emails** (the sign-up, approval, and account update handlers in `auth.controller.ts`). They are console lines on the server, not answers; a separate small cleanup.
+- **Server log lines print emails** in the sign-up and account update handlers in `auth.controller.ts` (the approval line no longer does, stop 3). They are console lines on the server, not answers; a separate small cleanup.
 - **On CCS Cloud, Director and Staff accounts that saved their name may already be linked to CITe4D** (#73, from the code). A read-only count of their `user_centers` rows would show it; nothing in this batch changes existing links.
 - **Approve-registration with no `requestId`** answers 404, not 400. It stays: nothing sends that.
