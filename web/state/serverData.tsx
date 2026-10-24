@@ -113,7 +113,6 @@ export interface Asset {
 }
 
 /** A disposal request waiting for the Director's decision. */
-// TODO(H-13): lastCustodian, breakdownReasons, and disposalPathway are declared here but never filled. The server sends one `reason` text instead (M-13), so the bell shows "undefined" for them. Fix with the bell rewrite.
 export interface PendingDisposal {
   /** Display id, for example "DISP-12". */
   id: string;
@@ -121,9 +120,8 @@ export interface PendingDisposal {
   disposalId?: number;
   assetId: string;
   assetName: string;
-  lastCustodian: string;
-  breakdownReasons: string;
-  disposalPathway: string;
+  /** The server's packed reason text: "Disposal Pathway:", optional custodian and date lines, then "Breakdown Justification:". (M-13) */
+  reason: string;
   requestedBy: string;
   requestedAt: string;
 }
@@ -211,7 +209,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   const lastSyncStartedAt = useRef(0);
   const runningSyncs = useRef(0);
 
-  // The one place the loan list is loaded, so the bell and Custody Transitions show the same loans. (issue #57)
+  // The one place the loan list is loaded, so the bell and the Lab Head Requests tab show the same loans. (issue #57)
   const reloadLoans = useCallback(async () => {
     const data = await loansApi.listLoans();
     if (data.success && Array.isArray(data.loans)) {

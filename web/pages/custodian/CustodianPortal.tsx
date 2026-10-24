@@ -10,6 +10,7 @@ import jsQR from "jsqr";
 import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
+import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { useSession } from "@web/state/session";
 import { useServerData, holderLabel } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
@@ -129,16 +130,18 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   // A disposal keeps the last custodian on the DISPOSED record, so the name match
   // alone would keep listing assets that are no longer in service.
   const custodianAssets = displayedAssets.filter(a => a.custodian === currentUserName && a.status !== "Disposed");
+  // Only borrowed equipment under the custodian's custody can be picked for an inspection report.
+  // Assets in Maintenance or Disposed cannot be inspected again. (issue #88)
+  const reportEligibleAssets = custodianAssets.filter(a => a.status === "On Loan" || a.status === "Overdue");
 
   useEffect(() => {
-    if (activeTab === "report" && !reportAsset) {
-      if (custodianAssets.length > 0) {
-        setReportAsset(custodianAssets[0].id || custodianAssets[0].asset_tag);
-      } else if (displayedAssets.length > 0) {
-        setReportAsset(displayedAssets[0].id || displayedAssets[0].asset_tag);
+    if (activeTab === "report") {
+      const eligibleIds = new Set(reportEligibleAssets.map(a => a.id || a.asset_tag));
+      if (!reportAsset || !eligibleIds.has(reportAsset)) {
+        setReportAsset(reportEligibleAssets[0]?.id || reportEligibleAssets[0]?.asset_tag || "");
       }
     }
-  }, [activeTab, custodianAssets, displayedAssets, reportAsset]);
+  }, [activeTab, reportEligibleAssets, reportAsset]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -322,7 +325,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   };
 
   const handleSubmitReport = async () => {
-    const selectedAssetId = reportAsset || custodianAssets[0]?.id || displayedAssets[0]?.id || displayedAssets[0]?.asset_tag;
+    const eligibleAsset = reportEligibleAssets.find(a => a.id === reportAsset || a.asset_tag === reportAsset) || reportEligibleAssets[0];
+    const selectedAssetId = eligibleAsset?.id || eligibleAsset?.asset_tag;
     if (!selectedAssetId) {
       alert("Please select an asset to inspect.");
       return;
@@ -332,7 +336,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
     const ref = `RPT-2026-${String(Math.floor(Math.random() * 900 + 100))}`;
     setSubmittedRef(ref);
-    const assetObj = displayedAssets.find(a => a.id === selectedAssetId || a.asset_tag === selectedAssetId) || assets.find(a => a.id === selectedAssetId);
+    const assetObj = eligibleAsset;
     const targetTag = assetObj?.id || assetObj?.asset_tag || selectedAssetId;
     const assetName = assetObj?.name || targetTag;
 
@@ -426,7 +430,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
                       <span className="text-[10px] font-bold text-primary">{asset.id}</span>
-                      <Badge className={cn("text-[9px] px-1.5 py-0.5", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{asset.status}</Badge>
+                      <Badge className={cn("text-[9px] px-1.5 py-0.5", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{assetStatusLabel(asset.status)}</Badge>
                     </div>
                     <p className="text-xs font-bold text-foreground mb-1 line-clamp-1">{asset.name}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{asset.serial} · {asset.lab}</p>
@@ -455,7 +459,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[11px] font-bold text-primary">{asset.id}</span>
-                        <Badge className={cn("text-[10px]", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{asset.status}</Badge>
+                        <Badge className={cn("text-[10px]", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{assetStatusLabel(asset.status)}</Badge>
                       </div>
                       <p className="text-sm font-bold text-foreground mb-2">{asset.name}</p>
                       <div className="flex gap-4 text-xs text-muted-foreground">
@@ -497,12 +501,12 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-foreground mb-1">Available Equipment</h1>
-            <p className="text-muted-foreground text-sm">Browse and select available assets from AdRIC research branches.</p>
+            <p className="text-muted-foreground text-sm">Assets you can request to borrow, from every lab.</p>
             {loadingDbAssets && (
               <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5"><Loader size={11} className="animate-spin" />Loading equipment from database…</p>
             )}
             {!loadingDbAssets && dbAssetsError && (
-              <p className="text-xs text-amber-700 mt-1 flex items-center gap-1.5"><AlertTriangle size={11} />{dbAssetsError} — showing local data.</p>
+              <p className="text-xs text-amber-700 mt-1 flex items-center gap-1.5"><AlertTriangle size={11} />{dbAssetsError} Showing the last list loaded.</p>
             )}
           </div>
           <div className="flex rounded-lg overflow-hidden border border-border">
@@ -555,7 +559,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                   <div>
                     <div className="flex items-center justify-between gap-1 mb-1">
                       <span className="text-[10px] font-bold text-primary">{asset.id}</span>
-                      <Badge className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">{asset.status}</Badge>
+                      <Badge className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">{assetStatusLabel(asset.status)}</Badge>
                     </div>
                     <p className="text-xs font-bold text-foreground mb-1 line-clamp-1">{asset.name}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{asset.serial} · {asset.lab}</p>
@@ -582,7 +586,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[11px] font-bold text-primary">{asset.id}</span>
-                        <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">{asset.status}</Badge>
+                        <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">{assetStatusLabel(asset.status)}</Badge>
                       </div>
                       <p className="text-sm font-bold text-foreground mb-2">{asset.name}</p>
                       <div className="flex gap-4 text-xs text-muted-foreground">
@@ -616,7 +620,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
           <div className={cn("w-full max-w-sm aspect-square rounded-2xl flex flex-col items-center justify-center relative overflow-hidden border-2 transition-colors", scanActive ? "bg-[#0A1F14] border-emerald-500" : "bg-muted border-border")}>
             {!scanActive && !scanResult && (
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                <Camera size={44} /><p className="text-sm">Camera viewport inactive</p>
+                <Camera size={44} /><p className="text-sm">Camera is off</p>
               </div>
             )}
             {scanActive && !scanLoading && !scanResult && (
@@ -640,11 +644,11 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
             {scanResult && (
               <div className="flex flex-col items-center gap-3 p-6 text-center w-full">
                 <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center"><CheckCircle size={24} className="text-emerald-500" /></div>
-                <p className="text-sm font-bold text-foreground">Asset Identified</p>
+                <p className="text-sm font-bold text-foreground">Asset Found</p>
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 w-full text-left space-y-1">
                   <p className="text-xs font-bold text-emerald-900">{scannedAssetData?.id || scanResult} · {scannedAssetData?.name || "Equipment"}</p>
                   <p className="text-[11px] text-emerald-700 font-medium">
-                    Status: <strong className="font-bold">{scannedAssetData?.status || "Active"}</strong> · Lab: {scannedAssetData?.lab || "CITe4D"} · {scannedAssetData?.location || "Manila"}
+                    Availability: <strong className="font-bold">{assetStatusLabel(scannedAssetData?.status || "Active")}</strong> · Lab: {scannedAssetData?.lab || "CITe4D"} · {scannedAssetData?.location || "Manila"}
                   </p>
                   {scannedAssetData && (
                     <p className="text-[10px] text-emerald-600 font-mono">Custodian: {holderLabel(scannedAssetData.custodian, scannedAssetData.custodianHidden)}</p>
@@ -657,7 +661,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
           <div className="flex flex-col gap-3 w-full max-w-sm">
             {!scanActive && !scanResult && (
               <div className="flex flex-col gap-2 w-full">
-                <Button className="w-full" size="lg" onClick={() => setScanActive(true)}><Camera size={16} />Activate Scanner</Button>
+                <Button className="w-full" size="lg" onClick={() => setScanActive(true)}><Camera size={16} />Start Camera</Button>
                 <Label htmlFor="qr-upload-input" className="cursor-pointer">
                   <div className="flex h-10 w-full items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 text-foreground hover:bg-muted font-bold transition-colors">
                     <Upload size={14} className="mr-2 inline" />Upload QR Image
@@ -707,7 +711,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
       <div className="mb-5">
         <h1 className="text-foreground mb-1">Send Asset Inspection Report</h1>
-        <p className="text-muted-foreground text-sm">Submit your asset condition report for Staff inspection compliance. Saves directly to <code className="text-xs bg-slate-100 px-1 py-0.5 rounded text-slate-800">asset_reports</code> in the database and marks the asset as Inspected.</p>
+        <p className="text-muted-foreground text-sm">Report the condition of an asset you hold. Staff see it in the inspection log.</p>
       </div>
 
       {/* Submit result */}
@@ -718,14 +722,14 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               {submitResult === "healthy" ? <CheckCircle size={28} className="text-emerald-500" /> : <Zap size={28} className="text-red-500" />}
             </div>
             <p className={cn("text-base font-extrabold", submitResult === "healthy" ? "text-emerald-800" : "text-red-800")}>
-              {submitResult === "healthy" ? "Report Archived — Asset Healthy" : "Repair Request Triggered"}
+              {submitResult === "healthy" ? "Report Sent" : "Repair Requested"}
             </p>
             <p className={cn("text-xs", submitResult === "healthy" ? "text-emerald-700" : "text-red-700")}>
-              {submitResult === "healthy" ? "Logged in the archival timeline. Asset card updated with green status indicator." : <>Report routed to Staff as high-priority On-Demand Repair Request. Ref: <strong>{submittedRef}</strong></>}
+              {submitResult === "healthy" ? "Your report is saved." : <>Your report went to Staff as a high-priority repair request. Ref: <strong>{submittedRef}</strong></>}
             </p>
             {submitResult === "repair" && (
               <div className="w-full rounded-lg bg-red-100 border border-red-200 p-3 text-left">
-                <p className="text-[10px] font-bold text-red-700 tracking-widest mb-1">STAFF ALERT DISPATCHED</p>
+                <p className="text-[10px] font-bold text-red-700 tracking-widest mb-1">STAFF NOTIFIED</p>
                 <p className="text-xs text-red-700">Status: <strong>{reportStatus}</strong></p>
                 {reportDesc && <p className="text-xs text-red-700 mt-0.5">"{reportDesc.slice(0, 80)}{reportDesc.length > 80 ? "…" : ""}"</p>}
               </div>
@@ -735,51 +739,40 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         </Card>
       )}
 
-      {!submitResult && (
+      {!submitResult && reportEligibleAssets.length === 0 && (
+        <Card className="text-center p-8 text-muted-foreground">No assets to report.</Card>
+      )}
+
+      {!submitResult && reportEligibleAssets.length > 0 && (
         <>
           {/* Asset selector */}
           <div className="mb-4">
             <Label className="text-[11px] font-bold tracking-widest text-muted-foreground uppercase mb-2 block">Select Asset Under Inspection</Label>
-            {custodianAssets.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {custodianAssets.map(asset => (
-                  <button key={asset.id} type="button" onClick={() => setReportAsset(asset.id)}
-                    className={cn("flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer text-left transition-all w-full", reportAsset === asset.id ? "border-primary bg-emerald-50" : "border-border hover:border-primary/40 bg-white")}>
-                    <div className="w-12 h-9 rounded overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image || (asset as any).image_url} /></div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-foreground">{asset.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{asset.id} · {asset.lab}</p>
-                    </div>
-                    {reportAsset === asset.id && <CheckCircle size={15} className="text-emerald-500 flex-shrink-0" />}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <select
-                value={reportAsset}
-                onChange={(e) => setReportAsset(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-bold"
-              >
-                <option value="" disabled>-- Select an Asset from Database --</option>
-                {displayedAssets.map((a: any) => (
-                  <option key={a.id || a.asset_tag} value={a.id || a.asset_tag}>
-                    {a.name || a.assetName} ({a.id || a.asset_tag}) — {a.lab || "CITe4D"}
-                  </option>
-                ))}
-              </select>
-            )}
+            <div className="flex flex-col gap-2">
+              {reportEligibleAssets.map(asset => (
+                <button key={asset.id} type="button" onClick={() => setReportAsset(asset.id)}
+                  className={cn("flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer text-left transition-all w-full", reportAsset === asset.id ? "border-primary bg-emerald-50" : "border-border hover:border-primary/40 bg-white")}>
+                  <div className="w-12 h-9 rounded overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image || (asset as any).image_url} /></div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-foreground">{asset.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{asset.id} · {asset.lab}</p>
+                  </div>
+                  {reportAsset === asset.id && <CheckCircle size={15} className="text-emerald-500 flex-shrink-0" />}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Report form container — border changes based on state */}
+          {/* Report form container: border changes based on state */}
           <div className={cn("rounded-xl border-2 p-5 bg-white transition-all", containerBorderClass)}>
             {/* State banner */}
             {selectedPill && (
               <div className={cn("flex items-center gap-2 p-2.5 rounded-lg mb-4 text-xs font-semibold border", isAlert ? "bg-red-50 border-red-200 text-red-700" : isWarn && descHasFault ? "bg-orange-50 border-orange-200 text-orange-700" : isWarn ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-emerald-50 border-emerald-200 text-emerald-700")}>
                 {isAlert ? <Zap size={12} /> : isWarn ? <AlertTriangle size={12} /> : <CheckCircle size={12} />}
-                {isAlert ? "REPAIR ENGINE WILL BE TRIGGERED — Staff alert on submit"
-                  : isWarn && descHasFault ? "FAULT DETECTED IN DESCRIPTION — Staff alert on submit"
-                    : isWarn ? "Monitor status — describe issue to determine if escalation is needed"
-                      : "Healthy state — will archive to timeline log"}
+                {isAlert ? "A repair request will go to Staff when you send this."
+                  : isWarn && descHasFault ? "Your description sounds like a fault, so Staff will be told when you send this."
+                    : isWarn ? "Describe the problem so Staff can tell whether it needs a repair."
+                      : "No problem reported. The report will be saved."}
               </div>
             )}
 
@@ -827,16 +820,16 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
             {/* Component 2b: Manual description */}
             <div className="mb-5">
-              <Label className="text-[11px] font-bold tracking-widest text-muted-foreground uppercase mb-2 block">Manual Diagnostic Encoding</Label>
+              <Label className="text-[11px] font-bold tracking-widest text-muted-foreground uppercase mb-2 block">Description</Label>
               <Textarea
                 value={reportDesc}
                 onChange={e => setReportDesc(e.target.value)}
-                placeholder="Manually describe the operational behavior, physical defects, or specific diagnostic anomalies observed during runtime tests…"
+                placeholder="Describe what you see or hear, and any damage."
                 rows={4}
                 className={cn("resize-y", triggerRepair && reportDesc ? "border-red-400 focus-visible:ring-red-300" : "")}
               />
               {triggerRepair && reportDesc && (
-                <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1"><AlertTriangle size={11} />Fault keywords detected — Staff repair request auto-generated</p>
+                <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1"><AlertTriangle size={11} />This sounds like a fault, so a repair request will go to Staff.</p>
               )}
             </div>
 
@@ -848,7 +841,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                     Request Immediate Technical Inspection
                   </Label>
                   <p className="text-[11px] text-muted-foreground">
-                    Bypass standard trimestral evaluation for critical defects
+                    For a serious fault: ask Staff to inspect it now.
                   </p>
                 </div>
                 <Switch

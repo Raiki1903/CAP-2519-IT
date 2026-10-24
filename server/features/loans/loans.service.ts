@@ -24,26 +24,7 @@ import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/s
  */
 // TODO(M-02): scoping by lab happens only in the browser. Server-side with lab scoping, after step 14 (a lab_id on assets).
 export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]> {
-    let dbLoans = await loansRepository.findAllNewestFirst();
-
-    // TODO(H-08): a read writes data. With no pending loan and no loan 9, this inserts loan 9 as pending on the first asset for the first student, and the list names its asset "ASUS TUF Gaming A15". Delete the block, its own fix.
-    if (!dbLoans.some(l => l.loan_id === 9 || l.status === "pending" || l.status === "Pending")) {
-        const firstAsset = await loansRepository.findFirstAsset();
-        const firstUser = await loansRepository.findFirstStudent();
-        if (firstAsset && firstUser) {
-            try {
-                const seeded = await loansRepository.create({
-                    loan_id: 9,
-                    asset_id: firstAsset.asset_id,
-                    borrower_id: firstUser.user_id,
-                    purpose: "Graphics & AI Performance Testing",
-                    status: "pending",
-                    due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-                });
-                dbLoans.unshift(seeded);
-            } catch (err) { }
-        }
-    }
+    const dbLoans = await loansRepository.findAllNewestFirst();
 
     const [dbUsers, dbAssets, dbUserCenters] = await loansRepository.findListLookups();
 
@@ -72,8 +53,8 @@ export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]
             loan_id: l.loan_id,
             asset_id: l.asset_id,
             assetId: asset?.asset_tag || `EQ-2024-${l.asset_id}`,
-            asset: l.loan_id === 9 ? "ASUS TUF Gaming A15" : (asset?.name || "ASUS TUF Gaming A15"),
-            assetName: l.loan_id === 9 ? "ASUS TUF Gaming A15" : (asset?.name || "ASUS TUF Gaming A15"),
+            asset: asset?.name || "Unknown asset",
+            assetName: asset?.name || "Unknown asset",
             borrower_id: l.borrower_id,
             borrower: borrowerUser ? `${borrowerUser.first_name} ${borrowerUser.last_name}` : `Borrower ID: ${l.borrower_id}`,
             purpose: cleanPurpose || "Research Project Use",
@@ -88,6 +69,13 @@ export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]
     });
 
     return withoutOthersNames(loans, viewer);
+}
+
+/** Today as yyyy-mm-dd in the server's local time zone (the Node process's TZ), not in UTC. */
+function serverToday(): string {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 /** For a Custodian, leaves the borrower name out of every loan that is not their own. Other roles get the list as is. (D2) */
@@ -107,10 +95,16 @@ function withoutOthersNames(loans: LoanListItem[], viewer: SessionIdentity): Loa
  * @param data the checked borrow body: optional destination lab, purpose, due date
  * @param borrowerId the session user, who borrows as themselves; any borrower name in the body is ignored (issue #32)
  * @returns the created asset_loans row
+ * @throws AppError 400 if the due date is before today
  * @throws AppError 404 if no asset has this tag
  * @throws AppError 409 if the guard refuses the request
  */
 export async function requestLoan(assetTag: string, data: LoanRequestInput, borrowerId: number): Promise<asset_loans> {
+    // Dates only, so a loan due today is accepted. A past due date makes the loan overdue as soon as it is approved.
+    if (String(data.dueDate).slice(0, 10) < serverToday()) {
+        throw new AppError(400, "The due date cannot be in the past.");
+    }
+
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);

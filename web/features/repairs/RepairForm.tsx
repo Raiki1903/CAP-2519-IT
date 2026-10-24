@@ -35,7 +35,7 @@ function ApprovalPipeline({ steps }: { steps: PipelineStep[] }) {
   return (
     <div>
       <p className="text-[10px] font-extrabold text-muted-foreground tracking-[2px] uppercase mb-3">
-        Approvals Pipeline Monitor
+        Repair Steps
       </p>
       <div className="flex items-start">
         {steps.map((step, i) => (
@@ -159,7 +159,7 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
           </div>
           <div>
             <h3 className="font-extrabold text-foreground mb-1" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-              Incident Logged
+              Repair Request Sent
             </h3>
             <p className="text-sm text-muted-foreground">
               Repair request queued. A Staff technician will be assigned shortly.
@@ -295,7 +295,7 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
               <p className="text-sm font-extrabold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 Repair &amp; Maintenance Request
               </p>
-              <p className="text-[11px] text-muted-foreground">Log hardware anomalies to the core optimization track</p>
+              <p className="text-[11px] text-muted-foreground">Report a fault with this asset.</p>
             </div>
           </div>
 
@@ -371,7 +371,7 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
               {submitting ? (
                 <><span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full" /> Logging…</>
               ) : (
-                <><Wrench size={14} /> Log Incident to Maintenance Queue</>
+                <><Wrench size={14} /> Send Repair Request</>
               )}
             </Button>
           </div>

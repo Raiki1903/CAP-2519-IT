@@ -86,8 +86,8 @@ export function IntakeWizard() {
     <Card className="max-w-xl mx-auto">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border pb-4 px-5">
         <div>
-          <CardTitle className="text-sm">Procurement Intake Wizard</CardTitle>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Complete all fields to compile hardware records</p>
+          <CardTitle className="text-sm">New Asset</CardTitle>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Fill in every field.</p>
         </div>
         <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-extrabold">STEP {step} OF 3</Badge>
       </CardHeader>
@@ -176,7 +176,7 @@ export function IntakeWizard() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-bold text-foreground">Funding Origin</Label>
+                <Label className="text-xs font-bold text-foreground">Funding Source</Label>
                 <select value={form.funding} onChange={e => setForm({ ...form, funding: e.target.value })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   {fundingSources.map(f => <option key={f} value={f}>{f}</option>)}
@@ -202,7 +202,7 @@ export function IntakeWizard() {
                 </select>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs font-bold text-foreground">Responsible Laboratory Group</Label>
+                <Label className="text-xs font-bold text-foreground">Lab</Label>
                 <select value={form.lab} onChange={e => setForm({ ...form, lab: e.target.value })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   {/* TODO(M-03): another hardcoded lab list, separate from research_centers. Phase 3. */}
@@ -221,12 +221,6 @@ export function IntakeWizard() {
                 rows={3}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
               />
-            </div>
-            <div className="p-4 bg-muted/40 rounded-xl border border-border text-xs space-y-1.5 text-muted-foreground">
-              <p className="font-bold text-foreground">Procurement Compliance Checklist:</p>
-              <p>✓ Registry tagging matches barcode guidelines</p>
-              <p>✓ Campus location matches real-time room assignments</p>
-              <p>✓ Funding boundaries bound to academic allocations</p>
             </div>
           </div>
         )}

@@ -78,8 +78,11 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
           });
         };
 
+        // A disposed asset has left the registry, and the server refuses a report for it (409).
+        const queueAssets = displayedAssets.filter(a => a.status !== "Disposed");
+
         const getGroupAssets = (groupId: string, labs: string[]) => {
-          return displayedAssets.filter(a => {
+          return queueAssets.filter(a => {
             if (matchesLab(a.lab, labs)) return true;
             // An asset whose lab matches no known lab, or has none, is listed under Group A so it is not lost.
             if (groupId === "A" && (!a.lab || !allKnownLabs.some(kl => matchesLab(a.lab, [kl])))) {
@@ -216,10 +219,9 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                       <SelectValue placeholder="Select Role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="TSG Staff">TSG Staff (Technical Operations)</SelectItem>
-                      <SelectItem value="ITS Staff">ITS Staff (Central Asset Admin)</SelectItem>
-                      <SelectItem value="Lab Head">Lab Head / Approver</SelectItem>
-                      <SelectItem value="Custodian">Custodian Auditor</SelectItem>
+                      <SelectItem value="TSG Staff">Staff</SelectItem>
+                      <SelectItem value="Lab Head">Lab Head</SelectItem>
+                      <SelectItem value="Custodian">Custodian</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -241,7 +243,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-foreground">TSG Technical &amp; Hardware Remarks</Label>
+                <Label className="text-xs font-bold text-foreground">Hardware Remarks</Label>
                 <textarea
                   value={tsgRemarksOption}
                   onChange={(e) => setTsgRemarksOption(e.target.value)}
@@ -252,11 +254,11 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
               </div>
 
               <div>
-                <Label className="text-xs font-bold text-foreground">ITS Governance &amp; Compliance Remarks</Label>
+                <Label className="text-xs font-bold text-foreground">Records Remarks</Label>
                 <textarea
                   value={itsRemarksOption}
                   onChange={(e) => setItsRemarksOption(e.target.value)}
-                  placeholder="Enter asset tag verification, warranty claim status, software license check, or audit compliance notes..."
+                  placeholder="Tag check, warranty claim, software licence, or other records notes..."
                   rows={2}
                   className="w-full rounded-md border border-input bg-background p-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1 resize-none"
                 />
@@ -324,24 +326,33 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                   try {
                     // Save report under asset_reports table in MySQL database before reloading data
                     if (selectedQueueItem.rawAsset?.id || selectedQueueItem.id) {
+                      const conditionEnumMap: Record<string, string> = {
+                        "Perfect": "PERFECT",
+                        "Operational": "OPERATIONAL",
+                        "Minor Drift": "MINOR_DRIFT",
+                        "Degraded Performance": "DEGRADED",
+                        "Critical Defect": "CRITICAL_DEFECT",
+                      };
+                      const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
+                      let res: Response;
                       try {
-                        const conditionEnumMap: Record<string, string> = {
-                          "Perfect": "PERFECT",
-                          "Operational": "OPERATIONAL",
-                          "Minor Drift": "MINOR_DRIFT",
-                          "Degraded Performance": "DEGRADED",
-                          "Critical Defect": "CRITICAL_DEFECT",
-                        };
-                        const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
-                        await inspectionsApi.submitInspectionRaw(targetTag, {
+                        res = await inspectionsApi.submitInspectionRaw(targetTag, {
                           reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
                           reportRemarks: fullNotes,
                           reportImg: inspectionImgOption || null,
                         });
-                        await onReportSaved();
                       } catch (e) {
                         console.error("Failed to save asset inspection report in MySQL asset_reports:", e);
+                        alert("The inspection report could not be saved: the server could not be reached. Please try again.");
+                        return;
                       }
+                      if (!res.ok) {
+                        const body = await res.json().catch(() => null);
+                        // The dialog stays open, so the inspector sees why and can cancel.
+                        alert(body?.error || "The inspection report could not be saved. Please try again.");
+                        return;
+                      }
+                      await onReportSaved();
                     }
 
                     if (selectedQueueItem.rawAsset) {
@@ -353,8 +364,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                     setInspectionImgOption("");
                     setTsgRemarksOption("");
                     setItsRemarksOption("");
-                    // TODO(H-16): this success message shows even when the post failed, because the answer is never read. Step 13 (typed errors).
-                    alert(`Inspection Report logged & saved under asset_reports table in MySQL for ${selectedQueueItem.asset}!`);
+                    alert(`Inspection report saved for ${selectedQueueItem.asset}.`);
                   } finally {
                     setIsSubmitting(false);
                   }

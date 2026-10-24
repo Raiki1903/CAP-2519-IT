@@ -67,7 +67,7 @@ export function DisposalFormDialog({ asset, onClose, onSubmitted }: { asset: any
             </div>
             <div>
               <h3 className="text-sm font-bold text-foreground">Disposal Request Submitted</h3>
-              <p className="text-xs text-muted-foreground mt-1">Sent to the AdRIC Director for approval. The asset stays active until it's authorized.</p>
+              <p className="text-xs text-muted-foreground mt-1">Sent to the AdRIC Director for approval. The asset stays in service until it's approved.</p>
             </div>
             <div className="w-full bg-muted/40 rounded-xl p-3 border text-left text-xs font-mono space-y-1">
               <p><strong className="text-foreground">Asset ID:</strong> {asset.id}</p>

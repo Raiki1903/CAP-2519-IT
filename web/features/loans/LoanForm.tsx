@@ -24,6 +24,13 @@ const BRAND = "#005A36";
 // TODO(M-03): one more hardcoded lab list, in short codes, separate from shared/constants/labs.ts and research_centers. Phase 3.
 const LABS = ["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"];
 
+/** Today as yyyy-mm-dd in the browser's time zone. toISOString() would give the UTC date, a day early before 8 AM in Manila. */
+function localToday(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 type PipelineStatus = "pending" | "active" | "done";
 
 interface PipelineStep {
@@ -36,7 +43,7 @@ function ApprovalPipeline({ steps }: { steps: PipelineStep[] }) {
   return (
     <div>
       <p className="text-[10px] font-extrabold text-muted-foreground tracking-[2px] uppercase mb-3 text-center">
-        Governance Approvals Pipeline
+        Approval Steps
       </p>
       <div className="flex items-start">
         {steps.map((step, i) => (
@@ -101,12 +108,15 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
   const [refId] = useState(`LOAN-${Date.now().toString().slice(-6)}`);
 
   const pipelineSteps: PipelineStep[] = [
-    { label: "Request Lodged", sublabel: "Custodian signature", status: submitted ? "done" : "active" },
-    { label: "Lab Head Approval", sublabel: "Digital handshake auth", status: submitted ? "active" : "pending" },
-    { label: "Staff Verification", sublabel: "Asset check-out complete", status: "pending" },
+    { label: "Request Sent", sublabel: "By you", status: submitted ? "done" : "active" },
+    { label: "Lab Head Approval", sublabel: "Approve or decline", status: submitted ? "active" : "pending" },
+    { label: "Collect the Asset", sublabel: "After approval, get it from the lab", status: "pending" },
   ];
 
-  const canSubmit = selectedLab && purpose && dueDate;
+  const today = localToday();
+  // The picker's min stops a click on a past day, but a typed date still gets through, so it is checked here too.
+  const dueDateInPast = !!dueDate && dueDate < today;
+  const canSubmit = selectedLab && purpose && dueDate && !dueDateInPast;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -142,10 +152,10 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
           </div>
           <div>
             <h3 className="font-extrabold text-foreground mb-1" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-              Loan Request Lodged
+              Loan Request Sent
             </h3>
             <p className="text-sm text-muted-foreground">
-              Your request has been successfully submitted and forwarded to the Lab Head for approval.
+              Your request went to the Lab Head for approval.
             </p>
           </div>
           <div className="w-full rounded-xl bg-[#F3F4F6] border border-border p-4 text-left">
@@ -166,9 +176,8 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
             </Button>
             <div>
               <h3 className="font-extrabold text-foreground text-sm leading-none" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-                Borrow Equipment Request
+                Request a Loan
               </h3>
-              <p className="text-[10px] text-muted-foreground mt-1">Initiating loan approval chain for active asset</p>
             </div>
           </div>
 
@@ -226,14 +235,18 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
 
             <div>
               <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-1.5">
-                <Calendar size={10} /> Expected Return Date
+                <Calendar size={10} /> Due Date
               </Label>
               <Input
                 type="date"
                 value={dueDate}
+                min={today}
                 onChange={e => setDueDate(e.target.value)}
                 className="h-9 text-xs"
               />
+              {dueDateInPast && (
+                <p className="text-xs text-red-600 mt-1">The due date cannot be in the past.</p>
+              )}
             </div>
 
             <Separator className="my-2" />

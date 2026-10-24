@@ -15,7 +15,9 @@ Baseline on `main` at `1ce2aaa3` (the PR #101 merge): typecheck **65** errors, `
 |---|---|---|---|---|---|---|---|
 | A | `fix/h05-state-guards` | #51, #54, #28, #53, #69, and the server half of #88 | Merged in PR #106; the agent's hand checks H1 to H12 and H14 passed on the local test database; H13 (CCS Cloud, read-only) is Raiki's | Plan `6082b361`; `6d9e8164`, `d9c8292c`, `2059d17e`, `caf35fae`, `fca6666b`, `193db447`; docs and comments: the last commit | **65** (unchanged) | **391** to **410** | 2026-10-18, 2026-10-19 |
 | H | `fix/99-returns` | #99, with #59 as a rider | Merged in PR #108; the agent's hand checks H1 to H10 and H12 passed on the local test database; H11 (CCS Cloud, read-only) run by Raiki | Plan `a2d316bb`; `59d6c599`, `684f0212`, `cc8a1190`, `791dd3ba`, `365957eb`, `e178991b`, `d0e9b5d0`; docs and comments: `44dcb6bd` | **65** (unchanged) | **410** to **413** | 2026-10-20 |
-| F | `fix/92-data-loading` | #92, with #57 and #89 | Built (stop 2); the agent's hand checks H1 to H9 passed on the local test database; pull request next | Plan `14f01629`; `05fccb46`, `c40280b9`, `03a7fb1c`, `e8208ddb`, `059ee8bb`, `f3516874`, `128dce87`, `22ad1dd0`; docs: the last commit | **65** (unchanged) | **413** (unchanged) | 2026-10-20 |
+| F | `fix/92-data-loading` | #92, with #57 and #89 | Merged in PR #109; the agent's hand checks H1 to H9 passed on the local test database | Plan `14f01629`; `05fccb46`, `c40280b9`, `03a7fb1c`, `e8208ddb`, `059ee8bb`, `f3516874`, `128dce87`, `22ad1dd0`; docs: the last commit | **65** (unchanged) | **413** (unchanged) | 2026-10-20 |
+| Pre-deploy | `fix/pre-deploy` | H-08, H-13 (the disposal card), disposed assets in the inspection queue (with H-16 there), past loan due dates | Merged in PR #114; the agent's hand checks H1 to H4 passed on the local test database | `5aad7d4f`, `b25ee9cd`, `1a8dc20a`, `518c0159`; docs: the last commit | **65** (unchanged) | **413** to **415** | 2026-10-20 |
+| W | `fix/uat1-labels-ui` | UAT session 1: labels L1 to L10, small UI U2, U8, U10, U13, U14, phone check M1 | Built; the agent's hand checks H1 to H13 passed on the local UAT copy (H13 on the local test database); pull request next | Plan `c6bb7581`; `cafc2810` to `34bb6ca5` (22 commits, section 8); docs: the last commit | **65** (unchanged) | **415** (unchanged) | 2026-10-23 |
 
 ---
 
@@ -847,3 +849,521 @@ Pull and run `npm test` once (413). `serverData.tsx` now has `refreshSharedLists
 - **`syncFromDb()` asks for its lists one after another**, so on CCS Cloud the bell's lists arrive as slowly as the six requests added together. Asking in parallel would be faster but puts six queries on the Prisma pool at once, where UAT already saw pool timeouts. After UAT, with #76.
 - **Staff pages load their own asset list** (`useStaffAssets`) on top of the shared one, so Staff still ask for assets twice at login. 01D.
 - **`handleLoanDecision` and `handleTransferDecision` in `LabHeadAnalyticsView.tsx`** are not called anywhere (their comment says so). Left alone.
+
+---
+
+## Pre-deploy fixes (fix/pre-deploy)
+
+Four small fixes for problems the agent's smoke test of `main` found on 2026-10-20, before tonight's deploy and UAT on 2026-10-21. Branch `fix/pre-deploy` from `main` at `8fb0e2bb` (groups A, H, and F merged, and the teammates' #88, #55, and #43). Baseline there: typecheck **65**, `npm run build` passes, `npm test` **413** passed. Planned and built in one go (no plan stop), one commit per fix. No schema, migration, `package.json`, or CCS Cloud change.
+
+### 1. The fixes
+
+| # | Commit | Kind | What it does | Files | Tests |
+|---|---|---|---|---|---|
+| 1 | `5aad7d4f` `fix(loans)!: the loan list no longer inserts a fake loan 9 (H-08)` | **Behavior change** | `listLoans` no longer inserts a pending loan 9 when no loan is pending. The list names each loan's asset from the asset row, or "Unknown asset" if the row is gone; the "ASUS TUF Gaming A15" special case for loan 9 is gone. `findFirstAsset` and `findFirstStudent` are deleted (only the insert used them). The bell's two loan cards had the same ASUS fallback and now say "Unknown asset" | `loans.service.ts`, `loans.repository.ts`, `NotificationCenter.tsx` (the two `assetName` fallback lines, 295 and 502), `tests/api/loans.test.ts` | **413** (the H-08 test now pins the fix: with no pending loan, `GET /api/asset_loans` writes nothing and lists only the real loans) |
+| 2 | `b25ee9cd` `fix(notifications): the disposal card shows the asset and pathway (H-13)` | **Behavior change** (web) | The Director's bell card read `breakdownReasons` and `disposalPathway`, which `PendingDisposal` declared but nothing filled, so it showed `Decommission request: "undefined". Pathway: undefined.` The shared list only fills the server's packed `reason` text (M-13). The card now reads the pathway and the justification out of `reason` by the labels the server writes (the same labels `GET /api/assets` reads), and shows a reason without them whole | `NotificationCenter.tsx` (the disposal card only), `serverData.tsx` (`PendingDisposal` declares `reason` instead of the three unfilled fields, so the card's read type-checks; nothing else read them) | **413** |
+| 3 | `1a8dc20a` `fix(inspections): leave disposed assets out of the inspection queue` | **Behavior change** (web) | The Inspection Operations Manager leaves Disposed assets out, so they no longer count in a group's Total Assets. The submit now reads the answer (H-16, this dialog only): a refusal shows the server's error, a network failure says the server could not be reached, and in both cases the dialog stays open and the row is not marked Inspected. The success alert shows only after a saved report | `InspectionQueue.tsx`, `inspections.api.ts` (the `submitInspectionRaw` comment, which said no caller reads the answer) | **413** |
+| 4 | `518c0159` `fix(loans)!: refuse a loan with a past due date` | **Behavior change** | Server: `requestLoan` answers 400 "The due date cannot be in the past." for a due date before today, before any database read. Dates only (yyyy-mm-dd), so a loan due today is accepted. "Today" is the **server's local date** (the Node process's time zone), not UTC. Web: `LoanForm`'s date input has `min` today (the browser's local date); a typed past date shows the same message and keeps Submit Request disabled | `loans.service.ts`, `loans.validation.ts` (its comment, which said nothing checks the date), `LoanForm.tsx`, `tests/api/loans.test.ts` | **413** to **415** (added: a past due date answers 400 and writes nothing; a due date of today is accepted) |
+
+**Counts.** Typecheck **65** after every commit. Build passes after every commit. Tests **413** after commits 1 to 3 (commit 1 rewrote the H-08 test, it did not add one), **415** after commit 4 (two tests added).
+
+**Past due dates in the seed and the tests.** `prisma/seed.ts` files no loans. `tests/setup/seed.ts` writes its two loans straight to the database, due in 30 and 14 days. The overdue tests in `analytics.test.ts` (`addOverdueLoan`) already write their rows straight to the database, as group A did, and every test that files a loan through the API uses a due date 14 days ahead. So no seed row or test had to change.
+
+**Joel's PR #112** touches `NotificationCenter.tsx` too. This branch changes only lines 295 and 502 (the loan cards' fallback name) and the disposal card (lines 354 to 364 on `main`), not the session-user or lab-matching lines. The PR #112 branch was not available locally, so the two could not be compared line by line.
+
+### 2. Hand checks
+
+#### Pre-deploy hand checks
+
+**H1 to H4: the agent, in a browser (Playwright MCP), on the local test database `AdRIC_DB_test` only**, after commit 4. Raiki may run any of them again the same way. Before starting: stop any `npm run dev:all` and make sure ports 4000 and 5173 are free. The start script `%TEMP%\adric-predeploy-handchecks\start.mts` (the smoke test's) empties and seeds the test database through the test harness, moves the fixture emails to `@dlsu.edu.ph`, and starts the server; Vite runs with `VITE_API_URL=http://localhost:4000`. Reads go through `q.mts` beside it (SELECT only). Each role gets its own browser context; "Staff context 1" and "Staff context 2" stand for two computers. Seeded assets used: TEST-0001 (Active, nobody holds it), TEST-0004 (Disposed), TEST-0005 (Active, pending loan LOAN-2 from Custodian B), TEST-0006 (Active, held by Custodian A, one report). **No check touches CCS Cloud.**
+
+| # | Fix | Role and screen | Steps | Expected | Database |
+|---|---|---|---|---|---|
+| H1 | 1, H-08 | Lab Head, Custody Transitions | Decline LOAN-2 (TEST-0005), the only pending loan. Reload the browser. Open the bell | LOAN-2 shows Declined, LOAN-1 Approved, with their real asset names; no LOAN-9 anywhere, no "ASUS"; `asset_loans` still holds loans 1 and 2 only | Local test |
+| H2 | 2, H-13 | Staff context 2, Asset Inventory (Table); then Director, the bell | Staff: Decommission TEST-0001 with the justification "Screen cracked beyond repair" and the pathway "Donate to Partner Institution", submit. Director: log in, open the bell, read the disposal card; then Authorize Disposal | The card reads `Decommission request: "Screen cracked beyond repair". Pathway:` then the full text of the Donate to Partner Institution option, then `Requested by: Test Staff TSG.`; no "undefined". After Authorize Disposal the card is gone and TEST-0001 is Disposed | Local test |
+| H3 | 3 | Staff context 1, Inspection Manager | Before H2: open Inspect / Log Report on TEST-0001 and leave the dialog open. After H2: Submit & Finalize Inspection. Then Cancel, reload, look at Group A. Then inspect TEST-0006 | The submit gets 409 and the alert shows the server's message; the dialog stays open and the row stays "For Inspection". After the reload neither TEST-0001 nor TEST-0004 is listed, and Total Assets is 4. TEST-0006 saves: the success alert, the row shows Inspected, one more report in `asset_reports` | Local test |
+| H4 | 4 | Custodian A, Available Equipment, TEST-0005, Request Loan | Type the due date 2026-10-19 (yesterday). Then pick 2026-10-20 (today) and Submit Request. Then, in the same session, post a loan with due date 2026-10-19 straight to `POST /api/assets/TEST-0006/borrow` | The date input's min is today; yesterday shows "The due date cannot be in the past." and Submit Request is disabled; today submits ("Loan Request Lodged", a pending loan due 2026-10-20). The direct post answers 400 with the same message and writes nothing | Local test |
+
+**Results (2026-10-20). H1 to H4: all passed** (the agent, on the local `AdRIC_DB_test` only). No check touched CCS Cloud.
+
+How they ran: a real browser (Chrome, driven by the Playwright MCP) against Vite at `http://localhost:5173` (started with `VITE_API_URL=http://localhost:4000`) and `server/main.ts` on port 4000, started by `%TEMP%\adric-predeploy-handchecks\start.mts`, which empties and seeds the test database through the test harness and its guard (it takes only `TEST_DATABASE_URL` from `.env`, as `npm test` does; the agent did not open `.env` or `pending_registrations.json`). Ports 4000 and 5173 were free before the start; afterwards their processes were ended by PID and the ports checked free. Each role, and each "computer", had its own browser context. Reads went through `q.mts` (SELECT only); nothing was written to the database by hand. Screenshots are in `%TEMP%\adric-predeploy-handchecks\screenshots\`. `.playwright-mcp` was deleted from the repository afterwards. The only console error was a missing `favicon.ico` (404).
+
+| Check | Result | What was seen | Screenshots |
+|---|---|---|---|
+| H1 | Passed | Before: loans 1 (approved) and 2 (pending). Decline on LOAN-2; after the reload, two `GET /api/asset_loans` (200). Custody Transitions: 0 Pending, 1 Completed, 1 Declined; LOAN-2 "Test Tablet Pending Loan (TEST-0005)" Declined, LOAN-1 "Test Monitor On Loan (TEST-0002)" Approved. The bell's Requests tab: "No Pending Requests"; no LOAN-9, no "ASUS" on the page. `asset_loans` after: loans 1 (approved) and 2 (declined), nothing else | `h1-1-custody-no-loan-9.png`, `h1-2-bell-no-loan-9.png` |
+| H2 | Passed | Staff: "Disposal Request Submitted", DISP-2, pending, with the packed reason (pathway, last custodian, date, justification). Director's bell: `Disposal Authorization: Test Dev Kit Available`, `Decommission request: "Screen cracked beyond repair". Pathway:` followed by the Donate to Partner Institution option's full text, `Requested by: Test Staff TSG.`; the word "undefined" is nowhere on the page. Authorize Disposal: `PUT /api/asset_disposals/2/decision` 200; the card is gone; DISP-2 approved and TEST-0001's newest record DISPOSED | `h2-1-decommission-sent.png`, `h2-2-director-bell-card.png`, `h2-3-after-authorize.png` |
+| H3 | Passed | Before H2 the queue already listed TEST-0001, 0002, 0003, 0005, 0006 (no TEST-0004). The dialog left open on TEST-0001, submitted after H2: `POST /api/assets/TEST-0001/inspection` 409 `{"success":false,"error":"TEST-0001 is disposed and cannot take an inspection report."}`; the alert showed exactly that message; the dialog stayed open; the row stayed "For Inspection"; TEST-0001 has no report. After Cancel and a reload: TEST-0002, 0003, 0005, 0006 only, Total Assets 4. TEST-0006: 200, the alert "Inspection Report logged & saved ... for Test Projector Inspected!", the dialog closed, the row shows Inspected; its reports went from 1 to 2 | `h3-1-queue-before.png`, `h3-2-refused-dialog-open.png`, `h3-3-queue-without-disposed.png`, `h3-4-inspection-saved.png` |
+| H4 | Passed | The date input's `min` is `2026-10-20`. With 2026-10-19: the message shows under the input and Submit Request is disabled. With 2026-10-20: enabled; `POST .../TEST-0005/borrow` 200, "Loan Request Lodged"; LOAN-3 pending, borrower Custodian A, due 2026-10-20. The direct post for TEST-0006 with 2026-10-19: `400 {"success":false,"error":"The due date cannot be in the past."}`; `asset_loans` has no loan on TEST-0006 | `h4-1-past-date-refused.png`, `h4-2-today-accepted.png` |
+
+### 3. Before deploying
+
+- **The server's time zone decides "today" for fix 4.** The local PC runs at UTC+8. If the deploy host runs in UTC, then between midnight and 8 AM Manila time the server's "today" is still yesterday, so it accepts yesterday's date in that window (the browser still blocks it). It never refuses Manila's today. Setting `TZ=Asia/Manila` on the host makes the server match the browser.
+- **Loan 9 rows already on CCS Cloud stay.** Fix 1 stops new ones; it does not remove a loan 9 the old code inserted. A read-only check on CCS Cloud (`SELECT loan_id, asset_id, borrower_id, status, purpose FROM asset_loans WHERE loan_id = 9`) shows whether one exists. A row with the purpose "Graphics & AI Performance Testing" was made by H-08, not by a person. Removing it is a team decision.
+- **Two breaking changes** for anyone calling the API by hand: the loan list no longer creates loan 9, and `POST /api/assets/:tag/borrow` refuses a due date before today.
+
+### Noticed, not in this branch
+
+- **`NotificationCenter.tsx:272`** still has the comment "Includes LOAN-9 for Lab Head" above the loan cards. It is stale now, but it sits next to the Lab Head lab-matching lines that Joel's PR #112 changes, so it was left alone to avoid a conflict. One-line comment fix after #112 merges.
+- **The Custodian's Send Inspection Report** (`CustodianPortal.tsx`, `TODO(H-16)` at line 385) still does not read the answer, so a refusal there still shows success. Fix 3 covers the Staff dialog only.
+- **The disposal pathway options** in `DisposalFormDialog.tsx` contain an em dash between "Decommission" and the pathway (for example before "Scrap / Recycle"); they are stored in the reason text and shown in the card as they are. Not changed: renaming them would change stored text.
+
+---
+
+## Batch W: UAT 1 labels and small UI (fix/uat1-labels-ui)
+
+UAT session 1 (a Lab Head, 2026-10-21) found the labels unusual and inconsistent, with each other and with apps people already use (Jakob's Law; Nielsen's "consistency and standards" and "match between system and the real world"). This batch changes display text and five small screen behaviors. Branch `fix/uat1-labels-ui` from `main` at `5b728d41` (PR #114 merged). Baseline there: typecheck **65**, `npm run build` passes, `npm test` **415** passed (16 files). Web only: no schema, migration, server, `package.json`, or test change. Stop 1 (this section) is the plan and the phone check; stop 2 is the build after Raiki's answers.
+
+**The rule for L5 and L6.** "Active" stays the value everywhere it is compared or sent: `serverData.tsx`, `CustodianPortal.tsx`, `StaffAnalyticsView.tsx`, `EditAssetDialog.tsx`'s `form.status`, the badge class maps, the server, and every request body. Only what is shown changes, through one function (section 2, commit 1).
+
+**Out of scope, marked "after workshop" below:** the Requests page layout (tabs, a separate loaned list, the card redesign, decline undo), the bell's lab matching (PR #112), the condition names, "Procured", "Staff Service Remarks", the "On Loan" wording, and custodian versus borrower logic. These wait for the design workshop on 2026-10-29.
+
+Line numbers are on `main` at `5b728d41`.
+
+### 1. Label inventory
+
+One table per role, then one for screens every role sees. **Mark:** "change" (stop 2 changes it), "keep", or "after workshop". **Item** is the brief's group (L1 to L10, U13); it decides the commit (section 5). An em dash in the current text is written here as `--` (no em dashes in this log). Proposed text never has one, and where a changed line had one, it goes.
+
+#### Lab Head
+
+| # | Screen | Where | Now | Proposed | Why | Item | Mark |
+|---|---|---|---|---|---|---|---|
+| LH1 | Sidebar | `Sidebar.tsx:54` | Custody Transitions | Requests | What the page holds; matches the bell's Requests tab | L2 | change |
+| LH2 | Sidebar | `Sidebar.tsx:55` | Branch Inventory | Lab Inventory | The app calls them labs everywhere else, never branches | L10 | change |
+| LH3 | Sidebar | `Sidebar.tsx:56` | Health Benchmarking | Analytics | Plain; one name for this kind of page in every role (answer 1b) | L3 | change |
+| LH4 | Sidebar | `Sidebar.tsx:57` | Account Approvals | Account Approvals | Already plain | | keep |
+| LH5 | Requests, title | `LabHeadDashboard.tsx:494` | Digital Handshake Monitoring | Loan and Transfer Requests | Says what is listed | L2 | change |
+| LH6 | Requests, subtitle | `LabHeadDashboard.tsx:495` | Equipment loan/borrow requests and custodianship transfers for {lab} research branch, pending your authorization. | Loan and transfer requests for {lab}. Approve or decline the pending ones. | Plain; "Approve" (L1) | L2 | change |
+| LH7 | Requests, counters | `LabHeadDashboard.tsx:497-500` | Pending, Completed This Period, Declined | Section 2, U2 | | U2 | change |
+| LH8 | Requests, headings | `:503`, `:568-570` | Equipment Loan Requests; Custodianship Transfer Requests ({n} pending) | as now | "Custodianship" waits for the custodian wording | | after workshop |
+| LH9 | Requests, buttons | `:554`, `:621` | Authorize | Approve | The statuses are Pending, Approved, Declined | L1 | change |
+| LH10 | Requests, card label; printed report | `:537`, `:609`, `:906` | TRANSFER LOCATION (on loans too); report column Transfer Location | DESTINATION LAB; Destination Lab | A loan has no transfer; it is the lab the asset goes to | L10 | change |
+| LH11 | Requests, card | `:546` | Due {date} on every card | Only on Pending and Approved | Section 2, U14 | U14 | change |
+| LH12 | Requests, timeline | `:81-90` | Initiated, Pending Approval / Declined, Custody Transferred | as now | Part of the card redesign and custodian wording | | after workshop |
+| LH13 | Requests, empty | `:513`, `:580` | No loan or borrow requests logged for {lab} branch. / No custodianship transfer requests logged for {lab} branch. | No loan requests for {lab}. / No transfer requests for {lab}. | Plain; no "branch" | L10 | change |
+| LH14 | Lab Inventory, title | `:748-749` | Branch Inventory -- {lab}; Filtered view -- other research centers are masked. | Lab Inventory: {lab}; Only your lab's assets are shown. | Plain, no dash | L10 | change |
+| LH15 | Lab Inventory, badge | `:765` | BRANCH-SCOPED VIEW | removed | Repeats the subtitle; it is also what pushes the header off a phone screen (section 3) | L10 | change |
+| LH16 | Lab Inventory, error | `:754` | {error} -- showing local data only. | {error} Showing the last list loaded. | No dash; "local data" means nothing to a user | L10 | change |
+| LH17 | Lab Inventory, table | `:804` | Status | Availability | Section 1 rule, next to Condition | L5 | change |
+| LH18 | Lab Inventory, table | `:804` | Cond. | Condition | No abbreviation; every other screen spells it | L10 | change |
+| LH19 | Lab Inventory, badges | `:780`, `:814` | Active | Available | Display only | L6 | change |
+| LH20 | Lab Inventory, button | `:759` | Generate Audit Report | Inventory Report | An audit is someone else checking the inventory; this lists it | L4 | change |
+| LH21 | Report dialog | `:832-833` | Generate Lab Audit Report; Preview the audit report for DLSU AdRIC {lab} research center equipment. | Lab Inventory Report; Preview and print the inventory report for {lab}. | L4 | L4 | change |
+| LH22 | Printed report, window title | `:330` | Equipment Audit Report - CITe4D | Inventory Report - {lab} | L4; it also said CITe4D for every lab | L4 | change |
+| LH23 | Printed report, header | `:843`, `:846`, `:848` | Audit Ledger ID: AUD-{lab}-2026; EQUIPMENT AUDIT REPORT; Generated By: {lab} Lab Head / Project Leader | (removed); INVENTORY REPORT; Generated by: {name}, Lab Head | The ledger ID is made up (fixed year 2026); the person's name instead of a title | L4 | change |
+| LH24 | Printed report, summary | `:855-858` | Active Equipment Count; Pending Custody Handshakes; Maintenance Operations Logged; Average Equipment Health Score | Assets in service; Pending transfers; Repair tickets; Average condition score | Says what each number counts | L4 | change |
+| LH25 | Printed report, sections | `:869`, `:901`, `:967`, `:1000` | I. Branch Asset Registry; II. Custody Transitions, Loans & Transfer Trail; III. Component Maintenance & Troubleshooting Operations; IV. Decommissioned & Disposed Assets Archive | I. Assets; II. Loans and Transfers; III. Repairs; IV. Disposed Assets | Plain | L4 | change |
+| LH26 | Printed report, tables | `:874`, `:890`, `:906`, `:972`, `:989`, `:1005` | Status (Active); Transaction ID; Urgency Status; Acknowledge State (Resolved & Acknowledged / Pending Evaluation); Primary Breakdown Reason | Availability (Available); Request ID; Priority; Acknowledged (Yes / Not yet); Reason | L5, L6; "Resolved" was wrong: the flag only says Staff acknowledged it | L4 | change |
+| LH27 | Printed report, empty | `:943`, `:979`, `:1012` | No loan or transfer operations logged for {lab} branch.; No maintenance tickets logged for CITe4D branch.; No decommissioned or disposed assets recorded for {lab} branch. | No loans or transfers for {lab}.; No repair tickets for {lab}.; No disposed assets for {lab}. | The repairs line said CITe4D for every lab | L4 | change |
+| LH28 | Printed report, footer | `:1035-1046` | Auditor Signature / Digital Signature Verified / CITe4D Lab Head / Project Leader; Compliance Status / ✓ AdRIC Assets Compliant / DLSU Engineering Standards | removed | Nothing is checked or signed (section 2, U13) | U13 | change |
+| LH29 | Report dialog, button | `:1052` | Print Audit Ledger | Print Report | L4 | L4 | change |
+| LH30 | Account Approvals | `:645`, `:648` | Lab Head Account Approvals; Authorize or reject pending institutional user registration requests for your assigned research laboratory. | Account Approvals; Approve or decline sign-up requests for your lab. | Title matches the sidebar; "Approve" (L1) | L1 | change |
+| LH31 | Account Approvals | `:652`, `:681` | {n} PENDING REGISTRATION REQUESTS FOR {LAB}; Institutional ID: | {n} pending sign-ups; ID number: | Plain | L10 | change |
+| LH32 | Account Approvals | `:701`, `:703` | ...This will create their active user account in the database.; Account for {name} approved & added to database! | ...This creates their account.; Account for {name} approved. | No database words | L10 | change |
+| LH33 | Account Approvals, empty | `:729-730` | No Pending Account Approvals for {lab}; All registration requests for your research laboratory have been processed. | No sign-up requests for {lab}; Nothing is waiting for your approval. | Plain | L10 | change |
+| LH34 | Analytics, title | `LabHeadAnalyticsView.tsx:936`, `:939`, `:943` | Lab Head Project Allocation & Efficiency Dashboard ({lab}); Real operational equipment loan & transfer approvals, hardware utilization gauge, ...; {lab} Research Laboratory Restricted | Analytics: {lab}; Loans, transfers, project use, and overdue items for your lab.; (badge removed) | Plain; the badge repeats the lab | L3 | change |
+| LH35 | Analytics, widgets | `LabHeadAnalyticsView.tsx:165`, `:172`, `:354`, `:432`, `:570`, `:666`, `:757`, `:838` | Utilization Gauge: Lab Assets Assigned to Projects; Query DB: percentage of lab assets actively assigned to a valid project_id versus unassigned (null).; Project-to-Asset Allocation Matrix (Treemap Preview) and (in its expanded view) ({lab}); Custodianship & Overdue Delinquencies -- {lab}; Diagnostic -- Accountability Scatter Plot ({lab}) and (expanded) Accountability Scatter Plot -- Complete Cohort Analysis ({lab}); Diagnostic -- Cohort Accountability Heatmap Matrix ({lab}) | Assets Assigned to Projects; Share of your lab's assets that belong to a project.; Assets by Project (expanded: Assets by Project ({lab})); Overdue Loans: {lab}; Overdue Loans by Borrower ({lab}), the same in the expanded view; Overdue Loans by Group ({lab}) | Says what the chart shows, not its chart type; no database words | L10 | change |
+| LH36 | Dashboard, button | `LabHeadAnalyticsView.tsx:369`, `:684` | Maximize Tab | Expand | Plain | L10 | change |
+| LH37 | Dashboard, widgets | `:207`, `:230`, `:275` | Equipment Category Breakdown; Equipment Loan Requests; Inter-Lab Transfer Requests | as now | Already plain | | keep |
+| LH38 | Analytics, loading and allocation | `LabHeadAnalyticsView.tsx:124`, `:446` | Synchronizing Lab Analytics with MySQL Database...; Lead research cohort assigned hardware equipment from MySQL database. | Loading analytics...; The project with the most assets from your lab. | No database words (found in the final sweep) | L10 | change |
+
+#### Staff
+
+| # | Screen | Where | Now | Proposed | Why | Item | Mark |
+|---|---|---|---|---|---|---|---|
+| S1 | Sidebar | `Sidebar.tsx:40-42`, `:45` | System Overview, Register Equipment, Asset Inventory, Pending Returns | as now | Already plain | | keep |
+| S2 | Sidebar | `Sidebar.tsx:43`, `:44`, `:46` | Repair Manager, Inspection Manager, QR Tag Wizard | Repairs, Inspections, QR Tags | Common one-word names; page titles follow | L10 | change |
+| S3 | Sidebar | `Sidebar.tsx:47` | Health Benchmarking | Analytics | Answer 1b | L3 | change |
+| S4 | Sidebar role text | `Sidebar.tsx:229`, `:264` | Staff (ITS) / Staff (TSG) | Staff | ITS was removed; one Staff role (L8, L9) | L9 | change |
+| S5 | System Overview | `OverviewPage.tsx:62` | Real-time status summaries, operational telemetry, and quick action routing controls. | Assets, repairs, and returns at a glance, with shortcuts. | Plain | L10 | change |
+| S6 | System Overview, cards | `OverviewPage.tsx:83`, `:97`, `:101-102`, `:110`, `:119`, `:128-129`, `:139` | Pending Return Ledgers; Quick Action Operations; Asset Procurement Registration / Log new hardware items into AdRIC databases; Repair Operations Manager; Inspection Operations Manager; Barcoding & QR Tag Wizards / Generate, select, and preview barcode stickers; Campus Affiliations | Pending Returns; Shortcuts; Register Equipment / Add newly acquired equipment to the inventory; Repairs; Inspections; QR Tags / Pick assets and print their QR tags; Assets by Campus | Match the sidebar names | L10 | change |
+| S7 | System Overview, card | `OverviewPage.tsx:89-90` | 97.8% System Operational Index | removed | A fixed number (`TODO(H-09)`), no source (U13 list, question 6) | U13 | change |
+| S8 | Register Equipment | `RegisterPage.tsx:14-15`, `IntakeWizard.tsx:89-90` | Equipment Procurement Registration; Procurement Intake Wizard; Complete all fields to compile hardware records | Register Equipment; New Asset; Fill in every field. | Matches the sidebar | L10 | change |
+| S9 | Register Equipment | `IntakeWizard.tsx:179`, `:205` | Funding Origin; Responsible Laboratory Group | Funding Source; Lab | Plain; same words as Edit Asset | L10 | change |
+| S10 | Register Equipment | `IntakeWizard.tsx:226-229` | Procurement Compliance Checklist: ✓ Registry tagging matches barcode guidelines ✓ ... | removed | Nothing checks it (U13 list, question 6) | U13 | change |
+| S11 | Asset Inventory | `InventoryPage.tsx:76` | Complete hardware registry · {n} active assets across 2 campuses | {n} assets in service across 2 campuses | "active" would now clash with Available | L10 | change |
+| S12 | Asset Inventory, tabs | `InventoryPage.tsx:92`, `:98` | Active Registry ({n}); Decommissioned Archive ({n}) | In Service ({n}); Disposed ({n}) | "Active" here means "not disposed", which includes On Loan | L6 | change |
+| S13 | Asset Inventory, filter | `InventoryPage.tsx:109` | All Funding Origins | All Funding Sources | Same word as the form | L10 | change |
+| S14 | Asset Inventory, table | `InventoryPage.tsx:164` | Status; Cond. | Availability (L5 commit); Condition (Staff L10 commit) | L5; no abbreviation | L5 | change |
+| S15 | Asset Inventory, badges | `InventoryPage.tsx:174`, `AssetGalleryCard.tsx:30` | Active | Available | L6 | L6 | change |
+| S16 | Asset Inventory, buttons | `InventoryPage.tsx:205`, `AssetGalleryCard.tsx:69` | Remove Asset (tooltip) | Delete Asset | It deletes; the dialog says "Confirm Asset Deletion" | L10 | change |
+| S17 | Edit Asset | `EditAssetDialog.tsx:76-77` | Edit Registry Asset -- {id}; Modify registry information to correct configuration errors or entry mistakes. | Edit Asset: {id}; Correct this asset's details. | Plain, no dash | L10 | change |
+| S18 | Edit Asset | `EditAssetDialog.tsx:148`, `:151-152` | Asset Status; options Active, On Loan, Maintenance | Availability; options Available, On Loan, Maintenance (values unchanged: Active, On Loan, Maintenance) | L5, L6; what is sent stays | L5 | change |
+| S19 | Edit Asset | `EditAssetDialog.tsx:102`, `:127`, `:157`, `:177`, `:230` | Funding Origin; Responsible Laboratory Group; Condition State; Current Custodian Assignment; Save Modifications | Funding Source; Lab; Condition; Custodian; Save Changes | Plain, same as the other screens | L10 | change |
+| S20 | Repairs | `RepairsPage.tsx:52`, `:67` | Repair Operations Manager; Maintenance Request & Priority Matrix | Repairs; Open Repair Requests | Matches the sidebar | L10 | change |
+| S21 | Repairs, table | `RepairsPage.tsx:86`, `:213` | Acknowledge State; Completion State | Acknowledged; Completed | Plain | L10 | change |
+| S22 | Repairs, table | `RepairsPage.tsx:86` | Dispatched To | as now | Tied to the forward-to choice (question 2) | | keep |
+| S23 | Pending Returns | `ReturnsPage.tsx:37` | Pending Returns Ledger | Pending Returns | Matches the sidebar | L10 | change |
+| S24 | Inspections | `InspectionsPage.tsx:25` | Inspection Operations Manager | Inspections | Matches the sidebar | L10 | change |
+| S25 | Inspections dialog | `InspectionQueue.tsx:222-225` | Inspector Role: TSG Staff (Technical Operations), ITS Staff (Central Asset Admin), Lab Head / Approver, Custodian Auditor | Staff, Lab Head, Custodian (the ITS option goes) | ITS was removed; the role is not sent to the server | L8 | change (question 2) |
+| S26 | Inspections dialog | `InspectionQueue.tsx:249`, `:258`, `:262` | TSG Technical & Hardware Remarks; ITS Governance & Compliance Remarks; its placeholder (...or audit compliance notes...) | Hardware Remarks; Records Remarks; Tag check, warranty claim, software licence, or other records notes... | ITS was removed; the stored prefixes `[TSG Remarks]` and `[ITS Remarks]` stay (answer 2a) | L8 | change |
+| S27 | Inspections dialog | `InspectionQueue.tsx:232-238` | Condition Rating options (Perfect (Brand New / 100%) ...) | as now | Condition names | | after workshop |
+| S28 | Inspections dialog | `InspectionQueue.tsx:350` | Inspection Report logged & saved under asset_reports table in MySQL for {asset}! | Inspection report saved for {asset}. | No database words | L10 | change |
+| S29 | QR Tags | `QrTagsPage.tsx:167-168` | QR Tag Layout Wizard; Generate and export printable physical tracking barcodes for laboratory assets. | QR Tags; Pick assets and print their QR tags. | Matches the sidebar | L10 | change |
+| S30 | Analytics | `HealthPage.tsx:35`, `:39-40` | Staff Maintenance & Workflows Dashboard / Numeric Health Benchmarking Grid; their subtitles | Analytics / Condition Benchmarks (sample data); Repairs, condition, warranties, and inspections. / Battery, storage, and uptime per asset. These numbers are samples, not your data. | Answer 1b; the grid shows fixed numbers from `healthData`, so it says so | L3 | change |
+| S31 | Dashboard | `HealthPage.tsx:46` | Technical Support Group Active (badge) | removed | TSG names a unit, not this screen (L8) | L8 | change |
+| S32 | Analytics | `HealthPage.tsx:56`, `:64` | Benchmarks Grid; Advanced Analytics | Benchmarks; Charts | Plain | L3 | change |
+| S33 | Dashboard, widgets | `StaffAnalyticsView.tsx:156`, `:422`, `:559`, `:640` | ...to trigger MySQL DB progress_status updates.; Real-Time Location & Inventory Distribution; Warranty Expiration & Vendor Lifecycle Calendar (90-Day Filter); Staggered Routine Inspection Progress Tracker | ...to update the repair's progress.; Assets by Lab; Warranties Ending in 90 Days; Inspection Progress | Plain; no database words | L10 | change |
+| S34 | Dashboard, chart | `StaffAnalyticsView.tsx:378`, `:405` | Available, On Loan, Under Repair, Disposed | as now | Already says Available | | keep |
+| S35 | Fallback place names | `OverviewPage.tsx:222`, `StaffAnalyticsView.tsx:366` | ITS Warehouse; ITS Main Warehouse | Unknown location | ITS was removed; no such place in the data | L8 | change |
+| S36 | Asset modal, QR | `AssetDetailModal.tsx:440-442` | Permanent QR Tag; Scannable routing node link: | QR Tag; Link: | Plain | L10 | change |
+| S37 | Repair Progress dialog | `RepairProgressDialog.tsx:61`, `:72-76` | MAINTENANCE ➔ RE-ASSIGNED TO CUSTODIAN; condition options | as now | Condition names and custodian wording | | after workshop |
+| S38 | Decommission dialog, success | `DisposalFormDialog.tsx:70` | Sent to the AdRIC Director for approval. The asset stays active until it's authorized. | ...The asset stays in service until it's approved. | L1; "active" would clash with Available | L1 | change |
+
+#### Custodian
+
+| # | Screen | Where | Now | Proposed | Why | Item | Mark |
+|---|---|---|---|---|---|---|---|
+| C1 | Sidebar role text | `Sidebar.tsx:228`, `:263` | Active Custodian | Custodian | The role's name; "Active" now means something else (L6) | L9 | change |
+| C2 | Sidebar tooltip | `Sidebar.tsx:259` | A. Dela Cruz (Active Custodian) (shown when no user is loaded) | Signed-in user | A made-up person | L9 | change |
+| C3 | Sidebar | `Sidebar.tsx:64-67` | My Assets, Available Equipment, QR Scan, Send Inspection Report | as now | Already plain; "Available" now matches L6 | | keep |
+| C4 | My Assets | `CustodianPortal.tsx:401`, `:418` | My Borrowed Assets; No borrowed assets under your custody. | as now | Custodian versus borrower | | after workshop |
+| C5 | My Assets, badges | `CustodianPortal.tsx:432`, `:461` | Active (when shown) | Available | L6 | L6 | change |
+| C6 | Available Equipment | `CustodianPortal.tsx:503` | Browse and select available assets from AdRIC research branches. | Assets you can request to borrow, from every lab. | No "branch" | L10 | change |
+| C7 | Available Equipment | `CustodianPortal.tsx:508` | {error} -- showing local data. | {error} Showing the last list loaded. | No dash | L10 | change |
+| C8 | Available Equipment, badges | `CustodianPortal.tsx:561`, `:588` | Active | Available | L6; matches the page name | L6 | change |
+| C9 | QR Scan | `CustodianPortal.tsx:622`, `:663`, `:646` | Camera viewport inactive; Activate Scanner; Asset Identified | Camera is off; Start Camera; Asset Found | Plain | L10 | change |
+| C10 | QR Scan, result | `CustodianPortal.tsx:650` | Status: Active | Availability: Available | L5, L6 | L5 | change |
+| C11 | Send Inspection Report | `CustodianPortal.tsx:713` | Submit your asset condition report for Staff inspection compliance. Saves directly to asset_reports in the database and marks the asset as Inspected. | Report the condition of an asset you hold. Staff see it in the inspection log. | No database words; "compliance" has no source (U13 list) | L10 | change |
+| C12 | Send Inspection Report, result | `CustodianPortal.tsx:724`, `:727`, `:731` | Report Archived -- Asset Healthy / Repair Request Triggered; Logged in the archival timeline. Asset card updated with green status indicator. / Report routed to Staff as high-priority On-Demand Repair Request.; STAFF ALERT DISPATCHED | Report Sent / Repair Requested; Your report is saved. / Your report went to Staff as a high-priority repair request.; STAFF NOTIFIED | No dash; nothing turns green | L10 | change |
+| C13 | Send Inspection Report, form | `CustodianPortal.tsx:771-774`, `:822`, `:826`, `:831`, `:843` | REPAIR ENGINE WILL BE TRIGGERED -- Staff alert on submit; FAULT DETECTED IN DESCRIPTION -- Staff alert on submit; Monitor status -- describe issue...; Healthy state -- will archive to timeline log; Manual Diagnostic Encoding; its placeholder; Fault keywords detected -- Staff repair request auto-generated; Bypass standard trimestral evaluation for critical defects | A repair request will go to Staff when you send this.; Your description sounds like a fault, so Staff will be told when you send this.; Describe the problem so Staff can tell whether it needs a repair.; No problem reported. The report will be saved.; Description; Describe what you see or hear, and any damage.; This sounds like a fault, so a repair request will go to Staff.; For a serious fault: ask Staff to inspect it now. | No dashes, plain | L10 | change |
+| C14 | Send Inspection Report, form | `CustodianPortal.tsx:52-58`, `:808` | Operational Status -- Preset Selection; the five condition pills | as now | Condition names | | after workshop |
+| C15 | Request Loan form | `LoanForm.tsx:46`, `:111-113`, `:158` | Governance Approvals Pipeline; Request Lodged / Custodian signature, Lab Head Approval / Digital handshake auth, Staff Verification / Asset check-out complete; Your request has been successfully submitted and forwarded to the Lab Head for approval. | Approval Steps; Request Sent / By you, Lab Head Approval / Approve or decline, **Collect the Asset / After approval, get it from the lab**; Your request went to the Lab Head for approval. | The last step is what happens today: approval puts the asset On Loan at once, there is no Staff step (Raiki) | L10 | change |
+| C16 | Request Loan form | `LoanForm.tsx:155`, `:179`, `:181`, `:239` | Loan Request Lodged; Borrow Equipment Request; Initiating loan approval chain for active asset; Expected Return Date | Loan Request Sent; Request a Loan; (removed); Due Date | "Due date" is the word the cards and the error message already use | L10 | change |
+| C17 | Transfer form | `TransferForm.tsx:43`, `:112-114`, `:161`, `:164`, `:188`, `:299` | Governance Approvals Pipeline; Current Owner Sign-off (Custodian confirmation) / Lab Head Approval (Digital handshake auth) / Staff Log Verification (Registry update); Handshake Initiated; Transfer request logged. Lab Head approval is now pending.; Initiate formal liability handoff between research personnel; Initiate Handshake | Approval Steps; Your Request (By you) / Lab Head Approval (Approve or decline) / **Done (The asset moves to the new custodian)**; Transfer Request Sent; Your transfer request is waiting for the Lab Head.; Ask to move this asset to another custodian.; Send Transfer Request | "Handshake" is not a word users know; the last step is what happens today (Raiki) | L10 | change |
+| C18 | Transfer form | `TransferForm.tsx:186`, `AssetDetailModal.tsx:59`, `:547` | Custodianship Transfer | as now | Custodian wording | | after workshop |
+| C19 | Repair form | `RepairForm.tsx:38`, `:162`, `:298`, `:374` | Approvals Pipeline Monitor; Incident Logged; Log hardware anomalies to the core optimization track; Log Incident to Maintenance Queue | Repair Steps; Repair Request Sent; Report a fault with this asset.; Send Repair Request | Plain | L10 | change |
+| C20 | Repair form | `RepairForm.tsx:117`, `:323-332`, `:191` | ITS Central Override step; Forward Target Department: TSG, ITS, Both | as now | The chosen unit is sent in the request body; waits for the ITS removal branch (answer 2a) | | keep (ITS removal branch) |
+| C21 | Transfer form | `TransferForm.tsx:226` | The recipient must accept this transfer before custody moves. | Once the Lab Head approves, the asset moves to the new custodian. | Says what happens: approval moves the asset at once (follow-up after stop 2) | L10 | change |
+
+#### AdRIC Director
+
+| # | Screen | Where | Now | Proposed | Why | Item | Mark |
+|---|---|---|---|---|---|---|---|
+| D1 | Sidebar | `Sidebar.tsx:74` | Executive Overview | Overview | Plain; Staff's home is "System Overview" | L10 | change |
+| D2 | Sidebar | `Sidebar.tsx:75` | Descriptive Analytics | Analytics | Answer 1b | L3 | change |
+| D3 | Sidebar | `Sidebar.tsx:76` | Approvals & Holds | Disposal Approvals | There are no holds on that page (the holds screen went in step 8, F-37) | L10 | change |
+| D4 | Sidebar | `Sidebar.tsx:77` | Audit Generator | Inventory Report | L4 | L4 | change |
+| D5 | Every tab, header | `AdRICDirectorDashboard.tsx:983-986` | AdRIC Director Control Suite; ADMIN OVERWATCH badge; High-level executive oversight, health tracking, decommissioning approvals, and compliance audit trail reporting. | The tab's name (Overview, Disposal Approvals, Inventory Report); no badge; no subtitle. The Analytics tab shows only its own title ("Analytics"), not two | Every other role's page title is the tab's name; "compliance audit trail" has no source (U13 list) | L10 | change |
+| D6 | Overview, cards | `:306`, `:323`, `:328`, `:340` | Registry Valuation; Active Inventory; {n} Equipment; Maintenance & Degrading | Total Value; Assets in Service; {n} assets; In Maintenance or Degraded | "Active" would clash with Available | L10 | change |
+| D7 | Overview | `:401-404` | Administrative Oversight paragraph | removed | No information | L10 | change |
+| D8 | Overview, lab table | `:412`, `:419`, `:424`, `:450-456` | Specialized Laboratories Status Matrix; Laboratory ID; Status (Safe, Attention, Critical Watch, Unassigned) | Labs; Lab; Condition (Good, Attention, Critical, No assets) | "Status" would read as availability; it is the lab's average condition | L10 | change |
+| D9 | Disposal Approvals | `:495`, `:499` | Regulated Disposal Approvals Queue; Assets scheduled for decommissioning by Staff cannot be purged without the Director's authorized sign-off. | Disposal Requests; Staff asked to dispose of these assets. Each one needs your approval. | Plain | L10 | change |
+| D10 | Disposal Approvals, card | `:518`, `:521` | Proposed by:; Pending Sign-off | Requested by:; Pending | Same words as the other cards | L10 | change |
+| D11 | Disposal Approvals, buttons | `:537`, `:545` | Reject & Recirculate; Authorize Disposal | **Decline**; Approve Disposal | L1; Decline everywhere, as for loans, transfers, and sign-ups (Raiki) | L1 | change |
+| D12 | Disposal Approvals, empty | `:556-557` | Approvals Queue Empty; No assets require decommissioning sign-off. | No Disposal Requests; Nothing is waiting for your approval. | Plain | L10 | change |
+| D13 | Inventory Report | `:641`, `:714`, `:719` | Custom Audit Report Generator Filters; AdRIC Compliance Audit Report ({n} ASSETS FOUND); Audit Ready (badge) | Inventory Report Filters; Inventory Report ({n} assets); (badge removed) | L4; "Audit Ready" has no source (U13) | L4 | change |
+| D14 | Inventory Report | `:659`, `:704`, `:751` | Funding Source (Segregated); Export CSV Archive; 0 ASSETS FOUND matching the active filter criteria. | Funding Source; Export CSV; No assets match these filters. | Plain | L4 | change |
+| D15 | Inventory Report, table | `:727`, `:733`, `:790`, `:803` | Equipment ID; Status / Custodian (Active); Full Lifecycle | Asset ID; Availability / Custodian (Available); History | Same words as the other tables; L5, L6 | L5 | change |
+| D16 | Inventory Report, table, history dialog, CSVs | `:728`, `:765-766`, `:853-854`, `:146-147`, `:609`, `:612` | Physical Tag: DLSU-ITS-{id} over DLSU-TSG-{id} (made up when the asset has no tag); ITS Property Tag; TSG Property Tag; CSV header Property Tag | Property Tags: "ITS: {tag or None}" over "TSG: {tag or None}"; the two labels kept, "None" instead of a made-up tag; CSV header ITS Property Tag, value None when there is none | Answer 3a | L8 | change |
+| D17 | Inventory Report, CSV | `:609`, `:620`, `:630` | header Status, value Active; file AdRIC_Audit_Report_{filter}_Funding.csv | header Availability, value Available; AdRIC_Inventory_Report_{filter}_Funding.csv | L4, L5, L6: people read the file | L4 | change |
+| D18 | History dialog | `:825`, `:828`, `:857`, `:968` | Asset Lifecycle Audit Trail: {id}; Full chronological registry logs mapping physical location, history, and custody transitions.; Current Status: Active; Close Audit Trail | Asset History: {id}; Transfers, repairs, inspections, and disposal of this asset.; Availability: Available; Close | L4, L5, L6 | L4 | change |
+| D19 | History dialog | `:855` | Deed of Donation Ref: DOD-2024-{n} | removed | Made up from the asset tag; no such record (U13 list, question 6) | U13 | change |
+| D20 | History CSV | `:135`, `:148` | Asset Lifecycle Audit Trail Report; Current Status | Asset History Report; Availability (value through the label function) | L4, L5 | L4 | change |
+| D21 | Analytics | `DirectorAnalyticsView.tsx:1062`, `:1065` | AdRIC Director Executive Dashboard; Governance & Funding analytics: ... grant renewal readiness, audit readiness, and procurement budget justification. | Analytics; Value, funding, transfers, and use of assets across AdRIC. | Answer 1b; "readiness" has no source | L3 | change |
+| D22 | Analytics, widgets | `DirectorAnalyticsView.tsx:277`, `:292`, `:305`, `:308`, `:333`, `:336`, `:661`, `:929` | Filtered acquisition valuation from MySQL database; Filtered items awaiting decommissioning sign-off; Stacked Column Chart: Location vs. Status; X-axis: ... (ACTIVE=Green, ON_LOAN=Yellow, MAINTENANCE=Red).; Line Graph: Audit Compliance (`asset_reports` over time); Counts of asset_reports submitted over time ...; Cross-Campus Resource Transfer Flow (Dynamic Sankey Diagram); Descriptive -- Asset Utilization Preview | Total value of the filtered assets; Filtered disposal requests waiting for your approval; Assets by Campus and Availability; (removed); Inspection Reports per Month; Inspection reports filed each month.; Transfers Between Campuses; Asset Use | Says what the chart shows; "Audit Compliance" is only a count of inspection reports | L10 | change |
+| D23 | Analytics, legend | `DirectorAnalyticsView.tsx:320-322` | ACTIVE (Green); ON_LOAN (Yellow); MAINTENANCE (Red) | Available; On Loan; Maintenance (the `dataKey`s stay) | L6 | L6 | change |
+| D24 | Analytics | `DirectorAnalyticsView.tsx:407` | Funding Capital & Valuation Breakdown | Value by Funding Source | Plain | L10 | change |
+
+#### Every role (shell, bell, asset modal, account, login)
+
+| # | Screen | Where | Now | Proposed | Why | Item | Mark |
+|---|---|---|---|---|---|---|---|
+| A1 | Sidebar config | `Sidebar.tsx:32-33`, `:37-38`, `:51-52`, `:61-62`, `:71-72` | label and subtitle per role: "Staff" / "Asset Administration & Maintenance", "Lab Head / Project Leader" / "Command Suite", "Active Custodian" / "Borrower Micro-Portal", "AdRIC Director" / "Executive Oversight" | removed (the two fields) | **Never shown**: nothing reads `cfg.label` or `cfg.subtitle` (checked in the code and in the browser). What users see is the role text in A2 | L9 | change |
+| A2 | Sidebar role text, mobile header chip, Preferences, Account Settings | `Sidebar.tsx:227-230`, `:262-265`, `:551`, `:557-558`, `RootLayout.tsx:111-114`, `AccountDetailsPage.tsx:126-134` | five separate role-name copies: AdRIC Director / Active Custodian / Staff (ITS) / Lab Head; Director / Custodian / Staff / Lab Head; "Authorized User:" and "Role Context: LabHead" (the code name); the Account page's own list (with Active Custodian) | one `roleLabel` map in `session.tsx`: Staff, Lab Head, Custodian, AdRIC Director, read by all of them; Preferences shows "Signed in as:" and "Role: Lab Head" | One name per role everywhere; U10 needs it too | L9 | change |
+| A3 | Sidebar | `Sidebar.tsx:402-412` | SYSTEM STATUS / All services operational / Last sync: 2 min ago | removed | Fixed text; nothing is checked (U13 list, question 6) | U13 | change |
+| A4 | Sidebar | `Sidebar.tsx:380-383` | CURRENT ROUTE /lab-head/custody | as now | Not a label; noted at the end | | keep |
+| A5 | Bell, loan button | `NotificationCenter.tsx:807` | Authorize Loan | Approve Loan | L1 | L1 | change |
+| A6 | Bell, disposal button | `NotificationCenter.tsx:862` | Authorize Disposal | Approve Disposal | L1 | L1 | change |
+| A6b | Bell, disposal decline button | `NotificationCenter.tsx:871` | Reject | Decline | Decline everywhere (Raiki) | L1 | change |
+| A7 | Bell, other text | `NotificationCenter.tsx:362`, `:682`, `:686`, `:706`, `:765`, `:996` | Disposal Authorization: {asset}; Scope: {name} ({role code, for example LabHead}); Action Required; Clearance Holds; Pending Approval; Dynamic role-filtered notification stream | as now | PR #112 (Joel) is in this file; only the two button lines change here. To do after #112 merges: "Disposal Request:", "({role label})", and drop the footer line | | after PR #112 |
+| A8 | Asset modal, header | `AssetDetailModal.tsx:320-322` | badge Active | Available | L6 | L6 | change |
+| A9 | Asset modal, header | `AssetDetailModal.tsx:311-324` | (no custodian near the top) | Custodian: {name} | Section 2, U8 | U8 | change |
+| A10 | Asset modal, facts | `AssetDetailModal.tsx:233-234` | Funding Org.; Condition State | Funding Source; Condition | Same words as the forms and tables | L10 | change |
+| A11 | Asset modal, facts | `AssetDetailModal.tsx:238` | Procured | as now | Named in the brief | | after workshop |
+| A12 | Asset modal | `AssetDetailModal.tsx:387` | Staff Service Remarks | as now | Named in the brief | | after workshop |
+| A13 | Asset modal, history | `AssetDetailModal.tsx:396`, `:63`, `:696` | Custodian History & Lifecycle Audit Trail; Custodian History Audit Trail | Custodian History | L4 (not an audit) | L4 | change |
+| A14 | Asset modal, history | `AssetDetailModal.tsx:415` | Original Intake: {name} / fallback "Staff Tagging Registry" | First custodian: {name} / fallback "Not assigned" | L7 | L7 | change |
+| A15 | Asset modal, history | `AssetDetailModal.tsx:411` | Prior Custodian; No prior custodian on record | Previous custodian; None | Plain | L7 | change |
+| A16 | Asset modal, full history | `AssetDetailModal.tsx:709`, `:717`, `:744`, `:748` | Fetching custodian records from MySQL database…; No historical custodian records logged for this asset in the database.; Email / Institutional Contact:; Status / Asset Condition: ACTIVE · PERFECT | Loading custodian history…; No custodian history for this asset yet.; Email:; Availability / Condition: Available · PERFECT | No database words; L5; the history sends the stored form (ACTIVE, ON_LOAN), so the label function reads both forms | L5 | change |
+| A17 | Account Settings | `AccountDetailsPage.tsx:150`, `:257`, `:269`, `:282`, `:307` | Manage your active profile credentials and session state; Assigned Security Role; Institutional ID Number; Institutional Lab Affiliation; Profile successfully updated! Changes are synchronized across your active session block. | Your profile and sign-in details.; Role; ID Number; Lab; Profile saved. | Plain | L10 | change |
+| A18 | Account Settings | `AccountDetailsPage.tsx:298` | Security Lockout: Under DLSU Laboratory Infrastructure Policy, you are barred from changing your system role, user type, ID number, or lab affiliation. Contact your AdRIC Director or IT Services for authorization overrides. | You cannot change your role, user type, or ID number (, or your lab) here. Ask the AdRIC Director if one of them is wrong. | Cites a policy with no source (U13 list) | U13 | change |
+| A19 | Account Settings | `AccountDetailsPage.tsx:218`, `:229` | placeholders "Joel P.", "Balanay II" | "e.g. Juan", "e.g. Dela Cruz" | A teammate's real name in the code | L10 | change |
+| A20 | Login | `Login.tsx:106-107`, the field labels, the submit button | Secure Institutional Sign-In; Authorized access via @dlsu.edu.ph credentials; Institutional Email Address; Institutional Password; Authenticate & Enter System; Authenticating Credentials... | Sign In; Use your @dlsu.edu.ph account.; DLSU Email; Password; Sign In; Signing in... | What every other sign-in page says | L10 | change |
+| A21 | Not found page | `NotFound.tsx` | The route you requested does not exist in this system.; Return to Login (also to someone signed in) | This page does not exist.; Go to my home page when signed in, Return to Login when not (answer 5b) | Plain | U10 | change |
+| A22 | Every pending card, modal | `AssetDetailModal.tsx:219` | Requested by another user | as now | Plain | | keep |
+| A23 | Asset modal, header of an open form | `AssetDetailModal.tsx:249`, `:307` | Request Equipment Loan -- {asset} | Request a Loan: {asset} | No dash; the same name as the form's own title (found by H6) | L10 | change |
+
+**Counts (as built, stop 2).** Rows marked "change": Lab Head **34**, Staff **33**, Custodian **15** (with C21, a follow-up after stop 2), Director **23**, every role **19** (A1 to A23 with A6b, less A4, A7, A11, A12, A22): **124** in all. "After workshop" or "after PR #112": 10. "Keep": 9 (C20 joined them with answer 2a). At stop 1 the counts were 33, 32, 15, 23, 17 (120); the rows that changed since are listed in section 8, "Differences from the plan".
+
+### 2. Small UI
+
+#### U2: the Lab Head counters count loans only
+
+**Now.** [LabHeadDashboard.tsx:487-500](../../web/pages/lab-head/LabHeadDashboard.tsx#L487-L500): three cards above both lists: `pendingCount` (loans Pending), `approvedCount` (loans Approved or Returned, labelled "Completed This Period", although no period applies: it counts every loan ever), `declinedCount` (loans Declined). `pendingTransferCount` (line 490) is shown only in the transfer heading (line 569).
+
+**Change.** Four cards, labelled as what they count: **Loans pending**, **Loans approved** (Approved plus Returned, all time; question 4), **Loans declined**, **Transfers pending** (`pendingTransferCount`). The grid goes from `grid-cols-3` to `grid-cols-2 sm:grid-cols-4`, so four cards fit a phone in two rows (a new fourth card in a three-column grid would wrap badly at 390 px, so this layout change is caused by this item). The transfer heading keeps its "({n} pending)".
+
+#### U8: the current custodian near the top of the asset modal
+
+**Now.** The custodian shows only inside the closed "Custodian History & Lifecycle Audit Trail" section ([AssetDetailModal.tsx:407](../../web/features/assets/AssetDetailModal.tsx#L407)), and in the full history (Lab Head only).
+
+**Change.** One line under the badges in the modal header (after line 323), on the detail view: **Custodian: {name}**, from `holderLabel(asset.custodian, asset.custodianHidden)`. So a Custodian sees "Not shown" for an asset someone else holds (D2, the existing rule), and everyone sees "None" for an asset nobody holds. It reads the asset row, not the history, so it shows at once (the history loads after). Not in the facts grid: on a phone that grid's column is 68 px wide and cuts text (section 3).
+
+#### U10: another role's address
+
+**Now.** [RootLayout.tsx:70-77](../../web/app/layouts/RootLayout.tsx#L70-L77): `isOnWrongSection` (any path not under the user's own slug) and `isAtRoot` both `<Navigate to={roleDefaultPath[role]} replace />`. Seen on the UAT copy: a Lab Head who opens `/adric-director/overview` lands on `/lab-head/custody` with no message. An address that no route has (for example `/director/overview`; the Director's tree is `/adric-director/`) shows `NotFound` (outside `RootLayout`), whose button says "Return to Login" to a user who is logged in.
+
+**Change.** `isAtRoot` and a logged-out visitor keep the redirect. For `isOnWrongSection`, `RootLayout` renders its normal frame (sidebar, mobile header, bell) and, in place of the page, a new `web/pages/NoAccess.tsx`: heading **You don't have access to this page**, the line "You are signed in as {roleLabel[role]}. This page is for another role.", and one button **Go to my home page** (`roleDefaultPath[role]`). The other role's page is never mounted, so none of its requests are sent (the server would refuse them with 403 anyway). `RootLayout`'s TSDoc changes with it. With question 5 (b), `NotFound` also shows **Go to my home page** instead of "Return to Login" when someone is logged in.
+
+#### U13: the Lab Head report's "Compliance Status"
+
+**Now.** [LabHeadDashboard.tsx:1034-1046](../../web/pages/lab-head/LabHeadDashboard.tsx#L1034-L1046): a footer with "Auditor Signature / Digital Signature Verified" and "Compliance Status / ✓ AdRIC Assets Compliant / DLSU Engineering Standards". Nothing is checked, signed, or compared with a standard; it is fixed text.
+
+**Change.** The footer goes, both halves. The printed report ends after section IV.
+
+**Other wording with no real source** (every row is fixed text or a made-up value; none reads data that supports it):
+
+| Where | Text | Proposal |
+|---|---|---|
+| `AdRICDirectorDashboard.tsx:719` | Audit Ready (badge) | Remove (in L4's commit, D13) |
+| `AdRICDirectorDashboard.tsx:986` | ...compliance audit trail reporting. | Remove (D5) |
+| `AdRICDirectorDashboard.tsx:855` | Deed of Donation Ref: DOD-2024-{n} | Remove (D19) |
+| `DirectorAnalyticsView.tsx:333`, `:1065` | Audit Compliance; audit readiness, grant renewal readiness | Rename and remove (D21, D22) |
+| `IntakeWizard.tsx:226-229` | Procurement Compliance Checklist (three ✓ lines) | Remove (S10) |
+| `CustodianPortal.tsx:713` | ...for Staff inspection compliance. | Rewrite (C11) |
+| `InspectionQueue.tsx:258`, `:262` | ITS Governance & Compliance Remarks; ...audit compliance notes... | Rewrite (S26) |
+| `OverviewPage.tsx:89-90` | 97.8% System Operational Index | Remove (S7) |
+| `Sidebar.tsx:402-412` | All services operational, Last sync: 2 min ago | Remove (A3) |
+| `AccountDetailsPage.tsx:298` | Under DLSU Laboratory Infrastructure Policy... | Rewrite (A18) |
+
+With answer 6 (a) the removals beyond the Lab Head footer went into the same commit, only where the text had no data behind it (section 8 lists what was removed).
+
+#### U14: a declined loan still shows a due date
+
+**Now.** [LabHeadDashboard.tsx:546](../../web/pages/lab-head/LabHeadDashboard.tsx#L546): every loan card shows `Due {loan.dueDate}`. Seen on the UAT copy: LOAN-11 (Declined) shows "Due 2026-11-04".
+
+**Change.** The due date line shows only when `loan.status` is Pending or Approved. Declined and Returned cards show only "Requested {date}". (A returned loan's due date has passed its use; the brief names pending and approved.)
+
+### 3. Phone check (M1)
+
+**Run by the agent on 2026-10-23, Playwright (Chrome) at 390 x 844, on the local UAT copy `adric_uat_check`** (started with `C:\dev\uat-data\start-local-uat.ps1`, which printed "Starting on localhost / adric_uat_check"; every API request went to `http://localhost:4000`), logged in as the CITe4D Lab Head account. Nothing was changed: no click approved, declined, or saved anything. Screenshots: `%TEMP%\adric-batchW-m1\screenshots\` (14 files, `m1-01` to `m1-14`). "Wide" is the page area's scroll width against its 375 px visible width. **Nothing was fixed** (no label change exists yet).
+
+| Screen | Wide | What breaks | Screenshot |
+|---|---|---|---|
+| Requests (Custody Transitions) | **713 px** | **Approve and Decline are off screen**: each loan card puts its buttons to the right of the details (`flex-shrink-0`), at x 513 to 713, so a Lab Head must scroll the whole page sideways to find them. The details row (borrower, destination, purpose, dates) and the three-step timeline also run past the edge ("Pending A..." cut, "Requested {date}" at x 386 to 497). The three counters fit, with "Completed This Period" on three lines. The bell button covers part of the second card | `m1-01-requests-top.png`, `m1-02-requests-full.png` |
+| Navigation drawer | fits | Opens and closes. Role text "Lab Head"; the long name is cut ("UAT LabHead CITe4D O...") | `m1-03-nav-drawer.png` |
+| Lab Inventory, Gallery | **639 px** | The header row does not wrap: the title is squeezed into a 120 px column ("Branch / Inventory / -- / CITe4D" on four lines) and the Gallery/Table switch and the BRANCH-SCOPED VIEW badge sit off screen (to x 639). The cards themselves fit | `m1-04-inventory-gallery.png` |
+| Lab Inventory, Table | 639 px, table 1088 px | The table scrolls inside its card (Asset ID and Name show; Status, Custodian, Location, Condition, Funding need a sideways swipe), which is normal for a table. Clicking "Table" (off screen) scrolled the page sideways and left a blank strip until scrolled back | `m1-05-inventory-table.png`, `m1-06-inventory-table-left.png` |
+| Asset detail modal | fits (358 px) | The picture and the facts sit side by side, so the facts column is 68 px wide and cuts serial, property tag, location, and dates ("SN-TUFN...", "2025-08..."). The custodian is not visible without opening the history section (U8). Escape does not close it (the X does) | `m1-07-asset-modal.png` |
+| Inventory report dialog | fits | The dialog uses the full screen; the report scrolls inside it and its tables scroll sideways. The four summary figures squeeze into four 60 px columns and their labels run into each other ("MAINTENANCE OPERATIONS LOGGED" into "AVERAGE EQUIPMENT"). Print and Close are reachable | `m1-08-report-dialog.png` |
+| Dashboard (Health Benchmarking) | **467 px** | A "Maximize Tab" button row pushes the page sideways. The page is 4,098 px tall. The text shows database words ("Query DB", "project_id", "(null)") | `m1-09-health-top.png`, `m1-10-health-full.png` |
+| Account Approvals | fits | No pending sign-ups on the copy, so only the empty state was seen | `m1-11-approvals.png` |
+| The bell | fits (342 px) | Fits; Approve Transfer, Authorize Loan, and Decline are on screen. The tab "Clearance Holds" wraps to two lines; the header shows the code name "(LabHead)" (A7) | `m1-12-bell.png` |
+| Requests, a declined card | 713 px | LOAN-11 (Declined) shows "Due 2026-11-04" (U14) | `m1-13-declined-loan-card.png` |
+| Account Settings | fits | Nothing breaks | `m1-14-account.png` |
+
+**Not counted:** in two screenshots taken right after a page load, the navigation drawer showed half open over the page. Measured at once and six more times over three seconds, it was closed (x = -240) each time, and a second screenshot showed it closed. It may be the screenshot catching the drawer's 0.28 s animation; it was not seen by eye on a real phone. **Changes in this batch that affect a phone:** U2 (four counters, laid out 2 x 2), LH15 (the badge that overflows goes), LH36 ("Expand" is shorter than "Maximize Tab"), U8 (a line in the modal header). Stop 2's H12 measures the same screens again. The Requests buttons off screen are the worst problem; fixing them is a card layout change, out of scope here (question 7).
+
+### 4. Tests
+
+Searched `tests/` for every text this plan changes ("Authoriz", "Audit", "Health Benchmark", "Custody Transition", "Handshake", "Original Intake", "Staff Tagging", "Compliance", the sidebar subtitles, "Available", "Availability", "Completed This Period", "Inventory Report", "ITS Governance", "don't have access"). `npm test` runs only `tests/**/*.test.ts` (API and seed); there are **no web tests** (`*.test.tsx`, `*.spec.*`: none). The hits are all server values this batch does not touch:
+- `"Active"` as the listed status: `assets.test.ts:37`, `disposals.test.ts:121`, `:339`, `loans.test.ts:138`, `:323`, `repairs.test.ts:139`, `:363`, `:428`, `returns.test.ts:109`, `:121`, `transfers.test.ts:150`, `:291`, and `tests/setup/fixtures.ts:93`, `:112`, `:120`, `:122`. They pin what `GET /api/assets` sends; L6 changes only what the screen shows, so they stay as they are.
+- `auditComplianceData` (`analytics.test.ts:106`, `:164`, `:210`) and `{ name: "Available" }` (`analytics.test.ts:625`, `:657`): field names and values of `/api/analytics`, not changed.
+
+So **no test changes or is added**, and the count stays **415** after every commit. The typecheck stays **65** (the new `assetStatusLabel` and `roleLabel` are typed; removing the unused `label` and `subtitle` fields changes the `roleConfig` type in the same file only). If either count moves, the report says why.
+
+| Commit (section 5) | Tests | Count after |
+|---|---|---|
+| 1 to 22 (as built, section 8) | none (web) | **415** |
+| 23 (docs) | none | **415** |
+
+### 5. Stop 2 plan
+
+On `fix/uat1-labels-ui`, in this order. After every commit: `npm run typecheck` (65) and `npm test` (415); `npm run build` at the end and after commit 1. One label group or one U item per commit. Commit, never push.
+
+| # | Commit message | Files (rows of section 1) |
+|---|---|---|
+| 1 | `feat(web): one display name per asset availability and per role` | `web/features/assets/assetBadges.tsx`: `assetStatusLabel(status)`, with TSDoc: "Active" and "ACTIVE" give "Available", "ON_LOAN" gives "On Loan", "MAINTENANCE" "Maintenance", "DISPOSED" "Disposed", anything else as it came (so "On Loan", "Overdue" pass through). `web/state/session.tsx`: `roleLabel: Record<Role, string>`. Nothing uses them yet: no screen changes |
+| 2 | `fix(labels): Approve instead of Authorize (L1)` | `LabHeadDashboard.tsx` (LH9, LH30), `NotificationCenter.tsx` **lines 807 and 862 only** (A5, A6), `AdRICDirectorDashboard.tsx` (D11, the Authorize button only) |
+| 3 | `fix(lab-head): plain names for the Requests page (L2)` | `Sidebar.tsx:54` (LH1), `LabHeadDashboard.tsx:494-495` (LH5, LH6), the file header and TSDoc tab names |
+| 4 | `fix(labels): Dashboard for the analytics pages (L3)` | `Sidebar.tsx:47`, `:56`, `:75` (S3, LH3, D2), `HealthPage.tsx` (S30, S32), `LabHeadAnalyticsView.tsx:936-943` (LH34), `DirectorAnalyticsView.tsx:1062-1065` (D21) |
+| 5 | `fix(labels): Inventory Report instead of Audit Report (L4)` | `LabHeadDashboard.tsx` (LH20 to LH27, LH29), `Sidebar.tsx:77` (D4), `AdRICDirectorDashboard.tsx` (D13, D14, D17, D18, D20), `AssetDetailModal.tsx` (A13) |
+| 6 | `fix(labels): Availability, and Available for Active, on screen only (L5, L6)` | Every status badge, column, and option through `assetStatusLabel`: `LabHeadDashboard.tsx` (LH17, LH19, LH26), `InventoryPage.tsx`, `AssetGalleryCard.tsx` (S12, S14, S15), `EditAssetDialog.tsx` (S18: the `<option>` text only; `value` stays), `CustodianPortal.tsx` (C5, C8, C10: the badge and result lines only), `AdRICDirectorDashboard.tsx` (D15, D17, D18), `DirectorAnalyticsView.tsx:320-322` (D23: `name` only), `AssetDetailModal.tsx` (A8, A16). No comparison changes |
+| 7 | `fix(assets): plain names in the custodian summary (L7)` | `AssetDetailModal.tsx:411`, `:415` (A14, A15) |
+| 8 | `fix(labels): drop leftover ITS and TSG wording (L8)` | `InspectionQueue.tsx` (S25, S26: labels and options only; the `[TSG Remarks]` and `[ITS Remarks]` prefixes stay, question 2), `HealthPage.tsx:46` (S31), `OverviewPage.tsx:222`, `StaffAnalyticsView.tsx:366` (S35). With question 2 (b) and 3 (b), also C20 and D16 |
+| 9 | `fix(layout): one plain name per role in the shell (L9)` | `Sidebar.tsx` (A1: the unused fields go; A2: `roleLabel` in the session card, tooltip, and Preferences; S4, C1, C2), `RootLayout.tsx:111-114` (the chip reads `roleLabel`; "Director" becomes "AdRIC Director") |
+| 10 | `fix(staff): plain labels on the Staff screens (L10)` | S2, S5, S6, S8, S9, S11, S13, S16, S17, S19 to S21, S23, S24, S28, S29, S33, S36 |
+| 11 | `fix(lab-head): plain labels on the Lab Head screens (L10)` | LH2, LH10, LH13 to LH16, LH18, LH31 to LH33, LH35, LH36 |
+| 12 | `fix(custodian): plain labels on the Custodian screens (L10)` | C6, C7, C9, C11 to C13, C15 to C17, C19 |
+| 13 | `fix(director): plain labels on the Director screens (L10)` | D1, D3, D5 to D10, D11 ("Reject" only), D12, D22, D24 |
+| 14 | `fix(web): plain labels on the account, login, and asset modal (L10)` | A10, A17, A19, A20, A21 (text only) |
+| 15 | `fix(lab-head): label the custody counters and add pending transfers (U2)` | `LabHeadDashboard.tsx:487-500` |
+| 16 | `fix(assets): show the current custodian near the top of the asset modal (U8)` | `AssetDetailModal.tsx` (after line 323) |
+| 17 | `fix(layout): show a no-access screen for another role's address (U10)` | `RootLayout.tsx` (lines 70 to 77 and the TSDoc), new `web/pages/NoAccess.tsx`; with question 5 (b), `NotFound.tsx` |
+| 18 | `fix(lab-head): drop the unchecked compliance footer from the report (U13)` | `LabHeadDashboard.tsx:1034-1046` (LH28); with question 6 (a), also S7, S10, A3, A18, D19 |
+| 19 | `fix(lab-head): show a loan's due date only while it is pending or approved (U14)` | `LabHeadDashboard.tsx:546` |
+| 20 | (only if a hand check finds something) | |
+| 21 | `docs(batch W): record the build` | This log ("Stop 2: what was built", the hand check results), `docs/README.md`, `docs/HANDOFF.md` |
+
+**Other people's files.**
+- `NotificationCenter.tsx` (Joel, PR #112): **lines 807, 862, and 871 only** (as built), the text inside three buttons ("Authorize Loan" to "Approve Loan", "Authorize Disposal" to "Approve Disposal", "Reject" to "Decline"). No other line, so the merge with #112 is three one-word conflicts at most. The bell's other wording (A7) waits for #112.
+- `CustodianPortal.tsx` (Joel, #88 merged): text lines only (C5 to C13), no logic.
+- `IntakeWizard.tsx` (Aryan, #102): lines 89, 90, 179, 205, 226 to 229, text only. If #102 is still open, Raiki says so and commit 10 leaves this file out.
+- Shared by everyone: `Sidebar.tsx`, `RootLayout.tsx`, `session.tsx` (a new export), `assetBadges.tsx` (a new export).
+
+### 6. Hand checks
+
+#### Batch W hand checks
+
+**H1 to H12: the agent, in a browser (Playwright MCP), on the local UAT copy `adric_uat_check` only**, after stop 2. Raiki may run any of them again the same way. Before starting: stop any `npm run dev:all` and make sure ports 4000 and 5173 are free. Start the app only with `powershell -ExecutionPolicy Bypass -File C:\dev\uat-data\start-local-uat.ps1` (in the background; it refuses a non-local host or a busy port); stop it afterwards and check the ports free. The browser opens only `http://localhost:5173`, and the network log is checked to show only `http://localhost:4000` for `/api`. Accounts: `C:\dev\uat-data\uat-passwords.txt` (never copied anywhere). Screenshots go to `%TEMP%\adric-batchW-handchecks\`; `.playwright-mcp` is deleted from the repository afterwards. H1, H5, and H7 write to the local UAT copy (a loan decision, an unchanged asset save, one inspection report); nothing is written by hand. **No check touches CCS Cloud.** H13 runs in the terminal on the test database.
+
+| # | Item | Role and screen | Steps | Expected | Database |
+|---|---|---|---|---|---|
+| H1 | L1, the old wording | Lab Head (CITe4D), Requests | Find a Pending loan card; click **Approve** | The buttons read Approve and Decline (no "Authorize" on the page); the loan turns Approved; the counters update | Local UAT copy |
+| H2 | L1, the bell and the Director | Lab Head, the bell; Director, Disposal Approvals and the bell | Open each | Lab Head bell: "Approve Loan", "Approve Transfer", "Decline". Director: "Approve Disposal" and "Reject" on the page and in the bell (if the copy has a pending disposal; if not, the empty state reads "No Disposal Requests") | Local UAT copy |
+| H3 | L2, L3, L9 | Each role, the navigation drawer and Preferences | Open the drawer; open Preferences | Lab Head: Requests, Lab Inventory, Dashboard (or Analytics), Account Approvals; role text "Lab Head" in the card, the chip, and "Role: Lab Head". Staff: role "Staff" (no unit). Custodian: "Custodian". Director: Overview, Analytics, Disposal Approvals, Inventory Report; "AdRIC Director" | Local UAT copy |
+| H4 | L4, U13 | Lab Head, Lab Inventory, Inventory Report | Open it; scroll to the end; click Print Report and read the new window's title | Dialog "Lab Inventory Report"; header "INVENTORY REPORT", the user's name; sections I to IV renamed; no "Audit", "Compliance", "Signature", or ledger ID anywhere in the dialog; the window title is "Inventory Report - CITe4D" | Local UAT copy |
+| H5 | L5, L6, the old wording, and that the value did not change | Staff, Asset Inventory (Table), then Edit Asset on an Available asset | Read the table; open Edit Asset; save without changing anything; read the request body | Column "Availability", rows "Available"; the select shows "Available"; the `PUT` body has `"status":"Active"`; the row still shows Available | Local UAT copy |
+| H6 | L6, nearby behavior | Custodian, Available Equipment; then the asset modal | Open Available Equipment; open one asset | The list still has assets (the filter compares "Active"); badges "Available"; the modal shows Request Loan (its check compares "Active") | Local UAT copy |
+| H7 | L8 | Staff, Inspections, Inspect / Log Report on one asset | Read the dialog; type a hardware remark; Submit & Finalize | Labels "Hardware Remarks", "Records Remarks", no ITS option; the `POST` body's remarks start with `[TSG Remarks]:` (unchanged); the success alert has no "MySQL" | Local UAT copy |
+| H8 | U2 | Lab Head, Requests, at 1280 px and at 390 px | Read the counters; count the Pending transfer cards | Four cards: Loans pending, Loans approved, Loans declined, Transfers pending; Transfers pending equals the pending transfer cards; at 390 px two rows of two | Local UAT copy |
+| H9 | U8, L7 | Lab Head, Lab Inventory, an asset on loan; Custodian, Available Equipment, an asset someone else held before | Open each modal; open the history section | Lab Head: "Custodian: {name}" under the title, the same name as "Current custodian"; "First custodian: ..." (or "Not assigned"). Custodian, on an asset another person holds (if one is listed): "Custodian: Not shown" | Local UAT copy |
+| H10 | U10, the old bug and nearby | Lab Head | Type `/adric-director/overview`; click Go to my home page. Type `/`. Log out and type `/adric-director/overview` | The no-access screen with "Lab Head" and the sidebar; no `/api/analytics/director` or `/api/asset_disposals` request from it; the button opens `/lab-head/custody`. `/` opens `/lab-head/custody`. Logged out: `/login` | Local UAT copy |
+| H11 | U14 | Lab Head, Requests | Read LOAN-11 (Declined), a Pending card, an Approved card | LOAN-11 has no "Due"; Pending and Approved show "Due {date}" | Local UAT copy |
+| H12 | M1 again | Lab Head, every screen and the asset modal, at 390 x 844 | Measure each page's scroll width as in section 3 | No screen wider than in section 3 (Requests 713, Lab Inventory 639, Dashboard 467 or less, Approvals and Account 375 or 390); the counters, the modal header line, and the no-access screen fit | Local UAT copy |
+| H13 | All | The agent, terminal | `npm run typecheck`, `npm run build`, `npm test` with the browser and both servers stopped | 65, passes, 415 | Local test (`adric_db_test`) |
+
+**Results (2026-10-23). H1 to H13: all passed** (the agent; H1 to H12 in Chrome driven by the Playwright MCP on the local UAT copy `adric_uat_check`, H13 in the terminal). No check touched CCS Cloud.
+
+How they ran: the app was started only with `C:\dev\uat-data\start-local-uat.ps1` (it printed "Starting on localhost / adric_uat_check"), after checking ports 4000 and 5173 free; every `/api` request in the network log went to `http://localhost:4000`; the browser opened only `http://localhost:5173`. Accounts from `C:\dev\uat-data\uat-passwords.txt` (not copied anywhere). The Lab Head checks ran at 1280 x 800 and at 390 x 844. Writes to the local copy, all through the screens: LOAN-13 approved (H1), HXIL-0009 saved unchanged (H5), one inspection report on CITe4D-0001 (H7). The print window (H4) and the CSV download (Director) were read inside the page, without opening a print dialog or saving a file. Afterwards the servers were stopped by PID and the ports checked free; `.playwright-mcp` was deleted. Screenshots: `%TEMP%\adric-batchW-handchecks\screenshots\`; the phone before and after pairs: `%TEMP%\adric-batchW-handchecks\phone-before-after\`; the H13 output: `%TEMP%\adric-batchW-handchecks\h13-npm-test.txt`. The only console errors were React's two known development warnings about `ref` (seen in every group).
+
+| Check | Result | What was seen | Screenshots |
+|---|---|---|---|
+| H1 | Passed | Lab Head, Requests: cards show Approve and Decline, no "Authoriz" on the page. Approve on LOAN-13: `PUT /api/asset_loans/13/decision` 200; LOAN-13 Approved, with its due date; counters 2 / 10 / 1 / 1 became 1 / 11 / 1 / 1 | `h1-approved-loan13.png` |
+| H2 | Passed | Lab Head bell: Approve Loan, Approve Transfer, Decline. Director, Disposal Approvals (title "Disposal Approvals", "Disposal Requests", "Requested by:", badge "Pending"): Decline and Approve Disposal; Director bell: Approve Disposal and Decline. No decision was made. The bell's disposal card title still says "Disposal Authorization:" (A7, after PR #112) | `h2-labhead-bell.png`, `h2-director-disposals.png`, `h2-director-bell.png` |
+| H3 | Passed | Lab Head: Requests, Lab Inventory, Analytics, Account Approvals; role "Lab Head" in the card and chip; Preferences "Signed in as:", "Role: Lab Head"; no SYSTEM STATUS block. Staff: System Overview, Register Equipment, Asset Inventory, Repairs, Inspections, Pending Returns, QR Tags, Analytics; role "Staff"; no Operational Index card. Custodian: My Assets, Available Equipment, QR Scan, Send Inspection Report; role "Custodian". Director: Overview, Analytics, Disposal Approvals, Inventory Report; role "AdRIC Director"; page title "Overview"; no "Control Suite", badge, or "Administrative Oversight"; lab table columns Lab, Campus, Assets, Health Index, Utilization, Condition. Login: "Sign In", "DLSU Email", "Password" | `h3-labhead-sidebar-prefs.png` |
+| H4 | Passed | Dialog "Lab Inventory Report"; header "INVENTORY REPORT", "Generated by: UAT LabHead CITe4D One, Lab Head"; summary Assets in Service, Pending Transfers, Repair Tickets, Average Condition Score; sections I. Assets, II. Loans and Transfers, III. Repairs, IV. Disposed Assets; the asset table's column Availability, first row "Available"; none of "Audit", "Compliance", "Signature", "Ledger", "AUD-" in the dialog; the print window's title "Inventory Report - CITe4D" | `h4-inventory-report.png` |
+| H5 | Passed | Staff, Asset Inventory (Table): columns ..., Availability, Custodian, Location, Condition, ...; values Available 115, On Loan 9, Maintenance 1, Overdue 1 (no "Active"); tabs "In Service (126)", "Disposed (1)". Edit Asset on HXIL-0009: "Edit Asset: HXIL-0009", labels Funding Source, Lab, Availability, Condition, Custodian; the select shows "Available" with value `Active` (options `Active=>Available`, `On Loan`, `Maintenance`). Save Changes unchanged: `PUT /api/assets/HXIL-0009` 200 with `"status":"Active"`; the row still reads Available | `h5-edit-asset.png` |
+| H6 | Passed | Custodian, Available Equipment: "Assets you can request to borrow, from every lab."; 115 badges, all "Available" (the list's filter compares "Active", so it still lists them). Asset modal on CITe4D-0123: badge Available, Request Loan offered (its check compares "Active"); the form's title "Request a Loan", "Due Date". Found here: the modal header read "Request Equipment Loan --" with an em dash; fixed in `34bb6ca5` | `h6-h9-custodian-modal.png` |
+| H7 | Passed | Staff, Inspections: title "Inspections"; dialog labels Inspector Role, Condition Rating, Hardware Remarks, Records Remarks; Inspector Role options Staff, Lab Head, Custodian (no ITS). Submit on CITe4D-0001 with a hardware remark: `POST /api/assets/CITe4D-0001/inspection` 200, `reportRemarks` "[TSG Remarks]: ..." (prefix unchanged); alert "Inspection report saved for ASUS TUF Gaming A15." | `h7-inspection-roles.png` |
+| H8 | Passed | Desktop: four cards, Loans pending 2, Loans approved 10, Loans declined 1, Transfers pending 1, and one pending transfer card. At 390 px the cards sit two per row (tops 176, 176, 282, 282) | `h8-h11-requests-desktop.png`, `phone-before-after\p1-after-requests.png` |
+| H9 | Passed | Lab Head, CITe4D-0102 (On Loan): "Custodian: UAT Custodian One" under the title, the same as "Current custodian"; "Previous custodian: None", "First custodian: None" (its first record had no holder). Custodian, CITe4D-0123 (Available, held by another person): "Custodian: Not shown" | `h9-labhead-modal-custodian.png`, `h6-h9-custodian-modal.png` |
+| H10 | Passed | Lab Head types `/adric-director/overview`: the URL stays, the sidebar and bell show, and the page says "You don't have access to this page / You are signed in as Lab Head. This page is for another role. / Go to my home page". Requests sent: only the shared lists of a Lab Head login (`/api/auth/me`, assets, pending-registrations, asset_transfers, asset_loans, asset_disposals, asset_repairs, one each, all 200); no `/api/analytics/director` and no Director disposal queue. The button opens `/lab-head/custody`; `/` opens `/lab-head/custody`. `/director/overview` signed in: the 404 page with "Go to my home page", which opens `/lab-head/custody`. Signed out: `/adric-director/overview` opens `/login`; the 404 page shows "Return to Login" | `h10-no-access.png`, `h10-404-signed-in.png`, `h12-no-access-phone.png` |
+| H11 | Passed | LOAN-11 (Declined) and LOAN-1 (Returned) show no "Due"; LOAN-13 and LOAN-12 (Pending) and the Approved cards show "Due {date}" | `h8-h11-requests-desktop.png` |
+| H12 | Passed | 390 x 844, page area scroll width against its visible width: Requests 375/375 (was 713), Lab Inventory 375/375 (was 639), Analytics 375/375 (was 467), Account Approvals 390/390, Account Settings 375/375, the no-access screen 390/390. The asset modal's facts sit under the picture, 301 px wide, nothing cut (was 68 px, five values cut). Desktop at 1280: Approve and Decline still at the top right of each card, the Lab Inventory header on one row, the modal facts beside the picture, the Analytics Expand button beside its title | `phone-before-after\` (all) |
+| H13 | Passed | With the browser and both servers stopped: typecheck **65**, build passes, `npm test` 16 files, **415** passed | `h13-npm-test.txt` |
+
+### 7. Questions for Raiki
+
+1. **What to call the analytics pages (L3).** The sidebar entry "Health Benchmarking" for Lab Head and Staff, and "Descriptive Analytics" for the Director. Staff already have "System Overview" as their home, and the Director "Executive Overview" (Overview after D1).
+   - (a) "Dashboard" for Lab Head and Staff, as the brief proposes; the Director's stays "Analytics". Staff then see both "System Overview" and "Dashboard".
+   - (b) "Analytics" for all three roles.
+   - **Recommendation: (b).** One name for the same kind of page in every role, and no second "home" for Staff.
+2. **ITS and TSG text that is sent to the server (L8).** Staff, Inspections dialog (the remarks prefixes `[TSG Remarks]` and `[ITS Remarks]` saved in the report), and the Custodian's Request Repair form (Forward Target Department: TSG, ITS, Both, sent as `forwardedTo`, which the server ignores; and the "ITS Central Override" step). The 2026-10-08 decision put the forward-to options and the unit labels on a separate ITS removal branch.
+   - (a) This batch changes the labels only; the saved prefixes, the forward-to options, and that step wait for the ITS removal branch.
+   - (b) This batch also merges the two remarks into one "Remarks" field (new reports saved with one prefix) and drops ITS from the forward-to options and the steps.
+   - **Recommendation: (a).** Display only, as the brief asks; (b) changes what is saved.
+3. **Property tags on the Director's Inventory Report (L8).** Director, Inventory Report table ("Physical Tag") and the asset history dialog ("ITS Property Tag", "TSG Property Tag"). When an asset has no such tag, the screen invents `DLSU-ITS-{id}` and `DLSU-TSG-{id}`.
+   - (a) Keep both labels (they name DLSU offices' tags, not app roles) and show "None" instead of an invented tag.
+   - (b) One "Property Tag" showing the asset tag, both DLSU tags gone.
+   - (c) Leave as it is.
+   - **Recommendation: (a).** The labels are real things; the invented values are not.
+4. **What "Completed This Period" becomes (U2).** Lab Head, Requests counters. It counts Approved plus Returned loans, all time.
+   - (a) "Loans approved" (Approved plus Returned, all time).
+   - (b) Two cards, "Loans out" (Approved) and "Loans returned" (five cards in all).
+   - **Recommendation: (a).** Four cards fit a phone; the split can come with the Requests page redesign after the workshop.
+5. **An address no route has, for a logged-in user (U10).** Any role. `/director/overview` (not a real address; the Director's is `/adric-director/`) shows the 404 page, whose button says "Return to Login" to someone logged in.
+   - (a) U10 covers other roles' real addresses only; the 404 page stays.
+   - (b) Also: the 404 page offers "Go to my home page" when someone is logged in (one small change in `NotFound.tsx`).
+   - **Recommendation: (b).** It is the same confusion, and the brief's own example (`/director/...`) lands there.
+6. **Other text that claims something nothing checks (U13 list).** System Overview ("97.8% System Operational Index"), Register Equipment ("Procurement Compliance Checklist"), the sidebar ("All services operational, Last sync: 2 min ago"), the Director's history dialog ("Deed of Donation Ref"), Account Settings ("Under DLSU Laboratory Infrastructure Policy").
+   - (a) Remove or rewrite them in the U13 commit, as section 1 proposes.
+   - (b) Only the Lab Head report footer now; list the rest as findings.
+   - **Recommendation: (a).** Each is fixed text with no source, as the footer is, and UAT users read them as facts.
+7. **The Requests buttons off a phone screen (M1).** Lab Head, Requests, on a phone: Approve and Decline sit at x 513 to 713, reachable only by scrolling the page sideways.
+   - (a) Leave it for the Requests page redesign after the workshop (2026-10-29), as the brief puts the card layout out of scope.
+   - (b) One small commit here: the card's row wraps on a narrow screen, so the buttons drop under the details. Layout only, no wording.
+   - **Recommendation: (b).** UAT continues on phones before 2026-10-29, and it is a two-class change that the redesign would replace anyway.
+
+**Answers (Raiki, 2026-10-23):** 1 (b) "Analytics" for all three roles (LH3, LH34 "Analytics: {lab}", S3, S30). 2 (a) labels only. 3 (a) keep both labels, "None" instead of a made-up tag. 4 (a) "Loans approved". 5 (b). 6 (a), only text with no data behind it; a value from the database keeps its value and only its label changes; the log lists what was removed. 7 (b), as one commit `fix(layout): stop Lab Head screens overflowing on phones`: the Requests card buttons, the Lab Inventory header, the Analytics "Maximize Tab" button, and the asset modal's facts column; CSS classes only (wrapping, min-width, overflow), no structural or desktop change; Escape on the modal stays out (its own issue). Also: "Decline" everywhere, never "Reject" (D11, and the bell's disposal button at line 871); C15 and C17's last step describes what happens today (loans: "Collect the Asset / After approval, get it from the lab"; transfers: "Done / The asset moves to the new custodian"); `IntakeWizard.tsx` is ours to change (#102 is merged).
+
+### 8. Stop 2: what was built (2026-10-23)
+
+On `fix/uat1-labels-ui`, in the planned order, with two commits added (the final sweep, and one found by H6) and the phone commit of answer 7. After every commit: typecheck **65**, build passes, `npm test` **415** (16 files). Nothing pushed.
+
+| # | Commit | Kind | What it does | Tests |
+|---|---|---|---|---|
+| 1 | `cafc2810` | Addition | `assetStatusLabel()` in `assetBadges.tsx` (Active and ACTIVE give Available; reads the stored form too); `roleLabel` in `session.tsx`. Nothing uses them yet | **415** |
+| 2 | `04f6a51c` | Text (L1) | Approve instead of Authorize, Decline instead of Reject: Lab Head cards and Account Approvals, the bell (lines 807, 862, 871 only), the Director's queue, the decommission dialog's success line (S38) | **415** |
+| 3 | `ed191d1d` | Text (L2) | Requests; Loan and Transfer Requests | **415** |
+| 4 | `adb7f5a5` | Text (L3) | Analytics for Lab Head, Staff, and Director (answer 1b); the Staff benchmark grid says its numbers are samples | **415** |
+| 5 | `4dbc0619` | Text (L4) | Inventory Report instead of Audit Report, Lab Head and Director; the made-up ledger ID and the "Audit Ready" badge go; the print title names the user's lab | **415** |
+| 6 | `d6bd9a3c` | Text (L5, L6) | Availability, and Available for Active, through `assetStatusLabel()`, on every screen, report, CSV, chart legend, and the modal; no comparison or request body changes | **415** |
+| 7 | `740b3d5e` | Text (L7) | First custodian / Not assigned; Previous custodian / None | **415** |
+| 8 | `f7c1dea1` | Text (L8) | ITS and TSG labels in the inspection dialog (saved prefixes kept, answer 2a); the TSG badge and ITS Warehouse fallbacks go; "None" instead of made-up property tags (answer 3a) | **415** |
+| 9 | `b859f9a9` | Text (L9) | `roleLabel` in the sidebar card, tooltip, mobile chip, and Preferences; the unused sidebar labels and subtitles go | **415** |
+| 10 | `3774f2fe` | Text (L10) | Staff screens | **415** |
+| 11 | `c38c0e37` | Text (L10) | Lab Head screens (Lab Inventory, Destination Lab, Expand, and the rest) | **415** |
+| 12 | `63565afd` | Text (L10) | Custodian screens and the request forms (C15, C17 as Raiki asked) | **415** |
+| 13 | `7df34dd5` | Text (L10) | Director screens; the page title is the tab's name | **415** |
+| 14 | `a4916014` | Text (L10) | Account Settings (its role through `roleLabel`), Login, the asset modal, the 404 text | **415** |
+| 15 | `7cd2daf2` | **Behavior change** (U2) | Four counters: Loans pending, Loans approved, Loans declined, Transfers pending; 2 per row on a phone | **415** |
+| 16 | `36eee017` | **Behavior change** (U8) | Custodian: {name} under the asset's name in the modal; "Not shown" for a Custodian on someone else's asset | **415** |
+| 17 | `e96dd3e0` | **Behavior change** (U10) | `NoAccess` inside the frame for another role's URL; the 404 page offers the user's home when signed in (answer 5b) | **415** |
+| 18 | `450ca4be` | **Behavior change** (U13) | Removes the fixed claims (answer 6a, list below) | **415** |
+| 19 | `78e2a04d` | **Behavior change** (U14) | Due date only on Pending and Approved loans | **415** |
+| 20 | `42095b6c` | **Behavior change** (answer 7) | `fix(layout): stop Lab Head screens overflowing on phones`: CSS classes only (below) | **415** |
+| 21 | `0115b495` | Text (L10, added) | The final sweep: "Signed in as:" in Preferences; the Lab Head analytics loading and allocation texts without "MySQL" (LH38); two stale comments | **415** |
+| 22 | `34bb6ca5` | Text (L10, added) | Found by H6: the modal header named the open form with an em dash; now "Request a Loan: {asset}" (A23) | **415** |
+| 23 | this commit | Docs | This section, the rows that changed, the hand check results, `docs/README.md`, `docs/HANDOFF.md` | **415** |
+
+**Counts.** Typecheck **65** and tests **415** in every commit (web only; no test file changed). No schema, migration, server, `package.json`, or CCS Cloud change. `NotificationCenter.tsx`: lines 807, 862, 871 only.
+
+#### What U13 removed (answer 6a)
+
+Each is fixed text or a value made up in the browser; none reads data. Nothing that comes from the database was removed.
+
+| Where | Removed | Why there was nothing behind it |
+|---|---|---|
+| Lab Head inventory report, footer (`LabHeadDashboard.tsx`) | "Auditor Signature / Digital Signature Verified / CITe4D Lab Head / Project Leader" and "Compliance Status / ✓ AdRIC Assets Compliant / DLSU Engineering Standards" | Fixed text; nothing is signed or checked, and it said CITe4D for every lab |
+| Staff System Overview (`OverviewPage.tsx`) | The card "97.8% System Operational Index" (the grid now has three cards) | A fixed number (`TODO(H-09)`) |
+| Register Equipment (`IntakeWizard.tsx`) | "Procurement Compliance Checklist" with three ✓ lines | Fixed text; nothing checks the form against it |
+| Sidebar, every role (`Sidebar.tsx`) | "SYSTEM STATUS / All services operational / Last sync: 2 min ago" | Fixed text; nothing checks the server or times a sync |
+| Director, asset history dialog (`AdRICDirectorDashboard.tsx`) | "Deed of Donation Ref: DOD-2024-{n}" | Made from the asset tag's last part; no such record exists |
+| Account Settings (`AccountDetailsPage.tsx`) | Rewritten, not removed: the lockout note no longer cites "DLSU Laboratory Infrastructure Policy" or "IT Services" | The rule is real (the fields are read-only); the policy name had no source |
+
+Also removed in their label commits (L4, L10), as section 1 planned: the Lab Head report's ledger ID, the Director's "Audit Ready" badge and "compliance audit trail" subtitle, the Director analytics' "audit readiness" subtitle, and "Audit Compliance" (renamed "Inspection Reports per Month", the same data).
+
+#### The phone fix (answer 7)
+
+CSS classes only, in three files; no element added, moved, or removed. Measured at 390 x 844 before and after on the local UAT copy (pairs in `%TEMP%\adric-batchW-handchecks\phone-before-after\`):
+
+| Screen | Classes | Before | After | Pair |
+|---|---|---|---|---|
+| Requests, loan and transfer cards (`LabHeadDashboard.tsx`) | The card row `flex-wrap`; the details `min-w-[16rem]`; the details row `flex-wrap gap-y-2` | Page 705 px wide; Approve at x 513 to 606, Decline 614 to 705 | Page 375 px; Approve 44 to 137, Decline 145 to 236, under the details | `p1-before-requests.png`, `p1-after-requests.png` (and `p1-desktop-requests.png`) |
+| Lab Inventory header (`LabHeadDashboard.tsx`) | The header and its button group `flex-wrap` | Page 459 px; the title squeezed to 121 px on three lines; Table at x 383 to 458 | Page 375 px; the title on one line (267 px); the buttons on the next line, 16 to 337 | `p2-before-lab-inventory.png`, `p2-after-lab-inventory.png` |
+| Analytics widget headers (`LabHeadAnalyticsView.tsx`) | The two card headers with Expand, and the badge and button group, `flex-wrap` | Page 391 px (467 at stop 1, before "Expand" replaced "Maximize Tab"); Expand at x 302 to 391 | Page 375 px; Expand at x 199 to 288 | `p3-before-analytics.png`, `p3-after-analytics.png` |
+| Asset modal facts (`AssetDetailModal.tsx`) | The picture and facts row `flex-wrap`; the facts grid `min-w-[16rem]` | Facts grid 152 px, each column 68 px; five values cut (serial, tag, location, two dates) | Facts under the picture, 301 px wide; nothing cut | `p4-before-asset-modal.png`, `p4-after-asset-modal.png` (and `p4-desktop-asset-modal.png`) |
+
+At 1280 x 800 each screen lays out as before: the wraps only happen when the row does not fit.
+
+#### Differences from the plan, and why
+
+- **Answers 1b, 2a, 3a, 5b, 6a, 7b** changed rows LH3, LH34, S3, S30, D2, D21 (Analytics), C20 (now "keep"), D16 (None instead of made-up tags), A21 (the 404 button), and added commit 20.
+- **Raiki's inventory changes:** D11 and the bell's disposal button (A6b, line 871) say Decline; C15 and C17's last step describes what happens today.
+- **Rows added while building:** S38 (the decommission dialog's "until it's authorized", in commit 2), LH38 and the Preferences "Signed in as:" (final sweep, commit 21), A23 (found by H6, commit 22). A2 also covers the Account page's own role list, which said "Active Custodian" (commit 14).
+- **Rows with more text than planned:** LH10 (the report's column too), LH27 (two more empty states), LH35 (the expanded views), S6 (two card descriptions), C12, C13, C19, D5 (the Analytics tab keeps its own title only), D22 (two descriptions).
+- **S14's "Cond." went in the Staff commit (10)**, not the L5 commit (6), with LH18 in the Lab Head commit (11), as their L10 rows say.
+- **Not changed:** `ReturnForm.tsx`'s fallback name "Active Custodian" for a return with no holder. It is stored with the return request in the browser and the bell matches on it, so it is a value, not a label.
+
+### Noticed, not in this branch
+
+- **Escape does not close the asset modal**; the X and a click outside do (M1).
+- **The Health "Benchmarks Grid" shows fixed sample numbers** (`healthData`), not the inventory; S30 labels them as samples. Removing the grid or reading real data is for #96.
+- **The custodian history invents an entry** ("Equipment Custodian", `custodian@dlsu.edu.ph`) for an asset with no records (`TODO(H-09)` in `assets.service.ts`). A16's label change leaves it.
+- **The "CURRENT ROUTE" pill** in the sidebar shows the URL path, which is for developers (A4).
+- **`/lab-headx`** passes the `startsWith("/lab-head")` check in `RootLayout`; a prefix-plus-slash check would be exact. Harmless today (no such route).
+- **Existing em dashes elsewhere** (for example the disposal pathway options, `DisposalFormDialog.tsx`, and the server's "Manila -- CITe4D" location text) are stored data, so they stay.
+- **The loan and transfer timeline truncates on a phone** ("I...", "P...", "Custod...") now that the card fits the screen. The timeline is part of the Requests card redesign after the workshop.
+- **The Transfer form said "The recipient must accept this transfer before custody moves."** Wrong: `decideTransfer` appends a custody record held by the recipient as soon as the Lab Head approves (`handoverRecord` in `transfers.service.ts`). Fixed after stop 2 in `fix(transfers): say what happens after approval on the transfer form (#115)` (row C21): "Once the Lab Head approves, the asset moves to the new custodian."
+- **The bell's disposal card title** still says "Disposal Authorization:" (A7, after PR #112), with the two stale bell comments at lines 828 and 852.

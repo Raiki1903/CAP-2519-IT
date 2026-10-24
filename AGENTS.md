@@ -30,7 +30,7 @@ A web app for DLSU CCS AdRIC (research labs) to register, tag, lend, transfer, r
 | `npm run dev:all` | Web on port 5173 and API on port 4000. Uses the database in `.env` (CCS Cloud) |
 | `npm run typecheck` | TypeScript check. **Today: 65 errors** (old ones). The count must not go up |
 | `npm run build` | Production build. Must pass |
-| `npm test` | API tests on the local test database. **Today: 391 passed** |
+| `npm test` | API tests on the local test database. **Today: 415 passed** |
 
 Run typecheck, build, and test before every pull request, and report the three results.
 
