@@ -530,7 +530,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                   </motion.div>
                                 )}
                               </div>
-                            ) : asset.status === "Maintenance" && (role === "Custodian" || role === "LabHead") ? (
+                            ) : asset.status === "Maintenance" ? (
                               <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-4 flex items-start gap-3">
                                 <Wrench size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
                                 <div>
