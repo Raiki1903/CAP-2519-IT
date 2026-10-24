@@ -168,9 +168,21 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   // opened from: a loan approved since would still show "Your request is pending". One reload per opened asset. (issue #89)
   useEffect(() => {
     if (propAsset?.id) {
-      reloadLoans().catch(() => {});
+      reloadLoans().catch(() => { });
     }
   }, [propAsset?.id, reloadLoans]);
+
+  // Close the modal when the user presses Escape. (issue #119)
+  useEffect(() => {
+    if (!asset) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        resetAndClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [asset]);
 
   // History comes back oldest -> newest, with the current holder flagged.
   // "Previous custodian" walks back from just before the current entry to
@@ -525,7 +537,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                   </motion.div>
                                 )}
                               </div>
-                            ) : asset.status === "Maintenance" && (role === "Custodian" || role === "LabHead") ? (
+                            ) : asset.status === "Maintenance" ? (
                               <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-4 flex items-start gap-3">
                                 <Wrench size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
                                 <div>
