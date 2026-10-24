@@ -25,7 +25,8 @@ const AVATAR_PRESETS = [
 
 /**
  * Loads the user's record through authApi.getMe() and saves changes through updateProfile().
- * Choosing a preset picture or uploading one saves at once; name and lab save with the form.
+ * Choosing a preset picture or uploading one saves at once; the name saves with the form. The lab is shown, read-only,
+ * and never sent (issue #73).
  * Takes no props.
  */
 // TODO(M-17): an uploaded picture is sent and stored as a base64 text string. Phase 3.
@@ -88,7 +89,7 @@ export function AccountDetailsPage() {
         const uploadedImg = ev.target.result as string;
         setAvatar(uploadedImg);
         try {
-          await updateProfile(firstName || currentUser?.firstName || "", lastName || currentUser?.lastName || "", uploadedImg, labAffiliation);
+          await updateProfile(firstName || currentUser?.firstName || "", lastName || currentUser?.lastName || "", uploadedImg);
         } catch (err) {
           console.error("Failed to save uploaded picture", err);
         }
@@ -100,7 +101,7 @@ export function AccountDetailsPage() {
   const handlePresetSelect = async (presetUrl: string) => {
     setAvatar(presetUrl);
     try {
-      await updateProfile(firstName || currentUser?.firstName || "", lastName || currentUser?.lastName || "", presetUrl, labAffiliation);
+      await updateProfile(firstName || currentUser?.firstName || "", lastName || currentUser?.lastName || "", presetUrl);
     } catch (err) {
       console.error("Failed to save preset picture", err);
     }
@@ -113,7 +114,7 @@ export function AccountDetailsPage() {
     setSuccess(false);
 
     try {
-      await updateProfile(firstName.trim(), lastName.trim(), avatar, labAffiliation);
+      await updateProfile(firstName.trim(), lastName.trim(), avatar);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {

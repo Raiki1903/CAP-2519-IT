@@ -1,7 +1,7 @@
 /**
- * Registration API: sign-up requests, the Lab Head's pending list and decisions, and direct registration.
+ * Registration API: sign-up requests, and the Lab Head's pending list and decisions.
  * Covers POST /api/auth/register-request, GET /api/auth/pending-registrations, POST /api/auth/approve-registration,
- * POST /api/auth/reject-registration, POST /api/auth/register. Workflow: account sign-up and approval.
+ * POST /api/auth/reject-registration, and that POST /api/auth/register is gone. Workflow: account sign-up and approval.
  * Fixtures: the seeded accounts (for duplicate checks), the roles (ROLE_IDS), and the TEST lab (LAB). New applicants
  * are invented here. The pending list lives in the server's memory and in pending_registrations.json in its
  * temporary working folder (H-17), so this file has its own server and starts with an empty list.
@@ -39,7 +39,7 @@ async function requestSignUp(extra: Record<string, unknown> = {}) {
 const pendingIds = async (): Promise<string[]> =>
   (await asLabHead.get("/api/auth/pending-registrations")).body.pendingRegistrations.map((r: { id: string }) => r.id);
 
-const pendingFile = (): { id: string; status: string }[] =>
+const pendingFile = (): { id: string; status: string; email: string; requestedRole: string; password?: string }[] =>
   JSON.parse(fs.readFileSync(path.join(server().workDir, "pending_registrations.json"), "utf-8"));
 
 const roleNamesOf = async (userId: number): Promise<string[]> =>
@@ -73,10 +73,24 @@ describe("POST /api/auth/register-request", () => {
     expect(await db.users.count({ where: { email: body.email } })).toBe(0);
   });
 
+  it("answers a sign-up without its password, with the server's REG- id (C-04 fixed)", async () => {
+    const { registration } = await requestSignUp({ password: "test-password-not-echoed" });
+
+    expect(registration).not.toHaveProperty("password");
+    expect(registration.id).toMatch(/^REG-\d{6}$/);
+  });
+
+  it("stores Custodian as the requested role whatever role the sign-up asks for (C-05 family)", async () => {
+    const { registration } = await requestSignUp({ requestedRole: "Admin" });
+
+    expect(registration.requestedRole).toBe("Custodian");
+    expect(pendingFile().find((r) => r.id === registration.id)).toMatchObject({ requestedRole: "Custodian" });
+  });
+
   it("stores password123 when no password is sent (known defect C-03)", async () => {
     const { registration } = await requestSignUp();
 
-    expect(registration.password).toBe("password123");
+    expect(pendingFile().find((r) => r.id === registration.id)?.password).toBe("password123");
   });
 
   it("answers 400 when the first name, last name, email, or id number is missing", async () => {
@@ -88,12 +102,42 @@ describe("POST /api/auth/register-request", () => {
     }
   });
 
-  it("answers 400 for an email or an id number that already belongs to an account", async () => {
+  it("answers 409 for an email or an id number that already belongs to an account, with the text UAT EV-05 expects", async () => {
     const sameEmail = await api.post("/api/auth/register-request", applicant({ email: USERS.custodianA.email }));
     const sameIdNumber = await api.post("/api/auth/register-request", applicant({ idNumber: USERS.custodianA.idNumber }));
 
-    expect(sameEmail.status).toBe(400);
-    expect(sameIdNumber.status).toBe(400);
+    expect(sameEmail.status).toBe(409);
+    expect(sameEmail.body.error).toBe("A registered user with this email already exists.");
+    expect(sameIdNumber.status).toBe(409);
+    expect(sameIdNumber.body.error).toBe("A registered user with this ID number already exists.");
+  });
+
+  it("answers 409 for an email a pending request has, in any letter case, and keeps one request (issue #14)", async () => {
+    const { body } = await requestSignUp();
+
+    const again = await api.post("/api/auth/register-request", applicant({ email: ` ${body.email.toUpperCase()} ` }));
+
+    expect(again.status).toBe(409);
+    expect(again.body.error).toBe("A sign-up request with this email is already waiting for approval.");
+    expect(pendingFile().filter((r) => r.email.toLowerCase() === body.email)).toHaveLength(1);
+  });
+
+  it("answers 409 for an id number a pending request has (issue #81)", async () => {
+    const { body } = await requestSignUp();
+
+    const again = await api.post("/api/auth/register-request", applicant({ idNumber: body.idNumber }));
+
+    expect(again.status).toBe(409);
+    expect(again.body.error).toBe("A sign-up request with this ID number is already waiting for approval.");
+  });
+
+  it("accepts an email again once its request was declined", async () => {
+    const { body, registration } = await requestSignUp();
+    await asLabHead.post("/api/auth/reject-registration", { requestId: registration.id });
+
+    const again = await api.post("/api/auth/register-request", { ...body });
+
+    expect(again.status).toBe(200);
   });
 });
 
@@ -111,13 +155,25 @@ describe("GET /api/auth/pending-registrations", () => {
     expect(res.body.pendingRegistrations.every((r: { status: string }) => r.status === "PENDING")).toBe(true);
   });
 
-  it("includes each applicant's password, to any caller (known defect C-04)", async () => {
-    const { registration } = await requestSignUp({ password: "test-password-visible" });
+  it("lists each request without its password, with the fields the card shows (C-04 fixed)", async () => {
+    const avatarUrl = "data:image/png;base64,iVBORw0KGgo=";
+    const { body, registration } = await requestSignUp({ password: "test-password-hidden", labAffiliation: LAB.shortCode, avatarUrl });
 
     const res = await asLabHead.get("/api/auth/pending-registrations");
 
+    expect(res.body.pendingRegistrations.some((r: object) => "password" in r)).toBe(false);
     const listed = res.body.pendingRegistrations.find((r: { id: string }) => r.id === registration.id);
-    expect(listed.password).toBe("test-password-visible");
+    expect(listed).toMatchObject({
+      firstName: body.firstName,
+      lastName: body.lastName,
+      email: body.email,
+      idNumber: body.idNumber,
+      userType: "STUDENT",
+      requestedRole: "Custodian",
+      labAffiliation: LAB.shortCode,
+      avatarUrl,
+    });
+    expect(listed.submittedAt).toEqual(expect.any(String));
   });
 });
 
@@ -138,39 +194,47 @@ describe("POST /api/auth/approve-registration", () => {
     expect(pendingFile().map((r) => r.id)).not.toContain(registration.id);
   });
 
-  it("answers with the created row, password included (known defect, 01C 4.1)", async () => {
+  it("answers the new account's id, names, and email only (01C 4.1 fixed)", async () => {
     const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode, password: "test-password-echoed" });
 
     const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
 
-    expect(res.body.user).toMatchObject({ email: body.email, password: "test-password-echoed" });
-  });
-
-  it.each<[string, RoleName]>([
-    ["Custodian", "CUSTODIAN"],
-    ["Lab Head", "LAB_HEAD"],
-    ["TSG", "TSG_STAFF"],
-    ["ITS", "ADMIN"],
-  ])("gives a request for role %s the database role %s (M-11: ITS becomes ADMIN)", async (requestedRole, expectedRole) => {
-    const { body, registration } = await requestSignUp({ requestedRole, labAffiliation: LAB.shortCode });
-
-    await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
-
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(await roleNamesOf(created.user_id)).toEqual([expectedRole]);
+    expect(res.body.user).toEqual({ userId: created.user_id, firstName: body.firstName, lastName: body.lastName, email: body.email });
   });
 
-  it("creates a new research center for a lab it does not know, and links the account to it (new finding)", async () => {
-    const { body, registration } = await requestSignUp({ labAffiliation: "Test Unknown Lab (TESTX)" });
+  it.each(["Custodian", "Lab Head", "TSG", "ITS", "Admin"])("approves a request that asks for role %s as a Custodian (C-05 family)", async (requestedRole) => {
+    const expectedRole: RoleName = "CUSTODIAN";
+    const { body, registration } = await requestSignUp({ requestedRole, labAffiliation: LAB.shortCode });
 
     const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
 
     expect(res.status).toBe(200);
-    const center = await db.research_centers.findUniqueOrThrow({ where: { short_code: "TESTX" } });
-    expect(center).toMatchObject({ name: "Test Unknown Lab (TESTX)", location: "MANILA" });
+    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
+    expect(await roleNamesOf(created.user_id)).toEqual([expectedRole]);
+  });
+
+  it("answers 400 for a lab it does not know, and creates no research center and no account, keeping the request (M-03)", async () => {
+    const { body, registration } = await requestSignUp({ labAffiliation: "Test Unknown Lab (TESTX)" });
+
+    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("The lab on this request, Test Unknown Lab (TESTX), is not a known lab. Decline it and ask the applicant to sign up again.");
+    expect(await db.research_centers.count({ where: { short_code: "TESTX" } })).toBe(0);
+    expect(await db.users.count({ where: { email: body.email } })).toBe(0);
+    expect(await pendingIds()).toContain(registration.id);
+  });
+
+  it("finds the lab by its full name, as the sign-up form sends it", async () => {
+    const { body, registration } = await requestSignUp({ labAffiliation: LAB.name });
+
+    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
+
+    expect(res.status).toBe(200);
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
     const links = await db.user_centers.findMany({ where: { user_id: created.user_id } });
-    expect(links.map((l) => l.center_id)).toEqual([center.center_id]);
+    expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
   });
 
   it("answers 404 for an unknown request id with no applicant details", async () => {
@@ -180,14 +244,43 @@ describe("POST /api/auth/approve-registration", () => {
     expect(res.body.success).toBe(false);
   });
 
-  it("creates an account with the requested role from the body alone when the request id is unknown (known defect C-05)", async () => {
-    const body = applicant({ requestId: "REG-000000", requestedRole: "ITS", labAffiliation: LAB.shortCode });
+  it("answers 404 for an unknown request id even with applicant details, and creates no account (C-05 fixed)", async () => {
+    const body = applicant({ requestId: "REG-000000", requestedRole: "ITS", labAffiliation: LAB.shortCode, password: "test-password-body" });
 
     const res = await asLabHead.post("/api/auth/approve-registration", body);
 
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ success: false, error: "Pending registration request details not found." });
+    expect(await db.users.count({ where: { email: body.email as string } })).toBe(0);
+  });
+
+  it("approves from the stored request and ignores other fields in the body", async () => {
+    const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode });
+    const other = applicant({ requestedRole: "ITS" });
+
+    const res = await asLabHead.post("/api/auth/approve-registration", { ...other, requestId: registration.id });
+
     expect(res.status).toBe(200);
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email as string } });
-    expect(await roleNamesOf(created.user_id)).toEqual(["ADMIN"]);
+    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
+    expect(await roleNamesOf(created.user_id)).toEqual(["CUSTODIAN"]);
+    expect(await db.users.count({ where: { email: other.email } })).toBe(0);
+  });
+
+  it("answers 409, not 500, when an account took the request's email before approval, and keeps the request (issue #14)", async () => {
+    const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode });
+    const taker = await db.users.create({
+      data: { first_name: "Test", last_name: "Email Taker", email: body.email, password: "test-password-taker", id_number: 92000001, user_type: "STUDENT" },
+    });
+    try {
+      const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("A registered user with this email already exists.");
+      expect(await db.users.count({ where: { email: body.email } })).toBe(1);
+      expect(await pendingIds()).toContain(registration.id);
+    } finally {
+      await db.users.delete({ where: { user_id: taker.user_id } });
+    }
   });
 });
 
@@ -212,47 +305,13 @@ describe("POST /api/auth/reject-registration", () => {
   });
 });
 
-describe("POST /api/auth/register (no caller)", () => {
-  it("creates a CUSTODIAN account at once, with no approval step (C-05 family)", async () => {
+describe("POST /api/auth/register (deleted, issue #70)", () => {
+  it("answers 404 for a Lab Head with a full body, and creates no account", async () => {
     const body = applicant({ password: "test-password-direct" });
 
     const res = await asLabHead.post("/api/auth/register", body);
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ success: true, user: { firstName: body.firstName, lastName: body.lastName, email: body.email } });
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(created.user_type).toBe("STUDENT");
-    expect(await roleNamesOf(created.user_id)).toEqual(["CUSTODIAN"]);
-    expect(await db.user_centers.count({ where: { user_id: created.user_id } })).toBe(0);
-  });
-
-  it("links the account to the lab named by centerId", async () => {
-    const body = applicant({ password: "test-password-direct", centerId: LAB.centerId, userType: "FACULTY" });
-
-    await asLabHead.post("/api/auth/register", body);
-
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(created.user_type).toBe("FACULTY");
-    const links = await db.user_centers.findMany({ where: { user_id: created.user_id } });
-    expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
-  });
-
-  it("answers 400 when any of first name, last name, email, password, or id number is missing", async () => {
-    for (const missing of ["firstName", "lastName", "email", "password", "idNumber"] as const) {
-      const body: Record<string, unknown> = applicant({ password: "test-password-direct" });
-      delete body[missing];
-      const res = await asLabHead.post("/api/auth/register", body);
-      expect(res.status, missing).toBe(400);
-    }
-  });
-
-  it("answers 400 for an email or an id number that already belongs to an account", async () => {
-    const usersBefore = await db.users.count();
-    const sameEmail = await asLabHead.post("/api/auth/register", applicant({ password: "x", email: USERS.custodianA.email }));
-    const sameIdNumber = await asLabHead.post("/api/auth/register", applicant({ password: "x", idNumber: USERS.custodianA.idNumber }));
-
-    expect(sameEmail.status).toBe(400);
-    expect(sameIdNumber.status).toBe(400);
-    expect(await db.users.count()).toBe(usersBefore);
+    expect(res.status).toBe(404);
+    expect(await db.users.count({ where: { email: body.email } })).toBe(0);
   });
 });

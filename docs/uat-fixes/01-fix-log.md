@@ -1367,3 +1367,304 @@ At 1280 x 800 each screen lays out as before: the wraps only happen when the row
 - **The loan and transfer timeline truncates on a phone** ("I...", "P...", "Custod...") now that the card fits the screen. The timeline is part of the Requests card redesign after the workshop.
 - **The Transfer form said "The recipient must accept this transfer before custody moves."** Wrong: `decideTransfer` appends a custody record held by the recipient as soon as the Lab Head approves (`handoverRecord` in `transfers.service.ts`). Fixed after stop 2 in `fix(transfers): say what happens after approval on the transfer form (#115)` (row C21): "Once the Lab Head approves, the asset moves to the new custodian."
 - **The bell's disposal card title** still says "Disposal Authorization:" (A7, after PR #112), with the two stale bell comments at lines 828 and 852.
+
+---
+
+## Batch L: sign-up and account security (fix/security-batch-l)
+
+Six issues about sign-ups and the account page, one commit each, in the brief's order: #68, #71, #72, #70, #14 with #81, #73. Branch `fix/security-batch-l` from `main` at `9d8cc5fa` (PR #117, Batch W, merged). Baseline there: typecheck **65**, `npm run build` passes, `npm test` **415** passed (16 files). Server, `shared/types/`, three web files (`Register.tsx`, `serverData.tsx`, and with question 2, `session.tsx` and `AccountDetailsPage.tsx`), and the tests. No schema, migration, `package.json`, or CCS Cloud change: nothing here needs one. Stop 1 (this section) is the plan; stop 2 is the build after Raiki's answers.
+
+**Not in this batch:** password hashing (#10, its own branch next), tokens (#11), and anything in `prisma/`. Pending sign-ups stay in `pending_registrations.json` (H-17, Phase 3). Its shape here is taken from the code that reads and writes it (`auth.repository.ts:209-259`, `PendingRegistration` in `shared/types/auth.ts:42-59`); the file itself was not opened.
+
+Line numbers are on `main` at `9d8cc5fa`.
+
+### 1. The issues
+
+#### #68: same-tab sign-up approval uses the wrong request ID
+
+**Cause.** After a sign-up, the Register page adds its own copy of the request to the tab's pending list, with an ID it made up (`REG-` and the time in milliseconds), while the server stored the request under `REG-` and six random digits. In that tab, Approve sends the made-up ID. The server does not find it and builds the account from the body instead (the C-05 fallback, #71), and the real request stays in the file. Rejecting sends the made-up ID too, so nothing is removed on the server. Seen in step 12 batch 3, hand check 5.
+
+**When it happens now (after 13b).** The pending list loads when the role changes. So it happens when a Lab Head is logged in and the sign-up is done in the same tab: Login, Sign up, submit, Return to Sign In, log in again as the same Lab Head (the role does not change, so the list is not reloaded), Account Approvals. A sign-up made while logged out is replaced by the server's list at the next login, so it is not affected.
+
+**Where.** [Register.tsx:97-110](../../web/pages/auth/Register.tsx#L97-L110) builds `regData` with `id: REG-${Date.now()}`, `submittedAt`, and `status`, sends it as the request body (the server ignores those three), and at [Register.tsx:133-135](../../web/pages/auth/Register.tsx#L133-L135) adds `regData` to the list. The server's answer, `data.registration` ([auth.controller.ts:48-58](../../server/features/auth/auth.controller.ts#L48-L58)), is never read.
+
+**Change.** `Register.tsx` sends only the form fields (no `id`, `submittedAt`, or `status`), and adds `data.registration` from the server's answer to the list. Nothing else changes on the page. The file header and TSDoc say so.
+
+**Screens and roles.** Sign-up page (anyone), and the Lab Head's Account Approvals in the same tab. No visible change, except that approving or declining such a request now acts on the server's request.
+
+#### #71 (C-05): approve-registration builds a user from the request body
+
+**Cause.** When the request ID matches no pending request and the body has an email and names, the server makes up a request from the body (any role, any lab, `password123` when none is sent) and creates that account. A Lab Head session is needed since 13b, but one request still creates an account with any role, for example ITS, which maps to ADMIN (M-11).
+
+**Where.** [auth.service.ts:129](../../server/features/auth/auth.service.ts#L129) (`TODO(C-05)`), the fallback at [auth.service.ts:135-149](../../server/features/auth/auth.service.ts#L135-L149); the controller passes every body field ([auth.controller.ts:65-72](../../server/features/auth/auth.controller.ts#L65-L72)); `ApproveRegistrationInput` ([shared/types/auth.ts:61-75](../../shared/types/auth.ts#L61-L75)); the web sends the whole list entry ([serverData.tsx:395](../../web/state/serverData.tsx#L395)); `TODO(C-05)` at [auth.api.ts:87](../../web/api/auth.api.ts#L87).
+
+**Change.** The fallback goes: an unknown ID answers **404** "Pending registration request details not found." (today's text for an unknown ID with no details). The account is built only from the stored request. The controller reads only `requestId`; `ApproveRegistrationInput` becomes `{ requestId: string }`; `serverData.tsx` sends `{ requestId }` only; the two `TODO(C-05)` and the "fallback" comment at line 205 go. Must come after #68, or the same-tab approval of #68 would answer 404.
+
+**Screens and roles.** Lab Head, Account Approvals: no visible change for a request in the list. A direct call with a made-up ID now answers 404 and creates nothing.
+
+#### #72 (C-04): passwords, and the custodian history's emails, sent where no screen needs them
+
+**Cause.** Three answers carry a password that no screen shows: the pending list (every applicant's password, to the Lab Head), the sign-up answer (the applicant's own, back to them), and the approval answer (the whole new `users` row: password, ID number, the picture as base64 text). And the custodian history sends each holder's email to every role, though only one screen shows it.
+
+**Where.**
+- Pending list: [auth.service.ts:74-76](../../server/features/auth/auth.service.ts#L74-L76), `TODO(C-04)` at [auth.controller.ts:38](../../server/features/auth/auth.controller.ts#L38) and [auth.api.ts:76](../../web/api/auth.api.ts#L76).
+- Sign-up answer: [auth.service.ts:116-117](../../server/features/auth/auth.service.ts#L116-L117) returns the stored request; [auth.controller.ts:57](../../server/features/auth/auth.controller.ts#L57).
+- Approval answer: [auth.service.ts:191-209](../../server/features/auth/auth.service.ts#L191-L209) returns the `users` row; [auth.controller.ts:71](../../server/features/auth/auth.controller.ts#L71) sends it as `user`. Nothing reads it: `serverData.tsx` returns it and `LabHeadDashboard.tsx:708` ignores it.
+- Custodian history: [assets.service.ts:247](../../server/features/assets/assets.service.ts#L247) (`TODO(C-02)`), `custodianEmail` at [assets.service.ts:270](../../server/features/assets/assets.service.ts#L270), the type at [shared/types/assets.ts:186-187](../../shared/types/assets.ts#L186-L187). The ID number is already gone (13c, answer 6; pinned by `sessionUser.test.ts:140`).
+
+**What the screens show (checked).**
+- The Lab Head's sign-up card ([LabHeadDashboard.tsx:664-725](../../web/pages/lab-head/LabHeadDashboard.tsx#L664-L725)): picture, name, user type, email, ID number, requested role, lab, submitted date. No password. So the list keeps every field except `password`.
+- The sign-up page reads only `success` and `error` today; after #68 it adds `registration` to the list, which needs no password.
+- The asset modal ([AssetDetailModal.tsx](../../web/features/assets/AssetDetailModal.tsx)) loads the history when it opens, for every role ([lines 158-165](../../web/features/assets/AssetDetailModal.tsx#L158-L165)), for the summary "Current custodian / Previous custodian / First custodian" (names only, lines 400-423). The email shows in one place: the full Custodian History view, "Email:" ([lines 750-753](../../web/features/assets/AssetDetailModal.tsx#L750-L753)), whose button is for a Lab Head only ([line 466](../../web/features/assets/AssetDetailModal.tsx#L466)). Staff, the Director, and a Custodian get emails no screen of theirs shows.
+
+**Change.**
+- Pending list and sign-up answer: each request without `password`. A new type `PendingRegistrationView` (`Omit<PendingRegistration, "password">`) in `shared/types/auth.ts` for both answers. The stored request keeps its password until #10 and H-17 (approval needs it).
+- Approval answer: `user` is `{ userId, firstName, lastName, email }` (a new `ApprovedUser` type); the `message` stays.
+- Custodian history: with question 1 (a), `custodianEmail` only for a Lab Head; Staff, the Director, and a Custodian (their own entries too) get no email. **No change to `AssetDetailModal.tsx`** under (a). Under (b), lines 750 to 753 (the "Email:" cell) go and nothing else.
+- The `TODO(C-04)` and `TODO(C-02)` comments go; `TODO(H-17)` and `TODO(C-03)` stay (the file and the plain text password are #10 and Phase 3).
+
+**Screens and roles.** No visible change for anyone under 1 (a). The network answers lose the password (Lab Head, the applicant) and the emails (Staff, Director, Custodian).
+
+#### #70: delete the unused POST /api/auth/register
+
+**Cause.** A Lab Head-only route that creates a Custodian account at once, with no approval. No screen calls it.
+
+**Checked:** `web/` and `shared/` have no call to `/api/auth/register` (the only `register` calls are `/api/auth/register-request` in `auth.api.ts:68`; `/register` and `/staff/register` are page routes).
+
+**Where and change.** Delete the route ([auth.routes.ts:17-18](../../server/features/auth/auth.routes.ts#L17-L18), with the comment), `register` in the controller ([auth.controller.ts:19-32](../../server/features/auth/auth.controller.ts#L19-L32)), `register` in the service ([auth.service.ts:29-67](../../server/features/auth/auth.service.ts#L29-L67)), `checkRegistration` ([auth.validation.ts:9-20](../../server/features/auth/auth.validation.ts#L9-L20)), and `RegisterInput` ([shared/types/auth.ts:9-21](../../shared/types/auth.ts#L9-L21)). The file headers' route counts ("nine endpoints") change to eight. `POST /api/auth/register` then answers Express's own 404, as any unknown path.
+
+**Screens and roles.** None.
+
+#### #14 and #81: sign-up accepts an email or ID number already in use
+
+**Cause.** The sign-up checks only accounts, not pending requests ([auth.service.ts:89-97](../../server/features/auth/auth.service.ts#L89-L97), and the note at lines 26-27). So one email (or ID number) can be filed twice; approving the second then fails inside the database with a 500 (the unique key on `users.email` or `users.id_number`). An account clash answers **400**, not 409.
+
+**EV-05.** The UAT manual is not in the repository or in `C:\dev\uat-data`, so EV-05 was not opened. The brief quotes it as "a registered user with this email already exists", which is the server's text today, word for word: "A registered user with this email already exists." It is shown on the sign-up page as the server sends it (`data.error`, [Register.tsx:129-131](../../web/pages/auth/Register.tsx#L129-L131)), whatever the status, so a 409 shows the same text.
+
+**Change.** In `requestRegistration`, in this order:
+1. An account has the email: **409** "A registered user with this email already exists." (text unchanged, status 400 to 409).
+2. An account has the ID number: **409** "A registered user with this ID number already exists." (same).
+3. A pending request has the email (trimmed, any letter case): **409** "A sign-up request with this email is already waiting for approval." (question 4).
+4. A pending request has the ID number: **409** "A sign-up request with this ID number is already waiting for approval."
+
+And in `approveRegistration`, before the account is created, checks 1 and 2 again, answering 409 with the same texts instead of a 500, with the request kept. That covers a request filed before this fix (the deployed server's file may hold duplicates) and an account created in between. The pending check reads the list through `authRepository.listPendingRegistrations()`; no new repository function. The note at lines 26-27 goes.
+
+**Screens and roles.** Sign-up page: the two new messages. Lab Head, Account Approvals: an approval that would clash shows the server's message instead of "Something went wrong on the server".
+
+#### #73 (and M-03): the account update's lab, and labs made from typos
+
+**Cause, account update** ([auth.service.ts:382-439](../../server/features/auth/auth.service.ts#L382-L439)).
+- The answer's `labAffiliation` is the lab sent, or "CITe4D" when none is sent ([line 436](../../server/features/auth/auth.service.ts#L436)), whatever the account's lab is. The session stores that answer ([session.tsx:310-320](../../web/state/session.tsx#L310-L320)), so the session's lab can become wrong.
+- A lab code no research center has is "created" ([lines 404-412](../../server/features/auth/auth.service.ts#L404-L412)). The create always fails today (`MANILA_CAMPUS` is not a valid location), an empty `catch` swallows it, and the answer still names the unknown lab. The name is saved first, so a refused lab still changes the name.
+- **Found while planning (from the code).** The Account Settings page always sends a lab, although its lab field is read-only (and hidden for the Director and Staff, [AccountDetailsPage.tsx:272-282](../../web/pages/AccountDetailsPage.tsx#L272-L282)). It sends the lab `/me` answers, which is "CITe4D" for an account with no lab ([auth.service.ts:356](../../server/features/auth/auth.service.ts#L356)). So **a Director or Staff member who saves their name is linked to CITe4D** (the code finds the CITe4D research center and adds a link). The page also starts from the full name "Center for ICT for Development (CITE4D)" before `/me` answers ([AccountDetailsPage.tsx:38](../../web/pages/AccountDetailsPage.tsx#L38)), which matches no short code. Question 2.
+
+**Cause, approval** ([auth.service.ts:168-189](../../server/features/auth/auth.service.ts#L168-L189)). The lab is matched by name, short code, or the code in brackets; when nothing matches, a new research center is created from the text (location MANILA, so this create works). The sign-up form's labs ([shared/constants/labs.ts](../../shared/constants/labs.ts)) all match a research center on the UAT copy by full name, except "DLSU AdRIC" (and "No affiliation", which links no lab). So today approving a "DLSU AdRIC" request, or any typed text from a direct call, creates a research center.
+
+**Change.**
+- **Account update.** The lab is checked before anything is saved. No lab sent, an empty one, or "Not Affiliated": the lab is not changed. A short code that matches a research center: the account moves to it, as today. Anything else: **400** "Unknown lab: {code}." and nothing is saved, the name included. Never a research center created. The answer's `labAffiliation` is the account's lab after the save, worked out as `/me` does (the first lab link's short code, or "CITe4D" with none), so the account page and `/me` always agree. With question 2 (a), `session.tsx` stops sending the lab and `AccountDetailsPage.tsx` stops passing it (lines 91, 103, 116); `updateProfile` loses its `labAffiliation` parameter.
+- **Approval.** No research center is created. A lab that matches nothing answers **400** "The lab on this request, {lab}, is not a known lab. Decline it and ask the applicant to sign up again." and creates nothing; the request stays in the list so the Lab Head can decline it. "No affiliation" and "Not Affiliated" still link no lab. With question 3 (a), the sign-up itself is not checked.
+- `createResearchCenter` ([auth.repository.ts:182-187](../../server/features/auth/auth.repository.ts#L182-L187)) then has no caller and is deleted. `TODO(M-03)` at line 408 goes; the M-03 lab list itself is Phase 3. `AccountUser.labAffiliation`'s TSDoc changes.
+
+**Screens and roles.** Every role, Account Settings: no visible change (with 2 (a), the session's lab is the real one). Lab Head, Account Approvals: a request with an unknown lab shows the refusal instead of making a lab.
+
+### 2. Tests that pin the old behavior
+
+Every test that asserts what this batch changes, by file and line on `9d8cc5fa`. Count after each commit is in section 4.
+
+| Commit | Test | Pins | Change |
+|---|---|---|---|
+| #71 | `registration.test.ts:183` "creates an account with the requested role from the body alone when the request id is unknown (known defect C-05)" | 200 and an ADMIN account | Becomes "answers 404 for an unknown request id even with applicant details, and creates no account": 404, `success: false`, no `users` row with that email |
+| #72 | `registration.test.ts:76` "stores password123 when no password is sent (known defect C-03)" | Reads `registration.password` from the sign-up answer | Reads the stored request from the file (`pendingFile()`) instead, so it keeps pinning C-03 (#10) |
+| #72 | `registration.test.ts:114` "includes each applicant's password, to any caller (known defect C-04)" | `listed.password` is the password | Becomes "lists each request without its password, with the fields the card shows": no `password` key; name, email, ID number, user type, role, lab, picture, date present |
+| #72 | `registration.test.ts:141` "answers with the created row, password included (known defect, 01C 4.1)" | `user` has `password` | Becomes "answers the new account's id, names, and email only": `user` equals `{ userId, firstName, lastName, email }` |
+| #72 | `sessionUser.test.ts:119` "gives a Custodian their own entries in full, hides other holders..." | `own` has `custodianEmail` | With 1 (a): `own` has `custodianName` and no `custodianEmail`. The rest stays. `sessionUser.test.ts:140` (Lab Head gets emails) stays under (a); under (b) it asserts no email |
+| #70 | `registration.test.ts:215-258`, the four "POST /api/auth/register (no caller)" tests | The route works | Deleted, with the `describe` |
+| #70 | `session.test.ts:45`, row 8 of the role table (`POST /api/auth/register`, Lab Head) | 401, 403, and the Lab Head reaches the handler | Row deleted (an unknown path answers 404 before any session check, so the row cannot pass) |
+| #14 | `registration.test.ts:91` "answers 400 for an email or an id number that already belongs to an account" | 400 | 409, and the two exact texts |
+| #73 | `auth.test.ts:187` "answers an unknown lab code as saved, but creates no lab and keeps the old link" | 200 and `labAffiliation: "NOLAB"` | Becomes "answers 400 for an unknown lab code and saves nothing": 400, no `NOLAB` research center, the old link kept, the name not changed |
+| #73 | `auth.test.ts:201` "answers labAffiliation CITe4D when no lab is sent, whatever the account's lab is (new finding)" | `CITe4D` | Becomes "answers the account's own lab when no lab is sent": `LAB.shortCode`, link unchanged |
+| #73 | `registration.test.ts:163` "creates a new research center for a lab it does not know, and links the account to it (new finding)" | A `TESTX` research center | Becomes "answers 400 for a lab it does not know, and creates no research center and no account": 400, no `TESTX` center, no `users` row, the request still listed |
+
+Also read, and unchanged: the B1 lab tests `auth.test.ts:161` (no lab to a known code) and `:173` (move to another known code), and `:56` (login answers CITe4D for no lab: the `/me` rule, which #73's answer reuses); `registration.test.ts:49` (the sign-up defaults, CITe4D included: the sign-up is not checked under question 3 (a)); `:125` and `:149` (approval by short code, roles); `:176` (unknown ID with no details: 404); `:194-212` (reject); `session.test.ts:318` (register-request is public). No test reads `pending_registrations.json` other than `registration.test.ts` (the test server's own temporary copy).
+
+### 3. New tests
+
+Each fix has at least one test that fails on `9d8cc5fa` and passes after it, marked **fails before**. Where the fix replaces a pinned defect, the changed test in section 2 is that test.
+
+| Commit | File | Test | Fails before |
+|---|---|---|---|
+| #68 | none | No web test runner exists (`npm test` runs `tests/**/*.test.ts` against the API; there are no `*.test.tsx`), and adding one needs packages. The fix is checked by hand check H1, and after #71 the old same-tab path would answer 404 (question 5) | n/a |
+| #71 | `registration.test.ts` | The changed C-05 test (section 2) | **yes** (200 before) |
+| #71 | `registration.test.ts` | "approves from the stored request and ignores other fields in the body": a known ID with a body naming another email and role ITS creates the stored applicant as CUSTODIAN, and no account for the body's email | no (a guard: the web now sends the ID only) |
+| #72 | `registration.test.ts` | "answers a sign-up without its password": the register-request answer has no `password` key and has the server's `REG-` ID | **yes** |
+| #72 | `sessionUser.test.ts` | "sends no email to Staff or the Director" (1 (a)): every entry of `custodian-history` for Staff and the Director has a name and no `custodianEmail` | **yes** |
+| #70 | `registration.test.ts` | "has no POST /api/auth/register: 404 for a Lab Head, and no account": full body, 404, no `users` row | **yes** (200 before) |
+| #14 | `registration.test.ts` | "answers 409 for an email a pending request has, in any letter case": the second sign-up, same email in capitals, 409 with the pending text, one request listed | **yes** (200 before) |
+| #14 | `registration.test.ts` | "answers 409 for an ID number a pending request has" | **yes** |
+| #14 | `registration.test.ts` | "accepts an email again once its request was declined" | no (a guard: the check reads the pending list, not a history) |
+| #14 | `registration.test.ts` | "answers 409, not 500, when an account took the request's email before approval, and keeps the request": sign up, create a `users` row with that email in the test database, approve | **yes** (500 before) |
+| #73 | `auth.test.ts` | "answers the same lab as GET /api/auth/me": Custodian B (TEST lab) and TSG Staff (no lab), names only; the answer's `labAffiliation` equals `/me`'s | **yes** (CITe4D for Custodian B before) |
+| #73 | `registration.test.ts` | "finds the lab by its full name, as the sign-up form sends it": `labAffiliation: LAB.name`, the account linked to `LAB.centerId` | no (a guard for the match without the create) |
+
+Test values are made up (`@example.test` emails, ID numbers from 91000001, `test-password-*`), as the file does today.
+
+### 4. Stop 2 plan
+
+On `fix/security-batch-l`, in this order. After every commit: `npm run typecheck` (65) and `npm test`; `npm run build` after the web commits (1, 2, 6) and at the end. One issue per commit; a test that pins the old behavior changes in the same commit. Commit, never push.
+
+| # | Commit message | Files | Tests | Count after |
+|---|---|---|---|---|
+| 1 | `fix(auth): list the server's copy of a same-tab sign-up (#68)` | `web/pages/auth/Register.tsx` | none | **415** |
+| 2 | `fix(auth): refuse approval of an unknown sign-up request (#71)` | `auth.service.ts`, `auth.controller.ts`, `shared/types/auth.ts`, `web/state/serverData.tsx`, `web/api/auth.api.ts` (the TODO and TSDoc); with question 6 (b), the one alert in `serverData.tsx` | 1 changed, 1 added | **416** |
+| 3 | `fix(auth): send no passwords, and custodian emails only where shown (#72)` | `auth.service.ts`, `auth.controller.ts`, `shared/types/auth.ts`, `web/api/auth.api.ts` (TODO), `assets.service.ts`, `shared/types/assets.ts`; under 1 (b) also `AssetDetailModal.tsx:750-753` | 4 changed, 2 added | **418** |
+| 4 | `refactor(auth): delete the unused POST /api/auth/register (#70)` | `auth.routes.ts`, `auth.controller.ts`, `auth.service.ts`, `auth.validation.ts`, `shared/types/auth.ts`; `tests/api/registration.test.ts` and `session.test.ts` | 5 removed, 1 added | **414** |
+| 5 | `fix(auth): refuse a sign-up whose email or ID number is taken or pending (#14, #81)` | `auth.service.ts` (sign-up and approval checks), the controller TSDoc | 1 changed, 4 added | **418** |
+| 6 | `fix(auth): answer the real lab and never create a lab from a sign-up or account (#73)` | `auth.service.ts`, `auth.repository.ts` (`createResearchCenter` deleted), `shared/types/auth.ts` (TSDoc); with question 2 (a), `web/state/session.tsx` and `web/pages/AccountDetailsPage.tsx` | 3 changed, 2 added | **420** |
+| 7 | (only if a hand check finds something) | | | |
+| 8 | `docs(batch L): record the build` | This log (stop 2 section, hand check results), `docs/README.md`, `docs/HANDOFF.md` | none | **420** |
+
+Commit 4 is `refactor`: it removes a route no screen calls; its only behavior change is that path answering 404. **The typecheck** should stay 65: the deleted code has no errors in the list, and the narrowed types are used in one place each. If it moves, the report says why.
+
+**Other people's files.** `NotificationCenter.tsx` (Joel, PR #112): not touched. `AssetDetailModal.tsx` (Aryan, Escape): not touched under question 1 (a); under (b), lines 750 to 753 only (the "Email:" cell inside the full history grid).
+
+### 5. Hand checks
+
+#### Batch L hand checks
+
+**H1 to H10: the agent, in a browser (Playwright MCP), on the local UAT copy `adric_uat_check` only**, at stop 2. Raiki may run any of them again the same way. Before starting: make sure ports 4000 and 5173 are free (stop any `npm run dev:all`). Start the app only with `powershell -ExecutionPolicy Bypass -File C:\dev\uat-data\start-local-uat.ps1`, in the background (it refuses a non-local host or a busy port); stop it afterwards and check the ports free. The browser opens only `http://localhost:5173`; direct API calls go only to `http://localhost:4000`, sent from the logged-in page (`fetch` with the session cookie), and the network log is checked to show only `localhost:4000` for `/api`. Accounts: `C:\dev\uat-data\uat-passwords.txt` (never copied anywhere). Screenshots: `%TEMP%\adric-batchL-handchecks\`; `.playwright-mcp` is deleted from the repository afterwards. **No check touches CCS Cloud.** H11 runs in the terminal on the test database.
+
+**Made-up applicants.** Sign-ups use made-up names, `@dlsu.edu.ph` addresses the form accepts (for example `batch-l-h1@dlsu.edu.ph`, checked against the copy's accounts first), and ID numbers from 99000001; direct calls use `@example.test`. **Writes:** H1 and H8 create two accounts on the UAT copy (local only). The server keeps sign-ups in `pending_registrations.json` in its working folder, the repository root under the start script (question 7): every request the checks file is approved or declined before the end, and no other request is touched.
+
+| # | Issue | Role and screen | Steps | Expected | Database |
+|---|---|---|---|---|---|
+| H1 | #68, the old bug | Lab Head (CITe4D), Login, Sign up, then Account Approvals, one tab | Log in as the Lab Head. Open `/login` in the same tab (the session is restored). Click Sign up; fill the form (lab CITE4D); Submit. Click Return to Sign In; log in again as the same Lab Head. Open Account Approvals from the sidebar (no reload). Approve the new card. Reload the page | The sign-up answer's `registration.id` is `REG-` and six digits; the card is listed; the approve body is `{"requestId": <that id>}` and answers 200; after the reload the card is gone (before the fix it came back). The new account logs in to the Custodian portal | Local UAT copy |
+| H2 | #71 | Lab Head, a direct call | `POST /api/auth/approve-registration` with `requestId: "REG-000000"`, names, an `@example.test` email, `requestedRole: "ITS"`, a made-up password. Then `POST /api/auth/login` with that email and password | 404, "Pending registration request details not found."; the login answers 401 (no account) | Local UAT copy |
+| H3 | #72 | Lab Head, Account Approvals, and the network answers | File one sign-up (logged out, a second browser context). As the Lab Head, open Account Approvals; read `GET /api/auth/pending-registrations`. Read H1's sign-up and approve answers | No entry has `password`; each has name, email, ID number, user type, role, lab, picture, date, and the card shows them. The sign-up answer has no `password`. The approve answer's `user` has exactly `userId`, `firstName`, `lastName`, `email` | Local UAT copy |
+| H4 | #72, custodian history | Lab Head, Staff, Director, Custodian; the asset modal of an asset on loan | Lab Head: open the asset, then the full Custodian History. Each other role: open the same asset; read `custodian-history` | Lab Head: "Email:" shows each holder's email (1 (a)). Staff, Director, Custodian: no `custodianEmail` in any entry; the summary names (Current, Previous, First custodian) as before; a Custodian still sees "Not shown" for another holder | Local UAT copy |
+| H5 | #14, #81 | Signed out, Sign up | (1) An existing account's email (one from the copy, not written down). (2) A new email: submit. (3) The same new email in capitals, another ID number. (4) Another email, the ID number of (2). Then as the Lab Head, decline (2) | (1) "A registered user with this email already exists." with status 409. (2) Success. (3) "A sign-up request with this email is already waiting for approval.", 409. (4) The ID number text, 409. The decline removes (2) | Local UAT copy |
+| H6 | #73, the old bug | Custodian (a lab other than CITe4D, if the copy has one; else the CITe4D one), Account Settings, then direct calls | Change the first name, Save; read the `PUT` body and answer. Direct `PUT /api/auth/account` with names only. Direct `PUT` with `labAffiliation: "NOLAB"` and another first name. `GET /api/auth/me`. Put the name back | Save works; with 2 (a) the body has no `labAffiliation`; the answer's `labAffiliation` is the account's lab (as `/me`), not CITe4D. Names only: the same lab. NOLAB: 400 "Unknown lab: NOLAB."; `/me` shows the name unchanged | Local UAT copy |
+| H7 | #73, M-03 | Lab Head (CITe4D), Account Approvals | Signed out, a direct `POST /api/auth/register-request` with `labAffiliation: "CITE4D Typo Lab (CITE4DX)"` (the Lab Head's list shows it because it contains "CITE4D"). As the Lab Head, Approve it; then Decline it | Approve: the refusal "The lab on this request, ... is not a known lab..." (400), shown once with 6 (b); the card stays; a login with its email answers 401. Decline removes it | Local UAT copy |
+| H8 | Nearby: a normal approval | Signed out, Sign up; then Lab Head (CITe4D), Account Approvals | Sign up with lab "Center for ICT for Development (CITE4D)" in a fresh context. Log in as the Lab Head; Approve. Log in as the new account; open Account Settings | One alert "Account for {name} approved."; the card goes; the new account opens the Custodian portal; Account Settings shows lab CITe4D | Local UAT copy |
+| H9 | #70 | Lab Head, a direct call | `POST /api/auth/register` with a full body (`@example.test` email); then a login with it | 404; login 401 | Local UAT copy |
+| H10 | Nearby: decline and the empty list | Lab Head, Account Approvals | After H1 to H9, read the list | Only requests the checks did not file (if any); "No sign-up requests for CITe4D" if none. A Director and a Staff account's Account Settings save still works (name only) | Local UAT copy |
+| H11 | All | The agent, terminal | `npm run typecheck`, `npm run build`, `npm test`, with the browser and both servers stopped | 65 (64 as built, section 7), passes, 420 | Local test (`adric_db_test`) |
+
+### 6. Questions for Raiki
+
+1. **Who gets the custodian's email in the custodian history (#72).** The history answer sends each holder's email to every role; only the Lab Head's full Custodian History view (asset modal, "Email:") shows it.
+   - (a) Send the email to a Lab Head only; Staff, the Director, and a Custodian get none. Server only; `AssetDetailModal.tsx` is not touched.
+   - (b) Send no email to anyone, and remove the "Email:" cell from the full history (`AssetDetailModal.tsx` lines 750 to 753 only).
+   - (c) Keep it as it is.
+   - **Recommendation: (a).** Each role gets what its screens show, and Aryan's file stays untouched.
+2. **The lab that Account Settings sends (#73).** Every role, Account Settings: the lab field is read-only, but the page sends a lab on every save, and for the Director and Staff that is "CITe4D" (the fallback `/me` answers), which links them to CITe4D.
+   - (a) The server fix as planned, and the page stops sending the lab (`session.tsx` and `AccountDetailsPage.tsx`, about five lines). A lab change then needs a direct call with a known code.
+   - (b) The server fix only; the page keeps sending it, so a Director or Staff save still links them to CITe4D.
+   - (c) The server fix, and the account update never changes the lab at all: any lab in the body is refused with 400, until Phase 3 gives labs their own screen.
+   - **Recommendation: (a).** It stops the wrong CITe4D links, keeps the brief's rule for a lab that is sent, and the screen already treats the lab as read-only.
+3. **Where an unknown lab on a sign-up is refused (#73, M-03).** Sign-up page (anyone) and the Lab Head's Account Approvals. The form's labs all match a research center except "DLSU AdRIC".
+   - (a) At approval only (400, the request stays to be declined); the sign-up is not checked.
+   - (b) Also at sign-up: an unknown lab answers 400 there, so the applicant picks again. "DLSU AdRIC" would then be refused at sign-up (or removed from the list), and the sign-up tests send a lab the test database has.
+   - **Recommendation: (a).** It is what the brief asks, and no Lab Head's list shows a "DLSU AdRIC" request today anyway (Noticed, below).
+4. **The text for a sign-up already waiting (#14, #81).** Sign-up page (anyone). I could not open the UAT manual (it is not in the repository or `C:\dev\uat-data`), so EV-05 was matched to the brief's quote, which is the server's text today.
+   - (a) Accounts keep today's text ("A registered user with this email already exists.", and the ID number one); a pending request gets "A sign-up request with this email is already waiting for approval." (and the ID number one).
+   - (b) A pending request gets the account text too.
+   - (c) You paste EV-05's expected text and I match it.
+   - **Recommendation: (a).** The applicant learns the truth: wait for the Lab Head, do not try to log in.
+5. **The test for #68.** It is a web bug, and the project has no web tests.
+   - (a) No automated test: hand check H1 checks it, and #71's test makes the old path fail loudly (404) if it ever comes back.
+   - (b) Move the "which copy to list" step into a small function and test it from `tests/` (a first web-side test, no new package).
+   - **Recommendation: (a).** A one-line web change does not need a new kind of test; (b) is better done once for the whole web app.
+6. **Two alerts when the server refuses an approval.** Lab Head, Account Approvals: today a refusal shows the server's message, then a second alert "Error connecting to server: ..." (`serverData.tsx`, the `catch` catches its own `throw`). After this batch the server refuses with real reasons (404, 409, 400).
+   - (a) Leave it.
+   - (b) One alert with the server's message, in #71's commit (three lines in `serverData.tsx`).
+   - **Recommendation: (b).** The second alert says the server could not be reached, which is false and is what the Lab Head would report.
+7. **The pending sign-up file during the hand checks.** The start script runs the server from the repository root, so the hand checks' sign-ups are written to the repository's `pending_registrations.json` (ignored by git), the same file a run against CCS Cloud uses.
+   - (a) Run them so: the checks approve or decline every request they file and touch no other, and nobody opens the file.
+   - (b) Run only the checks with no sign-up (H2, H4, H6, H9, H11), and you run the others.
+   - **Recommendation: (a).** The file ends as it started, and the checks need the real server path to prove #68.
+
+**Answers (Raiki, 2026-10-23):** 1 (a), 2 (a), 3 (a), 4 (a), 5 (a), 6 (b), 7 (a). On 3: the sign-up form does not change in this batch; "DLSU AdRIC" is listed under Noticed for Raiki to file. On 7: every sign-up the checks file is approved or declined, so the file ends as it started; the file is never opened.
+
+**Changed before merge (Raiki, 2026-10-23, stop 3):** answer 2 becomes **(c)**: the account update never changes the lab, and any lab sent answers 400. Two more additions: a sign-up always creates a Custodian, whatever role it asks for (C-05 family), and the approval log line has no email. Section 7, "Stop 3: three additions", records them.
+
+### 7. Stop 2: what was built (2026-10-23)
+
+On `fix/security-batch-l`, in the planned order, one commit per issue. After every commit: `npm run typecheck`, `npm run build`, `npm test`. Each new or changed test that should fail before its fix was run against the old server code (the fix's server files stashed) and failed, then passed with the fix. Nothing pushed.
+
+| # | Commit | Kind | What it does | Typecheck | Tests |
+|---|---|---|---|---|---|
+| 1 | `9f9f304e` | Behavior change (#68) | `Register.tsx` sends only the form fields and lists `data.registration`, the server's copy with its ID | 65 | **415** |
+| 2 | `b648751f` | Behavior change (#71) | No account from the body: an unknown ID answers 404; the web sends `{ requestId }` only; one alert on a refusal (answer 6b) | 65 | **416** |
+| 3 | `6cdba684` | Behavior change (#72) | No password in the pending list or the sign-up answer; the approval answers `{ userId, firstName, lastName, email }`; the custodian email for a Lab Head only (answer 1a) | 65 | **418** |
+| 4 | `75bdd5d1` | Removal (#70) | `POST /api/auth/register` deleted (route, controller, service, validation, type); the path answers 404 | 65 | **414** |
+| 5 | `ab41e857` | Behavior change (#14, #81) | 409 for an email or ID number an account or a waiting request has (answer 4a); approval answers 409, not 500 | 65 | **418** |
+| 6 | `e5e40ccf` | Behavior change (#73) | The account update checks the lab first (unknown: 400, nothing saved) and answers the account's lab; approval refuses an unknown lab (400); `createResearchCenter` deleted; the account page sends no lab (answer 2a) | **64** | **420** |
+| 7 | (none needed) | | No hand check found anything to fix | | |
+| 8 | this commit | Docs | This section, the answers, the hand check results, `docs/README.md`, `docs/HANDOFF.md`, and the two counts in `AGENTS.md` | 64 | **420** |
+
+**Counts.** Tests 415, 416, 418, 414, 418, 420, as planned. **Typecheck 65 to 64 in commit 6:** one of the old errors was the account update's `createResearchCenter({ ..., location: "MANILA_CAMPUS" })` (`TS2322`, not a valid `research_centers_location`), the very create that #73 deletes; the error list is otherwise the same (compared line by line before and after). No schema, migration, `package.json`, or CCS Cloud change. `NotificationCenter.tsx` and `AssetDetailModal.tsx` are not touched.
+
+#### Differences from the plan, and why
+
+- **Two more tests pinned the email for Staff** (`assets.test.ts:182` "includes each custodian's email ... for any role" and `:196` the H-09 invented entry with `custodian@dlsu.edu.ph`); section 2 missed them. Both changed in commit 3: the first now pins the email for a Lab Head and none for Staff, the second keeps the invented entry pinned without its email for Staff. The count is unchanged (changed, not added).
+- **The invented H-09 entry's email** goes to a Lab Head only, like the real ones (answer 1a covers every entry).
+- **Commit 6's typecheck** went down by one (above).
+- **The account update reads the lab before saving** and answers the lab with the same rule as `getProfile` (one extra read of the account after the save).
+
+#### Batch L hand checks: results
+
+**Results (2026-10-23). H1 to H11: all passed** (the agent; H1 to H10 in Chrome driven by the Playwright MCP on the local UAT copy `adric_uat_check`, H11 in the terminal on `adric_db_test`). No check touched CCS Cloud.
+
+How they ran: ports 4000 and 5173 were checked free; the app was started only with `C:\dev\uat-data\start-local-uat.ps1` in the background (the first start did not run: the shell dropped the backslashes in the path, so PowerShell found no file; the second, with the path quoted, printed "Starting on localhost / adric_uat_check"). Every `/api` request went to `http://localhost:4000` (the only other requests were the app's Google fonts and Unsplash preset pictures); the browser opened only `http://localhost:5173`. Accounts from `C:\dev\uat-data\uat-passwords.txt`, not copied anywhere. Afterwards the two servers were stopped by PID and the ports checked free; `.playwright-mcp` was deleted. Screenshots: `%TEMP%\adric-batchL-handchecks\screenshots\` (15 files); H11's output: `%TEMP%\adric-batchL-handchecks\h11-checks.txt`.
+
+**Writes to the local UAT copy and the sign-up file.** Two accounts created by approval (H1: `batch-l-h1@dlsu.edu.ph`, H8: `batch-l-h8@dlsu.edu.ph`, made-up names "BatchL Hcheck"); Custodian Four's first name changed and put back (H6); the Staff and Director names saved unchanged (H10). Four requests filed (H1, H5, H7, H8): H1 and H8 approved, H5 and H7 declined, so the sign-up file holds what it held before. One request filed before the checks (lab "No affiliation") was listed by the server and not touched: no Lab Head's list shows it (Noticed). The file was not opened.
+
+| Check | Result | What was seen | Screenshots |
+|---|---|---|---|
+| H1 | Passed | Lab Head logged in; `/login` in the same tab (session restored); Register New Account; submit. The body had no `id`, `submittedAt`, or `status`; the answer's `registration.id` was `REG-103164`, with no `password`. Return to Sign In; the same Lab Head again: no `pending-registrations` request followed this login (the old bug's condition). Account Approvals from the sidebar: the card was listed; Approve sent `{"requestId":"REG-103164"}`, 200. After a reload the server's list no longer had it. The new account logged in to `/custodian/myassets` | `h1-after-reload.png`, `h1-new-account-custodian.png` |
+| H2 | Passed | `POST /api/auth/approve-registration` with `REG-000000`, names, an `@example.test` email, role ITS: 404 `{"success":false,"error":"Pending registration request details not found."}`; a login with that email: 401 | |
+| H3 | Passed | `GET /api/auth/pending-registrations`: no entry has `password`; keys `id, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, avatarUrl, submittedAt, status`. The cards show name, user type, email, ID number, role, lab, date. The sign-up answers had no `password` (H1, H5, H7, H8). H8's approve answer: `user` is exactly `{ userId, firstName, lastName, email }` | `h7-h8-approvals-list.png` |
+| H4 | Passed | CITe4D-0102 (on loan, held by UAT Custodian One). Lab Head, full Custodian History: "Email:" shows the holder's email (and "--" for the first entry, which has no holder). Staff, Director, Custodian One (the holder), Custodians Two to Four: no `custodianEmail` in any entry; the names as before; Custodians Two to Four get `custodianHidden`. Staff's modal: "Custodian: UAT Custodian One", "Current custodian: UAT Custodian One" | `h4-labhead-full-history.png`, `h4-staff-modal-summary.png` |
+| H5 | Passed | Signed out, Sign up. (1) An existing account's email: 409, the form shows "Registration Error: A registered user with this email already exists." (2) A new email: submitted. (3) The same email typed in capitals: 409 "A sign-up request with this email is already waiting for approval." (the form lowercases it; a direct call with ` BATCH-L-H5@DLSU.EDU.PH ` also answered 409). (4) Another email, the ID number of (2): 409 "A sign-up request with this ID number is already waiting for approval." Then (2) was declined by the Lab Head | `h5-1-account-email.png` to `h5-4-same-id.png` |
+| H6 | Passed | Custodian Four (lab CAR), Account Settings, first name changed, Save: the body had `firstName`, `lastName`, and the picture only (no `labAffiliation`), 200, answer lab `CAR` (the old code answered CITe4D when no lab was sent). Names only by direct call: lab `CAR`. `labAffiliation: "NOLAB"` with another name: 400 "Unknown lab: NOLAB."; `/me` then showed the name unchanged and lab CAR. The name was put back | `h6-custodian-car-save.png` |
+| H7 | Passed | A direct sign-up with lab "CITE4D Typo Lab (CITE4DX)" was listed for the CITe4D Lab Head. Approve: 400; dialogs seen: the confirm, then **one** alert "Error approving registration: The lab on this request, CITE4D Typo Lab (CITE4DX), is not a known lab. Decline it and ask the applicant to sign up again." (no "Error connecting to server"); the card stayed; a login with its email: 401. Decline removed it | `h7-refused-card-stays.png` |
+| H8 | Passed | A sign-up with lab "Center for ICT for Development (CITE4D)"; the Lab Head approved it: one alert "Account for BatchL Hcheck Eight approved."; the card went. The new account logged in to the Custodian portal; Account Settings shows lab CITe4D | `h8-h10-after-decisions.png`, `h8-new-account-settings.png` |
+| H9 | Passed | `POST /api/auth/register` with a full body as the Lab Head: 404; a login with its email: 401 | |
+| H10 | Passed | After the decisions, Account Approvals showed "No sign-up requests for CITe4D". Staff and Director Account Settings, Save: 200, the body without `labAffiliation`; the Director's page said "Profile saved." | `h10-staff-account-save.png`, `h10-director-account-save.png` |
+| H11 | Passed | With the browser and both servers stopped: typecheck **64**, build passes, `npm test` 16 files, **420** passed | `h11-checks.txt` |
+
+Console errors seen: the expected refusals (404, 401, 409, 400 answers and the Register page's own error line), and an uncaught error from the Lab Head's Approve button after a refusal (Noticed).
+
+#### Stop 3: three additions (2026-10-23)
+
+Raiki asked for three more commits on the same branch before merging. After each: typecheck, build, `npm test`. Each fail-before test was run against the previous commit's server code and failed. Nothing pushed.
+
+| # | Commit | Kind | What it does | Typecheck | Tests |
+|---|---|---|---|---|---|
+| 9 | `edbd3559` | Behavior change (C-05 family) | `register-request` stores "Custodian" whatever `requestedRole` the body sends (the controller no longer reads it; `RegistrationRequestInput` loses the field), and approval always creates a CUSTODIAN account; the role mapping and its `TODO(M-11)` go (the other `TODO(M-11)`, on `ADRIC_SECRETARY` at login, stays) | 64 | **422** |
+| 10 | `abba774c` | Behavior change (#73, answer 2c) | `checkAccountUpdate` answers 400 "Your lab can't be changed here." for any `labAffiliation` in the body (an empty one counts as none), before anything is saved; the service no longer touches the lab and answers the account's own lab; `findResearchCenterByCode`, `findUserCenterOfUser`, `updateUserCenter`, `createUserCenter` had no other caller and go; the account log line drops the lab | 64 | **422** |
+| 11 | `3aaa6cd5` | Log only | The approval log line keeps the user id and drops the email | 64 | **422** |
+| 12 | this commit | Docs | This part, the answer change, the stop 3 hand checks, `docs/README.md`, `docs/HANDOFF.md` (and its stale Transfer form note), `AGENTS.md` (422) | 64 | **422** |
+
+**Tests.** Commit 9: the role table test (`registration.test.ts`, "gives a request for role %s ...", four cases) becomes "approves a request that asks for role %s as a Custodian" for Custodian, Lab Head, TSG, ITS, and **Admin** (one case added); one test added, "stores Custodian as the requested role whatever role the sign-up asks for". 420 to 422; the Lab Head, TSG, ITS, and Admin cases and the new test failed on the old code. Commit 10: three tests changed, none added (422): the B1 test "links an account with no lab to a known lab code" now expects 400 and no link (the Director); the B1 test "moves an account's existing lab link ..." becomes "refuses a Lab Head moving to another known lab: 400, the lab and the name kept" (Raiki's test; it removes its TESTB lab afterwards); the unknown-lab test expects the new text; the rename test no longer sends a lab. All three failed on the old code. Commit 11: no test reads the log.
+
+#### Batch L stop 3 hand checks: results
+
+**H6 (rerun), H12, H13, H14: all passed** (the agent; Chrome driven by the Playwright MCP on the local UAT copy `adric_uat_check`, started only with `C:\dev\uat-data\start-local-uat.ps1`, which printed "Starting on localhost / adric_uat_check", after checking ports 4000 and 5173 free). Every `/api` request went to `http://localhost:4000`; the browser opened only `http://localhost:5173`. Afterwards the servers were stopped by PID, the ports checked free, and `.playwright-mcp` deleted. Screenshots: `%TEMP%\adric-batchL-handchecks\screenshots-stop3\`. Writes to the copy: two accounts by approval (H12), Custodian Four's first name changed and put back (H6), the Lab Head's name saved unchanged (H13). The two sign-ups the checks filed were both approved; the pending list afterwards held only the request from before the checks. No check touched CCS Cloud.
+
+| # | Item | Role and screen | Steps | Expected | Result |
+|---|---|---|---|---|---|
+| H6 | #73, rerun | Custodian Four (CAR), Account Settings, then direct calls | Change the first name, Save; names only; `labAffiliation: "NOLAB"` with another name; `/me`; put the name back | Save 200, the body has no `labAffiliation`, answer lab CAR; names only: CAR; NOLAB: 400 "Your lab can't be changed here."; the name not changed | **Passed**, as expected. `h6-rerun-custodian-car-save.png` |
+| H12 | C-05 family | Signed out, two direct sign-ups; then Lab Head (CITe4D), Account Approvals | Sign-ups with `requestedRole` "Admin" and "Lab Head" (lab CITE4D, `@example.test`); approve both; log each new account in (by direct call: the login form takes only `@dlsu.edu.ph`) | Both answers say `requestedRole: "Custodian"`; both cards read "Requested Role: Custodian"; both approvals 200; both logins answer role Custodian, lab CITe4D | **Passed**, as expected. `h12-approvals-custodian-role.png` |
+| H13 | #73, answer 2c | Lab Head (CITe4D), a direct call, then Account Settings | `PUT /api/auth/account` with another first name and `labAffiliation: "CAR"`; `/me`; then Save on Account Settings | 400 "Your lab can't be changed here."; `/me` still CITe4D, the name unchanged; Save 200 with no `labAffiliation` in the body, answer lab CITe4D | **Passed**, as expected. `h13-labhead-account-save.png` |
+| H14 | The log line | The agent, the server's console output | Read only the approval lines after H12 | "Lab Head Approved User Registration! Created user in MySQL DB: ID {n}", no email | **Passed**: two lines, IDs 15 and 16, no "@" |
+| H11 | All, again | The agent, terminal, servers stopped | `npm run typecheck`, `npm run build`, `npm test` | 64, passes, 422 | **Passed**. `%TEMP%\adric-batchL-handchecks\h11-checks-stop3.txt` |
+
+### Noticed, not in this branch
+
+- **"DLSU AdRIC" on the sign-up lab list can never be approved:** no research center has that name or code, and no Lab Head's list shows it, so it should be removed from the list or mapped to a lab. Raiki files it. (The same is true of "No affiliation" requests: the Lab Head's list keeps the requests whose lab text contains the Lab Head's lab code, `matchesBranch` in `LabHeadDashboard.tsx`; the local file holds one such request from before the checks.)
+- **A refused approval leaves an uncaught error in the console.** `LabHeadDashboard.tsx`'s Approve handler awaits `approveRegistration`, which throws after its alert so the success alert is skipped, and nothing catches it. Harmless on screen; a `try` in the handler would quiet it.
+- **The request ID is six random digits** (the `REG-` line in `requestRegistration`, `auth.service.ts`): two requests can draw the same one, and approving or declining one then drops both. Small; H-17 (the table) gives real IDs.
+- **Server log lines print emails** in the sign-up and account update handlers in `auth.controller.ts` (the approval line no longer does, stop 3). They are console lines on the server, not answers; a separate small cleanup.
+- **On CCS Cloud, Director and Staff accounts that saved their name may already be linked to CITe4D** (#73, from the code). A read-only count of their `user_centers` rows would show it; nothing in this batch changes existing links.
+- **Approve-registration with no `requestId`** answers 404, not 400. It stays: nothing sends that.

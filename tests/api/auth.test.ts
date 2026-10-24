@@ -130,7 +130,6 @@ describe("PUT /api/auth/account", () => {
     const res = await as(USERS.custodianB).put("/api/auth/account", {
       firstName: "  Renamed  ",
       lastName: "Custodian B",
-      labAffiliation: LAB.shortCode,
     });
 
     expect(res.status).toBe(200);
@@ -158,56 +157,73 @@ describe("PUT /api/auth/account", () => {
     expect((await userRow(USERS.custodianB.userId)).user_img).toBe(picture);
   });
 
-  it("links an account with no lab to a known lab code", async () => {
+  it("refuses a lab for an account with no lab, and links none (issue #73)", async () => {
     const res = await as(USERS.director).put("/api/auth/account", {
       firstName: USERS.director.firstName,
       lastName: USERS.director.lastName,
       labAffiliation: LAB.shortCode,
     });
 
-    expect(res.status).toBe(200);
-    const links = await labLinks(USERS.director.userId);
-    expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Your lab can't be changed here.");
+    expect(await labLinks(USERS.director.userId)).toEqual([]);
   });
 
-  it("moves an account's existing lab link to another known lab code, without adding a second link", async () => {
+  it("refuses a Lab Head moving to another known lab: 400, the lab and the name kept (issue #73)", async () => {
     const otherLab = await db.research_centers.create({ data: { name: "Test Other Lab", short_code: "TESTB", location: "LAGUNA" } });
+    try {
+      const res = await as(USERS.labHead).put("/api/auth/account", {
+        firstName: "Moved",
+        lastName: USERS.labHead.lastName,
+        labAffiliation: "TESTB",
+      });
 
-    const res = await as(USERS.labHead).put("/api/auth/account", {
-      firstName: USERS.labHead.firstName,
-      lastName: USERS.labHead.lastName,
-      labAffiliation: "TESTB",
-    });
-
-    expect(res.status).toBe(200);
-    const links = await labLinks(USERS.labHead.userId);
-    expect(links.map((l) => l.center_id)).toEqual([otherLab.center_id]);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("Your lab can't be changed here.");
+      const links = await labLinks(USERS.labHead.userId);
+      expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
+      expect((await userRow(USERS.labHead.userId)).first_name).toBe(USERS.labHead.firstName);
+    } finally {
+      await db.research_centers.delete({ where: { center_id: otherLab.center_id } });
+    }
   });
 
-  it("answers an unknown lab code as saved, but creates no lab and keeps the old link (new finding: MANILA_CAMPUS is not a valid location)", async () => {
+  it("answers 400 for an unknown lab code too and saves nothing, the name included, and creates no lab (issue #73)", async () => {
     const res = await asCustodian.put("/api/auth/account", {
-      firstName: USERS.custodianA.firstName,
+      firstName: "Not Saved",
       lastName: USERS.custodianA.lastName,
       labAffiliation: "NOLAB",
     });
 
-    expect(res.status).toBe(200);
-    expect(res.body.user.labAffiliation).toBe("NOLAB");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Your lab can't be changed here.");
     expect(await db.research_centers.count({ where: { short_code: "NOLAB" } })).toBe(0);
     const links = await labLinks(USERS.custodianA.userId);
     expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
+    expect((await userRow(USERS.custodianA.userId)).first_name).toBe(USERS.custodianA.firstName);
   });
 
-  it("answers labAffiliation CITe4D when no lab is sent, whatever the account's lab is (new finding)", async () => {
+  it("answers the account's own lab when no lab is sent, and keeps it (issue #73)", async () => {
     const res = await asCustodian.put("/api/auth/account", {
       firstName: USERS.custodianA.firstName,
       lastName: USERS.custodianA.lastName,
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.user.labAffiliation).toBe("CITe4D");
+    expect(res.body.user.labAffiliation).toBe(LAB.shortCode);
     const links = await labLinks(USERS.custodianA.userId);
     expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
+  });
+
+  it("answers the same lab as GET /api/auth/me, for an account with a lab and one without (issue #73)", async () => {
+    for (const user of [USERS.custodianB, USERS.staffTsg]) {
+      const res = await as(user).put("/api/auth/account", { firstName: user.firstName, lastName: user.lastName });
+      const me = await as(user).get("/api/auth/me");
+
+      expect(res.status).toBe(200);
+      expect(res.body.user.labAffiliation, user.role).toBe(me.body.user.labAffiliation);
+    }
+    expect(await labLinks(USERS.staffTsg.userId)).toEqual([]);
   });
 
   it("changes only the caller's account, whatever email the body names (C-02 and C-06 fixed)", async () => {

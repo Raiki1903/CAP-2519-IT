@@ -89,7 +89,7 @@ interface SessionContextType {
   role: Role | null;
   setRole: (role: Role | null) => void;
   currentUser: SessionUser | null;
-  updateProfile: (firstName: string, lastName: string, profilePicture: string, labAffiliation?: string) => Promise<void>;
+  updateProfile: (firstName: string, lastName: string, profilePicture: string) => Promise<void>;
   cycleMode: "Annual" | "Trimestral";
   setCycleMode: (mode: "Annual" | "Trimestral") => void;
   theme: "classic-dark" | "light-slate";
@@ -159,7 +159,8 @@ const SessionContext = createContext<SessionContextType | null>(null);
  *   `restoreAttempt` says which try it is on.
  * - `restoreFailed`, `retryRestore()`: every try failed for a reason other than a 401 (a 500, no answer, a network
  *   error). The person stays where they are, with the login marker kept, and RootLayout offers Retry.
- * - `updateProfile(...)`: saves name, picture, and lab with authApi.updateAccount.
+ * - `updateProfile(...)`: saves name and picture with authApi.updateAccount. The lab is read-only on the account page,
+ *   so none is sent; the session takes the account's lab from the answer (issue #73).
  * - `cycleMode`, `theme`, `sidebarCollapsed` and their setters.
  *
  * @param children the rest of the app
@@ -296,7 +297,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   // A failed save is only written to the console, so the account page shows success either way.
-  const updateProfile = async (firstName: string, lastName: string, profilePicture: string, labAffiliation?: string) => {
+  const updateProfile = async (firstName: string, lastName: string, profilePicture: string) => {
     if (!currentUser) return;
     try {
       const data = await authApi.updateAccount({
@@ -304,8 +305,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         lastName,
         avatarUrl: profilePicture,
         profilePicture,
-        userImg: profilePicture,
-        labAffiliation
+        userImg: profilePicture
       });
       if (data.success && data.user) {
         const savedImg = data.user.userImg || data.user.profilePicture || data.user.avatarUrl || profilePicture;
