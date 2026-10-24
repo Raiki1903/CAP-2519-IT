@@ -84,6 +84,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   const [reportImages, setReportImages] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<null | "healthy" | "repair">(null);
+  const [reportError, setReportError] = useState<string | null>(null);
   const [requestImmediate, setRequestImmediate] = useState(false);
   const [submittedRef, setSubmittedRef] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -350,13 +351,22 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     const fullRemarks = reportDesc || `Periodic custodian inspection check submitted. Status: ${reportStatus}`;
     const firstImg = reportImages.length > 0 ? reportImages[0] : null;
 
+    setReportError(null);
+
     try {
       // 1. Post directly to MySQL database table asset_reports
-      await inspectionsApi.submitInspectionRaw(targetTag, {
+      const res = await inspectionsApi.submitInspectionRaw(targetTag, {
         reportCondition: reportConditionEnum,
         reportRemarks: fullRemarks,
         reportImg: firstImg,
       });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        // The form stays open, so the custodian sees why and can fix it or cancel. (H-16)
+        setReportError(body?.error || "The inspection report could not be saved. Please try again.");
+        return;
+      }
 
       syncFromDb();
 
@@ -380,17 +390,15 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
       }
 
       await fetchDbAssets();
-    } catch (err) {
+    } catch (err: any) {
       console.error("❌ Failed to save custodian inspection report in MySQL asset_reports:", err);
-      // TODO(H-16): the report was not saved anywhere, yet the screen shows success. A refusal from the server is not seen at all, because the answer is never read. Step 13 (typed errors).
-      syncFromDb();
-      setSubmitResult("healthy");
+      setReportError(err?.message || "The inspection report could not be saved: the server could not be reached. Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const resetReport = () => { setReportAsset(""); setReportStatus(""); setReportDesc(""); setReportImages([]); setSubmitResult(null); setSubmittedRef(""); setRequestImmediate(false); };
+  const resetReport = () => { setReportAsset(""); setReportStatus(""); setReportDesc(""); setReportImages([]); setSubmitResult(null); setSubmittedRef(""); setRequestImmediate(false); setReportError(null); };
 
   // ── My Assets ─────────────────────────────────────────────────────────────
   if (activeTab === "myassets") {
@@ -749,7 +757,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
             <Label className="text-[11px] font-bold tracking-widest text-muted-foreground uppercase mb-2 block">Select Asset Under Inspection</Label>
             <div className="flex flex-col gap-2">
               {reportEligibleAssets.map(asset => (
-                <button key={asset.id} type="button" onClick={() => setReportAsset(asset.id)}
+                <button key={asset.id} type="button" onClick={() => { setReportAsset(asset.id); setReportError(null); }}
                   className={cn("flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer text-left transition-all w-full", reportAsset === asset.id ? "border-primary bg-emerald-50" : "border-border hover:border-primary/40 bg-white")}>
                   <div className="w-12 h-9 rounded overflow-hidden flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image || (asset as any).image_url} /></div>
                   <div className="flex-1">
@@ -856,6 +864,13 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                 </div>
               )}
             </div>
+
+            {reportError && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-xs leading-relaxed font-semibold flex items-start gap-2">
+                <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
+                <span>{reportError}</span>
+              </div>
+            )}
 
             <Button
               onClick={handleSubmitReport}
