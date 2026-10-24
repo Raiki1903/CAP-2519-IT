@@ -13,6 +13,7 @@ import { useBrowserOnly } from "@web/state/browserOnly";
 import { openReturnRequests } from "@web/features/returns/openReturnRequests";
 import * as transfersApi from "@web/api/transfers.api";
 import * as disposalsApi from "@web/api/disposals.api";
+import { labMatches } from "@web/features/labs/labMatches";
 import type { Role } from "@shared/enums/role";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -239,8 +240,7 @@ export function NotificationCenter() {
           isRelevant = true;
           actionRequired = true;
         } else if (role === "LabHead") {
-          // TODO(F-31): every Lab Head sees CITe4D transfers and no others, whatever their own lab. The bell rewrite (01D section 8).
-          if (txn.from_lab?.includes("CITe4D") || txn.to_lab?.includes("CITe4D") || txn.lab === "CITe4D") {
+          if (labMatches(currentUser?.labAffiliation, txn.lab)) {
             isRelevant = true;
             actionRequired = true;
           }
@@ -277,13 +277,7 @@ export function NotificationCenter() {
         let actionRequired = false;
 
         if (role === "LabHead") {
-          const matchesLab = !currentUser?.labAffiliation ||
-            !loan.lab ||
-            loan.lab.toLowerCase().includes(currentUser.labAffiliation.toLowerCase()) ||
-            currentUser.labAffiliation.toLowerCase().includes(loan.lab.toLowerCase()) ||
-            loan.lab.includes("CITe4D") ||
-            loan.lab.includes("Manila");
-          if (matchesLab) {
+          if (labMatches(currentUser?.labAffiliation, loan.lab)) {
             isRelevant = true;
             actionRequired = true; // Pending Lab Head authorization
           }
