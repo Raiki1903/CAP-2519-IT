@@ -16,6 +16,7 @@ import { LabHeadAnalyticsView } from "@web/features/analytics/labHead/LabHeadAna
 import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
 import * as transfersApi from "@web/api/transfers.api";
+import { labMatches } from "@web/features/labs/labMatches";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
@@ -449,27 +450,10 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   // TODO(M-14): with no lab on the account this falls back to CITE4D's long name, which the analytics tab then uses as an asset tag prefix and matches nothing. Small fix branch.
   const userLab = (currentUser as any)?.labAffiliation || "Center for ICT for Development (CITE4D)";
 
-  // A lab may be stored as a full name, a short code, or "Name (CODE)", so this compares
-  // all three forms loosely.
+  // Scopes records to the Lab Head's lab affiliation using the shared labMatches helper. (F-31)
   // TODO(M-02): scoping to the Lab Head's branch happens only here, in the browser; the server sends every lab's rows. Moves to the server (01D section 7) with lab scoping, after step 14 (a lab_id on assets).
   const matchesBranch = (lab: string | undefined | null) => {
-    if (!lab) return false;
-    const target = userLab.toLowerCase().trim();
-    const candidate = (lab || "").toLowerCase().trim();
-    if (candidate === target) return true;
-    if (target.includes(candidate) || candidate.includes(target)) return true;
-
-    const match = userLab.match(/\(([^)]+)\)/);
-    if (match) {
-      const shortCode = match[1].toLowerCase().replace(/\s*lab\s*/g, "").trim();
-      if (candidate === shortCode || candidate.includes(shortCode) || shortCode.includes(candidate)) return true;
-    }
-    const candMatch = candidate.match(/\(([^)]+)\)/);
-    if (candMatch) {
-      const candCode = candMatch[1].toLowerCase().replace(/\s*lab\s*/g, "").trim();
-      if (target.includes(candCode)) return true;
-    }
-    return false;
+    return labMatches(currentUser?.labAffiliation, lab);
   };
 
   const branchInventory = displayedAssets.filter(a => matchesBranch(a.lab) && a.status !== "Disposed");

@@ -13,6 +13,7 @@ import { useBrowserOnly } from "@web/state/browserOnly";
 import { openReturnRequests } from "@web/features/returns/openReturnRequests";
 import * as transfersApi from "@web/api/transfers.api";
 import * as disposalsApi from "@web/api/disposals.api";
+import { labMatches } from "@web/features/labs/labMatches";
 import type { Role } from "@shared/enums/role";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -61,11 +62,10 @@ export function NotificationCenter() {
   const [activeTab, setActiveTab] = useState<"requests" | "reminders" | "holds">("requests");
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // TODO(H-13): user_id, id, first_name, and last_name are not on the session user, so these fall back or stay undefined. Own fix branch.
   // Which cards are "mine" is decided by comparing names, not ids. (issue #32)
-  const currentUserId = currentUser?.user_id || currentUser?.id;
+  const currentUserId = currentUser?.userId;
   const currentUserName = currentUser
-    ? `${currentUser.firstName || currentUser.first_name || ""} ${currentUser.lastName || currentUser.last_name || ""}`.trim()
+    ? `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim()
     : "A. Dela Cruz";
   const currentUserEmail = currentUser?.email || "";
 
@@ -155,7 +155,7 @@ export function NotificationCenter() {
           isRelevant = true;
           actionRequired = role === "AdRICDirector";
         } else if (role === "LabHead") {
-          const hasLabOverdue = overdueAssets.some(a => a.custodian === custName && (a.lab === "CITe4D" || a.location === "Manila"));
+          const hasLabOverdue = overdueAssets.some(a => a.custodian === custName && labMatches(currentUser?.labAffiliation, a.lab));
           if (hasLabOverdue) isRelevant = true;
         } else if (role === "Custodian" && custName === currentUserName) {
           isRelevant = true;
@@ -240,8 +240,7 @@ export function NotificationCenter() {
           isRelevant = true;
           actionRequired = true;
         } else if (role === "LabHead") {
-          // TODO(F-31): every Lab Head sees CITe4D transfers and no others, whatever their own lab. The bell rewrite (01D section 8).
-          if (txn.from_lab?.includes("CITe4D") || txn.to_lab?.includes("CITe4D") || txn.lab === "CITe4D") {
+          if (labMatches(currentUser?.labAffiliation, txn.lab)) {
             isRelevant = true;
             actionRequired = true;
           }
@@ -278,8 +277,7 @@ export function NotificationCenter() {
         let actionRequired = false;
 
         if (role === "LabHead") {
-          const matchesLab = !currentUser?.center_id || loan.center_id === currentUser.center_id || !loan.lab || loan.lab.includes("CITe4D") || loan.lab.includes("Manila");
-          if (matchesLab) {
+          if (labMatches(currentUser?.labAffiliation, loan.lab)) {
             isRelevant = true;
             actionRequired = true; // Pending Lab Head authorization
           }
@@ -348,7 +346,8 @@ export function NotificationCenter() {
       } else if (role === "Staff") {
         isRelevant = true;
       } else if (role === "LabHead") {
-        isRelevant = true;
+        // Only disposals of the Lab Head's own lab's assets. (F-31)
+        isRelevant = labMatches(currentUser?.labAffiliation, assets.find(a => a.id === disp.assetId)?.lab);
       }
 
       if (isRelevant) {
@@ -378,7 +377,7 @@ export function NotificationCenter() {
     // 3. REMINDERS TAB (Overdue Loans, Degraded Health)
     const reminders: {
       id: string;
-      type: "overdue" | "duesoon" | "degraded";
+      type: "overdue" | "duesoon" | "degraded" | "active_loan";
       title: string;
       description: string;
       date?: string;
@@ -404,7 +403,7 @@ export function NotificationCenter() {
         if (role === "AdRICDirector") {
           if (isHighValue) isRelevant = true;
         } else if (role === "LabHead") {
-          if (asset.lab === "CITe4D" || asset.location === "Manila") isRelevant = true;
+          if (labMatches(currentUser?.labAffiliation, asset.lab)) isRelevant = true;
         } else if (role === "Custodian") {
           if (isMyAsset) {
             isRelevant = true;
@@ -431,7 +430,7 @@ export function NotificationCenter() {
 
       // Due Soon
       if (isDueSoon) {
-        let isRelevant = (role === "Custodian" && isMyAsset) || (role === "LabHead" && asset.lab === "CITe4D");
+        let isRelevant = (role === "Custodian" && isMyAsset) || (role === "LabHead" && labMatches(currentUser?.labAffiliation, asset.lab));
         if (isRelevant) {
           reminders.push({
             id: `REM-DUE-${asset.id}`,
@@ -449,14 +448,14 @@ export function NotificationCenter() {
 
       // Degraded Condition / High Value Maintenance
       if (isDegraded) {
-        let isRelevant = role === "Staff" || (role === "AdRICDirector" && isHighValue) || (role === "LabHead" && asset.lab === "CITe4D");
+        let isRelevant = role === "Staff" || (role === "AdRICDirector" && isHighValue) || (role === "LabHead" && labMatches(currentUser?.labAffiliation, asset.lab));
         if (isRelevant) {
           reminders.push({
             id: `REM-DEG-${asset.id}`,
             type: "degraded",
             title: `Degraded Health Alert: ${asset.name}`,
             description: `Device condition is at ${asset.condition}% in lab ${asset.lab}. Maintenance inspection recommended.`,
-            needsAction: role === "Staff" || (role === "LabHead" && asset.lab === "CITe4D"),
+            needsAction: role === "Staff" || (role === "LabHead" && labMatches(currentUser?.labAffiliation, asset.lab)),
             targetTab: "repairs",
             meta: asset
           });
@@ -481,7 +480,6 @@ export function NotificationCenter() {
         const currentUserNameLower = currentUserName.trim().toLowerCase();
         const isBorrower = Boolean(
           (currentUserId && Number(loan.borrower_id) === Number(currentUserId)) ||
-          (currentUser?.user_id && Number(loan.borrower_id) === Number(currentUser.user_id)) ||
           (currentUserEmail && loan.borrower_email === currentUserEmail) ||
           (borrowerNameLower && (borrowerNameLower === currentUserNameLower || (borrowerNameLower.length > 3 && currentUserNameLower.includes(borrowerNameLower))))
         );
@@ -492,8 +490,7 @@ export function NotificationCenter() {
             actionRequired = true;
           }
         } else if (role === "LabHead") {
-          const matchesLab = !currentUser?.center_id || loan.center_id === currentUser.center_id || !loan.lab || loan.lab.includes("CITe4D") || loan.lab.includes("Manila");
-          if (matchesLab) {
+          if (labMatches(currentUser?.labAffiliation, loan.lab)) {
             isRelevant = true;
             actionRequired = true;
           }
