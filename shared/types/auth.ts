@@ -6,21 +6,10 @@
  */
 import type { Role, StaffUnit } from '../enums/role';
 
-/** The body of POST /api/auth/register. No screen sends it. */
-export interface RegisterInput {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  /** Stored as a number. */
-  idNumber: number | string;
-  /** STUDENT when not sent. */
-  userType?: "STUDENT" | "FACULTY" | "STAFF";
-  /** research_centers.center_id to link the account to; no link when not sent. */
-  centerId?: number | string;
-}
-
-/** The body of POST /api/auth/register-request, as Register sends it (Register also sends fields the server ignores). */
+/**
+ * The body of POST /api/auth/register-request, as Register sends it (Register also sends fields the server ignores,
+ * such as `requestedRole`: every request is for a Custodian, C-05 family).
+ */
 export interface RegistrationRequestInput {
   firstName: string;
   lastName: string;
@@ -28,8 +17,6 @@ export interface RegistrationRequestInput {
   idNumber: number | string;
   /** STUDENT when not sent. */
   userType?: "STUDENT" | "FACULTY" | "STAFF";
-  /** Free text such as "Custodian" or "Lab Head"; Custodian when not sent. Approval maps its wording to a database role. */
-  requestedRole?: string;
   /** A lab name or code; CITe4D when not sent. */
   labAffiliation?: string;
   /** "password123" when not sent. (C-03) */
@@ -47,9 +34,10 @@ export interface PendingRegistration {
   email: string;
   idNumber: number;
   userType: "STUDENT" | "FACULTY" | "STAFF";
+  /** "Custodian" for every new request; approval always creates a Custodian, whatever an older request says. (C-05 family) */
   requestedRole: string;
   labAffiliation: string;
-  /** Plain text, and sent with every listing. (C-03, C-04; issue #72) */
+  /** Plain text in the file (C-03, H-17), and never sent: the answers use PendingRegistrationView. (C-04) */
   password?: string;
   avatarUrl?: string;
   /** A display date such as "Oct 11, 2026", not a timestamp. */
@@ -59,19 +47,23 @@ export interface PendingRegistration {
 }
 
 /**
- * The body of POST /api/auth/approve-registration: the request id, plus the request's own fields when the caller has them.
- * The fields are used only when the id matches no request. (C-05, issue #71)
+ * A sign-up request as GET /api/auth/pending-registrations and POST /api/auth/register-request send it: the stored
+ * request without its password, which no screen shows. (C-04)
  */
+export type PendingRegistrationView = Omit<PendingRegistration, "password">;
+
+/** The `user` of a POST /api/auth/approve-registration answer: the new account's id, names, and email only. (01C 4.1) */
+export interface ApprovedUser {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+/** The body of POST /api/auth/approve-registration. Any other field is ignored: the account comes from the stored request. (C-05) */
 export interface ApproveRegistrationInput {
-  requestId?: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  idNumber?: number | string;
-  userType?: "STUDENT" | "FACULTY" | "STAFF";
-  requestedRole?: string;
-  labAffiliation?: string;
-  password?: string;
+  /** The REG- id the server gave the request. */
+  requestId: string;
 }
 
 /** The body of POST /api/auth/login. */
@@ -80,7 +72,7 @@ export interface LoginInput {
   password: string;
 }
 
-/** What the account page sends when saving a profile. */
+/** What the account page sends when saving a profile. A `labAffiliation` is refused (400): the lab is not changed here. (issue #73) */
 export interface AccountUpdateInput {
   firstName: string;
   lastName: string;
@@ -88,7 +80,6 @@ export interface AccountUpdateInput {
   avatarUrl: string;
   profilePicture: string;
   userImg: string;
-  labAffiliation?: string;
 }
 
 /** The `user` of a login answer: the profile the session keeps. */
@@ -125,7 +116,7 @@ export interface AccountUser {
   userImg: string | null;
   profilePicture: string | null;
   avatarUrl: string | null;
-  /** The lab code the request sent, or "CITe4D" when it sent none, whatever the account's lab is. */
+  /** The account's lab after the save: the short code of its first lab link, or "CITe4D" when it has none (as login and /me). */
   labAffiliation: string;
 }
 

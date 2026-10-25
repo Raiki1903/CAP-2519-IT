@@ -174,38 +174,6 @@ export function findResearchCenterForLab(labName: string, extractedCode: string)
     });
 }
 
-/** The first research center with this short code, or null. */
-export function findResearchCenterByCode(shortCode: string) {
-    return prisma.research_centers.findFirst({ where: { short_code: shortCode } });
-}
-
-/** Inserts a research center and returns it. */
-export function createResearchCenter(data: Prisma.research_centersCreateInput) {
-    return prisma.research_centers.create({
-        data
-    });
-}
-
-/** The user's first lab link, or null. */
-export function findUserCenterOfUser(userId: number) {
-    return prisma.user_centers.findFirst({ where: { user_id: userId } });
-}
-
-/** Points an existing lab link at another research center. */
-export function updateUserCenter(userCentersId: number, centerId: number) {
-    return prisma.user_centers.update({
-        where: { user_centers_id: userCentersId },
-        data: { center_id: centerId }
-    });
-}
-
-/** Links a user to a research center. */
-export function createUserCenter(userId: number, centerId: number) {
-    return prisma.user_centers.create({
-        data: { user_id: userId, center_id: centerId }
-    });
-}
-
 // Pending sign-ups are kept in a JSON file, not in the database. The file is read once, when this module loads,
 // into the list below; every change rewrites the whole file from that list. The path is the server's working
 // folder, which is the repository root under the npm scripts and a temporary folder in the tests.

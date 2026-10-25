@@ -35,15 +35,17 @@ const S: Role = "Staff", L: Role = "LabHead", C: Role = "Custodian", D: Role = "
 const ANY: Role[] = [S, L, C, D];
 const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.labHead, Custodian: USERS.custodianA, AdRICDirector: USERS.director };
 
-/** The approved 13b role table: [row, method, path, roles]. Paths use ids and tags no row has. */
+/**
+ * The approved 13b role table: [row, method, path, roles]. Paths use ids and tags no row has.
+ * Row 8, POST /api/auth/register, was deleted with its route (issue #70).
+ */
 const ROUTES: [number, string, string, Role[]][] = [
   [3, "GET", "/api/auth/pending-registrations", [L]],
   [4, "POST", "/api/auth/approve-registration", [L]],
   [5, "POST", "/api/auth/reject-registration", [L]],
   [6, "GET", "/api/auth/me", ANY],
   [7, "PUT", "/api/auth/account", ANY],
-  [8, "POST", "/api/auth/register", [L]],
-  [9, "GET", "/api/assets", ANY],
+  [9,"GET", "/api/assets", ANY],
   [10, "GET", "/api/assets/NOPE-9999/custodian-history", ANY],
   [11, "POST", "/api/assets", [S]],
   [12, "PUT", "/api/assets/NOPE-9999", [S]],

@@ -388,27 +388,26 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     setPendingRegistrations(prev => [req, ...prev]);
   };
 
-  // Shows an alert and throws when the server refuses, so the caller's own success message is skipped.
+  // Shows one alert and throws when the server refuses or cannot be reached, so the caller's own success message is skipped.
+  // Only the id is sent: the server builds the account from its stored request. (C-05)
   const approveRegistration = async (reqOrId: string | PendingRegistration) => {
     const id = typeof reqOrId === "string" ? reqOrId : reqOrId.id;
-    const targetObj = typeof reqOrId === "string" ? pendingRegistrations.find(r => r.id === reqOrId) : reqOrId;
-    const payload = targetObj ? { requestId: targetObj.id, ...targetObj } : { requestId: id };
 
+    let data: ApiResult;
     try {
-      const data = await authApi.approveRegistration(payload);
-      if (data.success) {
-        setPendingRegistrations(prev => prev.filter(r => r.id !== id));
-        await syncFromDb();
-        return data;
-      } else {
-        alert(`❌ Error approving registration: ${data.error || "Failed to create user in database"}`);
-        throw new Error(data.error || "Failed to approve registration");
-      }
+      data = await authApi.approveRegistration({ requestId: id });
     } catch (err: any) {
       console.error("Approve registration error:", err);
       alert(`❌ Error connecting to server: ${err.message}`);
       throw err;
     }
+    if (!data.success) {
+      alert(`❌ Error approving registration: ${data.error || "Failed to create user in database"}`);
+      throw new Error(data.error || "Failed to approve registration");
+    }
+    setPendingRegistrations(prev => prev.filter(r => r.id !== id));
+    await syncFromDb();
+    return data;
   };
 
   // The request leaves the list even when the server call fails.

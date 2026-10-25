@@ -71,9 +71,8 @@ export function requestRegistrationRaw(registration: RegistrationRequestInput): 
 /**
  * Lists sign-up requests waiting for approval.
  *
- * @returns `success` and `pendingRegistrations`
+ * @returns `success` and `pendingRegistrations`, without passwords
  */
-// TODO(C-04): the answer includes each applicant's password, sent to the Lab Head (issue #72). Phase 3.
 export function listPendingRegistrations(): Promise<ApiResult> {
   return apiGet("/api/auth/pending-registrations");
 }
@@ -81,10 +80,9 @@ export function listPendingRegistrations(): Promise<ApiResult> {
 /**
  * Approves a sign-up request, which creates the user.
  *
- * @param registration `requestId`, plus the registration's own fields when the caller has them
- * @returns `success`, or `error` when the user could not be created
+ * @param registration `requestId`, the id the server gave the request; the account comes from the stored request
+ * @returns `success`, or `error` when the id matches no request or the user could not be created
  */
-// TODO(C-05): the server creates an account from the body when the request id is unknown. Removing that fallback is issue #71, after issue #68.
 export function approveRegistration(registration: ApproveRegistrationInput): Promise<ApiResult> {
   return apiPost("/api/auth/approve-registration", registration);
 }

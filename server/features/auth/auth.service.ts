@@ -10,10 +10,11 @@ import type {
     AccountUpdateInput,
     AccountUser,
     ApproveRegistrationInput,
+    ApprovedUser,
     LoginUser,
     PendingRegistration,
+    PendingRegistrationView,
     ProfileUser,
-    RegisterInput,
     RegistrationRequestInput,
     SessionIdentity,
 } from '@shared/types/auth';
@@ -23,77 +24,59 @@ import { env } from '../../config/env';
 import { createSessionToken, isLoggedOut, markLoggedOut, verifySessionToken } from '../../shared/services/session';
 import { forgetIdentity, recallIdentity, rememberIdentity } from '../../shared/services/sessionCache';
 
-// Registration accepts the same email more than once (issue #14), kept as is: the email check looks at accounts only,
-// not at pending sign-ups, so one email can be requested twice; approving the second then fails with a 500.
-
 /**
- * Creates a Custodian account directly, with no approval step. No screen calls it; deleting it is issue #70.
- * The account gets the CUSTODIAN role if that role row exists, and a lab link only when a center id is sent.
+ * Refuses an email or an id number that already belongs to an account. (issue #14)
  *
- * @param data the checked body: names, email, password, id number, optional user type and center id
- * @returns the new account's id, names, and email
- * @throws AppError 400 if the email or the id number already belongs to an account
+ * @param email the email to check; the database compares it in any letter case
+ * @param idNumber the id number to check
+ * @throws AppError 409 with the text the sign-up page shows (UAT EV-05)
  */
-// TODO(C-03): the password is stored as typed (issue #10). Hashing, Phase 3.
-export async function register(data: RegisterInput): Promise<{ userId: number; firstName: string; lastName: string; email: string }> {
-    const { firstName, lastName, email, password, idNumber, userType, centerId } = data;
-
-    const existingEmail = await authRepository.findUserByEmail(email);
-    if (existingEmail) {
-        throw new AppError(400, "A user with this email address already exists.");
+async function refuseTakenByAccount(email: string, idNumber: number): Promise<void> {
+    if (await authRepository.findUserByEmail(email)) {
+        throw new AppError(409, "A registered user with this email already exists.");
     }
-
-    const existingId = await authRepository.findUserByIdNumber(Number(idNumber));
-    if (existingId) {
-        throw new AppError(400, "A user with this ID number already exists.");
+    if (await authRepository.findUserByIdNumber(idNumber)) {
+        throw new AppError(409, "A registered user with this ID number already exists.");
     }
+}
 
-    const custodianRole = await authRepository.findRoleByName("CUSTODIAN");
-
-    const user = await authRepository.createUser(
-        {
-            first_name: firstName,
-            last_name: lastName,
-            email,
-            password,
-            id_number: Number(idNumber),
-            user_type: userType || "STUDENT"
-        },
-        custodianRole ? custodianRole.role_id : null,
-        centerId ? Number(centerId) : null,
-    );
-
-    return { userId: user.user_id, firstName: user.first_name, lastName: user.last_name, email: user.email };
+/** A stored sign-up request without its password, for an answer. (C-04) */
+function withoutPassword(request: PendingRegistration): PendingRegistrationView {
+    const { password, ...view } = request;
+    return view;
 }
 
 /**
  * The sign-up requests still waiting for a decision, newest first.
  *
- * @returns the PENDING requests, each with its password (C-04, issue #72)
+ * @returns the PENDING requests, without their passwords (C-04)
  */
-export function listPendingRegistrations(): PendingRegistration[] {
-    return authRepository.listPendingRegistrations().filter(r => r.status === "PENDING");
+export function listPendingRegistrations(): PendingRegistrationView[] {
+    return authRepository.listPendingRegistrations().filter(r => r.status === "PENDING").map(withoutPassword);
 }
 
 /**
  * Files a sign-up request for a Lab Head to approve. Nothing is written to the database:
  * the request is kept in memory and in pending_registrations.json until it is approved or rejected. (H-17)
  *
- * @param data the checked body: names, email, id number, and the optional user type, role, lab, password, and picture
- * @returns the stored request, with its REG- id
- * @throws AppError 400 if the email or the id number already belongs to an account
+ * Every request asks for the Custodian role: a role in the body is ignored, since this route is public. (C-05 family)
+ *
+ * @param data the checked body: names, email, id number, and the optional user type, lab, password, and picture
+ * @returns the stored request, with its REG- id, without its password (C-04)
+ * @throws AppError 409 if the email or the id number already belongs to an account, or to a request still waiting (issues #14, #81)
  */
-export async function requestRegistration(data: RegistrationRequestInput): Promise<PendingRegistration> {
-    const { firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password, avatarUrl } = data;
+export async function requestRegistration(data: RegistrationRequestInput): Promise<PendingRegistrationView> {
+    const { firstName, lastName, email, idNumber, userType, labAffiliation, password, avatarUrl } = data;
 
-    const existingEmail = await authRepository.findUserByEmail(email);
-    if (existingEmail) {
-        throw new AppError(400, "A registered user with this email already exists.");
+    await refuseTakenByAccount(email, Number(idNumber));
+
+    const sameEmail = (r: PendingRegistrationView) => String(r.email).trim().toLowerCase() === String(email).trim().toLowerCase();
+    const waiting = listPendingRegistrations();
+    if (waiting.some(sameEmail)) {
+        throw new AppError(409, "A sign-up request with this email is already waiting for approval.");
     }
-
-    const existingId = await authRepository.findUserByIdNumber(Number(idNumber));
-    if (existingId) {
-        throw new AppError(400, "A registered user with this ID number already exists.");
+    if (waiting.some(r => r.idNumber === Number(idNumber))) {
+        throw new AppError(409, "A sign-up request with this ID number is already waiting for approval.");
     }
 
     const newReq: PendingRegistration = {
@@ -104,7 +87,7 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
         email,
         idNumber: Number(idNumber),
         userType: userType || "STUDENT",
-        requestedRole: requestedRole || "Custodian",
+        requestedRole: "Custodian",
         labAffiliation: labAffiliation || "CITe4D",
         // TODO(C-03): a request without a password gets "password123", stored as plain text (issue #10). Phase 3.
         password: password || "password123",
@@ -114,56 +97,35 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
     };
 
     authRepository.addPendingRegistration(newReq);
-    return newReq;
+    return withoutPassword(newReq);
 }
 
 /**
- * Approves a sign-up request: creates the account with its role and lab, then drops the request.
- * The role comes from the requested role's wording, and the lab is matched by name or short code;
- * a lab that matches nothing is created as a new research center. (C-05 family, issue #73)
+ * Approves a sign-up request: creates a Custodian account with its lab, then drops the request.
+ * The account is built from the stored request only (C-05), and is always a Custodian, whatever role the request
+ * names: the sign-up page only asks for Custodian, and the sign-up route is public. (C-05 family)
+ * The lab is matched by name or short code; "No affiliation" and "Not Affiliated" link no lab.
  *
- * @param data `requestId`, plus the request's own fields when the caller has them
- * @returns the created users row, password included (01C 4.1, issue #72)
- * @throws AppError 404 if the id matches no request and the body has no email and names to fall back on
+ * @param data `requestId`, the REG- id the server gave the request
+ * @returns the new account's id, names, and email (no password or id number: 01C 4.1)
+ * @throws AppError 400 if the request's lab matches no research center; nothing is created and the request is kept (issue #73)
+ * @throws AppError 404 if the id matches no pending request
+ * @throws AppError 409 if an account has the request's email or id number by now; the request is kept (issue #14)
  */
-// TODO(C-05): an unknown request id plus a body with an email and names creates that account, with the role it asks for. Removing the fallback is issue #71, which needs issue #68 first: in the tab that filed a sign-up, the list holds the Register page's own REG-<timestamp> id, not the server's, so those approvals work only through this fallback.
-// TODO(M-11): "ITS" or "Admin" in the requested role maps to ADMIN, so no ITS_STAFF account can be created here. With the ITS removal branch.
-export async function approveRegistration(data: ApproveRegistrationInput): Promise<users> {
-    const { requestId, firstName, lastName, email, idNumber, userType, requestedRole, labAffiliation, password } = data;
-    let targetReq = authRepository.findPendingRegistration(requestId);
-
-    if (!targetReq && email && firstName && lastName) {
-        targetReq = {
-            id: requestId || `REG-${Date.now()}`,
-            firstName,
-            lastName,
-            email,
-            idNumber: Number(idNumber) || 10000000,
-            userType: userType || "STUDENT",
-            requestedRole: requestedRole || "Custodian",
-            labAffiliation: labAffiliation || "CITe4D",
-            password: password || "password123",
-            submittedAt: new Date().toLocaleDateString(),
-            status: "PENDING"
-        };
-    }
+export async function approveRegistration(data: ApproveRegistrationInput): Promise<ApprovedUser> {
+    const { requestId } = data;
+    const targetReq = authRepository.findPendingRegistration(requestId);
 
     if (!targetReq) {
         throw new AppError(404, "Pending registration request details not found.");
     }
 
-    // Checked in this order, so "Lab Head" wins over anything else in the text.
-    const requested = (targetReq.requestedRole || "").toUpperCase();
-    let dbRoleName: any = "CUSTODIAN";
-    if (requested.includes("HEAD") || requested.includes("LAB")) dbRoleName = "LAB_HEAD";
-    else if (requested.includes("TSG")) dbRoleName = "TSG_STAFF";
-    else if (requested.includes("ITS") || requested.includes("ADMIN")) dbRoleName = "ADMIN";
-    else dbRoleName = "CUSTODIAN";
+    // Checked again here: a request filed before the duplicate checks, or an account created since, would otherwise
+    // fail inside the database with a 500.
+    await refuseTakenByAccount(targetReq.email, targetReq.idNumber);
 
-    let roleRecord = await authRepository.findRoleByName(dbRoleName);
-    if (!roleRecord) {
-        roleRecord = await authRepository.findRoleByName("CUSTODIAN");
-    }
+    // The request's requestedRole is never read: an older request in the file can still name another role.
+    const roleRecord = await authRepository.findRoleByName("CUSTODIAN");
 
     let centerRecord = null;
     if (targetReq.labAffiliation && targetReq.labAffiliation !== "Not Affiliated" && targetReq.labAffiliation !== "No affiliation") {
@@ -174,17 +136,10 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
 
         centerRecord = await authRepository.findResearchCenterForLab(labName, extractedCode);
 
+        // A lab that matches nothing (a typo, or a lab with no research center) is refused, never created. The request
+        // stays in the list, so the Lab Head can decline it. (issue #73, M-03)
         if (!centerRecord) {
-            // A failed create is logged and the account is created without a lab.
-            try {
-                centerRecord = await authRepository.createResearchCenter({
-                    name: labName,
-                    short_code: extractedCode,
-                    location: "MANILA"
-                });
-            } catch (e) {
-                console.log(`Note: Research center creation fallback for ${targetReq.labAffiliation}:`, e);
-            }
+            throw new AppError(400, `The lab on this request, ${labName}, is not a known lab. Decline it and ask the applicant to sign up again.`);
         }
     }
 
@@ -202,11 +157,10 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
         centerRecord ? centerRecord.center_id : null,
     );
 
-    // The request is dropped by the id the caller sent, which is also how a fallback approval leaves the list unchanged.
     targetReq.status = "APPROVED";
     authRepository.removePendingRegistration(requestId);
 
-    return createdUser;
+    return { userId: createdUser.user_id, firstName: createdUser.first_name, lastName: createdUser.last_name, email: createdUser.email };
 }
 
 /**
@@ -371,16 +325,17 @@ export async function getProfile(userId: number): Promise<ProfileUser> {
 }
 
 /**
- * Saves the name, picture, and lab of the session user's own account. (C-06)
- * The picture is changed only when one is sent. A lab code that matches no research center is created as one first.
+ * Saves the name and picture of the session user's own account. (C-06)
+ * The picture is changed only when one is sent. The lab is never changed here: the validation refuses a body that
+ * sends one (issue #73).
  *
  * @param userId the session user
- * @param data the checked body: names, and the optional picture (under three names) and lab code
- * @returns the updated users row, for the log line, and the profile the answer sends
+ * @param data the checked body: names, and the optional picture (under three names)
+ * @returns the updated users row, for the log line, and the profile the answer sends, with the account's own lab
  * @throws AppError 404 if the account no longer exists (deleted within the 60-second session cache)
  */
 export async function updateAccount(userId: number, data: AccountUpdateInput): Promise<{ updatedUser: users; user: AccountUser }> {
-    const { firstName, lastName, labAffiliation, avatarUrl, userImg, profilePicture } = data;
+    const { firstName, lastName, avatarUrl, userImg, profilePicture } = data;
 
     const user = await authRepository.findUserById(userId);
     if (!user) {
@@ -400,25 +355,9 @@ export async function updateAccount(userId: number, data: AccountUpdateInput): P
 
     const updatedUser = await authRepository.updateUser(user.user_id, updateData);
 
-    if (labAffiliation && labAffiliation !== "Not Affiliated") {
-        let center = await authRepository.findResearchCenterByCode(labAffiliation);
-        if (!center) {
-            // MANILA_CAMPUS is not a research_centers location, so this create always fails, the empty catch
-            // swallows it, and the account keeps its old lab while the answer names the new one.
-            // TODO(M-03): a lab code is turned into a new research center instead of being refused (issue #73). A fixed lab list, Phase 3.
-            try {
-                center = await authRepository.createResearchCenter({ name: `${labAffiliation} Research Laboratory`, short_code: labAffiliation, location: "MANILA_CAMPUS" });
-            } catch (e) { }
-        }
-        if (center) {
-            const existingUserCenter = await authRepository.findUserCenterOfUser(user.user_id);
-            if (existingUserCenter) {
-                await authRepository.updateUserCenter(existingUserCenter.user_centers_id, center.center_id);
-            } else {
-                await authRepository.createUserCenter(user.user_id, center.center_id);
-            }
-        }
-    }
+    // The account's own lab, by the same rule as login and /me, so the session and the account page agree.
+    const profile = await authRepository.findUserProfileById(user.user_id);
+    const accountLab = profile?.user_centers[0]?.research_centers?.short_code || "CITe4D";
 
     return {
         updatedUser,
@@ -432,8 +371,7 @@ export async function updateAccount(userId: number, data: AccountUpdateInput): P
             userImg: updatedUser.user_img,
             profilePicture: updatedUser.user_img,
             avatarUrl: updatedUser.user_img,
-            // The lab sent, not the account's lab: with no lab sent this says CITe4D whatever the account's lab is (issue #73).
-            labAffiliation: labAffiliation || "CITe4D"
+            labAffiliation: accountLab
         }
     };
 }

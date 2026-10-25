@@ -1,7 +1,8 @@
 /**
  * The session user (step 13c): what a Custodian may see of other people, and the checks that need to know who is asking.
  * Covers GET /api/asset_loans, GET /api/asset_transfers, GET /api/assets, GET /api/assets/:tag/custodian-history
- * (other people's names hidden from a Custodian, D2; the placeholder custodian never named; no id numbers), POST
+ * (other people's names hidden from a Custodian, D2; the placeholder custodian never named; no id numbers; emails for a
+ * Lab Head only), POST
  * /api/assets/:tag/transfer (only the current custodian), and the acting user of a Staff repair ticket and of a
  * return of an asset nobody holds.
  * Fixtures: the seeded accounts and assets; extra assets TEST-0801 onward (see extraAssets.ts).
@@ -116,7 +117,7 @@ describe("GET /api/assets: names for a Custodian (D2) and the placeholder custod
 });
 
 describe("GET /api/assets/:tag/custodian-history: no id numbers, and names for a Custodian (answer 6)", () => {
-  it("gives a Custodian their own entries in full, hides other holders, and names the placeholder for no one", async () => {
+  it("gives a Custodian the name of their own entries, hides other holders, and names the placeholder for no one", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0821", custodianId: USERS.custodianB.userId });
     await db.asset_records.create({
       data: { asset_id: asset.assetId, status: "ON_LOAN", asset_condition: "PERFECT", location: "Manila", current_custodian: USERS.custodianA.userId, date_logged: new Date("2026-05-01T09:00:00Z") },
@@ -129,7 +130,8 @@ describe("GET /api/assets/:tag/custodian-history: no id numbers, and names for a
     expect(other).not.toHaveProperty("custodianName");
     expect(other).not.toHaveProperty("custodianEmail");
     expect(other.custodianHidden).toBe(true);
-    expect(own).toMatchObject({ custodianName: USERS.custodianA.fullName, custodianEmail: USERS.custodianA.email });
+    expect(own).toMatchObject({ custodianName: USERS.custodianA.fullName });
+    expect(own).not.toHaveProperty("custodianEmail");
     expect(own).not.toHaveProperty("custodianHidden");
 
     const placeholder = (await asCustodianA.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`)).body.custodianHistory[0];
@@ -142,6 +144,16 @@ describe("GET /api/assets/:tag/custodian-history: no id numbers, and names for a
 
     expect(res.body.custodianHistory[1]).toMatchObject({ custodianName: USERS.custodianA.fullName, custodianEmail: USERS.custodianA.email });
     for (const entry of res.body.custodianHistory) expect(entry).not.toHaveProperty("custodianId");
+  });
+
+  it("sends no email to Staff or the Director, only the names (01C 4.2)", async () => {
+    for (const asViewer of [asStaff, as(USERS.director)]) {
+      const res = await asViewer.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.custodianHistory[1]).toMatchObject({ custodianName: USERS.custodianA.fullName });
+      for (const entry of res.body.custodianHistory) expect(entry).not.toHaveProperty("custodianEmail");
+    }
   });
 });
 
