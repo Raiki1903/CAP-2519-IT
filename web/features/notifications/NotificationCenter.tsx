@@ -155,7 +155,7 @@ export function NotificationCenter() {
           isRelevant = true;
           actionRequired = role === "AdRICDirector";
         } else if (role === "LabHead") {
-          const hasLabOverdue = overdueAssets.some(a => a.custodian === custName && (a.lab === "CITe4D" || a.location === "Manila"));
+          const hasLabOverdue = overdueAssets.some(a => a.custodian === custName && labMatches(currentUser?.labAffiliation, a.lab));
           if (hasLabOverdue) isRelevant = true;
         } else if (role === "Custodian" && custName === currentUserName) {
           isRelevant = true;
@@ -346,7 +346,8 @@ export function NotificationCenter() {
       } else if (role === "Staff") {
         isRelevant = true;
       } else if (role === "LabHead") {
-        isRelevant = true;
+        // Only disposals of the Lab Head's own lab's assets. (F-31)
+        isRelevant = labMatches(currentUser?.labAffiliation, assets.find(a => a.id === disp.assetId)?.lab);
       }
 
       if (isRelevant) {
@@ -402,7 +403,7 @@ export function NotificationCenter() {
         if (role === "AdRICDirector") {
           if (isHighValue) isRelevant = true;
         } else if (role === "LabHead") {
-          if (asset.lab === "CITe4D" || asset.location === "Manila") isRelevant = true;
+          if (labMatches(currentUser?.labAffiliation, asset.lab)) isRelevant = true;
         } else if (role === "Custodian") {
           if (isMyAsset) {
             isRelevant = true;
@@ -429,7 +430,7 @@ export function NotificationCenter() {
 
       // Due Soon
       if (isDueSoon) {
-        let isRelevant = (role === "Custodian" && isMyAsset) || (role === "LabHead" && asset.lab === "CITe4D");
+        let isRelevant = (role === "Custodian" && isMyAsset) || (role === "LabHead" && labMatches(currentUser?.labAffiliation, asset.lab));
         if (isRelevant) {
           reminders.push({
             id: `REM-DUE-${asset.id}`,
@@ -447,14 +448,14 @@ export function NotificationCenter() {
 
       // Degraded Condition / High Value Maintenance
       if (isDegraded) {
-        let isRelevant = role === "Staff" || (role === "AdRICDirector" && isHighValue) || (role === "LabHead" && asset.lab === "CITe4D");
+        let isRelevant = role === "Staff" || (role === "AdRICDirector" && isHighValue) || (role === "LabHead" && labMatches(currentUser?.labAffiliation, asset.lab));
         if (isRelevant) {
           reminders.push({
             id: `REM-DEG-${asset.id}`,
             type: "degraded",
             title: `Degraded Health Alert: ${asset.name}`,
             description: `Device condition is at ${asset.condition}% in lab ${asset.lab}. Maintenance inspection recommended.`,
-            needsAction: role === "Staff" || (role === "LabHead" && asset.lab === "CITe4D"),
+            needsAction: role === "Staff" || (role === "LabHead" && labMatches(currentUser?.labAffiliation, asset.lab)),
             targetTab: "repairs",
             meta: asset
           });
@@ -489,13 +490,7 @@ export function NotificationCenter() {
             actionRequired = true;
           }
         } else if (role === "LabHead") {
-          const matchesLab = !currentUser?.labAffiliation ||
-            !loan.lab ||
-            loan.lab.toLowerCase().includes(currentUser.labAffiliation.toLowerCase()) ||
-            currentUser.labAffiliation.toLowerCase().includes(loan.lab.toLowerCase()) ||
-            loan.lab.includes("CITe4D") ||
-            loan.lab.includes("Manila");
-          if (matchesLab) {
+          if (labMatches(currentUser?.labAffiliation, loan.lab)) {
             isRelevant = true;
             actionRequired = true;
           }
