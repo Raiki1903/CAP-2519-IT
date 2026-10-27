@@ -1,8 +1,9 @@
 /**
  * Lookup hooks: load the option lists the forms pick from.
- * Layer: feature component (data hook). Called by features/assets/EditAssetDialog.tsx and IntakeWizard.tsx.
+ * Layer: feature component (data hook). Called by features/assets/EditAssetDialog.tsx and IntakeWizard.tsx,
+ * features/loans/LoanForm.tsx, and pages/auth/Register.tsx.
  * Calls: api/lookups.api.ts.
- * Used by: Staff asset editing and registration.
+ * Used by: Staff asset editing and registration, the Custodian borrow request, and the sign-up page.
  */
 import { useEffect, useState } from "react";
 import type { CustodianOption, FormLookups } from "@shared/types/lookups";

@@ -1,10 +1,10 @@
 /**
  * Borrow request form shown to a Custodian from the asset detail modal.
  * Layer: feature component. Called by features/assets/AssetDetailModal.tsx.
- * Calls: api/loans.api.ts requestLoan(), then state/serverData.tsx syncFromDb().
+ * Calls: api/loans.api.ts requestLoan(), then state/serverData.tsx syncFromDb(); features/lookups/useLookups.ts (the labs).
  * Used by: Custodian borrow request (a Lab Head decides it).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { motion, AnimatePresence } from "motion/react";
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { AssetDetail } from "@web/features/assets/AssetDetailModal";
 import * as loansApi from "@web/api/loans.api";
+import { useFormLookups, withCurrentOption } from "@web/features/lookups/useLookups";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
@@ -21,8 +22,6 @@ import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
 
 const BRAND = "#005A36";
-// TODO(M-03): one more hardcoded lab list, in short codes, separate from shared/constants/labs.ts and research_centers. Phase 3.
-const LABS = ["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"];
 
 /** Today as yyyy-mm-dd in the browser's time zone. toISOString() would give the UTC date, a day early before 8 AM in Manila. */
 function localToday(): string {
@@ -100,6 +99,12 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
   const { syncFromDb } = useServerData();
   const borrower = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "";
   const [selectedLab, setSelectedLab] = useState("CITe4D");
+  const { lookups, failed: lookupsFailed } = useFormLookups();
+  // The research centers' short codes, CITe4D first when it is one, as the list was before. (issue #12)
+  const labCodes = (lookups?.labs.map(l => l.code) ?? []).sort((a, b) => Number(b === "CITe4D") - Number(a === "CITe4D"));
+  useEffect(() => {
+    if (labCodes.length > 0 && !labCodes.includes(selectedLab)) setSelectedLab(labCodes[0]);
+  }, [lookups]);
   const [purpose, setPurpose] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -214,11 +219,12 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
                   onChange={e => setSelectedLab(e.target.value)}
                   className="w-full h-9 rounded-lg border border-input bg-background px-3 py-1.5 text-xs shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {LABS.map(l => (
+                  {withCurrentOption(labCodes, selectedLab).map(l => (
                     <option key={l} value={l}>{l}</option>
                   ))}
                 </select>
               </div>
+              {lookupsFailed && <p className="text-[10px] text-red-600 mt-1">Could not load the options. Reload the page.</p>}
             </div>
 
             <div>
