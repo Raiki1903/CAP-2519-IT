@@ -6,7 +6,7 @@
  * and inspections, and shared/services/custodyRequestGuard.ts. Calls config/prisma.ts.
  * Used by: every role's inventory view, Staff registration, editing, and deletion, and every workflow that starts from an asset tag.
  */
-import type { Prisma, asset_records, asset_reports, assets } from '@prisma/client';
+import { Prisma, type asset_records, type asset_reports, type assets } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
 /**
@@ -87,19 +87,8 @@ export function findRecordsWithCustodian(assetId: number) {
     });
 }
 
-/** The tags of every asset whose tag starts with "<labPrefix>-", for the next tag number. */
-export function findTagsWithPrefix(labPrefix: string) {
-    return prisma.assets.findMany({
-        where: {
-            asset_tag: {
-                startsWith: `${labPrefix}-`
-            }
-        },
-        select: { asset_tag: true }
-    });
-}
-
 /**
+<<<<<<< Updated upstream
  * Registers an asset: the assets row, its asset_monetary row, and its first record, in one transaction.
  * The next asset tag is calculated inside the transaction so concurrent registrations get sequential tags. (H-11)
  *
@@ -108,12 +97,24 @@ export function findTagsWithPrefix(labPrefix: string) {
  * @param monetaryData the asset_monetary row without its asset_id
  * @param recordData the first asset_records row without its asset_id
  * @returns the created assets row and its generated asset tag
+=======
+ * Registers an asset: determines the next tag for the lab prefix, writes the assets row,
+ * its asset_monetary row, and its first record in one transaction. If another concurrent
+ * registration claims the tag first (Prisma P2002 unique constraint error), it retries up to 3 times.
+ *
+ * @param labPrefix the sanitized lab prefix for tag generation
+ * @param assetData the assets row without the asset_tag
+ * @param monetaryData the asset_monetary row without its asset_id
+ * @param recordData the first asset_records row without its asset_id
+ * @returns the created assets row and its generated asset_tag
+>>>>>>> Stashed changes
  */
 export async function createWithRecords(
     labPrefix: string,
     assetData: Omit<Prisma.assetsUncheckedCreateInput, 'asset_tag'>,
     monetaryData: Omit<Prisma.asset_monetaryUncheckedCreateInput, 'asset_id'>,
     recordData: Omit<Prisma.asset_recordsUncheckedCreateInput, 'asset_id'>,
+<<<<<<< Updated upstream
 ) {
     // The three rows are written together, so a failure on any of them leaves no half-registered asset.
     return prisma.$transaction(async (tx) => {
@@ -147,23 +148,77 @@ export async function createWithRecords(
                 asset_tag: assetTag,
             },
         });
+=======
+): Promise<{ asset: assets; assetTag: string }> {
+    const maxAttempts = 3;
+    const prefixPattern = new RegExp(`^${labPrefix}-(\\d+)$`, "i");
+>>>>>>> Stashed changes
 
-        await tx.asset_monetary.create({
-            data: {
-                asset_id: asset.asset_id,
-                ...monetaryData,
-            },
-        });
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const result = await prisma.$transaction(async (tx) => {
+                const existing = await tx.assets.findMany({
+                    where: {
+                        asset_tag: {
+                            startsWith: `${labPrefix}-`,
+                        },
+                    },
+                    select: { asset_tag: true },
+                });
 
-        await tx.asset_records.create({
-            data: {
-                asset_id: asset.asset_id,
-                ...recordData,
-            },
-        });
+                let maxSeq = 0;
+                for (const a of existing) {
+                    const match = a.asset_tag.match(prefixPattern);
+                    if (match) {
+                        const seq = parseInt(match[1], 10);
+                        if (seq > maxSeq) maxSeq = seq;
+                    }
+                }
 
+<<<<<<< Updated upstream
         return { asset, assetTag };
     });
+=======
+                const nextSeq = maxSeq + 1;
+                const assetTag = `${labPrefix}-${String(nextSeq).padStart(4, "0")}`;
+
+                const asset = await tx.assets.create({
+                    data: {
+                        ...assetData,
+                        asset_tag: assetTag,
+                    },
+                });
+
+                await tx.asset_monetary.create({
+                    data: {
+                        asset_id: asset.asset_id,
+                        ...monetaryData,
+                    },
+                });
+
+                await tx.asset_records.create({
+                    data: {
+                        asset_id: asset.asset_id,
+                        ...recordData,
+                    },
+                });
+
+                return { asset, assetTag };
+            });
+            return result;
+        } catch (error: any) {
+            const isP2002 =
+                (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") ||
+                error?.code === "P2002";
+            if (!isP2002 || attempt === maxAttempts) {
+                throw error;
+            }
+            await new Promise((resolve) => setTimeout(resolve, attempt * 50 + Math.random() * 100));
+        }
+    }
+
+    throw new Error("createWithRecords reached unreachable retry state");
+>>>>>>> Stashed changes
 }
 
 /** What an edit writes once the newest record is known: the record values, and the inspection report if any. */

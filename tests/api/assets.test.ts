@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { ASSETS, FUNDING_SOURCE, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { db, as } = useApiHarness();
+const { db, as, server } = useApiHarness();
 const asStaff = as(USERS.staffTsg);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -310,6 +310,23 @@ describe("POST /api/assets", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
+  });
+
+  it("handles concurrent registrations for the same lab by assigning distinct tags", async () => {
+    const payloads = Array.from({ length: 5 }, (_, i) =>
+      intake({ name: `Concurrent Camera ${i + 1}`, serial: `TEST-SN-CONC-${i + 1}` })
+    );
+
+    const responses = await Promise.all(payloads.map(p => asStaff.post("/api/assets", p)));
+
+    for (const res of responses) {
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    }
+
+    const tags = responses.map(r => r.body.asset.asset_tag);
+    const uniqueTags = new Set(tags);
+    expect(uniqueTags.size).toBe(5);
   });
 });
 
