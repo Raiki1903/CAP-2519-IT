@@ -330,7 +330,6 @@ function sanitizeCategory(cat: any): any {
  * @returns the created assets row and its tag
  * @throws AppError 400 if the picture is text but not an image
  */
-// TODO(H-11): the next number is read before the transaction, so two registrations in the same lab at once can pick the same tag; the second then fails with a 500. Move it into the transaction, its own commit (issue #75).
 export async function registerAsset(data: AssetCreateInput): Promise<{ asset: assets; assetTag: string }> {
     const imageVal = data.image || data.image_url || data.imageUrl || null;
     checkAssetImage(imageVal);
@@ -341,24 +340,10 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
 
     // The tag prefix is the lab code with anything but letters and digits removed.
     const labPrefix = String(data.lab || "CITe4D").trim().replace(/[^a-zA-Z0-9]/g, "") || "CITe4D";
-    const existingLabAssets = await assetsRepository.findTagsWithPrefix(labPrefix);
 
-    let maxSeq = 0;
-    const prefixPattern = new RegExp(`^${labPrefix}-(\\d+)$`, "i");
-    for (const a of existingLabAssets) {
-        const match = a.asset_tag.match(prefixPattern);
-        if (match) {
-            const seq = parseInt(match[1], 10);
-            if (seq > maxSeq) maxSeq = seq;
-        }
-    }
-
-    const nextSeq = maxSeq + 1;
-    const assetTag = `${labPrefix}-${String(nextSeq).padStart(4, "0")}`;
-
-    const asset = await assetsRepository.createWithRecords(
+    const { asset, assetTag } = await assetsRepository.createWithRecords(
+        labPrefix,
         {
-            asset_tag: assetTag,
             name: data.name,
             category: sanitizeCategory(data.category),
             serial_number: data.serial || null,

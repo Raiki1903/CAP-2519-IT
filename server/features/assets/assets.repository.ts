@@ -101,21 +101,51 @@ export function findTagsWithPrefix(labPrefix: string) {
 
 /**
  * Registers an asset: the assets row, its asset_monetary row, and its first record, in one transaction.
+ * The next asset tag is calculated inside the transaction so concurrent registrations get sequential tags. (H-11)
  *
- * @param assetData the assets row, tag included
+ * @param labPrefix the sanitized prefix for the asset tag, for example "CeLT"
+ * @param assetData the assets row without asset_tag
  * @param monetaryData the asset_monetary row without its asset_id
  * @param recordData the first asset_records row without its asset_id
- * @returns the created assets row
+ * @returns the created assets row and its generated asset tag
  */
 export async function createWithRecords(
-    assetData: Prisma.assetsUncheckedCreateInput,
+    labPrefix: string,
+    assetData: Omit<Prisma.assetsUncheckedCreateInput, 'asset_tag'>,
     monetaryData: Omit<Prisma.asset_monetaryUncheckedCreateInput, 'asset_id'>,
     recordData: Omit<Prisma.asset_recordsUncheckedCreateInput, 'asset_id'>,
 ) {
     // The three rows are written together, so a failure on any of them leaves no half-registered asset.
-    const { asset } = await prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx) => {
+        // Tag is generated inside the transaction so two staff registering at once
+        // cannot get the same number. (H-11)
+        const existingLabAssets = await tx.assets.findMany({
+            where: {
+                asset_tag: {
+                    startsWith: `${labPrefix}-`,
+                },
+            },
+            select: { asset_tag: true },
+        });
+
+        let maxSeq = 0;
+        const prefixPattern = new RegExp(`^${labPrefix}-(\\d+)$`, "i");
+        for (const a of existingLabAssets) {
+            const match = a.asset_tag.match(prefixPattern);
+            if (match) {
+                const seq = parseInt(match[1], 10);
+                if (seq > maxSeq) maxSeq = seq;
+            }
+        }
+
+        const nextSeq = maxSeq + 1;
+        const assetTag = `${labPrefix}-${String(nextSeq).padStart(4, "0")}`;
+
         const asset = await tx.assets.create({
-            data: assetData,
+            data: {
+                ...assetData,
+                asset_tag: assetTag,
+            },
         });
 
         await tx.asset_monetary.create({
@@ -132,9 +162,8 @@ export async function createWithRecords(
             },
         });
 
-        return { asset };
+        return { asset, assetTag };
     });
-    return asset;
 }
 
 /** What an edit writes once the newest record is known: the record values, and the inspection report if any. */
