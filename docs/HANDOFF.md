@@ -1439,3 +1439,27 @@ Eight, in the log section 7: who is in the custodian dropdown; one lookups route
 1. Raiki answers the eight questions. If PR #130 merges first, Raiki merges `main` into `fix/95-people-pickers` (`git pull origin main`).
 2. The agent builds stop 2 in the planned order, runs the checks after every commit and hand checks H1 to H14 (H1 to H13 on the local UAT copy through `C:\dev\uat-data\start-local-uat.ps1`), and stops.
 3. Aryan (`AssetDetailModal.tsx`) and Joel (`NotificationCenter.tsx`): not touched unless question 8 is (b).
+
+## UAT fixes, Batch J (people pickers and form data) stop 2, 2026-10-28
+
+**Prompt followed:** Raiki's answers to the Batch J plan in chat: all eight (a), except 2 (a) with each lab's campus added and 8 (b) widened to My Assets and the asset modal's holder check; M-16 as its own commit after #74; do not touch `registerAsset` or `createWithRecords` (PR #130 goes back for rework). On `fix/95-people-pickers` on top of the plan `1dd6ad91`. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Batch J: people pickers (fix/95-people-pickers)", section 8, hand checks under "Batch J hand checks: results".
+
+### What was produced
+
+- Eight code commits, `88ade542` to `7fe53d29`: the lookups endpoint (#12); an edit adds a record (#74); an edit saves the monetary fields it was sent (M-16); the custodian by user id, with My Assets and the modal's holder check by id (#95, #32); Edit Asset and Register Equipment lists; the borrow form and sign-up labs; the disposal's Last Custodian from the holder; and the Edit Asset refusal shown as text (found by hand check H7).
+- One docs commit: the log's section 8 (answers, commits, differences from the plan, hand check results H1 to H16, Noticed), `docs/README.md`, this file, and `AGENTS.md` (443).
+- Typecheck **49** after every commit (the error list compared line by line). Tests **422** to **443**: 426, 435, 436, 443, then unchanged; 8 changed and 21 added.
+
+### Key findings
+
+- **`web/state/serverData.tsx` needed one declaration line** (`custodianId` on its `Asset` type) for the two screens of answer 8; not in the plan.
+- **H7:** Edit Asset showed a refusal as the raw JSON answer; fixed in `7fe53d29` and rechecked.
+- **Ports 4000 and 5173 were held** by an earlier `start-local-uat.ps1` run (2026-10-25, from a VS Code terminal, local copy). Its API predated this branch, so it was stopped; start it again with the same script if needed.
+- **H16's other side** (another holder's On Loan asset in a Custodian's modal) cannot be opened in the UI without a QR picture (M-15); the server never sends another holder's `custodianId` (H13, and a test).
+- **Noticed:** the inspection route still changes the newest record in place (H-14 there); clearing remarks still shows the older remark in the list; the transfer request's newest-record read has no tie-break (M-09); older disposal requests keep their typed Last Custodian.
+
+### Exact next step
+
+1. Raiki reviews the nine commits on `fix/95-people-pickers`, merges `main` into it (`git pull origin main`; PR #129 is on `main`), pushes, and opens the pull request (`Closes #95`, `Closes #74`, `Closes #12`, `Closes #32`).
+2. Raiki files the bell's display-name matches (`NotificationCenter.tsx`, Joel's branch) as a new issue.
+3. If PR #130 merges first, its `registerAsset` and `createWithRecords` changes do not overlap this branch's lines.
