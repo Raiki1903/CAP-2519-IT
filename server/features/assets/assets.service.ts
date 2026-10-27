@@ -12,7 +12,7 @@ import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import * as assetsRepository from './assets.repository';
 import type { EditRows } from './assets.repository';
 import * as authRepository from '../auth/auth.repository';
-import { checkAssetImage } from './assets.validation';
+import { checkAssetImage, UNKNOWN_CUSTODIAN } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 
@@ -46,6 +46,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
         const latestRecord = records[0];
 
         let custodianName = "";
+        let custodianId: number | undefined;
         let custodianHidden = false;
         let status = "Active";
         let location = "Manila";
@@ -63,6 +64,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
                 custodianHidden = true;
             } else if (custodian) {
                 custodianName = `${custodian.first_name} ${custodian.last_name}`;
+                custodianId = custodian.user_id;
             }
 
             const st = latestRecord.status;
@@ -204,6 +206,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
             condition: calculatedCondition,
             assetCondition: latestRecord?.asset_condition || "PERFECT",
             custodian: custodianName || undefined,
+            custodianId,
             custodianHidden: custodianHidden ? (true as const) : undefined,
             borrowedOn,
             dueDate,
@@ -399,7 +402,8 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
  * @param editorId the session user, under whom the edit's condition report is filed
  * @returns the assets row, updated or as it was
  * @throws AppError 404 if no asset has this tag
- * @throws AppError 400 if the picture is text but not an image
+ * @throws AppError 400 if custodianId is not a Custodian account; if the edit sends a status or custodian and would
+ *   leave the asset available with a person; or if the picture is text but not an image. Nothing is saved.
  */
 export async function updateAsset(assetTag: string, data: AssetUpdateInput, editorId: number): Promise<assets> {
     const existing = await assetsRepository.findByTag(assetTag);
@@ -407,14 +411,17 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // The dialog sends the new custodian as a display name ("Dr. Juan Dela Cruz"): a target, not the person acting.
-    // It is split at the first space and matched exactly; no match leaves the record's custodian as it is.
-    // TODO(H-10): two people with the same name cannot be told apart, and a two-word first name never matches (issue #32). A person picker, on a branch after step 13 (answer 8).
+    // The new custodian, by user id: a target, not the person acting. null is None, the placeholder; any other id must
+    // be a Custodian account, as the dropdown offers (issue #95, answer 1). Not sent leaves the custodian as it is.
     let custodianId: number | undefined;
-    if (data.custodian) {
-        const [first, ...rest] = String(data.custodian).replace(/^Dr\.\s*/i, "").split(" ");
-        const match = await authRepository.findUserByName(first, rest.join(" "));
-        if (match) custodianId = match.user_id;
+    if (data.custodianId === null) {
+        custodianId = POOL_CUSTODIAN_ID;
+    } else if (data.custodianId !== undefined) {
+        const custodian = data.custodianId === POOL_CUSTODIAN_ID ? null : await authRepository.findUserWithRole(data.custodianId, "CUSTODIAN");
+        if (!custodian) {
+            throw new AppError(400, UNKNOWN_CUSTODIAN);
+        }
+        custodianId = custodian.user_id;
     }
 
     const imageProvided = data.image !== undefined || data.image_url !== undefined || data.imageUrl !== undefined;
@@ -496,6 +503,12 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
             asset_condition: (report ? report.report_condition : ASSET_CONDITIONS.includes(data.assetCondition) ? data.assetCondition : latestRecord?.asset_condition ?? "PERFECT") as any,
             Asset_Remarks: remarksVal,
         };
+
+        // Available means nobody holds it (team decision). Checked only when the edit sends a status or custodian, so an
+        // older record that breaks the rule can still take other changes. Thrown here, the transaction saves nothing.
+        if ((data.status !== undefined || data.custodianId !== undefined) && next.status === "ACTIVE" && next.current_custodian !== POOL_CUSTODIAN_ID) {
+            throw new AppError(400, "An available asset has no custodian. Pick None, or change the availability.");
+        }
 
         const changed = !latestRecord
             || next.status !== latestRecord.status

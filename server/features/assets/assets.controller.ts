@@ -8,7 +8,7 @@
  */
 import type { Request, Response } from 'express';
 import * as assetsService from './assets.service';
-import { checkAssetCreate } from './assets.validation';
+import { checkAssetCreate, checkAssetUpdate } from './assets.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
@@ -58,7 +58,8 @@ export async function registerAsset(req: Request, res: Response): Promise<void> 
  * Handles PUT /api/assets/:assetTag: saves an edit, adds a record when a record field changes, and with a condition
  * or remarks files an inspection report.
  * Answers `{ success, asset }` with the assets row, or the AppError's status and message
- * (404 unknown tag, 400 a picture that is not an image), or 500.
+ * (404 unknown tag; 400 a custodian that is not a Custodian account, an available asset left with a person, or a
+ * picture that is not an image), or 500.
  */
 export async function updateAsset(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
@@ -66,6 +67,7 @@ export async function updateAsset(req: Request<{ assetTag: string }>, res: Respo
     // Printed before the checks, as for a new asset.
     console.log(`🚀 Server received update for ${assetTag}:`, data);
 
+    checkAssetUpdate(data);
     const updated = await assetsService.updateAsset(assetTag, data, sessionUserOf(req).userId);
 
     console.log("✅ Asset updated in MySQL successfully:", updated.asset_id);

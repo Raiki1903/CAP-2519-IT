@@ -128,9 +128,9 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   }, [activeTab]);
 
   const displayedAssets = dbAssets.length > 0 ? dbAssets : assets;
-  // A disposal keeps the last custodian on the DISPOSED record, so the name match
-  // alone would keep listing assets that are no longer in service.
-  const custodianAssets = displayedAssets.filter(a => a.custodian === currentUserName && a.status !== "Disposed");
+  // Matched by user id, never by name (issue #32). A disposal keeps the last custodian on the DISPOSED record, so the
+  // id match alone would keep listing assets that are no longer in service.
+  const custodianAssets = displayedAssets.filter(a => !!currentUser && a.custodianId === currentUser.userId && a.status !== "Disposed");
   // Only borrowed equipment under the custodian's custody can be picked for an inspection report.
   // Assets in Maintenance or Disposed cannot be inspected again. (issue #88)
   const reportEligibleAssets = custodianAssets.filter(a => a.status === "On Loan" || a.status === "Overdue");

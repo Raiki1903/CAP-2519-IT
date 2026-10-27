@@ -1,11 +1,12 @@
 /**
  * Edit asset dialog: Staff correct an asset's registry details, status, condition, custodian, and photo.
  * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
- * Calls: api/assets.api.ts updateAssetRaw().
+ * Calls: api/assets.api.ts updateAssetRaw(), features/lookups/useLookups.ts (the custodian list).
  * Used by: Staff asset editing.
  */
 import { useState } from "react";
 import * as assetsApi from "@web/api/assets.api";
+import { useCustodianOptions } from "@web/features/lookups/useLookups";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Button } from "@web/components/ui/button";
@@ -37,7 +38,8 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
     location: asset?.location || "Manila",
     lab: asset?.lab || "CITe4D",
     assetCondition: asset?.assetCondition || "PERFECT",
-    custodian: asset?.custodian || "",
+    // The holder's user id, or null for None (nobody holds it). Matched by id, never by name. (issue #95)
+    custodianId: (asset?.custodianId ?? null) as number | null,
     status: asset?.status || "Active",
     image: asset?.image || asset?.image_url || "",
     description: asset?.description || asset?.remarks || ""
@@ -46,6 +48,12 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { custodians, failed: custodiansFailed } = useCustodianOptions();
+  // A holder who is not a Custodian account (older data) is still offered, so a save that does not touch it keeps it.
+  const custodianOptions = start.custodianId !== null && !custodians.some(c => c.userId === start.custodianId)
+    ? [...custodians, { userId: start.custodianId, name: asset?.custodian || `User ${start.custodianId}` }]
+    : custodians;
 
   const handleSave = async () => {
     const changes: Partial<typeof form> = {};
@@ -191,7 +199,15 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
           </div>
           <div className="flex flex-col gap-1.5 col-span-2">
             <Label className="text-xs font-bold text-foreground">Custodian</Label>
-            <Input value={form.custodian} onChange={e => setForm({ ...form, custodian: e.target.value })} placeholder="None / Custodian Name" className="text-xs" />
+            <select value={form.custodianId === null ? "" : String(form.custodianId)}
+              onChange={e => setForm({ ...form, custodianId: e.target.value === "" ? null : Number(e.target.value) })}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <option value="">None</option>
+              {custodianOptions.map(c => (
+                <option key={c.userId} value={String(c.userId)}>{c.name}</option>
+              ))}
+            </select>
+            {custodiansFailed && <p className="text-[10px] text-red-600">Could not load the custodian list. Reload the page.</p>}
           </div>
           <div className="flex flex-col gap-1.5 col-span-2 border-t border-border pt-2 mt-1">
             <div className="flex items-center justify-between">

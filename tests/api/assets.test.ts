@@ -52,6 +52,11 @@ describe("GET /api/assets", () => {
     expect((await listedAsset(ASSETS.available.tag)).custodian).toBeUndefined();
   });
 
+  it("sends each named custodian's user id, and none for the placeholder (issue #32)", async () => {
+    expect((await listedAsset(ASSETS.onLoan.tag)).custodianId).toBe(USERS.custodianA.userId);
+    expect(await listedAsset(ASSETS.available.tag)).not.toHaveProperty("custodianId");
+  });
+
   it("shows each seeded asset in its seeded state", async () => {
     const res = await asStaff.get("/api/assets");
 
@@ -349,14 +354,18 @@ describe("PUT /api/assets/:tag", () => {
     expect(recordAfter.location).toBe(`Laguna${LOCATION_SEPARATOR}TESTL`);
   });
 
-  it("finds the new custodian by typed name, and files the remark as a report under the session user who edited (issue #32 fixed)", async () => {
+  it("sets the new custodian by user id in a new record, and files the remark as a report under the session user who edited (issues #32, #95)", async () => {
+    const countBefore = await db.asset_records.count({ where: { asset_id: ASSETS.pendingLoan.assetId } });
+
     const res = await asStaff.put(`/api/assets/${ASSETS.pendingLoan.tag}`, {
-      custodian: USERS.custodianB.fullName,
+      custodianId: USERS.custodianB.userId,
+      status: "ON_LOAN",
       remarks: "Test edit remark",
       assetCondition: "MINOR_DRIFT",
     });
 
     expect(res.status).toBe(200);
+    expect(await db.asset_records.count({ where: { asset_id: ASSETS.pendingLoan.assetId } })).toBe(countBefore + 1);
     const record = await newestRecord(ASSETS.pendingLoan.assetId);
     expect(record).toMatchObject({ current_custodian: USERS.custodianB.userId, asset_condition: "MINOR_DRIFT", Asset_Remarks: "Test edit remark" });
     const reports = await db.asset_reports.findMany({ where: { asset_id: ASSETS.pendingLoan.assetId } });
@@ -364,15 +373,72 @@ describe("PUT /api/assets/:tag", () => {
     expect(reports[0]).toMatchObject({ reported_by_id: USERS.staffTsg.userId, report_condition: "MINOR_DRIFT", report_remarks: "Test edit remark" });
   });
 
-  it("keeps the custodian when the typed name matches nobody, and files the report under the session user, not user 1 (H-10 fixed)", async () => {
-    const recordBefore = await newestRecord(ASSETS.inRepair.assetId);
+  it("answers 400 for an id that is not a Custodian account, and saves nothing (issue #95)", async () => {
+    const recordsBefore = await db.asset_records.count({ where: { asset_id: ASSETS.inRepair.assetId } });
+    const reportsBefore = await db.asset_reports.count({ where: { asset_id: ASSETS.inRepair.assetId } });
 
-    await asStaff.put(`/api/assets/${ASSETS.inRepair.tag}`, { custodian: "Nobody Known", remarks: "Test remark from an unknown name" });
+    const res = await asStaff.put(`/api/assets/${ASSETS.inRepair.tag}`, { custodianId: USERS.labHead.userId, remarks: "Test remark for a Lab Head" });
 
-    const recordAfter = await newestRecord(ASSETS.inRepair.assetId);
-    expect(recordAfter.current_custodian).toBe(recordBefore.current_custodian);
-    const report = await db.asset_reports.findFirstOrThrow({ where: { asset_id: ASSETS.inRepair.assetId } });
-    expect(report.reported_by_id).toBe(USERS.staffTsg.userId);
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ success: false, error: "Pick a custodian from the list." });
+    expect(await db.asset_records.count({ where: { asset_id: ASSETS.inRepair.assetId } })).toBe(recordsBefore);
+    expect(await db.asset_reports.count({ where: { asset_id: ASSETS.inRepair.assetId } })).toBe(reportsBefore);
+  });
+
+  it("sets None as the placeholder, user 1, in a new record (issue #95)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0921", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
+
+    const res = await asStaff.put(`/api/assets/${asset.tag}`, { custodianId: null });
+
+    expect(res.status).toBe(200);
+    expect(await db.asset_records.count({ where: { asset_id: asset.assetId } })).toBe(2);
+    expect(await newestRecord(asset.assetId)).toMatchObject({ current_custodian: USERS.admin.userId, status: "ON_LOAN" });
+  });
+
+  it("ignores a typed custodian name (issue #32)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0922", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
+
+    const res = await asStaff.put(`/api/assets/${asset.tag}`, { custodian: USERS.custodianB.fullName });
+
+    expect(res.status).toBe(200);
+    expect(await db.asset_records.count({ where: { asset_id: asset.assetId } })).toBe(1);
+    expect((await newestRecord(asset.assetId)).current_custodian).toBe(USERS.custodianA.userId);
+  });
+
+  it("answers 400 for user 1 and for a value that is not a whole number (issue #95)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0923", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
+
+    for (const custodianId of [USERS.admin.userId, String(USERS.custodianB.userId), 6.5, 0, -7, true]) {
+      const res = await asStaff.put(`/api/assets/${asset.tag}`, { custodianId });
+      expect(res.status, String(custodianId)).toBe(400);
+      expect(res.body.error).toBe("Pick a custodian from the list.");
+    }
+    expect(await db.asset_records.count({ where: { asset_id: asset.assetId } })).toBe(1);
+  });
+
+  it("answers 400 when a save would leave an available asset with a person, and saves nothing (issue #95, answer 5)", async () => {
+    const message = "An available asset has no custodian. Pick None, or change the availability.";
+    const pooled = await addExtraAsset(db, { tag: "TEST-0924" });
+    const lent = await addExtraAsset(db, { tag: "TEST-0925", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
+
+    const giveToPerson = await asStaff.put(`/api/assets/${pooled.tag}`, { name: "Test Should Not Save", custodianId: USERS.custodianA.userId });
+    const makeAvailable = await asStaff.put(`/api/assets/${lent.tag}`, { status: "ACTIVE" });
+
+    expect(giveToPerson.status).toBe(400);
+    expect(giveToPerson.body.error).toBe(message);
+    expect(makeAvailable.status).toBe(400);
+    expect(makeAvailable.body.error).toBe(message);
+    expect((await db.assets.findUniqueOrThrow({ where: { asset_id: pooled.assetId } })).name).toBe(pooled.name);
+    expect(await db.asset_records.count({ where: { asset_id: { in: [pooled.assetId, lent.assetId] } } })).toBe(2);
+  });
+
+  it("still saves a rename and a remark on an available asset that an older record gives a person (issue #95, answer 5)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0926", custodianId: USERS.custodianA.userId });
+
+    const res = await asStaff.put(`/api/assets/${asset.tag}`, { name: "Test Old Row Renamed", description: "Test remark on an old row" });
+
+    expect(res.status).toBe(200);
+    expect(await newestRecord(asset.assetId)).toMatchObject({ status: "ACTIVE", current_custodian: USERS.custodianA.userId, Asset_Remarks: "Test remark on an old row" });
   });
 
   it("saves a new funding source and acquisition value when the asset already has both (M-16 fixed)", async () => {

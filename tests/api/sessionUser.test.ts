@@ -84,6 +84,15 @@ describe("GET /api/assets: names for a Custodian (D2) and the placeholder custod
     expect(others.asset_records.map((r: { custodian?: string }) => r.custodian)).toEqual([undefined]);
   });
 
+  it("sends a Custodian their own custodianId, and none for another holder's asset (issue #32)", async () => {
+    const othersAsset = await addExtraAsset(db, { tag: "TEST-0861", custodianId: USERS.custodianB.userId });
+
+    const assets = (await asCustodianA.get("/api/assets")).body.assets;
+
+    expect(byId(assets, ASSETS.onLoan.tag).custodianId).toBe(USERS.custodianA.userId);
+    expect(byId(assets, othersAsset.tag)).not.toHaveProperty("custodianId");
+  });
+
   it("names no one for an asset the placeholder holds, for a Custodian and for Staff, with no hidden mark", async () => {
     for (const client of [asCustodianA, asStaff]) {
       const available = byId((await client.get("/api/assets")).body.assets, ASSETS.available.tag);
