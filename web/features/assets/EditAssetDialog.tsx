@@ -92,12 +92,13 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
     try {
       const res = await assetsApi.updateAssetRaw(asset.id, changes);
       const contentType = res.headers.get("content-type");
-      if (!res.ok || !contentType || !contentType.includes("application/json")) {
+      if (!contentType || !contentType.includes("application/json")) {
         const errText = await res.text();
         throw new Error(`Server returned error (${res.status}): ${errText.slice(0, 120)}`);
       }
+      // A refusal (400, 404) is JSON with the reason in `error`, shown as it is, so Staff see why and can fix it. (H-16)
       const result = await res.json();
-      if (!result.success) {
+      if (!res.ok || !result.success) {
         throw new Error(result.error || "Update failed");
       }
       onSave({ ...asset, ...form });
