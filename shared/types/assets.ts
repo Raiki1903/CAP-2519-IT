@@ -52,8 +52,9 @@ export interface AssetUpdateInput {
   imageUrl?: string | null;
   procured?: string;
   warranty?: string;
+  /** "Unspecified" when sent empty. Left as it is when not sent. */
   funding?: string;
-  /** Ignored when the monetary row exists: only the funding source is updated. (M-16, issue #74) */
+  /** Left as it is when not sent. */
   acquisitionValue?: number | string;
   location?: string;
   lab?: string;

@@ -375,19 +375,28 @@ describe("PUT /api/assets/:tag", () => {
     expect(report.reported_by_id).toBe(USERS.staffTsg.userId);
   });
 
-  it("ignores a new acquisition value when the asset already has one (known defect M-16)", async () => {
+  it("saves a new funding source and acquisition value when the asset already has both (M-16 fixed)", async () => {
     await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { funding: "Test New Grant", acquisitionValue: 99999 });
 
     const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: ASSETS.available.assetId } });
     expect(monetary.funding_source).toBe("Test New Grant");
-    expect(Number(monetary.acquisition_value)).toBe(ASSETS.available.acquisitionValue);
+    expect(Number(monetary.acquisition_value)).toBe(99999);
   });
 
-  it("resets the funding source to Unspecified when only an acquisition value is sent (new finding, M-16 family)", async () => {
-    await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { acquisitionValue: 99999 });
+  it("keeps the funding source when only an acquisition value is sent (M-16 fixed)", async () => {
+    await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { acquisitionValue: 12345.5 });
 
     const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: ASSETS.available.assetId } });
-    expect(monetary.funding_source).toBe("Unspecified");
+    expect(monetary.funding_source).toBe("Test New Grant");
+    expect(Number(monetary.acquisition_value)).toBe(12345.5);
+  });
+
+  it("keeps the acquisition value when only a funding source is sent", async () => {
+    await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { funding: "Test Third Grant" });
+
+    const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: ASSETS.available.assetId } });
+    expect(monetary.funding_source).toBe("Test Third Grant");
+    expect(Number(monetary.acquisition_value)).toBe(12345.5);
   });
 
   it.each([

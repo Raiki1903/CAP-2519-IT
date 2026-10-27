@@ -438,10 +438,13 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
     if (data.procured !== undefined) assetUpdateData.procurement_date = data.procured ? new Date(data.procured) : null;
     if (data.warranty !== undefined) assetUpdateData.warranty_expiry = data.warranty ? new Date(data.warranty) : null;
 
-    // TODO(M-16): an existing monetary row gets only the funding source (reset to "Unspecified" when none is sent); the value is ignored. Its own fix (issue #74).
+    // An existing monetary row gets only the fields sent, so a value alone keeps the funding source. (M-16, issue #74)
+    const monetaryUpdate: { funding_source?: string; acquisition_value?: number | string } = {};
+    if (data.funding !== undefined) monetaryUpdate.funding_source = data.funding || "Unspecified";
+    if (data.acquisitionValue !== undefined) monetaryUpdate.acquisition_value = data.acquisitionValue;
     const monetary = (data.funding !== undefined || data.acquisitionValue !== undefined)
         ? {
-            update: { funding_source: data.funding || "Unspecified" },
+            update: monetaryUpdate,
             create: {
                 asset_id: existing.asset_id,
                 funding_source: data.funding || "Unspecified",
