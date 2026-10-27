@@ -55,7 +55,8 @@ export async function registerAsset(req: Request, res: Response): Promise<void> 
 }
 
 /**
- * Handles PUT /api/assets/:assetTag: saves an edit, and with a condition or remarks files an inspection report.
+ * Handles PUT /api/assets/:assetTag: saves an edit, adds a record when a record field changes, and with a condition
+ * or remarks files an inspection report.
  * Answers `{ success, asset }` with the assets row, or the AppError's status and message
  * (404 unknown tag, 400 a picture that is not an image), or 500.
  */

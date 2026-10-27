@@ -10,6 +10,7 @@ import type { SessionIdentity } from '@shared/types/auth';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import * as assetsRepository from './assets.repository';
+import type { EditRows } from './assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { checkAssetImage } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
@@ -388,10 +389,10 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
 }
 
 /**
- * Saves an edit: the assets fields that were sent, the monetary row, and the asset's newest record; and, when the edit
- * carries a condition or remarks, a new inspection report whose condition the newest record then takes.
- * The edit queries are kept exactly as they are; see the TODOs here and in assets.repository.ts saveEdit. Appending instead of
- * overwriting is issue #74.
+ * Saves an edit: the assets fields that were sent and the monetary row; a new record when the edit changes the asset's
+ * status, location, custodian, condition, or remarks; and, when the edit carries a condition or remarks, a new
+ * inspection report, whose condition the new record takes. An existing record is never changed (issue #74), so the
+ * custodian history keeps every earlier state.
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the body; every field is optional
@@ -454,57 +455,68 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
         const rawRemarks = data.remarks ?? data.description ?? data.tsgRemarks ?? data.itsRemarks;
         const remarksVal = remarksProvided ? (rawRemarks || null) : (latestRecord?.Asset_Remarks ?? null);
 
-        // Each record field is the body's value, else the newest record's, else a default.
+        // A condition or remarks field files a report. `description` is not on the list: Edit Asset sends its remarks
+        // under that name, so a remarks-only change there files none (issue #74, answer 4).
+        let report: EditRows["report"] = null;
+        if (data.assetCondition || data.reportCondition || data.remarks || data.tsgRemarks || data.itsRemarks) {
+            // The report's condition by stored or display name; any other name is stored as PERFECT. (H-07 family, like issue #53 on the inspection route)
+            const rawCond = String(data.reportCondition || data.assetCondition || "PERFECT").trim();
+            const conditionMap: Record<string, any> = {
+                "PERFECT": "PERFECT",
+                "Perfect": "PERFECT",
+                "OPERATIONAL": "OPERATIONAL",
+                "Operational": "OPERATIONAL",
+                "MINOR_DRIFT": "MINOR_DRIFT",
+                "Minor Drift": "MINOR_DRIFT",
+                "DEGRADED": "DEGRADED",
+                "Degraded Performance": "DEGRADED",
+                "CRITICAL_DEFECT": "CRITICAL_DEFECT",
+                "Critical Defect": "CRITICAL_DEFECT",
+            };
+            report = {
+                asset_id: existing.asset_id,
+                // Filed under the Staff member who made the edit. (issue #32)
+                reported_by_id: editorId,
+                report_condition: conditionMap[rawCond] || "PERFECT",
+                report_remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
+                report_img: imageVal || null,
+            };
+        }
+
+        // Each record field is the body's value, else the newest record's, else a default. With a report, the condition
+        // is the report's, so the two agree.
         // TODO(H-07): the status is any text upper-cased with its first space as an underscore, not checked against the enum; a bad one fails in the database with a 500. With the status enum.
-        const recordData = {
+        const next = {
             status: (data.status?.toUpperCase().replace(" ", "_") || latestRecord?.status || "ACTIVE") as any,
             location: [data.location, data.lab].filter(Boolean).join(" — ") || latestRecord?.location || "Unassigned",
             current_custodian: custodianId ?? latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
-            asset_condition: (ASSET_CONDITIONS.includes(data.assetCondition) ? data.assetCondition : latestRecord?.asset_condition ?? "PERFECT") as any,
+            asset_condition: (report ? report.report_condition : ASSET_CONDITIONS.includes(data.assetCondition) ? data.assetCondition : latestRecord?.asset_condition ?? "PERFECT") as any,
             Asset_Remarks: remarksVal,
         };
 
-        if (!(data.assetCondition || data.reportCondition || data.remarks || data.tsgRemarks || data.itsRemarks)) {
-            return { record: recordData, report: null };
+        const changed = !latestRecord
+            || next.status !== latestRecord.status
+            || next.location !== latestRecord.location
+            || next.current_custodian !== latestRecord.current_custodian
+            || next.asset_condition !== latestRecord.asset_condition
+            || next.Asset_Remarks !== (latestRecord.Asset_Remarks ?? null);
+        if (!changed) {
+            return { record: null, report };
         }
 
-        // The report's condition by stored or display name; any other name is stored as PERFECT. (H-07 family, like issue #53 on the inspection route)
-        const rawCond = String(data.reportCondition || data.assetCondition || "PERFECT").trim();
-        const conditionMap: Record<string, any> = {
-            "PERFECT": "PERFECT",
-            "Perfect": "PERFECT",
-            "OPERATIONAL": "OPERATIONAL",
-            "Operational": "OPERATIONAL",
-            "MINOR_DRIFT": "MINOR_DRIFT",
-            "Minor Drift": "MINOR_DRIFT",
-            "DEGRADED": "DEGRADED",
-            "Degraded Performance": "DEGRADED",
-            "CRITICAL_DEFECT": "CRITICAL_DEFECT",
-            "Critical Defect": "CRITICAL_DEFECT",
-        };
-        const condition = conditionMap[rawCond] || "PERFECT";
+        // Where the asset is now: home when it is available (as a return writes it), and the new home when it was at
+        // its old one; else it is still away (on loan, transferred, or at the TSG Office), so the newest record's place.
+        const wasAtHome = !latestRecord?.current_location || latestRecord.current_location === latestRecord.location;
+        const currentLocation = next.status === "ACTIVE" || wasAtHome ? next.location : latestRecord!.current_location;
 
         return {
-            record: recordData,
-            report: {
-                data: {
-                    asset_id: existing.asset_id,
-                    // Filed under the Staff member who made the edit. (issue #32)
-                    reported_by_id: editorId,
-                    report_condition: condition,
-                    report_remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
-                    report_img: imageVal || null,
-                },
-                // The newest record takes the newest report's condition and remarks (ties on report_date go to the higher report_id).
-                syncFromReport: (latestReport) => {
-                    const latestCondition = latestReport ? latestReport.report_condition : condition;
-                    const latestRemarks = latestReport ? latestReport.report_remarks : remarksVal;
-                    return {
-                        asset_condition: latestCondition as any,
-                        Asset_Remarks: latestRemarks,
-                    };
-                },
+            record: {
+                ...next,
+                current_location: currentLocation,
+                // Kept from the newest record: the analytics read an asset's project there.
+                project_id: latestRecord?.project_id ?? null,
             },
+            report,
         };
     });
 }

@@ -36,8 +36,10 @@ export interface AssetCreateInput {
 }
 
 /**
- * The body of PUT /api/assets/:assetTag, as EditAssetDialog sends it. Every field is optional: an assets field
- * is written only when sent. A condition or remarks also files an inspection report.
+ * The body of PUT /api/assets/:assetTag, as EditAssetDialog sends it (only the fields Staff changed). Every field is
+ * optional: an assets field is written only when sent. A change of status, location, custodian, condition, or remarks
+ * adds a record; no record is changed (issue #74). A condition, or remarks under any name but `description`, also files
+ * an inspection report.
  */
 export interface AssetUpdateInput {
   name?: string;

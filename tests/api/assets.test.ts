@@ -4,11 +4,13 @@
  * DELETE /api/assets/:tag. Workflow: asset registry (intake, edit, delete) and the asset detail screens.
  * Fixtures: the six seeded assets (ASSETS) and their records, loans, repair, disposal, and report; the seeded
  * accounts (USERS). The read tests run first; the write tests add assets TEST-0007 onward and CITe4D-0001, edit
- * TEST-0001, TEST-0003, and TEST-0005, and delete TEST-0004.
+ * TEST-0001, TEST-0003, and TEST-0005, and delete TEST-0004. The edit tests also add assets TEST-0901 onward
+ * (addExtraAsset), each held as the test needs.
  */
 import { describe, expect, it } from "vitest";
 import { ASSETS, FUNDING_SOURCE, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
+import { addExtraAsset } from "../setup/extraAssets";
 
 const { db, as } = useApiHarness();
 const asStaff = as(USERS.staffTsg);
@@ -333,15 +335,17 @@ describe("PUT /api/assets/:tag", () => {
     expect(await db.asset_reports.count({ where: { asset_id: ASSETS.available.assetId } })).toBe(0);
   });
 
-  it("rewrites the newest record in place instead of adding one (known defect H-14)", async () => {
+  it("adds a record for a location change and leaves the older record as it was (H-14 fixed, issue #74)", async () => {
     const countBefore = await db.asset_records.count({ where: { asset_id: ASSETS.pendingLoan.assetId } });
     const recordBefore = await newestRecord(ASSETS.pendingLoan.assetId);
 
-    await asStaff.put(`/api/assets/${ASSETS.pendingLoan.tag}`, { location: "Laguna", lab: "TESTL" });
+    const res = await asStaff.put(`/api/assets/${ASSETS.pendingLoan.tag}`, { location: "Laguna", lab: "TESTL" });
 
-    expect(await db.asset_records.count({ where: { asset_id: ASSETS.pendingLoan.assetId } })).toBe(countBefore);
+    expect(res.status).toBe(200);
+    expect(await db.asset_records.count({ where: { asset_id: ASSETS.pendingLoan.assetId } })).toBe(countBefore + 1);
+    expect(await db.asset_records.findUniqueOrThrow({ where: { asset_record_id: recordBefore.asset_record_id } })).toEqual(recordBefore);
     const recordAfter = await newestRecord(ASSETS.pendingLoan.assetId);
-    expect(recordAfter.asset_record_id).toBe(recordBefore.asset_record_id);
+    expect(recordAfter.asset_record_id).not.toBe(recordBefore.asset_record_id);
     expect(recordAfter.location).toBe(`Laguna${LOCATION_SEPARATOR}TESTL`);
   });
 
@@ -384,6 +388,122 @@ describe("PUT /api/assets/:tag", () => {
 
     const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: ASSETS.available.assetId } });
     expect(monetary.funding_source).toBe("Unspecified");
+  });
+
+  it.each([
+    ["status", "TEST-0901", { status: "MAINTENANCE" }, { status: "MAINTENANCE" }],
+    ["condition", "TEST-0902", { assetCondition: "DEGRADED" }, { asset_condition: "DEGRADED" }],
+    ["location", "TEST-0903", { location: "Laguna", lab: "TESTL" }, { location: `Laguna${LOCATION_SEPARATOR}TESTL` }],
+    ["remarks", "TEST-0904", { description: "Test changed remark" }, { Asset_Remarks: "Test changed remark" }],
+  ])("adds a record for a change of %s and leaves the older record as it was (issue #74)", async (_field, tag, body, changed) => {
+    const asset = await addExtraAsset(db, { tag, custodianId: USERS.custodianA.userId, remarks: "Test old remark" });
+    const recordBefore = await newestRecord(asset.assetId);
+
+    const res = await asStaff.put(`/api/assets/${tag}`, body);
+
+    expect(res.status).toBe(200);
+    expect(await db.asset_records.count({ where: { asset_id: asset.assetId } })).toBe(2);
+    expect(await db.asset_records.findUniqueOrThrow({ where: { asset_record_id: recordBefore.asset_record_id } })).toEqual(recordBefore);
+    const recordAfter = await newestRecord(asset.assetId);
+    expect(recordAfter).toMatchObject({
+      status: recordBefore.status,
+      location: recordBefore.location,
+      current_custodian: USERS.custodianA.userId,
+      asset_condition: recordBefore.asset_condition,
+      Asset_Remarks: recordBefore.Asset_Remarks,
+      ...changed,
+    });
+  });
+
+  it("adds no record for fields on the assets row only (issue #74)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0905" });
+    const recordBefore = await newestRecord(asset.assetId);
+
+    const res = await asStaff.put(`/api/assets/${asset.tag}`, {
+      name: "Test Row Only Renamed",
+      serial: "TEST-SN-ROW-ONLY",
+      manufacturer: "Test Maker",
+      category: "CAMERA",
+      funding: "Test Other Grant",
+      procured: "2025-01-15",
+      warranty: "2028-01-15",
+      image: "data:image/png;base64,iVBORw0KGgo=",
+    });
+
+    expect(res.status).toBe(200);
+    expect(await db.assets.findUniqueOrThrow({ where: { asset_id: asset.assetId } })).toMatchObject({
+      name: "Test Row Only Renamed",
+      serial_number: "TEST-SN-ROW-ONLY",
+      manufacturer: "Test Maker",
+      category: "CAMERA",
+      image_url: "data:image/png;base64,iVBORw0KGgo=",
+    });
+    expect(await db.asset_records.findMany({ where: { asset_id: asset.assetId } })).toEqual([recordBefore]);
+    expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(0);
+  });
+
+  it("adds no record when a record field is sent with the value it already has (issue #74)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0906", remarks: "Test same remark" });
+    const recordBefore = await newestRecord(asset.assetId);
+
+    const res = await asStaff.put(`/api/assets/${asset.tag}`, {
+      status: "ACTIVE",
+      location: "Manila",
+      lab: LAB.shortCode,
+      description: "Test same remark",
+    });
+
+    expect(res.status).toBe(200);
+    expect(await db.asset_records.findMany({ where: { asset_id: asset.assetId } })).toEqual([recordBefore]);
+  });
+
+  it("moves the current location with the home only while the asset is at home, and home when it is made available (issue #74)", async () => {
+    const away = `Manila${LOCATION_SEPARATOR}TEST Destination`;
+    const atHome = await addExtraAsset(db, { tag: "TEST-0907" });
+    const onLoan = await addExtraAsset(db, { tag: "TEST-0908", status: "ON_LOAN", custodianId: USERS.custodianA.userId, currentLocation: away });
+    // Held by nobody (the placeholder), so making it available leaves no person on an available asset.
+    const backFromLoan = await addExtraAsset(db, { tag: "TEST-0909", status: "ON_LOAN", currentLocation: away });
+    const newHome = `Laguna${LOCATION_SEPARATOR}TESTL`;
+
+    await asStaff.put(`/api/assets/${atHome.tag}`, { location: "Laguna", lab: "TESTL" });
+    await asStaff.put(`/api/assets/${onLoan.tag}`, { location: "Laguna", lab: "TESTL" });
+    await asStaff.put(`/api/assets/${backFromLoan.tag}`, { status: "ACTIVE" });
+
+    expect(await newestRecord(atHome.assetId)).toMatchObject({ location: newHome, current_location: newHome });
+    expect(await newestRecord(onLoan.assetId)).toMatchObject({ location: newHome, current_location: away });
+    expect(await newestRecord(backFromLoan.assetId)).toMatchObject({ status: "ACTIVE", location: LAB.homeLocation, current_location: LAB.homeLocation });
+  });
+
+  it("files the condition report and gives only the new record its condition (issue #74)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0910" });
+    const recordBefore = await newestRecord(asset.assetId);
+
+    const res = await asStaff.put(`/api/assets/${asset.tag}`, { assetCondition: "MINOR_DRIFT" });
+
+    expect(res.status).toBe(200);
+    expect(await db.asset_records.findUniqueOrThrow({ where: { asset_record_id: recordBefore.asset_record_id } })).toEqual(recordBefore);
+    expect(await newestRecord(asset.assetId)).toMatchObject({ asset_condition: "MINOR_DRIFT", Asset_Remarks: null });
+    const reports = await db.asset_reports.findMany({ where: { asset_id: asset.assetId } });
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({ reported_by_id: USERS.staffTsg.userId, report_condition: "MINOR_DRIFT", report_remarks: "Routine inspection verified." });
+  });
+
+  it("builds on the record with the higher id when two share a date_logged (M-09)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0911" });
+    const first = await newestRecord(asset.assetId);
+    const tieLocation = `Laguna${LOCATION_SEPARATOR}TEST Tie`;
+    await db.asset_records.create({
+      data: { ...first, asset_record_id: undefined, location: tieLocation, current_location: tieLocation, current_custodian: USERS.custodianB.userId, status: "ON_LOAN" },
+    });
+
+    await asStaff.put(`/api/assets/${asset.tag}`, { description: "Test remark on a tie" });
+
+    expect(await newestRecord(asset.assetId)).toMatchObject({
+      location: tieLocation,
+      current_custodian: USERS.custodianB.userId,
+      status: "ON_LOAN",
+      Asset_Remarks: "Test remark on a tie",
+    });
   });
 
   it("answers 404 for an unknown tag", async () => {

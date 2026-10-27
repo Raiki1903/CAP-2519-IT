@@ -16,15 +16,17 @@ import { Trash2 } from "lucide-react";
 import { CONDITION_PILL_CLASS, assetStatusLabel } from "./assetBadges";
 
 /**
- * Edits one asset and saves it through assetsApi.updateAssetRaw(). Shows the server's error text
- * under the form when the save fails, and stays open.
+ * Edits one asset and saves it through assetsApi.updateAssetRaw(), sending only the fields Staff changed. Shows the
+ * server's error text under the form when the save fails, and stays open.
  *
  * @param asset the asset row as the inventory shows it
  * @param onClose closes the dialog
  * @param onSave called after a successful save with the merged asset, so the caller can reload its lists
  */
 export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClose: () => void; onSave: (updated: any) => void }) {
-  const [form, setForm] = useState({
+  // The values the dialog opened with. Some are screen text rather than stored values (a placeholder remark, a default
+  // lab), so a save sends only what differs from these, and the server sees only real changes. (issue #74)
+  const [start] = useState(() => ({
     name: asset?.name || "",
     serial: asset?.serial || "",
     manufacturer: asset?.manufacturer || "",
@@ -39,17 +41,31 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
     status: asset?.status || "Active",
     image: asset?.image || asset?.image_url || "",
     description: asset?.description || asset?.remarks || ""
-  });
+  }));
+  const [form, setForm] = useState(start);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = async () => {
+    const changes: Partial<typeof form> = {};
+    for (const key of Object.keys(form) as (keyof typeof form)[]) {
+      if (form[key] !== start[key]) changes[key] = form[key];
+    }
+    // The server joins campus and lab into one location, so both go when either changed.
+    if (changes.location !== undefined || changes.lab !== undefined) {
+      changes.location = form.location;
+      changes.lab = form.lab;
+    }
+    if (Object.keys(changes).length === 0) {
+      onClose();
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {
-      // TODO(H-14): the server rewrites the newest asset_records row in place instead of adding one, so an edit erases the last recorded state. Phase 3.
-      const res = await assetsApi.updateAssetRaw(asset.id, form);
+      const res = await assetsApi.updateAssetRaw(asset.id, changes);
       const contentType = res.headers.get("content-type");
       if (!res.ok || !contentType || !contentType.includes("application/json")) {
         const errText = await res.text();

@@ -50,13 +50,12 @@ export function createAssetRaw(form: AssetCreateInput): Promise<Response> {
 
 /**
  * Saves edits to an asset. Returns the untouched Response for the same reason
- * as `createAssetRaw`.
+ * as `createAssetRaw`. A change to a record field adds a record; no record is overwritten (issue #74).
  *
  * @param assetTag the asset's tag
- * @param form the edit dialog values
+ * @param form only the fields the edit dialog changed
  * @returns the raw Response
  */
-// TODO(H-14): the server overwrites the newest history row instead of adding one. Issue #74.
 export function updateAssetRaw(assetTag: string, form: AssetUpdateInput): Promise<Response> {
   return apiPutRaw(`/api/assets/${encodeURIComponent(assetTag)}`, form);
 }
