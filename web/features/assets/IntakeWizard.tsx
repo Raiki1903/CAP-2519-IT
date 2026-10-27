@@ -1,10 +1,10 @@
 /**
  * Intake wizard: the three-step form Staff use to register a newly acquired asset.
  * Layer: feature component. Called by pages/staff/RegisterPage.tsx.
- * Calls: api/assets.api.ts createAssetRaw(), state/serverData.tsx syncFromDb().
+ * Calls: api/assets.api.ts createAssetRaw(), features/lookups/useLookups.ts (labs and funding sources), state/serverData.tsx syncFromDb().
  * Used by: Staff asset registration.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerData } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
@@ -14,7 +14,7 @@ import { Badge } from "@web/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Label } from "@web/components/ui/label";
 import { Separator } from "@web/components/ui/separator";
-import { fundingSources } from "./assetFields";
+import { useFormLookups, withCurrentOption } from "@web/features/lookups/useLookups";
 
 interface IntakeForm {
   name: string;
@@ -37,10 +37,10 @@ const generateAdricSerial = () => {
   return `ADRIC-${year}-${hex}`;
 };
 
-const createEmptyForm = (): IntakeForm => ({
+const createEmptyForm = (lab = "CITe4D"): IntakeForm => ({
   name: "", serial: generateAdricSerial(), manufacturer: "", category: "CPU",
   funding: "DOST", acquisitionValue: 0, procured: new Date().toISOString().split("T")[0],
-  warranty: "", location: "Manila", lab: "CITe4D", image: "", remarks: ""
+  warranty: "", location: "Manila", lab, image: "", remarks: ""
 });
 
 /**
@@ -55,6 +55,14 @@ export function IntakeWizard() {
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
+
+  const { lookups, failed: lookupsFailed } = useFormLookups();
+  const labCodes = lookups?.labs.map(l => l.code) ?? [];
+  // The lab starts on CITe4D when the research centers have it, else on the first one.
+  const startingLab = labCodes.length === 0 || labCodes.includes("CITe4D") ? "CITe4D" : labCodes[0];
+  useEffect(() => {
+    if (labCodes.length > 0 && !labCodes.includes(form.lab)) setForm(f => ({ ...f, lab: startingLab }));
+  }, [lookups]);
 
   const handleSubmit = async () => {
     setSubmitted(true);
@@ -72,7 +80,7 @@ export function IntakeWizard() {
       }
 
       syncFromDb();
-      setForm(createEmptyForm());
+      setForm(createEmptyForm(startingLab));
       setStep(1);
     } catch (err: any) {
       console.error("❌ Asset registration failed:", err);
@@ -92,6 +100,7 @@ export function IntakeWizard() {
         <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-extrabold">STEP {step} OF 3</Badge>
       </CardHeader>
       <CardContent className="p-5 space-y-4">
+        {lookupsFailed && <p className="text-xs text-red-600 font-semibold">Could not load the options. Reload the page.</p>}
         {step === 1 && (
           <div className="space-y-4">
             <div className="flex flex-col gap-1.5">
@@ -179,7 +188,7 @@ export function IntakeWizard() {
                 <Label className="text-xs font-bold text-foreground">Funding Source</Label>
                 <select value={form.funding} onChange={e => setForm({ ...form, funding: e.target.value })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  {fundingSources.map(f => <option key={f} value={f}>{f}</option>)}
+                  {withCurrentOption(lookups?.fundingSources ?? [], form.funding).map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -205,8 +214,7 @@ export function IntakeWizard() {
                 <Label className="text-xs font-bold text-foreground">Lab</Label>
                 <select value={form.lab} onChange={e => setForm({ ...form, lab: e.target.value })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  {/* TODO(M-03): another hardcoded lab list, separate from research_centers. Phase 3. */}
-                  {["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"].map(l => (
+                  {withCurrentOption(labCodes, form.lab).map(l => (
                     <option key={l} value={l}>{l}</option>
                   ))}
                 </select>

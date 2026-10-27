@@ -1,12 +1,12 @@
 /**
  * Edit asset dialog: Staff correct an asset's registry details, status, condition, custodian, and photo.
  * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
- * Calls: api/assets.api.ts updateAssetRaw(), features/lookups/useLookups.ts (the custodian list).
+ * Calls: api/assets.api.ts updateAssetRaw(), features/lookups/useLookups.ts (the option lists and the custodian list).
  * Used by: Staff asset editing.
  */
 import { useState } from "react";
 import * as assetsApi from "@web/api/assets.api";
-import { useCustodianOptions } from "@web/features/lookups/useLookups";
+import { useCustodianOptions, useFormLookups, withCurrentOption } from "@web/features/lookups/useLookups";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Button } from "@web/components/ui/button";
@@ -15,6 +15,16 @@ import { Label } from "@web/components/ui/label";
 import { cn } from "@web/components/ui/utils";
 import { Trash2 } from "lucide-react";
 import { CONDITION_PILL_CLASS, assetStatusLabel } from "./assetBadges";
+
+// The list sends the status as display text; the dialog keeps and sends the stored value. Overdue is On Loan past its
+// due date, so it opens as On Loan and saves as such.
+const STORED_STATUS: Record<string, string> = {
+  Active: "ACTIVE",
+  "On Loan": "ON_LOAN",
+  Overdue: "ON_LOAN",
+  Maintenance: "MAINTENANCE",
+  Disposed: "DISPOSED",
+};
 
 /**
  * Edits one asset and saves it through assetsApi.updateAssetRaw(), sending only the fields Staff changed. Shows the
@@ -40,7 +50,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
     assetCondition: asset?.assetCondition || "PERFECT",
     // The holder's user id, or null for None (nobody holds it). Matched by id, never by name. (issue #95)
     custodianId: (asset?.custodianId ?? null) as number | null,
-    status: asset?.status || "Active",
+    status: STORED_STATUS[asset?.status] ?? (asset?.status || "ACTIVE"),
     image: asset?.image || asset?.image_url || "",
     description: asset?.description || asset?.remarks || ""
   }));
@@ -48,6 +58,13 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { lookups, failed: lookupsFailed } = useFormLookups();
+  // Each list from the server, plus the asset's own value when the list does not have it (older data).
+  const categoryOptions = withCurrentOption(lookups?.categories ?? [], start.category);
+  const fundingOptions = withCurrentOption(lookups?.fundingSources ?? [], start.funding);
+  const labOptions = withCurrentOption(lookups?.labs.map(l => l.code) ?? [], start.lab);
+  const statusOptions = withCurrentOption(lookups?.statuses ?? [], start.status);
 
   const { custodians, failed: custodiansFailed } = useCustodianOptions();
   // A holder who is not a Custodian account (older data) is still offered, so a save that does not touch it keeps it.
@@ -100,6 +117,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
           <DialogTitle className="text-sm font-bold text-foreground">Edit Asset: {asset?.id}</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">Correct this asset's details.</DialogDescription>
         </DialogHeader>
+        {lookupsFailed && <p className="text-xs text-red-600 font-semibold px-1">Could not load the options. Reload the page.</p>}
         <div className="grid grid-cols-2 gap-3 py-3">
           <div className="flex flex-col gap-1.5 col-span-2">
             <Label className="text-xs font-bold text-foreground">Asset Name</Label>
@@ -117,7 +135,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
             <Label className="text-xs font-bold text-foreground">Category</Label>
             <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {['DEV_KIT', 'MONITOR', 'TV', 'CPU', 'KEYBOARD', 'MOUSE', 'CAMERA', 'MEMORY_CARD', 'PROJECTOR', 'RECORDER', 'ROUTER', 'SIMULATOR', 'TABLET', 'VR', 'PRINTER', 'SWITCH', 'HARD_DRIVE', 'AUDIO', 'VIDEO_CAMERA', 'SPEAKER'].map(c => (
+              {categoryOptions.map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -126,7 +144,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
             <Label className="text-xs font-bold text-foreground">Funding Source</Label>
             <select value={form.funding} onChange={e => setForm({ ...form, funding: e.target.value })}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {["DOST", "USAID", "CHED", "Internal Grants"].map(f => (
+              {fundingOptions.map(f => (
                 <option key={f} value={f}>{f}</option>
               ))}
             </select>
@@ -151,7 +169,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
             <Label className="text-xs font-bold text-foreground">Lab</Label>
             <select value={form.lab} onChange={e => setForm({ ...form, lab: e.target.value })}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"].map(l => (
+              {labOptions.map(l => (
                 <option key={l} value={l}>{l}</option>
               ))}
             </select>
@@ -172,7 +190,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
             <Label className="text-xs font-bold text-foreground">Availability</Label>
             <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {["Active", "On Loan", "Maintenance"].map(s => (
+              {statusOptions.map(s => (
                 <option key={s} value={s}>{assetStatusLabel(s)}</option>
               ))}
             </select>
