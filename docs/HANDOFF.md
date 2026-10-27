@@ -1412,3 +1412,30 @@ None for the agent.
 1. Raiki reviews `fix/security-batch-l`, pushes, and opens the pull request (`Closes #68`, `#71`, `#72`, `#70`, `#14`, `#81`, `#73`).
 2. Raiki files the "DLSU AdRIC" sign-up lab item.
 3. Next branch: password hashing (#10).
+
+## UAT fixes, Batch J (people pickers and form data) stop 1, 2026-10-27
+
+**Prompt followed:** Raiki's Batch J prompt in chat, stop 1 only: read, plan, ask; no code. Issues #95 (the Edit Asset custodian as a dropdown, recorded in the history), #74 (an edit overwrites the newest history row), #12 (form fields pick from real data through one lookups endpoint), #32 (users by user id, closes with #95). The Transfer recipient picker is not in this batch. On `fix/95-people-pickers` from `main` at `d97b9bc2`. Details: [uat-fixes/01-fix-log.md](uat-fixes/01-fix-log.md), "Batch J: people pickers (fix/95-people-pickers)", hand checks under "Batch J hand checks".
+
+### What was produced
+
+- The log section: for each issue, where the code is and the change; the lookups endpoint (two routes under question 2 (a): `GET /api/lookups`, public, labs, categories, funding sources, statuses, no person; `GET /api/lookups/users`, Staff only, Custodian accounts by `userId` and `name` only); the record rule after #74; 6 tests that change and 20 new ones (16 fail before their fix, one more may); a stop 2 plan of 6 code commits and a docs commit, with the count after each (426, 435, 442, 442, 442, 442); hand checks H1 to H14 for the agent on the local UAT copy; eight questions.
+- The status table rows for Batch L (merged in PR #123) and Batch J; `docs/README.md`. One docs commit. Typecheck **49**, tests **422** (no code changed).
+
+### Key findings
+
+- **Edit Asset sends every field on every save,** and some starting values are screen text (a placeholder remark, a default lab and campus, the list's status), so the server alone cannot tell a real change. The plan makes the dialog send only the fields Staff changed; the server then adds a record only when a record field differs.
+- **Every Edit Asset save files an inspection report today** (the condition is always sent), so any edited asset can no longer be deleted (#69). After the change, a report only when the condition changes (question 4).
+- **An Overdue asset cannot be saved in Edit Asset** (from the code): the dialog sends "Overdue", which is not a status, and the server answers 500. Fixed in the #12 Edit Asset commit.
+- **The web screens still match people by display name** in Custodian My Assets, the asset modal, and the bell (question 8; Noticed).
+- **PR #130** changes `registerAsset` and `createWithRecords`; this plan changes other functions in the same two files. **PR #129** changes `server/main.ts` only; this plan changes `server/app.ts`. No overlap.
+
+### Open questions
+
+Eight, in the log section 7: who is in the custodian dropdown; one lookups route or a public and a Staff part; whether a remarks change adds a record; the report on every save; available with a person; server checks on lab and funding; what the sign-up sends as the lab; #32 and the web name matches.
+
+### Exact next step
+
+1. Raiki answers the eight questions. If PR #130 merges first, Raiki merges `main` into `fix/95-people-pickers` (`git pull origin main`).
+2. The agent builds stop 2 in the planned order, runs the checks after every commit and hand checks H1 to H14 (H1 to H13 on the local UAT copy through `C:\dev\uat-data\start-local-uat.ps1`), and stops.
+3. Aryan (`AssetDetailModal.tsx`) and Joel (`NotificationCenter.tsx`): not touched unless question 8 is (b).

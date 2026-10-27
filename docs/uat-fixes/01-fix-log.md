@@ -18,6 +18,8 @@ Baseline on `main` at `1ce2aaa3` (the PR #101 merge): typecheck **65** errors, `
 | F | `fix/92-data-loading` | #92, with #57 and #89 | Merged in PR #109; the agent's hand checks H1 to H9 passed on the local test database | Plan `14f01629`; `05fccb46`, `c40280b9`, `03a7fb1c`, `e8208ddb`, `059ee8bb`, `f3516874`, `128dce87`, `22ad1dd0`; docs: the last commit | **65** (unchanged) | **413** (unchanged) | 2026-10-20 |
 | Pre-deploy | `fix/pre-deploy` | H-08, H-13 (the disposal card), disposed assets in the inspection queue (with H-16 there), past loan due dates | Merged in PR #114; the agent's hand checks H1 to H4 passed on the local test database | `5aad7d4f`, `b25ee9cd`, `1a8dc20a`, `518c0159`; docs: the last commit | **65** (unchanged) | **413** to **415** | 2026-10-20 |
 | W | `fix/uat1-labels-ui` | UAT session 1: labels L1 to L10, small UI U2, U8, U10, U13, U14, phone check M1 | Built; the agent's hand checks H1 to H13 passed on the local UAT copy (H13 on the local test database); pull request next | Plan `c6bb7581`; `cafc2810` to `34bb6ca5` (22 commits, section 8); docs: the last commit | **65** (unchanged) | **415** (unchanged) | 2026-10-23 |
+| L | `fix/security-batch-l` | #68, #71, #72, #70, #14 with #81, #73, and three stop 3 additions | Merged in PR #123; the agent's hand checks H1 to H14 passed on the local UAT copy (H11 on the local test database) | Plan `8e896c8b`; `9f9f304e` to `3aaa6cd5` (section 7); docs: `65593759`, `68136360` | **65** to **64** (then **49** on `main` after #124 to #126) | **415** to **422** | 2026-10-23 |
+| J | `fix/95-people-pickers` | #95, #74, #12, #32 | Stop 1: plan, eight questions for Raiki | Plan: this commit | **49** | **422** (planned **442**) | 2026-10-27 |
 
 ---
 
@@ -1668,3 +1670,245 @@ Raiki asked for three more commits on the same branch before merging. After each
 - **Server log lines print emails** in the sign-up and account update handlers in `auth.controller.ts` (the approval line no longer does, stop 3). They are console lines on the server, not answers; a separate small cleanup.
 - **On CCS Cloud, Director and Staff accounts that saved their name may already be linked to CITe4D** (#73, from the code). A read-only count of their `user_centers` rows would show it; nothing in this batch changes existing links.
 - **Approve-registration with no `requestId`** answers 404, not 400. It stays: nothing sends that.
+
+---
+
+## Batch J: people pickers (fix/95-people-pickers)
+
+Four issues about the forms' option lists and the people in them: #95 (the Edit Asset custodian as a dropdown), #74 (an edit overwrites the newest history row), #12 (form fields pick from real data, through one lookups endpoint), and #32 (users identified by user id, which closes with #95). Branch `fix/95-people-pickers` from `main` at `d97b9bc2` (PR #128). Baseline there: typecheck **49** (run at stop 1), `npm test` **422** (AGENTS.md; not run at stop 1, no code changed). Server (`features/assets`, `features/disposals`, `features/auth` repository, a new `features/lookups`, `app.ts`), `shared/`, seven web files, and the tests. No schema, migration, `package.json`, or CCS Cloud change: nothing here needs one. Stop 1 (this section) is the plan; stop 2 is the build after Raiki's answers.
+
+**Not in this batch:** the Transfer recipient picker (`TransferForm.tsx`; transfers wait for the design workshop), a lab's campus from `research_centers.location` (`server/shared/utils/campus.ts`, M-03), the acquisition value an edit ignores (M-16), and server checks on lab and funding (question 6).
+
+**Open teammate PRs.** #130 (Aryan, #75) changes `registerAsset` in `assets.service.ts` and `createWithRecords` in `assets.repository.ts`. This plan changes other functions in the same two files (`listAssets`, `updateAsset`, `saveEdit`), and not the lines #130 changes, unless question 6 is (b) or (c). If #130 merges before stop 2, Raiki merges `main` into this branch first (`git pull origin main`), so the build starts on top of it. #129 (Aryan, #98) changes only `server/main.ts`; this plan changes `server/app.ts` (one router line) and not `main.ts`. No overlap.
+
+Line numbers are on `main` at `d97b9bc2`.
+
+### 1. Where the code is now, and the change
+
+#### #74: every Edit Asset save changes the newest record in place
+
+**Cause.** `saveEdit` reads the asset's newest record and updates it ([assets.repository.ts:186-200](../../server/features/assets/assets.repository.ts#L186-L200), `TODO(H-14)`). When the edit has a condition or remarks, it also files an inspection report and then updates the same record a second time with the report's condition and remarks (`syncFromReport`, [lines 214-219](../../server/features/assets/assets.repository.ts#L214-L219), built at [assets.service.ts:498-506](../../server/features/assets/assets.service.ts#L498-L506)). So the record's earlier status, location, custodian, condition, and remarks are lost. The read has no tie-break on `asset_record_id` (`TODO(M-09)`, [line 188](../../server/features/assets/assets.repository.ts#L188)), so with two records in the same second it can change a different record than the list shows.
+
+**Found while planning (from the code).**
+- The dialog sends every field on every save (`updateAssetRaw(asset.id, form)`, [EditAssetDialog.tsx:52](../../web/features/assets/EditAssetDialog.tsx#L52)), and several of its starting values are screen text, not the stored values: the remarks start as "Asset registered under DLSU AdRIC equipment registry." when the asset has none ([assets.service.ts:214](../../server/features/assets/assets.service.ts#L214)), the campus and lab as "Manila" and "CITe4D" when the record's location has no lab part ([lines 50-51, 73-75](../../server/features/assets/assets.service.ts#L50-L75)), and the status as the list shows it. So the server alone cannot tell a real change from the values the dialog opened with: after the fix, a rename would still look like a remarks or location change.
+- The condition is always sent, so **every save files an inspection report** today ([assets.service.ts:467](../../server/features/assets/assets.service.ts#L467)), and an asset with a report can no longer be deleted (#69). Question 4.
+- An Overdue asset opens with status "Overdue" ([assets.service.ts:87](../../server/features/assets/assets.service.ts#L87)), which the select does not offer; Save sends it, the server stores "OVERDUE", which is not a status (`TODO(H-07)`, [line 458](../../server/features/assets/assets.service.ts#L458)), so the save fails with a 500. Fixed in the Edit Asset commit of #12 below.
+
+**Change.**
+- **Server.** `saveEdit` never updates an existing record. It reads the newest record in the list's order (`date_logged`, then the higher `asset_record_id`; the `TODO(M-09)` there goes). The service builds the next record's values as today (the body's value, else the newest record's). If any of status, location, custodian, condition, or remarks (question 3) differs from the newest record, one record is added; otherwise none. An asset with no record gets one, as today. The new record's other columns:
+  - `current_location`: the home location when the new status is Available (as a return writes it); the new home when the asset was at its old home (its `current_location` was its `location`, or empty); else the newest record's (the asset is still away: on loan, transferred, or at the TSG Office).
+  - `project_id`: copied from the newest record (the analytics read it there). `transfer_id`, `disposal_id`, `repair_id`: empty, as for the records returns and repairs add.
+- **The report** is filed by today's rule (a condition or remarks field in the body), under the session user. `syncFromReport` goes: when a report is filed, the new record (if one is added) takes the report's condition, so the two agree as they do today. One small difference: a report with no remarks writes "Routine inspection verified." into the report only, no longer into the record's remarks.
+- **Web.** Edit Asset sends only the fields Staff changed, compared with the values it opened with (campus and lab together when either changes, since the server joins them). A save with no change closes the dialog without a request. With question 4 (a), this also means a report only when Staff change the condition.
+- `TODO(H-14)` in [assets.repository.ts:187](../../server/features/assets/assets.repository.ts#L187) and [EditAssetDialog.tsx:51](../../web/features/assets/EditAssetDialog.tsx#L51) goes. The TSDoc of `updateAsset` ([assets.service.ts:390-402](../../server/features/assets/assets.service.ts#L390-L402)) and `saveEdit` says the new rule; `EditRows` loses `syncFromReport`.
+
+**Screens and roles.** Staff, Staff Asset Inventory, Edit Asset: the dialog looks the same. Every role, the asset modal's custodian history: one new entry per save that changes a record field; earlier entries stay as they were.
+
+#### #95 and #32: the custodian is typed as a name
+
+**Cause.** The Custodian field is a text box ([EditAssetDialog.tsx:176-179](../../web/features/assets/EditAssetDialog.tsx#L176-L179)) that starts with the list's name. The server drops a leading "Dr.", splits at the first space, and looks for that exact first and last name ([assets.service.ts:409-417](../../server/features/assets/assets.service.ts#L409-L417), `findUserByName` at [auth.repository.ts:62-66](../../server/features/auth/auth.repository.ts#L62-L66), `TODO(H-10)`). A name that matches nobody keeps the old custodian with no message; a two-word first name never matches; two people with the same name cannot be told apart. An empty box sends "", which also keeps the old custodian, so "None" cannot be set. And the change overwrites the newest record (#74).
+
+**Change.**
+- **The body field is `custodianId`:** a user id, or `null` for None. `custodian` (the name) leaves `AssetUpdateInput` ([shared/types/assets.ts:58-59](../../shared/types/assets.ts#L58-L59)) and is no longer read; a body that sends it changes nothing.
+- **The server checks it** before anything is saved: `null` becomes `POOL_CUSTODIAN_ID`. A number must be an account with the Custodian role (question 1), never user 1. Anything else answers **400** "Pick a custodian from the list."
+- **Available means no custodian** (team decision). With question 5 (a): a save that changes the availability or the custodian, and would leave the asset Available with a person, answers **400** "An available asset has no custodian. Pick None, or change the availability." A save that touches neither still works on an older record that breaks the rule.
+- With #74, a changed custodian adds a record.
+- `findUserByName` loses its only caller and is deleted; the `TODO(H-10)` at [assets.service.ts:411](../../server/features/assets/assets.service.ts#L411) goes (the one on `POOL_CUSTODIAN_ID` stays: it is about the placeholder account). The Custodian role check is a new `auth.repository.ts` function.
+- **The asset list sends `custodianId`** beside `custodian`, under the same rule as the name ([assets.service.ts:56-65](../../server/features/assets/assets.service.ts#L56-L65)): not for the placeholder, and not to a Custodian for another holder's asset. `AssetListItem` gets the field. The dialog preselects by it, never by name.
+- **Web.** Custodian becomes a select: "None" first, then the Custodian accounts from `GET /api/lookups/users`, by name. When the asset's holder is not on that list (an account without the Custodian role, from older data), it is added as one more option with its name and preselected, so a save that does not touch it keeps it.
+- **#32** closes with this commit, as the brief says: the server no longer matches a person by display name anywhere (checked: `findUserByName` was the last caller). The web screens still compare names in a few places (question 8, and Noticed).
+
+**Screens and roles.** Staff, Staff Asset Inventory, Edit Asset: the Custodian field is a dropdown with "None"; the refusal in question 5 shows under the form, as any server error does today.
+
+#### #12: the forms' option lists
+
+**Where the lists are now.**
+
+| Form (screen, role) | Field | Today | File |
+|---|---|---|---|
+| Edit Asset (Staff Asset Inventory, Staff) | Category | A typed copy of the categories | [EditAssetDialog.tsx:96](../../web/features/assets/EditAssetDialog.tsx#L96) |
+| | Funding | A typed list of four | [line 105](../../web/features/assets/EditAssetDialog.tsx#L105) |
+| | Lab | Ten typed short codes | [line 130](../../web/features/assets/EditAssetDialog.tsx#L130) |
+| | Availability | "Active", "On Loan", "Maintenance" (display text) | [line 151](../../web/features/assets/EditAssetDialog.tsx#L151) |
+| | Custodian | A text box | #95 above |
+| Register Equipment (Staff) | Lab | Ten typed short codes, `TODO(M-03)` | [IntakeWizard.tsx:208-211](../../web/features/assets/IntakeWizard.tsx#L208-L211) |
+| | Funding | `fundingSources` | [assetFields.ts:9](../../web/features/assets/assetFields.ts#L9), also the inventory's funding filter ([InventoryPage.tsx:16](../../web/pages/staff/InventoryPage.tsx#L16)) |
+| Borrow request (Custodian Available Equipment, the asset modal, Custodian) | Destination lab | Ten typed short codes, `TODO(M-03)` | [LoanForm.tsx:24-25](../../web/features/loans/LoanForm.tsx#L24-L25) |
+| Sign-up page (anyone) | Lab | `DLSU_LABS`: nine full names, "DLSU AdRIC", "No affiliation"; sends the full name | [shared/constants/labs.ts](../../shared/constants/labs.ts), [Register.tsx:14, 46, 361-371](../../web/pages/auth/Register.tsx#L361-L371) |
+
+The ten short codes match the demo seed's research centers (`prisma/seedData.ts`). "DLSU AdRIC" matches no research center, so a request that names it can never be approved (Batch L, Noticed).
+
+**Change.**
+- **Edit Asset.** Category, availability, lab, and funding come from `GET /api/lookups`. Availability offers the statuses Edit Asset may set (`ACTIVE`, `ON_LOAN`, `MAINTENANCE`; Disposed is set only by a disposal approval), shown as Available, On Loan, Maintenance (`assetStatusLabel`), and sends the stored value. The asset's list status opens as its stored value: Active as `ACTIVE`, On Loan and Overdue as `ON_LOAN`, Maintenance as `MAINTENANCE`, so an Overdue asset now saves. When the asset's funding or lab is not on the list (for example "Unspecified", or a lab code no research center has), it is added as one more option and preselected, so a save that does not touch it keeps it. Free-text fields stay typed: name, serial, manufacturer, remarks. Campus stays Manila or Laguna.
+- **Register Equipment.** Lab and funding from the lookups; the lab starts on CITe4D when the list has it, else the first lab. The `TODO(M-03)` there goes.
+- **The inventory's funding filter** imports the same shared list (`FUNDING_SOURCES`), so filter and forms agree. `web/features/assets/assetFields.ts` is then empty and is deleted.
+- **Borrow request.** The destination lab from the lookups (labs by short code, CITe4D first when present, as today). The `TODO(M-03)` there goes.
+- **Sign-up page.** The labs from the lookups (names shown), then "No affiliation". "DLSU AdRIC" is gone. With question 7 (a), the form sends the lab's short code, which approval matches exactly ([auth.repository.ts:165-175](../../server/features/auth/auth.repository.ts#L165-L175)) and which the Lab Head's Account Approvals list matches (`labMatches`). `shared/constants/labs.ts` then has no importer and is deleted; the two comments that name it (`campus.ts:7`, `TransferForm.tsx:28`) drop the file name, nothing else in those files changes.
+- **When the lookups fail to load,** each list shows what it can (the asset's own value in Edit Asset, "No affiliation" on the sign-up page) and a line "Could not load the options. Reload the page."
+
+**Screens and roles.** Staff: Edit Asset and Register Equipment (the lab list becomes the copy's research centers, which may differ from today's ten). Custodian: the borrow form from Available Equipment (the same). Anyone: the sign-up page ("DLSU AdRIC" gone). Lab Head, Account Approvals: new requests show the lab's short code instead of its full name (question 7).
+
+#### #12: Disposal, the last custodian
+
+**Cause.** "Last Custodian Assignment" is a text box that starts with the list's name and can be changed to anything ([DisposalFormDialog.tsx:28, 91-94](../../web/features/disposals/DisposalFormDialog.tsx#L91-L94)); an empty one is sent as "Unassigned" ([line 42](../../web/features/disposals/DisposalFormDialog.tsx#L42)). The server writes the text as sent into the reason ([disposals.service.ts:49-56](../../server/features/disposals/disposals.service.ts#L49-L56)), and the Director's Approvals card shows that reason. (The disposed asset's details already take the record's holder, not the typed text, [assets.service.ts:110](../../server/features/assets/assets.service.ts#L110).)
+
+**Change.** The server writes "Last Custodian: {first and last name}" from the asset's newest record and ignores `lastCustodian` in the body (it leaves `DisposalRequestInput`, as `requestedBy` did in 13c). When nobody holds the asset (the placeholder), the line is left out, as an empty field is today. The dialog shows the holder's name, or "None", read-only. No lookups call: the holder is the asset's own.
+
+**Screens and roles.** Staff, Staff Asset Inventory, Decommission: the field is read-only. Director, Approvals: the reason's Last Custodian line is the real holder.
+
+### 2. The lookups endpoint
+
+A new feature folder `server/features/lookups/`: `lookups.routes.ts`, `lookups.controller.ts`, `lookups.service.ts`, `lookups.repository.ts`. No validation file: the two routes read no input. Mounted in `server/app.ts` beside the others. With question 2 (a), two routes:
+
+| Route | Who | Answers | Never sent |
+|---|---|---|---|
+| `GET /api/lookups` | Anyone, no session (the sign-up page has none) | `{ success, labs: [{ code, name }], categories, fundingSources, statuses }`. `labs`: every `research_centers` row, short code and name, ordered by short code. `categories`: `ASSET_CATEGORIES`. `fundingSources`: `FUNDING_SOURCES`, a new `shared/constants/fundingSources.ts` (DOST, USAID, CHED, Internal Grants, today's list). `statuses`: the three Edit Asset may set, a new `shared/enums/assetStatus.ts` | Anything about a person. Research center ids and campus (no screen needs them) |
+| `GET /api/lookups/users` | `requireAuth`, `requireRole('Staff')` | `{ success, users: [{ userId, name }] }`: the accounts with the Custodian role (question 1), without user 1, ordered by last name then first name; `name` is "first last", as the asset list writes it | Email, ID number, password, picture, user type, role, lab |
+
+Types in a new `shared/types/lookups.ts`. The web reads them through a new `web/api/lookups.api.ts` and one hook, `web/features/lookups/useLookups.ts`, which loads `GET /api/lookups` once per page load and shares it between the forms (the custodian list loads when Edit Asset opens).
+
+### 3. Tests
+
+Count after each commit is in section 5. Under the recommended answers. Test values are made up, as the files do today.
+
+**Tests that pin the old behavior.**
+
+| Commit | Test (file:line on `d97b9bc2`) | Pins | Change |
+|---|---|---|---|
+| lookups | `session.test.ts:318` "keeps the three public routes open with no session" | Three public routes | Four: `GET /api/lookups` answers 200 with no session |
+| #74 | `assets.test.ts:336` "rewrites the newest record in place instead of adding one (known defect H-14)" | Same count, same record id | Becomes "adds a record for a location change and leaves the older record as it was": count + 1, the old record's location unchanged, the new one `Laguna{separator}TESTL` |
+| #95 | `assets.test.ts:348` "finds the new custodian by typed name, and files the remark as a report under the session user who edited (issue #32 fixed)" | `custodian` by name | Sends `custodianId: USERS.custodianB.userId`; the same checks, and a record added |
+| #95 | `assets.test.ts:363` "keeps the custodian when the typed name matches nobody, and files the report under the session user, not user 1 (H-10 fixed)" | A name that matches nobody is ignored | Becomes "answers 400 for an id that is not a Custodian account, and saves nothing": the Lab Head's id, 400, the text, no record, no report |
+| Disposal | `disposals.test.ts:125` "packs the pathway, last custodian, target date, and justification into one reason text (known defect M-13)" | "Last Custodian: Test Typed Custodian" | The asset is held by Custodian A; the body still says "Test Typed Custodian"; the line reads "Last Custodian: Test Custodian A" |
+| Disposal | `disposals.test.ts:140` "leaves out the last custodian and target date lines when they are not sent" | No line when not sent | Becomes "leaves out the last custodian line when nobody holds the asset, whatever the body sends, and the date line when none is sent" |
+
+Also read, and unchanged: `assets.test.ts:317` (a rename: the record unchanged, no report), `:374` and `:382` (M-16, funding), `:257` and `:264` (registration's custodian id), `:28` (`toMatchObject`, so the new `custodianId` does not break it); `disposals.test.ts:250` (the disposed asset's details take the record's holder); `loans.test.ts:297` (a made-up destination lab is accepted: unchanged under question 6 (a)); the `registration.test.ts` lab tests (the server's sign-up and approval do not change).
+
+**New tests.** Each fix has at least one that fails on `d97b9bc2`, marked **fails before**.
+
+| Commit | File | Test | Fails before |
+|---|---|---|---|
+| lookups | `lookups.test.ts` (new) | "answers the labs by code and name, the categories, the funding sources, and the statuses, with no session" | **yes** (404) |
+| lookups | `lookups.test.ts` | "sends no person in the public answer": no `users` key, no `@`, no ID number in the body | **yes** |
+| lookups | `lookups.test.ts` | "lists the Custodian accounts to Staff by user id and name only": exactly `userId` and `name` per entry; Custodians A and B; not user 1, the Lab Head, the Director, or Staff | **yes** |
+| lookups | `session.test.ts` | Row 41 of the role table: `GET /api/lookups/users`, Staff only (401, 403 for the others) | **yes** |
+| #74 | `assets.test.ts` | "adds a record for a change of %s and leaves the older record as it was": status, condition, location, remarks (four cases) | **yes** |
+| #74 | `assets.test.ts` | "adds no record for fields on the assets row only": name, serial, manufacturer, category, funding, both dates, picture in one save | no (a guard) |
+| #74 | `assets.test.ts` | "adds no record when a record field is sent with the value it already has" | no (a guard) |
+| #74 | `assets.test.ts` | "moves the current location with the home only while the asset is at home": one asset at home, one away | **yes** |
+| #74 | `assets.test.ts` | "files the condition report and gives only the new record its condition" | **yes** (the old record changed) |
+| #74 | `assets.test.ts` | "builds on the record with the higher id when two share a date_logged (M-09)" | may pass by chance |
+| #95 | `assets.test.ts` | "sets None as the placeholder, user 1, in a new record" (`custodianId: null`) | **yes** |
+| #95 | `assets.test.ts` | "ignores a typed custodian name" | **yes** |
+| #95 | `assets.test.ts` | "answers 400 for user 1 and for a value that is not a whole number" | **yes** |
+| #95 | `assets.test.ts` | "answers 400 when a save would leave an available asset with a person" (question 5 (a)) | **yes** |
+| #95 | `assets.test.ts` | "still saves a rename of an available asset that an older record gives a person" | no (a guard) |
+| #95 | `assets.test.ts` | "sends each named custodian's user id, and none for the placeholder" | **yes** |
+| #95 | `sessionUser.test.ts` | "sends a Custodian their own custodianId, and none for another holder's asset" | **yes** |
+
+No web test: the project has no web test runner (Batch L, question 5). The web parts are covered by the hand checks.
+
+### 4. Screens and roles that see a difference
+
+| Role | Screen | Difference |
+|---|---|---|
+| Staff | Staff Asset Inventory, Edit Asset | Custodian is a dropdown with None; lab list from the research centers; category, availability, funding from the server (the same values); an Overdue asset opens as On Loan and saves; the refusal in question 5; with question 4 (a), a rename no longer files an inspection report |
+| Staff | Register Equipment | Lab list from the research centers; funding the same four |
+| Staff | Staff Asset Inventory, Decommission | Last Custodian is read-only, the holder or None |
+| Every role | The asset modal, custodian history | An entry per edit that changes a record field; earlier entries unchanged |
+| Custodian | Custodian Available Equipment, the asset modal, borrow form | Destination lab list from the research centers |
+| Anyone | Sign-up page | Lab list from the research centers and "No affiliation"; "DLSU AdRIC" gone |
+| Lab Head | Account Approvals | New sign-ups show the lab's short code (question 7) |
+| Director | Approvals, a disposal card | The reason's Last Custodian line is the real holder |
+
+### 5. Stop 2 plan
+
+On `fix/95-people-pickers`, in this order. After every commit: `npm run typecheck` (49) and `npm test`; `npm run build` after each commit with web files and at the end. A test that pins the old behavior changes in the same commit. Commit, never push.
+
+| # | Commit message | Files | Tests | Count after |
+|---|---|---|---|---|
+| 1 | `feat(lookups): serve the form option lists, and the custodian list to Staff (#12)` | `server/features/lookups/` (four new files), `server/app.ts`, `shared/types/lookups.ts`, `shared/constants/fundingSources.ts`, `shared/enums/assetStatus.ts`, `tests/api/lookups.test.ts` (new), `tests/api/session.test.ts` | 1 changed, 4 added | **426** |
+| 2 | `fix(assets): an edit adds a record instead of changing the newest one (#74)` | `assets.repository.ts` (`saveEdit`), `assets.service.ts` (`updateAsset`), `web/features/assets/EditAssetDialog.tsx` (only changed fields sent) | 1 changed, 9 added | **435** |
+| 3 | `fix(assets): pick the custodian by user id in Edit Asset (#95, #32)` | `assets.service.ts` (`updateAsset`, `listAssets`), `auth.repository.ts` (`findUserByName` out, the role check in), `shared/types/assets.ts`, `web/api/lookups.api.ts`, `web/features/lookups/useLookups.ts`, `EditAssetDialog.tsx` (the dropdown) | 2 changed, 7 added | **442** |
+| 4 | `feat(assets): Edit Asset and Register Equipment pick from the lookups (#12)` | `EditAssetDialog.tsx`, `IntakeWizard.tsx`, `InventoryPage.tsx` (the filter's import), `assetFields.ts` (deleted) | none | **442** |
+| 5 | `feat(forms): the borrow form and the sign-up page pick labs from the lookups (#12)` | `LoanForm.tsx`, `Register.tsx`, `shared/constants/labs.ts` (deleted), the comment lines in `campus.ts` and `TransferForm.tsx` | none | **442** |
+| 6 | `fix(disposals): the last custodian is the asset's holder (#12)` | `disposals.service.ts`, `shared/types/disposals.ts`, `DisposalFormDialog.tsx` | 2 changed | **442** |
+| 7 | (only if a hand check finds something) | | | |
+| 8 | `docs(batch J): record the build` | This log (stop 2 section, hand check results), `docs/README.md`, `docs/HANDOFF.md`, `AGENTS.md` (442) | none | **442** |
+
+**The typecheck** should stay 49. Four old errors are in `assets.service.ts` (`listAssets`, lines 123 to 176); commit 3 adds lines above them but does not touch them. None of the web files in this plan has an old error. If the count moves, the report says why.
+
+**Other people's files.** `AssetDetailModal.tsx` (Aryan) and `NotificationCenter.tsx` (Joel): not touched (question 8 (b) would touch one line of `AssetDetailModal.tsx`). `TransferForm.tsx`: one comment line, no code.
+
+### 6. Hand checks
+
+#### Batch J hand checks
+
+**H1 to H13: the agent, in a browser (Playwright MCP), on the local UAT copy only**, at stop 2. Raiki may run any of them again the same way. Before starting: make sure ports 4000 and 5173 are free (stop any `npm run dev:all`). Start the app only with `powershell -ExecutionPolicy Bypass -File "C:\dev\uat-data\start-local-uat.ps1"`, in the background, path quoted (it refuses a non-local host or a busy port); stop it afterwards and check the ports free. The browser opens only `http://localhost:5173`; direct API calls go only to `http://localhost:4000`, sent from the logged-in page (`fetch` with the session cookie); two accounts at once use two browser contexts. Accounts: `C:\dev\uat-data\uat-passwords.txt` (never copied anywhere). Screenshots: `%TEMP%\adric-batchJ-handchecks\`; `.playwright-mcp` is deleted from the repository afterwards. **No check touches CCS Cloud.** H14 runs in the terminal on the test database.
+
+**Writes to the local UAT copy.** One asset registered (H2) and edited (H3 to H7, H9); it keeps an inspection report (H5), so it cannot be deleted afterwards (#69) and stays on the copy, named "BatchJ Hcheck Asset". One borrow request filed and declined (H10). One sign-up filed and declined (H11), so the sign-up file ends as it started. One or two disposal requests filed and declined (H12), so nothing is disposed.
+
+| # | Issue | Role and screen | Steps | Expected | Database |
+|---|---|---|---|---|---|
+| H1 | #12, the endpoint | Signed out, then Custodian, Lab Head, Director, Staff | Signed out: open the sign-up page and read its `GET /api/lookups`; a direct `GET /api/lookups/users`. Then the same direct call as each role | `/api/lookups`: 200, `labs` (code and name, the copy's research centers), `categories`, `fundingSources`, `statuses`, no person. `/users`: 401 signed out; 403 for Custodian, Lab Head, Director; 200 for Staff, each entry exactly `userId` and `name`, Custodian accounts only, no user 1 | Local UAT copy |
+| H2 | #12, Register Equipment | Staff, Register Equipment | Read the Lab and Funding lists. Register "BatchJ Hcheck Asset", lab CITe4D, funding CHED | Lab: the codes from H1, the same order; Funding: the four. The new tag starts with `CITe4D-`; Staff Asset Inventory shows it Available, Custodian None, funding CHED | Local UAT copy |
+| H3 | #74, the old bug | Staff, Staff Asset Inventory, Edit Asset on H2's asset; then the asset modal | Change Campus to Laguna; Save. Read the `PUT` body and the asset's `custodian-history` | The body has `location` and `lab` only. `historyCount` went from 1 to 2; entry 1 still shows the Manila location; entry 2 the Laguna one | Local UAT copy |
+| H4 | #74, nearby | Staff, Edit Asset on the same asset | Change the name, serial, and funding (to DOST); Save | The body has those three fields only; `historyCount` unchanged; the asset's `asset_reports` in `GET /api/assets` unchanged; the inventory shows the new name and funding | Local UAT copy |
+| H5 | #74, question 4 | Staff, Edit Asset on the same asset | Pick condition Operational; Save | The body has `assetCondition` only; one new history entry with OPERATIONAL; one new report under the Staff account; the earlier entries unchanged | Local UAT copy |
+| H6 | #95, the old bug | Staff, Edit Asset on the same asset | Open the Custodian dropdown; pick Availability On Loan and UAT Custodian One; Save | The dropdown shows None (selected) and the Custodian names, nothing else. The body has `status: "ON_LOAN"` and `custodianId` (a number), no `custodian` name. The inventory shows UAT Custodian One; a new history entry names them | Local UAT copy |
+| H7 | #95, question 5 | Staff, Edit Asset on the same asset | Pick Availability Available, keep UAT Custodian One; Save. Then pick None too; Save | First: "An available asset has no custodian. Pick None, or change the availability." under the form, the dialog stays, `historyCount` unchanged. Second: saved; Custodian None in the inventory; a new history entry | Local UAT copy |
+| H8 | #95, #32, direct calls | Staff, direct calls | `PUT /api/assets/{H2 tag}` with `custodianId` set to the Staff account's own id (from `/api/auth/me`); then with `custodian: "UAT Custodian Two"` and no id | First: 400 "Pick a custodian from the list."; nothing saved. Second: 200; the custodian unchanged (None) and no new history entry | Local UAT copy |
+| H9 | #12, Edit Asset lists | Staff, Edit Asset on an asset whose funding is not on the list, and on an Overdue asset, if the copy has them | Open the dialog; read the lists; Cancel. For the Overdue one, change only the name; Save; then the name back | Category: the categories; Lab: the H1 codes; Availability: Available, On Loan, Maintenance; the asset's own funding shown and selected. The Overdue asset opens as On Loan and saves (no "Server returned error (500)") | Local UAT copy |
+| H10 | #12, borrow form | Custodian (UAT Custodian Two), Custodian Available Equipment; then Lab Head (CITe4D), Requests | Open H2's asset, start a borrow request; read the destination list; submit with another lab, a purpose, a due date. As the Lab Head, decline it | The destination list is the H1 codes. The request's purpose starts "Destination Lab: {code}"; the Lab Head sees it and declines it | Local UAT copy |
+| H11 | #12, sign-up, question 7 | Signed out, sign-up page; then Lab Head (CITe4D), Account Approvals | Read the lab list. Sign up `batch-j-h11@dlsu.edu.ph`, ID 99000101, lab CITe4D. As the Lab Head, decline it | The list is the research centers' names and "No affiliation", no "DLSU AdRIC". The body's `labAffiliation` is `CITe4D`; the card shows it; the decline removes it | Local UAT copy |
+| H12 | #12, disposal | Staff, Staff Asset Inventory, Decommission; then Director, Approvals | On H2's asset (Available, None): read the field, submit. If the copy has an Available asset with a person, also file one by direct call with `lastCustodian: "Typed Name"`. As the Director, decline each | The field is read-only and shows None; the card's reason has no Last Custodian line. The direct one reads "Last Custodian: {that asset's holder}", not "Typed Name". Both declined; the assets stay Available | Local UAT copy |
+| H13 | Nearby: a Custodian's own view | Custodian (UAT Custodian One), My Assets, the asset modal; the network answer | Open My Assets and one of their assets. Read `GET /api/assets` | My Assets lists the assets the inventory shows under their name. Their own assets carry their `custodianId`; another holder's asset has no `custodian` and no `custodianId` | Local UAT copy |
+| H14 | All | The agent, terminal | `npm run typecheck`, `npm run build`, `npm test`, with the browser and both servers stopped | 49, passes, 442 | Local test (`adric_db_test`) |
+
+### 7. Questions for Raiki
+
+1. **Who is in the Edit Asset custodian dropdown (#95).** Staff, Staff Asset Inventory, Edit Asset. The server accepts only the ids the dropdown offers.
+   - (a) Accounts with the Custodian role, without the placeholder (user 1).
+   - (b) Every account except the placeholder: Staff, Lab Heads, and the Director too.
+   - (c) Custodians and Lab Heads.
+   - **Recommendation: (a).** Custodians are who borrow, receive, and return assets in every other workflow; an older holder outside the list still shows as the current choice.
+2. **One lookups endpoint, or a public part and a Staff part (#12).** The sign-up page has no login but needs the labs; the custodian list has people's names.
+   - (a) Two routes in one lookups feature: `GET /api/lookups`, open to anyone (labs, categories, funding, statuses; no person), and `GET /api/lookups/users`, Staff only.
+   - (b) One route that needs a login, with the users only in the Staff answer; the sign-up page keeps its own lab list (no change there).
+   - (c) One public route with the users in it.
+   - **Recommendation: (a).** The sign-up page reads real labs, and names go only to Staff; (c) would show every Custodian's name to anyone.
+3. **Does a remarks change add a record (#74).** Staff, Edit Asset, "Staff Comments & Remarks". The remarks live on the record, like status and condition; the issue lists status, condition, location, and custodian.
+   - (a) Yes: any change to a record field adds a record, so no edit ever changes an existing record.
+   - (b) No: a remarks-only change updates the newest record in place (the one overwrite left).
+   - **Recommendation: (a).** One plain rule, and the history keeps every remark.
+4. **The inspection report on every save (#74).** Staff, Edit Asset. The dialog always sends the condition, so today every save files a report, even a rename, and the asset then cannot be deleted (#69). Once the dialog sends only changed fields (needed for #74), a report is filed only when the condition is changed.
+   - (a) Accept that: a report only when Staff change the condition.
+   - (b) Keep a report on every save (the dialog keeps sending the condition).
+   - **Recommendation: (a).** A report records a condition someone saw; a rename is not an inspection.
+5. **Available with a person (#95, team decision "available = no custodian").** Staff, Edit Asset.
+   - (a) The server refuses (400, the text in section 1) a save that changes the availability or the custodian and would leave the asset Available with a person; a save that touches neither still works on older data.
+   - (b) The dialog alone: picking Available sets the custodian to None; no server rule.
+   - (c) No rule: save what Staff pick.
+   - **Recommendation: (a).** The rule holds for every caller, and Staff can still fix an old row one field at a time.
+6. **Server checks on the lab and funding (#12).** Staff, Register Equipment and Edit Asset. After this batch the forms offer only real labs and the funding list, but a direct call can still send any text.
+   - (a) No server check in this batch: the forms change, the server accepts what it accepts today.
+   - (b) The lab must be a research center's short code on registration and edit (400 otherwise). This changes `registerAsset`, the function #130 changes, and the tests' made-up labs.
+   - (c) As (b), and the funding must be on the list (old values such as "Unspecified" stay readable).
+   - **Recommendation: (a).** It keeps this batch clear of #130 and of the tests' data; (b) is a small issue of its own after #130 merges.
+7. **What the sign-up page sends as the lab (#12).** Sign-up page (anyone), and the Lab Head's Account Approvals.
+   - (a) The short code (for example `CITe4D`): approval matches it exactly, and the Lab Head's list matches it for every lab. The card shows the code.
+   - (b) The full name, as today: the card shows the name, but a lab whose name has no code in brackets (for example "Human-X Interactions Lab") would not show in its Lab Head's list (the demo seed has one).
+   - **Recommendation: (a).** The short code is the lab's unique key, as the user id is a person's.
+8. **The web screens that still match people by name (#32).** The brief says #32 closes when #95 sends ids. After this batch the server matches no one by name, but three web files compare names: Custodian My Assets (`CustodianPortal.tsx:133`), the asset modal's "holds this asset" (`AssetDetailModal.tsx:124`), and several bell checks (`NotificationCenter.tsx`).
+   - (a) Close #32 with this batch; you file the web name matches as a new issue (the asset list now sends `custodianId`, so the fix is small).
+   - (b) Also switch My Assets and the asset modal check to `custodianId` in this batch (one line each, one in Aryan's file); the bell stays.
+   - (c) Keep #32 open until every screen uses ids.
+   - **Recommendation: (a).** It keeps this batch to the brief's forms and out of two teammates' files.
+
+### Noticed, not in this branch
+
+- **Web screens match people by display name** (question 8): `CustodianPortal.tsx:133` (My Assets), `AssetDetailModal.tsx:124`, and `NotificationCenter.tsx` (lines 150 to 166, 206, 319, 395, 484; one checks for the name "Felix Torres"). Two Custodians with the same name would see each other's assets.
+- **The `TODO(M-16)` in `updateAsset` names issue #74** (the acquisition value an edit ignores), but the brief's #74 is about records only, so M-16 and its TODO stay. If #74 on GitHub also lists the value, say so and it becomes one more commit.
+- **Edit Asset can set On Loan or Maintenance by hand,** with no loan or repair ticket behind it. Unchanged here; the availability list only stops sending "Overdue".
+- **Two Custodians with the same name** look the same in the dropdown (names only, by the privacy rule); the id sent is still the right one for the option picked.
+- **The records returns and repairs add do not copy `project_id`,** so an asset leaves its project in the analytics after a return or a repair. The edit record copies it.
