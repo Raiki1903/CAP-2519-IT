@@ -37,7 +37,7 @@ const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.
 
 /**
  * The approved 13b role table: [row, method, path, roles]. Paths use ids and tags no row has.
- * Row 8, POST /api/auth/register, was deleted with its route (issue #70).
+ * Row 8, POST /api/auth/register, was deleted with its route (issue #70). Row 41, the custodian list, came with issue #12.
  */
 const ROUTES: [number, string, string, Role[]][] = [
   [3, "GET", "/api/auth/pending-registrations", [L]],
@@ -77,6 +77,7 @@ const ROUTES: [number, string, string, Role[]][] = [
   [38, "GET", "/api/analytics/advanced/idle-time", [L]],
   [39, "GET", "/api/analytics/advanced/idle-frequency", [L]],
   [40, "GET", "/api/analytics/advanced/loan-recommender", [L]],
+  [41, "GET", "/api/lookups/users", [S]],
 ];
 
 function send(client: ApiClient, method: string, path: string) {
@@ -315,10 +316,11 @@ describe("every route of the approved role table", () => {
     }
   });
 
-  it("keeps the three public routes open with no session", async () => {
+  it("keeps the four public routes open with no session", async () => {
     expect((await api.post("/api/auth/login", {})).status).toBe(400);
     expect((await api.post("/api/auth/register-request", {})).status).toBe(400);
     expect((await api.post("/api/auth/logout")).status).toBe(200);
+    expect((await api.get("/api/lookups")).status).toBe(200);
   });
 
   it("answers a body it cannot read, and an unknown path, before any session check", async () => {

@@ -1,6 +1,6 @@
 /**
  * The placeholder custodian: the user id an asset record names when nobody holds the asset.
- * Layer: shared (server constant). Imported by shared/services/poolCustodianCheck.ts (the startup check) and the services of features/assets, returns, disposals, and repairs. Imports nothing.
+ * Layer: shared (server constant). Imported by shared/services/poolCustodianCheck.ts (the startup check) and the services of features/assets, returns, disposals, repairs, and lookups. Imports nothing.
  * Used by: intake, return finalization, and every record written for an asset that has no holder.
  */
 
