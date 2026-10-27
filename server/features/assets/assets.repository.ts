@@ -1,7 +1,7 @@
 /**
  * Asset row access: every database read and write the asset registry endpoints make, plus the asset reads other
- * features need (an asset by tag or by id, the newest record for a transfer request, and the newest record's status
- * for the custody request guard).
+ * features need (an asset by tag or by id, the newest record for a transfer request, the newest record's status
+ * for the custody request guard, and the newest record's holder for a disposal request).
  * Layer: repository. Called by assets.service.ts, the services of features/loans, returns, transfers, disposals, repairs,
  * and inspections, and shared/services/custodyRequestGuard.ts. Calls config/prisma.ts.
  * Used by: every role's inventory view, Staff registration, editing, and deletion, and every workflow that starts from an asset tag.
@@ -73,6 +73,16 @@ export function findLatestRecord(assetId: number) {
     return prisma.asset_records.findFirst({
         where: { asset_id: assetId },
         orderBy: { date_logged: "desc" },
+    });
+}
+
+/** The asset's newest record with its custodian's users row, or null if it has none. Read by the disposal request. */
+export function findLatestRecordWithCustodian(assetId: number) {
+    // Same ordering GET /api/assets uses, so the holder named is the one the list shows. (M-09)
+    return prisma.asset_records.findFirst({
+        where: { asset_id: assetId },
+        orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }],
+        include: { users: true },
     });
 }
 

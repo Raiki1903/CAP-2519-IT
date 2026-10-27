@@ -16,7 +16,10 @@ const { db, as } = useApiHarness();
 const asDirector = as(USERS.director);
 const asStaff = as(USERS.staffTsg);
 
-/** What DisposalFormDialog sends: who files it (not read since 13c), the last custodian, the reasons, the pathway, and the target date. */
+/**
+ * What DisposalFormDialog sent before: who files it (not read since 13c), a typed last custodian (not read since issue
+ * #12), the reasons, the pathway, and the target date.
+ */
 const disposalBody = (extra: Record<string, unknown> = {}) => ({
   requestedBy: USERS.staffTsg.fullName,
   lastCustodian: "Test Typed Custodian",
@@ -122,14 +125,14 @@ describe("POST /api/assets/:tag/disposal", () => {
     expect(listed.disposalDetails).toBeUndefined();
   });
 
-  it("packs the pathway, last custodian, target date, and justification into one reason text (known defect M-13)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0602" });
+  it("packs the pathway, the asset's holder as last custodian (not the typed name), target date, and justification into one reason text (known defect M-13)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0602", custodianId: USERS.custodianA.userId });
     const disposalId = await requestDisposal(asset.tag);
 
     const row = await db.asset_disposals.findUniqueOrThrow({ where: { disposal_id: disposalId } });
     expect(row.disposal_reason).toBe(
       "Disposal Pathway: Test pathway: recycle\n" +
-        "Last Custodian: Test Typed Custodian\n" +
+        `Last Custodian: ${USERS.custodianA.fullName}\n` +
         "Target Decommission Date: 2026-12-01\n" +
         "\n" +
         "Breakdown Justification:\n" +
@@ -137,9 +140,9 @@ describe("POST /api/assets/:tag/disposal", () => {
     );
   });
 
-  it("leaves out the last custodian and target date lines when they are not sent", async () => {
+  it("leaves out the last custodian line when nobody holds the asset, whatever the body sends, and the date line when none is sent", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0603" });
-    const disposalId = await requestDisposal(asset.tag, { lastCustodian: undefined, decommissionDate: undefined });
+    const disposalId = await requestDisposal(asset.tag, { decommissionDate: undefined });
 
     const row = await db.asset_disposals.findUniqueOrThrow({ where: { disposal_id: disposalId } });
     expect(row.disposal_reason).toBe("Disposal Pathway: Test pathway: recycle\n\nBreakdown Justification:\nTest breakdown: the screen is cracked");

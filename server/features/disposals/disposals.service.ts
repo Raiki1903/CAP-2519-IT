@@ -22,7 +22,8 @@ import { sendEmail, emailTemplate } from '../../shared/services/mailer';
  * transfer, or disposal. (H-05, issue #54)
  *
  * @param assetTag the asset's tag, from the URL
- * @param data the checked disposal body: pathway, justification, optional last custodian and date
+ * @param data the checked disposal body: pathway, justification, optional date. A last custodian in the body is ignored:
+ *   the reason names the asset's holder from its newest record (issue #12)
  * @param disposedById the session user, who requests the disposal; any requester name in the body is ignored (issue #32)
  * @returns the created row, plus the asset for the email the controller sends after answering
  * @throws AppError 404 if no asset has this tag
@@ -43,12 +44,16 @@ export async function requestDisposal(
         throw new AppError(409, conflict);
     }
 
+    // The last custodian is whoever holds the asset now. Nobody holds it (the placeholder): no line.
+    const latestRecord = await assetsRepository.findLatestRecordWithCustodian(existing.asset_id);
+    const holder = latestRecord && latestRecord.current_custodian !== POOL_CUSTODIAN_ID ? latestRecord.users : null;
+
     // asset_disposals has one text column for all of this, so the fields are written as labelled
     // lines. GET /api/assets parses them back out for a disposed asset's details.
     // TODO(M-13): pathway, last custodian, and date are packed into one text column and parsed back with regex. Phase 3.
     const reason = [
         `Disposal Pathway: ${data.disposalPathway}`,
-        data.lastCustodian ? `Last Custodian: ${data.lastCustodian}` : null,
+        holder ? `Last Custodian: ${holder.first_name} ${holder.last_name}` : null,
         data.decommissionDate ? `Target Decommission Date: ${data.decommissionDate}` : null,
         "",
         "Breakdown Justification:",
