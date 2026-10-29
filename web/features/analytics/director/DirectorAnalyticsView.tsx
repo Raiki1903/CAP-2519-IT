@@ -61,8 +61,8 @@ export interface DirectorAnalyticsProps {
 // Macro & Financial View (Task 1: Portfolio Value KPI, Pending Disposal Count, Location vs Status Stacked Column, Line Graph Audit Compliance)
 /**
  * Portfolio value and pending disposal KPIs, the location by status chart, and audit compliance over time.
- * Calls analyticsApi.getDirectorAnalytics() with the lab and date filters, and falls back to
- * the shared asset, report, and disposal lists when that fails.
+ * Calls analyticsApi.getDirectorAnalytics() with the lab and date filters. Shows a loading state while
+ * waiting for the server, with no preliminary estimates.
  *
  * @param selectedLabFilter lab to scope to, or "All Labs"
  * @param startDate start of the date range, or empty for no limit
@@ -75,9 +75,8 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
   setStartDate,
   setEndDate,
 }) => {
-  const { assets: dbAssetsList, dbReports, pendingDisposals } = useServerData();
   const [apiData, setApiData] = useState<any>(null);
-  const [isLoadingApi, setIsLoadingApi] = useState(false);
+  const [isLoadingApi, setIsLoadingApi] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -105,58 +104,25 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
     return () => { isMounted = false; };
   }, [selectedLabFilter, startDate, endDate]);
 
-  const filteredAssets = useMemo(() => {
-    return dbAssetsList.filter(a => {
-      // 1. Lab Filter
-      if (selectedLabFilter !== "All Labs" && selectedLabFilter !== "All") {
-        const assetLab = (a.lab || "").toLowerCase();
-        const assetTag = (a.id || a.asset_tag || "").toLowerCase();
-        const targetLab = selectedLabFilter.toLowerCase();
-        const isLabMatch = assetLab === targetLab || assetTag.startsWith(targetLab + "-");
-        if (!isLabMatch) return false;
-      }
-
-      // 2. Dynamic Date Filter (procured or procurement_date)
-      if (startDate) {
-        const proc = a.procurement_date || a.procured;
-        if (proc && new Date(proc).getTime() < new Date(startDate).getTime()) return false;
-      }
-      if (endDate) {
-        const proc = a.procurement_date || a.procured;
-        if (proc && new Date(proc).getTime() > new Date(endDate).getTime() + 86400000) return false;
-      }
-
-      return true;
-    });
-  }, [dbAssetsList, selectedLabFilter, startDate, endDate]);
-
-  // Total Portfolio Value
+  // Total Portfolio Value from server analytics
   const totalValuation = useMemo(() => {
-    if (apiData?.totalPortfolioValue !== undefined && apiData.totalPortfolioValue > 0) {
+    if (apiData?.totalPortfolioValue !== undefined) {
       return apiData.totalPortfolioValue;
     }
-    return filteredAssets.reduce((sum, asset) => {
-      const val = Number(asset.asset_monetary?.acquisition_value || asset.cost || asset.acquisition_value || 0);
-      return sum + val;
-    }, 0);
-  }, [apiData, filteredAssets]);
+    return 0;
+  }, [apiData]);
 
-  // Pending Disposals Count
+  // Pending Disposals Count from server analytics
   const pendingDisposalsCount = useMemo(() => {
-    if (apiData?.pendingDisposalsCount !== undefined && apiData.pendingDisposalsCount > 0) {
+    if (apiData?.pendingDisposalsCount !== undefined) {
       return apiData.pendingDisposalsCount;
     }
-    const localPending = (pendingDisposals || []).length;
-    const assetPending = filteredAssets.filter(a => {
-      const st = (a.status || "").toUpperCase();
-      return st === "PENDING DISPOSAL" || st === "PENDING_DISPOSAL" || !!a.disposalId;
-    }).length;
-    return Math.max(localPending, assetPending);
-  }, [apiData, pendingDisposals, filteredAssets]);
+    return 0;
+  }, [apiData]);
 
   // Stacked Column Chart Data: Location vs Status
   const locationStatusData = useMemo(() => {
-    if (apiData?.locationStatusData && Array.isArray(apiData.locationStatusData) && apiData.locationStatusData.length > 0) {
+    if (apiData?.locationStatusData && Array.isArray(apiData.locationStatusData)) {
       return apiData.locationStatusData.map((d: any) => ({
         location: d.location === "MANILA" ? "Manila Campus" : d.location === "LAGUNA" ? "Laguna Campus" : d.location,
         ACTIVE: d.ACTIVE || 0,
@@ -164,86 +130,16 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
         MAINTENANCE: d.MAINTENANCE || 0,
       }));
     }
+    return [];
+  }, [apiData]);
 
-    const manilaAssets = filteredAssets.filter(a => {
-      const loc = (a.location || "").toLowerCase();
-      const lab = (a.lab || "").toLowerCase();
-      const tag = (a.id || a.asset_tag || "");
-      return loc.includes("manila") || loc.includes("taft") || ["cite4d", "cehci", "cnis", "game", "bio"].includes(lab) || ["CITe4D-", "CeHCI-", "CNIS-", "GAME-", "Bio-"].some(p => tag.startsWith(p));
-    });
-
-    const lagunaAssets = filteredAssets.filter(a => {
-      const loc = (a.location || "").toLowerCase();
-      const lab = (a.lab || "").toLowerCase();
-      const tag = (a.id || a.asset_tag || "");
-      return loc.includes("laguna") || loc.includes("canlubang") || ["car", "celt", "civi", "te3d", "hxil"].includes(lab) || ["CAR-", "CeLT-", "CIVI-", "TE3D-", "HXIL-"].some(p => tag.startsWith(p));
-    });
-
-    const getStatusCounts = (assetArray: typeof filteredAssets) => {
-      let active = 0;
-      let onLoan = 0;
-      let maintenance = 0;
-
-      assetArray.forEach(a => {
-        const st = (a.status || "").toUpperCase();
-        if (st === "ACTIVE" || st === "AVAILABLE") {
-          active++;
-        } else if (st === "ON_LOAN" || st === "ON LOAN" || st === "OVERDUE" || st === "PENDING RETURN") {
-          onLoan++;
-        } else if (st === "MAINTENANCE" || st === "IN REPAIR" || st === "REPAIR") {
-          maintenance++;
-        } else {
-          active++;
-        }
-      });
-
-      return { ACTIVE: active, ON_LOAN: onLoan, MAINTENANCE: maintenance };
-    };
-
-    return [
-      {
-        location: "Manila Campus",
-        ...getStatusCounts(manilaAssets)
-      },
-      {
-        location: "Laguna Campus",
-        ...getStatusCounts(lagunaAssets)
-      }
-    ];
-  }, [apiData, filteredAssets]);
-
-  // Line Graph Audit Compliance
+  // Line Graph Audit Compliance from server analytics
   const auditComplianceData = useMemo(() => {
-    if (apiData?.auditComplianceData && Array.isArray(apiData.auditComplianceData) && apiData.auditComplianceData.length > 0) {
+    if (apiData?.auditComplianceData && Array.isArray(apiData.auditComplianceData)) {
       return apiData.auditComplianceData;
     }
-
-    const reportsSource = (dbReports && dbReports.length > 0)
-      ? dbReports
-      : filteredAssets.flatMap(a => a.asset_reports || []);
-
-    const monthCounts: Record<string, number> = {};
-
-    reportsSource.forEach(r => {
-      const rawDate = r.report_date || r.reportDate || r.date_logged || r.created_at;
-      if (!rawDate) return;
-      const d = new Date(rawDate);
-      if (isNaN(d.getTime())) return;
-      const monthLabel = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-      monthCounts[monthLabel] = (monthCounts[monthLabel] || 0) + 1;
-    });
-
-    const defaultTimeline = ["Feb 26", "Mar 26", "Apr 26", "May 26", "Jun 26", "Jul 26"];
-    defaultTimeline.forEach(m => {
-      if (monthCounts[m] === undefined) {
-        monthCounts[m] = 0;
-      }
-    });
-
-    return Object.entries(monthCounts)
-      .map(([month, count]) => ({ month, count }))
-      .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime());
-  }, [apiData, dbReports, filteredAssets]);
+    return [];
+  }, [apiData]);
 
   return (
     <motion.div variants={cardAnimation} initial="hidden" animate="visible" className="space-y-6">
@@ -271,9 +167,13 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Total Portfolio Value</p>
-              <h2 className="text-3xl font-extrabold text-[#005A36] mt-1 font-mono">
-                ₱{totalValuation.toLocaleString()}
-              </h2>
+              {isLoadingApi || !apiData ? (
+                <div className="h-9 w-40 bg-muted/60 animate-pulse rounded-md mt-1" />
+              ) : (
+                <h2 className="text-3xl font-extrabold text-[#005A36] mt-1 font-mono">
+                  ₱{totalValuation.toLocaleString()}
+                </h2>
+              )}
               <p className="text-[11px] text-muted-foreground mt-1">Total value of the filtered assets</p>
             </div>
             <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl text-[#005A36]">
@@ -286,9 +186,13 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Pending Disposal Items</p>
-              <h2 className="text-3xl font-extrabold text-amber-600 mt-1 font-mono">
-                {pendingDisposalsCount} Items
-              </h2>
+              {isLoadingApi || !apiData ? (
+                <div className="h-9 w-28 bg-muted/60 animate-pulse rounded-md mt-1" />
+              ) : (
+                <h2 className="text-3xl font-extrabold text-amber-600 mt-1 font-mono">
+                  {pendingDisposalsCount} Items
+                </h2>
+              )}
               <p className="text-[11px] text-muted-foreground mt-1">Filtered disposal requests waiting for your approval</p>
             </div>
             <div className="p-3 bg-amber-50 dark:bg-amber-500/10 rounded-xl text-amber-600">
@@ -306,24 +210,32 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-2">
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={locationStatusData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="location" stroke="#64748B" fontSize={11} />
-                <YAxis stroke="#64748B" fontSize={11} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="ACTIVE" stackId="statusStack" fill="#10B981" name="Available" />
-                <Bar dataKey="ON_LOAN" stackId="statusStack" fill="#F59E0B" name="On Loan" />
-                <Bar dataKey="MAINTENANCE" stackId="statusStack" fill="#EF4444" name="Maintenance" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {isLoadingApi || !apiData ? (
+            <div className="h-72 w-full flex items-center justify-center">
+              <div className="h-full w-full bg-muted/30 animate-pulse rounded-lg flex items-center justify-center text-xs text-muted-foreground">
+                Loading campus availability data...
+              </div>
+            </div>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={locationStatusData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="location" stroke="#64748B" fontSize={11} />
+                  <YAxis stroke="#64748B" fontSize={11} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="ACTIVE" stackId="statusStack" fill="#10B981" name="Available" />
+                  <Bar dataKey="ON_LOAN" stackId="statusStack" fill="#F59E0B" name="On Loan" />
+                  <Bar dataKey="MAINTENANCE" stackId="statusStack" fill="#EF4444" name="Maintenance" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* 3. Inspection reports per month, from dbReports */}
+      {/* 3. Inspection reports per month, from analytics API */}
       <Card className="border border-border bg-card shadow-sm rounded-xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -334,17 +246,25 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={auditComplianceData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="month" stroke="#64748B" fontSize={11} />
-                <YAxis stroke="#64748B" fontSize={11} />
-                <Tooltip />
-                <Line type="monotone" dataKey="count" stroke="#005A36" strokeWidth={3} dot={{ r: 5, fill: "#005A36" }} name="Asset Reports Logged" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {isLoadingApi || !apiData ? (
+            <div className="h-64 w-full flex items-center justify-center">
+              <div className="h-full w-full bg-muted/30 animate-pulse rounded-lg flex items-center justify-center text-xs text-muted-foreground">
+                Loading inspection reports timeline...
+              </div>
+            </div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={auditComplianceData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="month" stroke="#64748B" fontSize={11} />
+                  <YAxis stroke="#64748B" fontSize={11} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="count" stroke="#005A36" strokeWidth={3} dot={{ r: 5, fill: "#005A36" }} name="Asset Reports Logged" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
