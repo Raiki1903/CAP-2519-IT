@@ -12,6 +12,7 @@ import { useServerData } from "@web/state/serverData";
 import { openReturnRequests } from "@web/features/returns/openReturnRequests";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { useRepairTickets } from "@web/features/repairs/useRepairTickets";
+import { campusForAsset } from "@shared/constants/labs";
 import { Button } from "@web/components/ui/button";
 import { Badge } from "@web/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
@@ -32,18 +33,8 @@ export function OverviewPage() {
 
   const overviewSlug = roleToSlug.Staff;
 
-  // TODO(M-03): campus is guessed from location and lab text, and anything not clearly Laguna counts as Manila. Phase 3 (research_centers.location).
-  const manilaAssetsCount = displayedAssets.filter(a => {
-    const loc = (a.location || "").toLowerCase();
-    const labName = (a.lab || "").toLowerCase();
-    return loc.includes("manila") || loc.includes("taft") || labName.includes("cite4d") || labName.includes("car") || (!loc.includes("laguna") && !loc.includes("canlubang"));
-  }).length;
-
-  const lagunaAssetsCount = displayedAssets.filter(a => {
-    const loc = (a.location || "").toLowerCase();
-    const labName = (a.lab || "").toLowerCase();
-    return loc.includes("laguna") || loc.includes("canlubang") || labName.includes("civi") || labName.includes("bio");
-  }).length;
+  const manilaAssetsCount = displayedAssets.filter(a => campusForAsset(a) === "Manila").length;
+  const lagunaAssetsCount = displayedAssets.filter(a => campusForAsset(a) === "Laguna").length;
 
   const nowMs = Date.now();
   const expiring30Days = displayedAssets.filter(a => {

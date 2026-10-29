@@ -150,7 +150,7 @@ export async function loanRecommendations(targetCategory: string | undefined): P
  *
  * @param lab text the location must contain (any letter case), or undefined for every asset
  */
-// TODO(H-09): an asset with no record counts as ACTIVE at Manila, CITe4D.
+// Assets with no records are skipped so they do not invent a campus or status count (#96).
 // TODO(M-03): a location goes under the first code of the hardcoded lab list that its text contains (letter case counts), so a Manila room whose name contains "CAR" counts as the CAR lab, and a lab missing from the list counts as CITe4D. With a lab column, Phase 3.
 export async function locationStatus(lab: string | undefined): Promise<LocationStatusData> {
     const assets = await analyticsRepository.findAssetsWithLatestRecord();
@@ -169,8 +169,10 @@ export async function locationStatus(lab: string | undefined): Promise<LocationS
 
     assets.forEach((asset) => {
         const latestRec = asset.asset_records[0];
-        const locString = latestRec?.location || "Manila — CITe4D";
-        const st = latestRec?.status || "ACTIVE";
+        if (!latestRec) return;
+
+        const locString = latestRec.location || "";
+        const st = latestRec.status || "ACTIVE";
 
         if (lab && !locString.toLowerCase().includes(lab.toLowerCase())) return;
 

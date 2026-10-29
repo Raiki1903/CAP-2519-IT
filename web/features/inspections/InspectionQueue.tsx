@@ -18,14 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@web/components/ui/utils";
 import { CheckCircle, ClipboardCheck, Camera, Upload } from "lucide-react";
 
-// TODO(M-03): the lab groups are another hardcoded lab list, separate from research_centers. Phase 3.
-// Inspection groups: the 10 research centers spread across 4 groups.
-const labGroups = [
-  { id: "A", name: "Group A", labs: ["CITe4D", "CAR", "CNIS"], color: "text-blue-600" },
-  { id: "B", name: "Group B", labs: ["CeHCI", "CeLT", "TE3D"], color: "text-violet-600" },
-  { id: "C", name: "Group C", labs: ["GAME", "Bio"], color: "text-amber-600" },
-  { id: "D", name: "Group D", labs: ["CIVI", "HXIL"], color: "text-emerald-600" },
-];
+import { INSPECTION_LAB_GROUPS, RESEARCH_LABS } from "@shared/constants/labs";
 
 const statusBadge: Record<string, string> = {
   Inspected: "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold",
@@ -67,7 +60,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
     <>
       {/* Group tabs using shadcn Tabs */}
       {(() => {
-        const allKnownLabs = ["CITe4D", "CAR", "CeHCI", "CeLT", "CNIS", "GAME", "Bio", "CIVI", "TE3D", "HXIL"];
+        const allKnownLabs = RESEARCH_LABS.map(l => l.id);
 
         const matchesLab = (assetLab: string | undefined, groupLabs: string[]) => {
           if (!assetLab) return false;
@@ -92,7 +85,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
           });
         };
 
-        const dynamicGroups = labGroups.map(g => {
+        const dynamicGroups = INSPECTION_LAB_GROUPS.map(g => {
           const gAssets = getGroupAssets(g.id, g.labs);
           const due = gAssets.filter(a => a.status === "Maintenance" || a.status === "Overdue" || (a.condition !== undefined && a.condition < 80)).length;
           return { ...g, assets: gAssets.length, due };
@@ -122,7 +115,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                   id: `MNT-${String(a.id)}`,
                   asset: a.name,
                   serial: a.serial || a.id,
-                  lab: a.lab || g.labs[0] || "CITe4D",
+                  lab: a.lab || "Unassigned",
                   // TODO(F-28): "Last Inspected" shows the procurement date, or a made-up date, not the newest report. Phase 3.
                   lastInspected: a.procured || "Jan 15, 2024",
                   status,

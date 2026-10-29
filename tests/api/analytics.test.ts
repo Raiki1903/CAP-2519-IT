@@ -684,13 +684,13 @@ describe("GET /api/analytics/location-status", () => {
     }
   });
 
-  it("counts an asset with no records as Active at Manila, CITe4D (H-09 family)", async () => {
+  it("skips an asset with no records so it does not invent campus or status counts (#96)", async () => {
     const bare = await db.assets.create({ data: { asset_tag: "TEST-0753", name: "Test Asset Without Records", category: "MONITOR" } });
     try {
       const res = await asStaff.get("/api/analytics/location-status");
 
-      expect(res.body.data.byLocation[0]).toEqual({ location: "Manila Campus", ACTIVE: 4, ON_LOAN: 1, MAINTENANCE: 1, DISPOSED: 1 });
-      expect(res.body.data.locationDistribution[0]).toEqual({ location: "CITe4D", available: 4, onLoan: 1, underRepair: 1 });
+      expect(res.body.data.byLocation[0]).toEqual({ location: "Manila Campus", ACTIVE: 3, ON_LOAN: 1, MAINTENANCE: 1, DISPOSED: 1 });
+      expect(res.body.data.locationDistribution[0]).toEqual({ location: "CITe4D", available: 3, onLoan: 1, underRepair: 1 });
     } finally {
       await removeExtraAssets(db, [bare.asset_id]);
     }
