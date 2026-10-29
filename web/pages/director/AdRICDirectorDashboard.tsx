@@ -19,6 +19,7 @@ import { Badge } from "@web/components/ui/badge";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
+import { RESEARCH_LABS, campusForAsset } from "@shared/constants/labs";
 import { cn } from "@web/components/ui/utils";
 import {
   Monitor, BarChart3, ClipboardCheck, ClipboardList, TrendingUp, AlertTriangle,
@@ -36,20 +37,6 @@ const TAB_TITLES: Record<AdRICDirectorDashboardProps["activeTab"], string> = {
   "clearance-disposal": "Disposal Approvals",
   reports: "Inventory Report",
 };
-
-// TODO(M-03): another hardcoded lab list, with campus, separate from research_centers. Phase 3.
-const ALL_10_LABS = [
-  { id: "CITe4D", name: "CITe4D - Manila", location: "Manila" },
-  { id: "CAR", name: "CAR - Laguna", location: "Laguna" },
-  { id: "CeHCI", name: "CeHCI - Manila", location: "Manila" },
-  { id: "CeLT", name: "CeLT - Laguna", location: "Laguna" },
-  { id: "CNIS", name: "CNIS - Manila", location: "Manila" },
-  { id: "GAME", name: "GAME - Manila", location: "Manila" },
-  { id: "Bio", name: "Bio - Manila", location: "Manila" },
-  { id: "CIVI", name: "CIVI - Laguna", location: "Laguna" },
-  { id: "TE3D", name: "TE3D - Laguna", location: "Laguna" },
-  { id: "HXIL", name: "HXIL - Laguna", location: "Laguna" }
-];
 
 const CONDITION_SCORE_MAP: Record<string, number> = {
   "Perfect (Brand New / 100%)": 100,
@@ -286,19 +273,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
   // 1. Overview Tab render
   const renderOverview = () => {
-    const manilaAssets = activeAssets.filter(a => {
-      const loc = (a.location || "").toLowerCase();
-      const lab = (a.lab || "").toLowerCase();
-      const tag = (a.asset_tag || a.id || "");
-      return loc.includes("manila") || loc.includes("taft") || ["cite4d", "cehci", "cnis", "game", "bio"].includes(lab) || ["CITe4D-", "CeHCI-", "CNIS-", "GAME-", "Bio-"].some(p => tag.startsWith(p));
-    }).length;
-
-    const lagunaAssets = activeAssets.filter(a => {
-      const loc = (a.location || "").toLowerCase();
-      const lab = (a.lab || "").toLowerCase();
-      const tag = (a.asset_tag || a.id || "");
-      return loc.includes("laguna") || loc.includes("canlubang") || ["car", "celt", "civi", "te3d", "hxil"].includes(lab) || ["CAR-", "CeLT-", "CIVI-", "TE3D-", "HXIL-"].some(p => tag.startsWith(p));
-    }).length;
+    const manilaAssets = activeAssets.filter(a => campusForAsset(a) === "Manila").length;
+    const lagunaAssets = activeAssets.filter(a => campusForAsset(a) === "Laguna").length;
 
     const totalCampusCount = activeAssets.length || 1;
     const manilaPercent = activeAssets.length ? Math.round((manilaAssets / totalCampusCount) * 100) : 0;
@@ -382,27 +358,52 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
               <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Campus Distribution</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between items-center text-xs">
-                <div className="flex items-center gap-1.5 font-medium text-foreground">
-                  <MapPin className="text-[#005A36] size-4" />
-                  <span>Manila Campus</span>
+              {isDashboardLoading ? (
+                <div className="space-y-4 py-1">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="h-4 w-28 bg-muted animate-pulse rounded" />
+                      <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+                    </div>
+                    <div className="w-full bg-muted/60 h-2.5 rounded-full overflow-hidden">
+                      <div className="bg-muted h-full animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="h-4 w-28 bg-muted animate-pulse rounded" />
+                      <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+                    </div>
+                    <div className="w-full bg-muted/60 h-2.5 rounded-full overflow-hidden">
+                      <div className="bg-muted h-full animate-pulse" />
+                    </div>
+                  </div>
                 </div>
-                <span className="font-bold text-foreground font-mono">{manilaAssets} ({manilaPercent}%)</span>
-              </div>
-              <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
-                <div className="bg-[#005A36] h-full transition-all duration-500" style={{ width: `${manilaPercent}%` }} />
-              </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center text-xs">
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <MapPin className="text-[#005A36] size-4" />
+                      <span>Manila Campus</span>
+                    </div>
+                    <span className="font-bold text-foreground font-mono">{manilaAssets} ({manilaPercent}%)</span>
+                  </div>
+                  <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
+                    <div className="bg-[#005A36] h-full transition-all duration-500" style={{ width: `${manilaPercent}%` }} />
+                  </div>
 
-              <div className="flex justify-between items-center text-xs">
-                <div className="flex items-center gap-1.5 font-medium text-foreground">
-                  <MapPin className="text-[#10B981] size-4" />
-                  <span>Laguna Campus</span>
-                </div>
-                <span className="font-bold text-foreground font-mono">{lagunaAssets} ({lagunaPercent}%)</span>
-              </div>
-              <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
-                <div className="bg-[#10B981] h-full transition-all duration-500" style={{ width: `${lagunaPercent}%` }} />
-              </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <MapPin className="text-[#10B981] size-4" />
+                      <span>Laguna Campus</span>
+                    </div>
+                    <span className="font-bold text-foreground font-mono">{lagunaAssets} ({lagunaPercent}%)</span>
+                  </div>
+                  <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
+                    <div className="bg-[#10B981] h-full transition-all duration-500" style={{ width: `${lagunaPercent}%` }} />
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -425,52 +426,65 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ALL_10_LABS.map(lab => {
-                      const labAssets = activeAssets.filter(a => {
-                        const tag = (a.asset_tag || a.id || "");
-                        return a.lab === lab.id || tag.startsWith(lab.id + "-");
-                      });
-                      const assetCount = labAssets.length;
-                      let avgConditionStr = "0%";
-                      let utilRateStr = "0%";
-                      let avgConditionNum = 100;
-
-                      if (assetCount > 0) {
-                        const totalScore = labAssets.reduce((s, a) => s + getLatestRecordConditionScore(a), 0);
-                        avgConditionNum = Math.round(totalScore / assetCount);
-                        avgConditionStr = `${avgConditionNum}%`;
-
-                        const utilized = labAssets.filter(a => a.status === "On Loan" || a.status === "Overdue" || a.status === "Pending Return" || a.projectId || a.project_id).length;
-                        utilRateStr = `${Math.round((utilized / assetCount) * 100)}%`;
-                      } else {
-                        avgConditionStr = "N/A";
-                        utilRateStr = "0%";
-                      }
-
-                      let statusBadge = <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-250 text-[9px] font-bold uppercase">Good</Badge>;
-                      if (assetCount === 0) {
-                        statusBadge = <Badge variant="outline" className="text-muted-foreground text-[9px] font-bold uppercase">No assets</Badge>;
-                      } else if (avgConditionNum <= 60) {
-                        statusBadge = <Badge className="bg-red-50 text-red-700 border border-red-255 text-[9px] font-bold uppercase">Critical</Badge>;
-                      } else if (avgConditionNum <= 78) {
-                        statusBadge = <Badge className="bg-amber-50 text-amber-700 border border-amber-250 text-[9px] font-bold uppercase">Attention</Badge>;
-                      }
-
-                      return (
-                        <TableRow key={lab.id} className="hover:bg-muted/30 transition-colors">
-                          <TableCell className="font-bold text-foreground text-xs">{lab.id}</TableCell>
-                          <TableCell className="text-muted-foreground text-xs">{lab.location}</TableCell>
-                          <TableCell className="text-center font-semibold text-xs text-foreground font-mono">{assetCount}</TableCell>
-                          <TableCell className="text-center text-xs font-mono">
-                            <span className={cn(assetCount === 0 ? "text-muted-foreground" : avgConditionNum <= 60 ? "text-red-600 font-bold" : avgConditionNum <= 78 ? "text-amber-600" : "text-[#005A36] font-semibold")}>
-                              {avgConditionStr}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center text-xs font-mono text-muted-foreground">{utilRateStr}</TableCell>
-                          <TableCell className="text-right">{statusBadge}</TableCell>
+                    {isDashboardLoading ? (
+                      Array.from({ length: 6 }).map((_, idx) => (
+                        <TableRow key={`skeleton-lab-${idx}`}>
+                          <TableCell><div className="h-4 w-16 bg-muted animate-pulse rounded" /></TableCell>
+                          <TableCell><div className="h-4 w-14 bg-muted animate-pulse rounded" /></TableCell>
+                          <TableCell className="text-center"><div className="h-4 w-8 bg-muted animate-pulse rounded mx-auto" /></TableCell>
+                          <TableCell className="text-center"><div className="h-4 w-10 bg-muted animate-pulse rounded mx-auto" /></TableCell>
+                          <TableCell className="text-center"><div className="h-4 w-10 bg-muted animate-pulse rounded mx-auto" /></TableCell>
+                          <TableCell className="text-right"><div className="h-5 w-14 bg-muted animate-pulse rounded ml-auto" /></TableCell>
                         </TableRow>
-                      );
-                    })}
+                      ))
+                    ) : (
+                      RESEARCH_LABS.map(lab => {
+                        const labAssets = activeAssets.filter(a => {
+                          const tag = (a.asset_tag || a.id || "");
+                          return a.lab === lab.id || tag.startsWith(lab.id + "-");
+                        });
+                        const assetCount = labAssets.length;
+                        let avgConditionStr = "0%";
+                        let utilRateStr = "0%";
+                        let avgConditionNum = 100;
+
+                        if (assetCount > 0) {
+                          const totalScore = labAssets.reduce((s, a) => s + getLatestRecordConditionScore(a), 0);
+                          avgConditionNum = Math.round(totalScore / assetCount);
+                          avgConditionStr = `${avgConditionNum}%`;
+
+                          const utilized = labAssets.filter(a => a.status === "On Loan" || a.status === "Overdue" || a.status === "Pending Return" || a.projectId || a.project_id).length;
+                          utilRateStr = `${Math.round((utilized / assetCount) * 100)}%`;
+                        } else {
+                          avgConditionStr = "N/A";
+                          utilRateStr = "0%";
+                        }
+
+                        let statusBadge = <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-250 text-[9px] font-bold uppercase">Good</Badge>;
+                        if (assetCount === 0) {
+                          statusBadge = <Badge variant="outline" className="text-muted-foreground text-[9px] font-bold uppercase">No assets</Badge>;
+                        } else if (avgConditionNum <= 60) {
+                          statusBadge = <Badge className="bg-red-50 text-red-700 border border-red-255 text-[9px] font-bold uppercase">Critical</Badge>;
+                        } else if (avgConditionNum <= 78) {
+                          statusBadge = <Badge className="bg-amber-50 text-amber-700 border border-amber-250 text-[9px] font-bold uppercase">Attention</Badge>;
+                        }
+
+                        return (
+                          <TableRow key={lab.id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="font-bold text-foreground text-xs">{lab.id}</TableCell>
+                            <TableCell className="text-muted-foreground text-xs">{lab.campus}</TableCell>
+                            <TableCell className="text-center font-semibold text-xs text-foreground font-mono">{assetCount}</TableCell>
+                            <TableCell className="text-center text-xs font-mono">
+                              <span className={cn(assetCount === 0 ? "text-muted-foreground" : avgConditionNum <= 60 ? "text-red-600 font-bold" : avgConditionNum <= 78 ? "text-amber-600" : "text-[#005A36] font-semibold")}>
+                                {avgConditionStr}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-center text-xs font-mono text-muted-foreground">{utilRateStr}</TableCell>
+                            <TableCell className="text-right">{statusBadge}</TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -619,7 +633,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         a.asset_monetary?.acquisition_value || a.cost || 0,
         assetStatusLabel(a.status),
         a.custodian || "None",
-        a.lab || "CITe4D"
+        a.lab || "Unassigned"
       ]);
 
       const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
