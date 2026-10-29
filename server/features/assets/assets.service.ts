@@ -47,8 +47,8 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
         let custodianName = "";
         let custodianHidden = false;
         let status = "Active";
-        let location = "Manila";
-        let lab = "CITe4D";
+        let location = "Unassigned";
+        let lab = "Unassigned";
         let borrowedOn: string | undefined;
         let dueDate: string | undefined;
         let daysLeft: number | undefined;
@@ -161,7 +161,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
                 created_at: t.requested_on ? t.requested_on.toISOString() : new Date().toISOString(),
                 status: t.status,
                 justification: t.justification || "Custodianship transfer request",
-                lab: location || "CITe4D"
+                lab: location || "Unassigned"
             };
         });
 
