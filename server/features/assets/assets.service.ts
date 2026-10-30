@@ -10,8 +10,9 @@ import type { SessionIdentity } from '@shared/types/auth';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import * as assetsRepository from './assets.repository';
+import type { EditRows } from './assets.repository';
 import * as authRepository from '../auth/auth.repository';
-import { checkAssetImage } from './assets.validation';
+import { checkAssetImage, UNKNOWN_CUSTODIAN } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 
@@ -45,6 +46,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
         const latestRecord = records[0];
 
         let custodianName = "";
+        let custodianId: number | undefined;
         let custodianHidden = false;
         let status = "Active";
         let location = "Manila";
@@ -62,6 +64,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
                 custodianHidden = true;
             } else if (custodian) {
                 custodianName = `${custodian.first_name} ${custodian.last_name}`;
+                custodianId = custodian.user_id;
             }
 
             const st = latestRecord.status;
@@ -203,6 +206,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
             condition: calculatedCondition,
             assetCondition: latestRecord?.asset_condition || "PERFECT",
             custodian: custodianName || undefined,
+            custodianId,
             custodianHidden: custodianHidden ? (true as const) : undefined,
             borrowedOn,
             dueDate,
@@ -388,17 +392,18 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
 }
 
 /**
- * Saves an edit: the assets fields that were sent, the monetary row, and the asset's newest record; and, when the edit
- * carries a condition or remarks, a new inspection report whose condition the newest record then takes.
- * The edit queries are kept exactly as they are; see the TODOs here and in assets.repository.ts saveEdit. Appending instead of
- * overwriting is issue #74.
+ * Saves an edit: the assets fields that were sent and the monetary row; a new record when the edit changes the asset's
+ * status, location, custodian, condition, or remarks; and, when the edit carries a condition or remarks, a new
+ * inspection report, whose condition the new record takes. An existing record is never changed (issue #74), so the
+ * custodian history keeps every earlier state.
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the body; every field is optional
  * @param editorId the session user, under whom the edit's condition report is filed
  * @returns the assets row, updated or as it was
  * @throws AppError 404 if no asset has this tag
- * @throws AppError 400 if the picture is text but not an image
+ * @throws AppError 400 if custodianId is not a Custodian account; if the edit sends a status or custodian and would
+ *   leave the asset available with a person; or if the picture is text but not an image. Nothing is saved.
  */
 export async function updateAsset(assetTag: string, data: AssetUpdateInput, editorId: number): Promise<assets> {
     const existing = await assetsRepository.findByTag(assetTag);
@@ -406,14 +411,17 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // The dialog sends the new custodian as a display name ("Dr. Juan Dela Cruz"): a target, not the person acting.
-    // It is split at the first space and matched exactly; no match leaves the record's custodian as it is.
-    // TODO(H-10): two people with the same name cannot be told apart, and a two-word first name never matches (issue #32). A person picker, on a branch after step 13 (answer 8).
+    // The new custodian, by user id: a target, not the person acting. null is None, the placeholder; any other id must
+    // be a Custodian account, as the dropdown offers (issue #95, answer 1). Not sent leaves the custodian as it is.
     let custodianId: number | undefined;
-    if (data.custodian) {
-        const [first, ...rest] = String(data.custodian).replace(/^Dr\.\s*/i, "").split(" ");
-        const match = await authRepository.findUserByName(first, rest.join(" "));
-        if (match) custodianId = match.user_id;
+    if (data.custodianId === null) {
+        custodianId = POOL_CUSTODIAN_ID;
+    } else if (data.custodianId !== undefined) {
+        const custodian = data.custodianId === POOL_CUSTODIAN_ID ? null : await authRepository.findUserWithRole(data.custodianId, "CUSTODIAN");
+        if (!custodian) {
+            throw new AppError(400, UNKNOWN_CUSTODIAN);
+        }
+        custodianId = custodian.user_id;
     }
 
     const imageProvided = data.image !== undefined || data.image_url !== undefined || data.imageUrl !== undefined;
@@ -437,10 +445,13 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
     if (data.procured !== undefined) assetUpdateData.procurement_date = data.procured ? new Date(data.procured) : null;
     if (data.warranty !== undefined) assetUpdateData.warranty_expiry = data.warranty ? new Date(data.warranty) : null;
 
-    // TODO(M-16): an existing monetary row gets only the funding source (reset to "Unspecified" when none is sent); the value is ignored. Its own fix (issue #74).
+    // An existing monetary row gets only the fields sent, so a value alone keeps the funding source. (M-16, issue #74)
+    const monetaryUpdate: { funding_source?: string; acquisition_value?: number | string } = {};
+    if (data.funding !== undefined) monetaryUpdate.funding_source = data.funding || "Unspecified";
+    if (data.acquisitionValue !== undefined) monetaryUpdate.acquisition_value = data.acquisitionValue;
     const monetary = (data.funding !== undefined || data.acquisitionValue !== undefined)
         ? {
-            update: { funding_source: data.funding || "Unspecified" },
+            update: monetaryUpdate,
             create: {
                 asset_id: existing.asset_id,
                 funding_source: data.funding || "Unspecified",
@@ -454,57 +465,74 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
         const rawRemarks = data.remarks ?? data.description ?? data.tsgRemarks ?? data.itsRemarks;
         const remarksVal = remarksProvided ? (rawRemarks || null) : (latestRecord?.Asset_Remarks ?? null);
 
-        // Each record field is the body's value, else the newest record's, else a default.
+        // A condition or remarks field files a report. `description` is not on the list: Edit Asset sends its remarks
+        // under that name, so a remarks-only change there files none (issue #74, answer 4).
+        let report: EditRows["report"] = null;
+        if (data.assetCondition || data.reportCondition || data.remarks || data.tsgRemarks || data.itsRemarks) {
+            // The report's condition by stored or display name; any other name is stored as PERFECT. (H-07 family, like issue #53 on the inspection route)
+            const rawCond = String(data.reportCondition || data.assetCondition || "PERFECT").trim();
+            const conditionMap: Record<string, any> = {
+                "PERFECT": "PERFECT",
+                "Perfect": "PERFECT",
+                "OPERATIONAL": "OPERATIONAL",
+                "Operational": "OPERATIONAL",
+                "MINOR_DRIFT": "MINOR_DRIFT",
+                "Minor Drift": "MINOR_DRIFT",
+                "DEGRADED": "DEGRADED",
+                "Degraded Performance": "DEGRADED",
+                "CRITICAL_DEFECT": "CRITICAL_DEFECT",
+                "Critical Defect": "CRITICAL_DEFECT",
+            };
+            report = {
+                asset_id: existing.asset_id,
+                // Filed under the Staff member who made the edit. (issue #32)
+                reported_by_id: editorId,
+                report_condition: conditionMap[rawCond] || "PERFECT",
+                report_remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
+                report_img: imageVal || null,
+            };
+        }
+
+        // Each record field is the body's value, else the newest record's, else a default. With a report, the condition
+        // is the report's, so the two agree.
         // TODO(H-07): the status is any text upper-cased with its first space as an underscore, not checked against the enum; a bad one fails in the database with a 500. With the status enum.
-        const recordData = {
+        const next = {
             status: (data.status?.toUpperCase().replace(" ", "_") || latestRecord?.status || "ACTIVE") as any,
             location: [data.location, data.lab].filter(Boolean).join(" — ") || latestRecord?.location || "Unassigned",
             current_custodian: custodianId ?? latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
-            asset_condition: (ASSET_CONDITIONS.includes(data.assetCondition) ? data.assetCondition : latestRecord?.asset_condition ?? "PERFECT") as any,
+            asset_condition: (report ? report.report_condition : ASSET_CONDITIONS.includes(data.assetCondition) ? data.assetCondition : latestRecord?.asset_condition ?? "PERFECT") as any,
             Asset_Remarks: remarksVal,
         };
 
-        if (!(data.assetCondition || data.reportCondition || data.remarks || data.tsgRemarks || data.itsRemarks)) {
-            return { record: recordData, report: null };
+        // Available means nobody holds it (team decision). Checked only when the edit sends a status or custodian, so an
+        // older record that breaks the rule can still take other changes. Thrown here, the transaction saves nothing.
+        if ((data.status !== undefined || data.custodianId !== undefined) && next.status === "ACTIVE" && next.current_custodian !== POOL_CUSTODIAN_ID) {
+            throw new AppError(400, "An available asset has no custodian. Pick None, or change the availability.");
         }
 
-        // The report's condition by stored or display name; any other name is stored as PERFECT. (H-07 family, like issue #53 on the inspection route)
-        const rawCond = String(data.reportCondition || data.assetCondition || "PERFECT").trim();
-        const conditionMap: Record<string, any> = {
-            "PERFECT": "PERFECT",
-            "Perfect": "PERFECT",
-            "OPERATIONAL": "OPERATIONAL",
-            "Operational": "OPERATIONAL",
-            "MINOR_DRIFT": "MINOR_DRIFT",
-            "Minor Drift": "MINOR_DRIFT",
-            "DEGRADED": "DEGRADED",
-            "Degraded Performance": "DEGRADED",
-            "CRITICAL_DEFECT": "CRITICAL_DEFECT",
-            "Critical Defect": "CRITICAL_DEFECT",
-        };
-        const condition = conditionMap[rawCond] || "PERFECT";
+        const changed = !latestRecord
+            || next.status !== latestRecord.status
+            || next.location !== latestRecord.location
+            || next.current_custodian !== latestRecord.current_custodian
+            || next.asset_condition !== latestRecord.asset_condition
+            || next.Asset_Remarks !== (latestRecord.Asset_Remarks ?? null);
+        if (!changed) {
+            return { record: null, report };
+        }
+
+        // Where the asset is now: home when it is available (as a return writes it), and the new home when it was at
+        // its old one; else it is still away (on loan, transferred, or at the TSG Office), so the newest record's place.
+        const wasAtHome = !latestRecord?.current_location || latestRecord.current_location === latestRecord.location;
+        const currentLocation = next.status === "ACTIVE" || wasAtHome ? next.location : latestRecord!.current_location;
 
         return {
-            record: recordData,
-            report: {
-                data: {
-                    asset_id: existing.asset_id,
-                    // Filed under the Staff member who made the edit. (issue #32)
-                    reported_by_id: editorId,
-                    report_condition: condition,
-                    report_remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
-                    report_img: imageVal || null,
-                },
-                // The newest record takes the newest report's condition and remarks (ties on report_date go to the higher report_id).
-                syncFromReport: (latestReport) => {
-                    const latestCondition = latestReport ? latestReport.report_condition : condition;
-                    const latestRemarks = latestReport ? latestReport.report_remarks : remarksVal;
-                    return {
-                        asset_condition: latestCondition as any,
-                        Asset_Remarks: latestRemarks,
-                    };
-                },
+            record: {
+                ...next,
+                current_location: currentLocation,
+                // Kept from the newest record: the analytics read an asset's project there.
+                project_id: latestRecord?.project_id ?? null,
             },
+            report,
         };
     });
 }

@@ -89,6 +89,8 @@ export interface Asset {
   condition: number;
   descriptiveCondition?: string;
   custodian?: string;
+  /** The holder's user id, sent with `custodian`. Screens match people by it. (issue #32) */
+  custodianId?: number;
   /** True when someone holds the asset but the caller, a Custodian, may not see who. (D2) */
   custodianHidden?: boolean;
   borrowedOn?: string;

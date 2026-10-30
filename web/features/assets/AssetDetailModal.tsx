@@ -45,6 +45,8 @@ export interface AssetDetail {
   condition?: number;
   assetCondition?: string;
   custodian?: string;
+  /** The holder's user id, when the server sends their name. (issue #32) */
+  custodianId?: number;
   custodianHidden?: boolean;
   disposalId?: string;
   disposalDetails?: DisposalDetails;
@@ -119,9 +121,9 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
       : null;
   const isOwnPendingRequest = !!pendingRequest && currentUser?.userId === pendingRequest.requesterId;
   // The server lets only the asset's current custodian request its transfer (answer 3 of the 13c questions), so the
-  // Transfer and Return buttons show only on an asset the Custodian holds, matched by name as My Assets matches it.
-  // The server sends a Custodian no other holder's name, so this matches only their own assets. Repair stays for all.
-  const holdsThisAsset = !!asset && !!currentUser && asset.custodian === `${currentUser.firstName} ${currentUser.lastName}`;
+  // Transfer and Return buttons show only on an asset the Custodian holds, matched by user id as My Assets matches it
+  // (issue #32). The server sends a Custodian no other holder's id, so this matches only their own assets. Repair stays for all.
+  const holdsThisAsset = !!asset && !!currentUser && asset.custodianId === currentUser.userId;
   // Staff record a return straight from here, with no request needed in this browser, so a return works from
   // any computer. Only on an asset that is out: Overdue is On Loan past its due date. (issue #99)
   const isOnLoan = !!asset && (asset.status === "On Loan" || asset.status === "Overdue");

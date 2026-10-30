@@ -13,7 +13,7 @@ import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDe
 import { EditAssetDialog } from "@web/features/assets/EditAssetDialog";
 import { DeleteAssetDialog } from "@web/features/assets/DeleteAssetDialog";
 import { statusBadgeClass, ConditionState, assetStatusLabel } from "@web/features/assets/assetBadges";
-import { fundingSources } from "@web/features/assets/assetFields";
+import { FUNDING_SOURCES } from "@shared/constants/fundingSources";
 import { DisposalFormDialog } from "@web/features/disposals/DisposalFormDialog";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -107,7 +107,7 @@ export function InventoryPage() {
         <select value={filterFunding} onChange={e => setFilterFunding(e.target.value)}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <option value="All">All Funding Sources</option>
-          {fundingSources.map(f => <option key={f} value={f}>{f}</option>)}
+          {FUNDING_SOURCES.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
         <select value={filterLoc} onChange={e => setFilterLoc(e.target.value)}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

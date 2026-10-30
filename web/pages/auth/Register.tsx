@@ -1,19 +1,22 @@
 /**
  * Sign-up screen: a new Custodian asks for an account, which a Lab Head approves or rejects.
  * Layer: page. Called by app/routes.tsx at /register.
- * Calls: api/auth.api.ts requestRegistrationRaw(), state/serverData.tsx addPendingRegistration().
+ * Calls: api/auth.api.ts requestRegistrationRaw(), state/serverData.tsx addPendingRegistration(), features/lookups/useLookups.ts (the labs).
  * Used by: new users (Custodian account request), Lab Head approval.
  */
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Shield, Lock, User, Upload, Camera, CheckCircle, ArrowLeft, Building2, CreditCard, Mail } from "lucide-react";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
-import { DLSU_LABS } from "@shared/constants/labs";
+import { useFormLookups } from "@web/features/lookups/useLookups";
 import { useServerData } from "@web/state/serverData";
 import * as authApi from "@web/api/auth.api";
+
+/** The lab value for a request with no lab. Approval finds no research center for it, so the account gets no lab link. */
+const NO_AFFILIATION = "No affiliation";
 
 const AVATAR_PRESETS = [
   "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150",
@@ -43,7 +46,16 @@ export function Register() {
   const [idNumber, setIdNumber] = useState("");
   const [userType, setUserType] = useState<"STUDENT" | "FACULTY">("STUDENT");
   const requestedRole = "Custodian";
-  const [labAffiliation, setLabAffiliation] = useState<string>("Center for ICT for Development (CITE4D)");
+  // The lab's short code, which approval and the Lab Head's list match exactly (issue #12, answer 7).
+  const [labAffiliation, setLabAffiliation] = useState<string>("CITe4D");
+  const { lookups, failed: lookupsFailed } = useFormLookups();
+  const labs = lookups?.labs ?? [];
+  const labName = labs.find(l => l.code === labAffiliation)?.name ?? labAffiliation;
+  // Starts on CITe4D when the research centers have it, else on the first one, or on No affiliation when there are none.
+  useEffect(() => {
+    if (!lookups || labAffiliation === NO_AFFILIATION || labs.some(l => l.code === labAffiliation)) return;
+    setLabAffiliation(labs[0]?.code ?? NO_AFFILIATION);
+  }, [lookups]);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -173,7 +185,7 @@ export function Register() {
               </div>
               <div className="flex justify-between">
                 <span className="font-semibold text-slate-500">Lab Affiliation:</span>
-                <span className="font-bold">{labAffiliation}</span>
+                <span className="font-bold">{labName}</span>
               </div>
             </div>
 
@@ -363,13 +375,15 @@ export function Register() {
                   <SelectValue placeholder="Select Lab Affiliation" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DLSU_LABS.map((lab) => (
-                    <SelectItem key={lab.id} value={lab.id} className="text-xs">
+                  {labs.map((lab) => (
+                    <SelectItem key={lab.code} value={lab.code} className="text-xs">
                       {lab.name}
                     </SelectItem>
                   ))}
+                  <SelectItem value={NO_AFFILIATION} className="text-xs">{NO_AFFILIATION}</SelectItem>
                 </SelectContent>
               </Select>
+              {lookupsFailed && <p className="text-[10px] text-red-600">Could not load the labs. Reload the page.</p>}
             </div>
 
             {/* Password Fields */}

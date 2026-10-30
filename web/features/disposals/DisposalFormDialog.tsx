@@ -1,11 +1,12 @@
 /**
  * Disposal request dialog: Staff ask the Director to decommission an asset.
  * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
- * Calls: api/disposals.api.ts requestDisposal().
+ * Calls: api/disposals.api.ts requestDisposal(), state/serverData.tsx holderLabel().
  * Used by: disposal filing (Staff); the Director decides it on the Director screen.
  */
 import { useState } from "react";
 import * as disposalsApi from "@web/api/disposals.api";
+import { holderLabel } from "@web/state/serverData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -13,8 +14,9 @@ import { Label } from "@web/components/ui/label";
 import { Archive } from "lucide-react";
 
 /**
- * Collects the last custodian, the breakdown reasons, the disposal pathway, and the decommission
- * date, and files a pending disposal through disposalsApi.requestDisposal(). The asset stays
+ * Shows the last custodian (the asset's holder, read-only: the server names it from the asset's record), collects the
+ * breakdown reasons, the disposal pathway, and the decommission date, and files a pending disposal through
+ * disposalsApi.requestDisposal(). The asset stays
  * active until the Director approves. The success screen shows the database id (`DISP-<n>`).
  *
  * @param asset the asset to dispose of
@@ -25,7 +27,6 @@ import { Archive } from "lucide-react";
 // TODO(M-13): pathway, last custodian, and date are packed into one text column and parsed back with regex. Phase 3.
 export function DisposalFormDialog({ asset, onClose, onSubmitted }: { asset: any; onClose: () => void; onSubmitted?: () => void }) {
   const [form, setForm] = useState({
-    lastCustodian: asset?.custodian || "",
     breakdownReasons: "",
     disposalPathway: "Decommission — Scrap / Recycle",
     decommissionDate: new Date().toISOString().split("T")[0]
@@ -39,7 +40,6 @@ export function DisposalFormDialog({ asset, onClose, onSubmitted }: { asset: any
     setSubmitError(null);
     try {
       const data = await disposalsApi.requestDisposal(asset.id, {
-        lastCustodian: form.lastCustodian || "Unassigned",
         breakdownReasons: form.breakdownReasons.trim() || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
         disposalPathway: form.disposalPathway,
         decommissionDate: form.decommissionDate,
@@ -90,7 +90,7 @@ export function DisposalFormDialog({ asset, onClose, onSubmitted }: { asset: any
               </div>
               <div className="flex flex-col gap-1">
                 <Label className="text-xs font-bold text-foreground">Last Custodian Assignment</Label>
-                <Input value={form.lastCustodian} onChange={e => setForm({ ...form, lastCustodian: e.target.value })} placeholder="e.g. Dr. Juan Dela Cruz" className="text-xs" />
+                <Input value={holderLabel(asset?.custodian, asset?.custodianHidden)} disabled className="bg-muted text-xs font-semibold" />
               </div>
               <div className="flex flex-col gap-1">
                 <Label className="text-xs font-bold text-foreground">Main Issues / Breakdown Justification</Label>

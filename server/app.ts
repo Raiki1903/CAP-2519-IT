@@ -1,7 +1,7 @@
 /**
  * Builds the Express app: the middleware, in order, then the routes, then the error handler.
  * Layer: server app. Called by main.ts. Calls the routes files of features/loans, returns, transfers, disposals, repairs,
- * inspections, auth, assets, and analytics, shared/middleware/errorHandler.ts, and config/env.ts (the web origin for CORS).
+ * inspections, auth, assets, analytics, and lookups, shared/middleware/errorHandler.ts, and config/env.ts (the web origin for CORS).
  * Used by: every request to the API.
  */
 import express from 'express';
@@ -15,6 +15,7 @@ import { inspectionsRouter } from './features/inspections/inspections.routes';
 import { authRouter } from './features/auth/auth.routes';
 import { assetsRouter } from './features/assets/assets.routes';
 import { analyticsRouter } from './features/analytics/analytics.routes';
+import { lookupsRouter } from './features/lookups/lookups.routes';
 import { errorHandler } from './shared/middleware/errorHandler';
 import { env } from './config/env';
 
@@ -43,6 +44,7 @@ app.use(inspectionsRouter);
 app.use(authRouter);
 app.use(assetsRouter);
 app.use(analyticsRouter);
+app.use(lookupsRouter);
 
 // Last, so it receives the errors of every router and of the body parsers above.
 app.use(errorHandler);

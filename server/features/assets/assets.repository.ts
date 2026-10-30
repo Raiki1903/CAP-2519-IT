@@ -1,12 +1,12 @@
 /**
  * Asset row access: every database read and write the asset registry endpoints make, plus the asset reads other
- * features need (an asset by tag or by id, the newest record for a transfer request, and the newest record's status
- * for the custody request guard).
+ * features need (an asset by tag or by id, the newest record for a transfer request, the newest record's status
+ * for the custody request guard, and the newest record's holder for a disposal request).
  * Layer: repository. Called by assets.service.ts, the services of features/loans, returns, transfers, disposals, repairs,
  * and inspections, and shared/services/custodyRequestGuard.ts. Calls config/prisma.ts.
  * Used by: every role's inventory view, Staff registration, editing, and deletion, and every workflow that starts from an asset tag.
  */
-import type { Prisma, asset_records, asset_reports, assets } from '@prisma/client';
+import type { Prisma, asset_records, assets } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
 /**
@@ -76,6 +76,16 @@ export function findLatestRecord(assetId: number) {
     });
 }
 
+/** The asset's newest record with its custodian's users row, or null if it has none. Read by the disposal request. */
+export function findLatestRecordWithCustodian(assetId: number) {
+    // Same ordering GET /api/assets uses, so the holder named is the one the list shows. (M-09)
+    return prisma.asset_records.findFirst({
+        where: { asset_id: assetId },
+        orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }],
+        include: { users: true },
+    });
+}
+
 /** The asset's records, oldest first, each with its custodian. */
 export function findRecordsWithCustodian(assetId: number) {
     return prisma.asset_records.findMany({
@@ -137,27 +147,23 @@ export async function createWithRecords(
     return asset;
 }
 
-/** What an edit writes once the newest record is known: the record values, and the inspection report if any. */
+/** What an edit adds once the newest record is known: a new record if any, and an inspection report if any. */
 export interface EditRows {
-    record: Omit<Prisma.asset_recordsUncheckedCreateInput, 'asset_id'>;
-    report: {
-        data: Prisma.asset_reportsUncheckedCreateInput;
-        syncFromReport: (latestReport: asset_reports | null) => Prisma.asset_recordsUncheckedUpdateInput;
-    } | null;
+    record: Omit<Prisma.asset_recordsUncheckedCreateInput, 'asset_id'> | null;
+    report: Prisma.asset_reportsUncheckedCreateInput | null;
 }
 
 /**
- * Saves an asset edit in one transaction: the assets fields, the monetary row, the newest record,
- * and, when the edit carries a condition or remarks, an inspection report. The reads and writes run in
- * the order the old handler ran them; the edit queries are kept as they are. On the slow CCS Cloud link this one interactive
- * transaction can outlast Prisma's transaction timeout, and the edit then fails with P2028, "expired transaction" (issue #8).
- * The newest record is read inside the transaction, after the assets and monetary writes, and handed to the
- * service, which builds the record values and the report.
+ * Saves an asset edit in one transaction: the assets fields, the monetary row, and the rows the service asks for (a new
+ * record, an inspection report). An existing record is never changed (issue #74). On the slow CCS Cloud link this one
+ * interactive transaction can outlast Prisma's transaction timeout, and the edit then fails with P2028, "expired
+ * transaction" (issue #8). The newest record is read inside the transaction, after the assets and monetary writes, and
+ * handed to the service, which decides what to add.
  *
  * @param existing the asset being edited
  * @param assetUpdateData only the assets fields the request sent; nothing is written when empty
  * @param monetary the upsert for asset_monetary, or null to leave it alone
- * @param buildRows builds the record values and the report from the newest record
+ * @param buildRows builds the new record and the report from the newest record
  * @returns the assets row, updated or as it was
  */
 export function saveEdit(
@@ -183,40 +189,20 @@ export function saveEdit(
             });
         }
 
-        // The newest record is changed in place; no record is added.
-        // TODO(H-14): an edit overwrites the newest history row (status, location, custodian, condition) instead of appending one, so the earlier state is lost. 01D appends; issue #74.
-        // TODO(M-09): no tie-break on asset_record_id, unlike the asset list, so with two records in the same second this can change a different one than the list shows. With issue #74, or Phase 3 with the shared asset state rule.
+        // Same ordering GET /api/assets uses (ties on date_logged go to the higher asset_record_id), so the edit builds on
+        // the state the list shows. (M-09)
         const latestRecord = await tx.asset_records.findFirst({
             where: { asset_id: existing.asset_id },
-            orderBy: { date_logged: "desc" },
+            orderBy: [{ date_logged: "desc" }, { asset_record_id: "desc" }],
         });
 
         const { record, report } = buildRows(latestRecord);
 
-        if (latestRecord) {
-            await tx.asset_records.update({ where: { asset_record_id: latestRecord.asset_record_id }, data: record });
-        } else {
+        if (record) {
             await tx.asset_records.create({ data: { asset_id: existing.asset_id, ...record } });
         }
-
-        // An edit with a condition or remarks also files an inspection report, as a new row.
         if (report) {
-            await tx.asset_reports.create({
-                data: report.data
-            });
-
-            // Ties on the one-second report_date fall to the higher report_id, so the report just written counts as the newest.
-            const latestReport = await tx.asset_reports.findFirst({
-                where: { asset_id: existing.asset_id },
-                orderBy: [{ report_date: "desc" }, { report_id: "desc" }],
-            });
-
-            if (latestRecord) {
-                await tx.asset_records.update({
-                    where: { asset_record_id: latestRecord.asset_record_id },
-                    data: report.syncFromReport(latestReport)
-                });
-            }
+            await tx.asset_reports.create({ data: report });
         }
 
         return asset;

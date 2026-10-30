@@ -4,10 +4,12 @@
  * Used by: Staff disposal filing, Director approval.
  */
 
-/** The body of POST /api/assets/:assetTag/disposal, as DisposalFormDialog sends it. */
+/**
+ * The body of POST /api/assets/:assetTag/disposal, as DisposalFormDialog sends it. The last custodian is not sent:
+ * the server names the asset's holder. (issue #12)
+ */
 // TODO(M-13): the server packs pathway, last custodian, and date into one text column. Phase 3 splits them into columns.
 export interface DisposalRequestInput {
-  lastCustodian?: string;
   breakdownReasons: string;
   disposalPathway: string;
   /** Decommission date as yyyy-mm-dd. */

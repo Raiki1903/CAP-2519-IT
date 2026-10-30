@@ -36,8 +36,10 @@ export interface AssetCreateInput {
 }
 
 /**
- * The body of PUT /api/assets/:assetTag, as EditAssetDialog sends it. Every field is optional: an assets field
- * is written only when sent. A condition or remarks also files an inspection report.
+ * The body of PUT /api/assets/:assetTag, as EditAssetDialog sends it (only the fields Staff changed). Every field is
+ * optional: an assets field is written only when sent. A change of status, location, custodian, condition, or remarks
+ * adds a record; no record is changed (issue #74). A condition, or remarks under any name but `description`, also files
+ * an inspection report.
  */
 export interface AssetUpdateInput {
   name?: string;
@@ -50,13 +52,14 @@ export interface AssetUpdateInput {
   imageUrl?: string | null;
   procured?: string;
   warranty?: string;
+  /** "Unspecified" when sent empty. Left as it is when not sent. */
   funding?: string;
-  /** Ignored when the monetary row exists: only the funding source is updated. (M-16, issue #74) */
+  /** Left as it is when not sent. */
   acquisitionValue?: number | string;
   location?: string;
   lab?: string;
-  /** The custodian's display name. A name that matches no account leaves the custodian unchanged. (H-10, issue #32) */
-  custodian?: string;
+  /** The new custodian's user id, which must be a Custodian account; null for None (nobody holds it). (issue #95) */
+  custodianId?: number | null;
   /** Display text such as "On Loan"; stored upper-cased with the first space as an underscore. */
   status?: string;
   /** An ASSET_CONDITIONS value; anything else keeps the record's condition. */
@@ -155,6 +158,8 @@ export interface AssetListItem {
   assetCondition: string;
   /** The holder's full name. Left out when nobody holds the asset (the placeholder custodian), and when it is hidden. */
   custodian?: string;
+  /** The holder's user id, sent and left out exactly as `custodian` is. Screens match people by it, never by name. (issue #32) */
+  custodianId?: number;
   /** True when someone holds the asset but the caller, a Custodian, may not see who (D2). Left out otherwise. */
   custodianHidden?: true;
   borrowedOn?: string;

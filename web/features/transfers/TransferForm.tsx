@@ -25,7 +25,7 @@ import { cn } from "@web/components/ui/utils";
 
 const BRAND = "#005A36";
 
-// TODO(M-03): one more hardcoded lab list, in short codes, separate from shared/constants/labs.ts and research_centers. Phase 3.
+// TODO(M-03): one more hardcoded lab list, in short codes, separate from research_centers. Phase 3.
 const LABS = ["CITe4D", "CAR", "CeLT", "CeHCI", "Bio", "HXIL", "GAME", "CIVI", "CNIS", "TE3D"];
 
 type PipelineStatus = "pending" | "active" | "done";
