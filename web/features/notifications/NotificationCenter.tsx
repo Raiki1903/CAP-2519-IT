@@ -7,7 +7,7 @@
  */
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
-import { useSession, roleToSlug, roleDefaultPath } from "@web/state/session";
+import { useSession, roleToSlug, roleDefaultPath, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";
 import { openReturnRequests } from "@web/features/returns/openReturnRequests";
@@ -29,7 +29,6 @@ import {
   Activity,
   UserCheck,
   UserX,
-  Info,
   ExternalLink,
   ShieldAlert,
   FileSpreadsheet
@@ -358,7 +357,7 @@ export function NotificationCenter() {
         requests.push({
           id: disp.id,
           type: "disposal",
-          title: `Disposal Authorization: ${disp.assetName}`,
+          title: `Disposal Request: ${disp.assetName}`,
           description: `Decommission request: "${justification}". Pathway: ${pathway}. Requested by: ${disp.requestedBy}.`,
           date: disp.requestedAt,
           needsAction: actionRequired,
@@ -676,7 +675,7 @@ export function NotificationCenter() {
               <div>
                 <h3 className="text-sm font-bold tracking-tight">Notification Center</h3>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Scope: <span className="font-semibold text-primary">{currentUserName}</span> ({role})
+                  Scope: <span className="font-semibold text-primary">{currentUserName}</span> ({roleLabel[role]})
                 </p>
               </div>
               <span className="bg-primary/10 border border-primary/20 text-primary text-[10px] px-2.5 py-1 rounded-md font-extrabold tracking-wide">
@@ -988,10 +987,7 @@ export function NotificationCenter() {
             </div>
 
             {/* Footer / Quick Help */}
-            <div className="px-5 py-3 border-t border-border bg-slate-50/50 dark:bg-slate-900/10 text-[10px] text-muted-foreground flex items-center justify-between">
-              <span className="flex items-center gap-1 font-medium">
-                <Info size={11} className="text-[#005A36]" /> Dynamic role-filtered notification stream
-              </span>
+            <div className="px-5 py-3 border-t border-border bg-slate-50/50 dark:bg-slate-900/10 text-[10px] text-muted-foreground flex items-center justify-end">
               <span className="font-semibold text-slate-500">DLSU AdRIC EMS</span>
             </div>
 
