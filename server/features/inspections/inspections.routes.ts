@@ -17,6 +17,6 @@ export const inspectionsRouter = express.Router();
 
 // Every route needs a session; the roles are the approved 13b role table (rows 17 to 19).
 inspectionsRouter.post('/api/assets/:assetTag/inspection', requireAuth, requireRole('Custodian', 'Staff'), inspectionsController.fileReport);
-// The same reports under two spellings and two shapes (L-07). Both kept in step 12, as decided.
-inspectionsRouter.get('/api/asset_reports', requireAuth, requireRole('Staff', 'AdRICDirector'), inspectionsController.listReportSummaries);
-inspectionsRouter.get('/api/asset-reports', requireAuth, requireRole('Staff'), inspectionsController.listInspectionReports);
+// The same reports under two paths and two shapes (L-07): the short list and the Staff log.
+inspectionsRouter.get('/api/inspections', requireAuth, requireRole('Staff', 'AdRICDirector'), inspectionsController.listReportSummaries);
+inspectionsRouter.get('/api/inspections/log', requireAuth, requireRole('Staff'), inspectionsController.listInspectionReports);

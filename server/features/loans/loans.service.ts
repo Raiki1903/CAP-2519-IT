@@ -59,8 +59,8 @@ export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]
             borrower: borrowerUser ? `${borrowerUser.first_name} ${borrowerUser.last_name}` : `Borrower ID: ${l.borrower_id}`,
             purpose: cleanPurpose || "Research Project Use",
             destinationLab,
-            requestedOn: l.loaned_on ? l.loaned_on.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            dueDate: l.due_date ? l.due_date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            requestedOn: l.requested_at ? l.requested_at.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            dueDate: l.return_by ? l.return_by.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             status: l.status ? (l.status.charAt(0).toUpperCase() + l.status.slice(1)) : "Pending",
             location: center ? (center.location === "MANILA" ? "Manila" : "Laguna") : "Manila",
             lab,
@@ -124,7 +124,7 @@ export async function requestLoan(assetTag: string, data: LoanRequestInput, borr
         asset_id: existing.asset_id,
         borrower_id: borrowerId,
         purpose: purposeWithLab,
-        due_date: new Date(data.dueDate),
+        return_by: new Date(data.dueDate),
         status: "pending",
     });
 }

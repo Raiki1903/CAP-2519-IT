@@ -58,7 +58,7 @@ export function findUserByEmail(email: string) {
  * be a Custodian account. (issue #95)
  *
  * @param userId the users.user_id
- * @param roleName a roles.role_name value, for example "CUSTODIAN"
+ * @param roleName a roles.role_name value, for example "RESEARCHER"
  */
 export function findUserWithRole(userId: number, roleName: string) {
     return prisma.users.findFirst({

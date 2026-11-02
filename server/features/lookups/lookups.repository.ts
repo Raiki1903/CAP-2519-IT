@@ -14,7 +14,7 @@ export function findLabs() {
 }
 
 /**
- * The id and name of every account that holds the CUSTODIAN role, except one, by last name then first name.
+ * The id and name of every account that holds the RESEARCHER role, except one, by last name then first name.
  *
  * @param excludedUserId an account left out of the list (the placeholder custodian)
  */
@@ -22,7 +22,7 @@ export function findCustodianAccounts(excludedUserId: number) {
     return prisma.users.findMany({
         where: {
             user_id: { not: excludedUserId },
-            user_roles: { some: { roles: { role_name: 'CUSTODIAN' } } },
+            user_roles: { some: { roles: { role_name: 'RESEARCHER' } } },
         },
         select: { user_id: true, first_name: true, last_name: true },
         orderBy: [{ last_name: 'asc' }, { first_name: 'asc' }],

@@ -1,11 +1,11 @@
 /**
  * Disposal request dialog: Staff ask the Director to decommission an asset.
  * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
- * Calls: api/disposals.api.ts requestDisposal(), state/serverData.tsx holderLabel().
+ * Calls: api/retirements.api.ts requestDisposal(), state/serverData.tsx holderLabel().
  * Used by: disposal filing (Staff); the Director decides it on the Director screen.
  */
 import { useState } from "react";
-import * as disposalsApi from "@web/api/disposals.api";
+import * as retirementsApi from "@web/api/retirements.api";
 import { holderLabel } from "@web/state/serverData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Button } from "@web/components/ui/button";
@@ -16,7 +16,7 @@ import { Archive } from "lucide-react";
 /**
  * Shows the last custodian (the asset's holder, read-only: the server names it from the asset's record), collects the
  * breakdown reasons, the disposal pathway, and the decommission date, and files a pending disposal through
- * disposalsApi.requestDisposal(). The asset stays
+ * retirementsApi.requestDisposal(). The asset stays
  * active until the Director approves. The success screen shows the database id (`DISP-<n>`).
  *
  * @param asset the asset to dispose of
@@ -39,7 +39,7 @@ export function DisposalFormDialog({ asset, onClose, onSubmitted }: { asset: any
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const data = await disposalsApi.requestDisposal(asset.id, {
+      const data = await retirementsApi.requestDisposal(asset.id, {
         breakdownReasons: form.breakdownReasons.trim() || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
         disposalPathway: form.disposalPathway,
         decommissionDate: form.decommissionDate,
@@ -48,7 +48,7 @@ export function DisposalFormDialog({ asset, onClose, onSubmitted }: { asset: any
         setSubmitError(data.error || "Failed to log disposal request to the database.");
         return;
       }
-      setSuccessId(`DISP-${data.disposal.disposal_id}`);
+      setSuccessId(`DISP-${data.disposal.retirement_id}`);
       onSubmitted?.();
     } catch (err: any) {
       setSubmitError(err.message || "Failed to reach the server.");

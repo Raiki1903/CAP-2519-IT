@@ -1,10 +1,10 @@
 /**
  * Request and response shapes of the repair endpoints.
- * Layer: shared. Imported by server/features/repairs/ and web/api/repairs.api.ts. Imports nothing.
+ * Layer: shared. Imported by server/features/maintenance/ and web/api/maintenance.api.ts. Imports nothing.
  * Used by: Custodian repair request, Staff repair queue and progress updates.
  */
 
-/** The body of POST /api/assets/:assetTag/repair, as RepairForm and ReturnForm send it. */
+/** The body of POST /api/assets/:assetTag/maintenance, as RepairForm and ReturnForm send it. */
 export interface RepairRequestInput {
   /** Required, and not only spaces. With the tag, it is also the key of the 8-second duplicate guard. (M-07) */
   description: string;
@@ -12,7 +12,7 @@ export interface RepairRequestInput {
   isImmediate?: boolean;
 }
 
-/** The body of PUT /api/asset_repairs/:repairId. Only `progressStatus` is required. */
+/** The body of PUT /api/maintenance/:repairId. Only `progressStatus` is required. */
 export interface RepairUpdateInput {
   // TODO(H-07): free text, the server accepts any value. Phase 3 makes it an enum.
   progressStatus: string;
@@ -23,16 +23,16 @@ export interface RepairUpdateInput {
 }
 
 /**
- * The body of PUT /api/asset_repairs/:repairId/status, sent by the Staff analytics board.
+ * The body of PUT /api/maintenance/:repairId/status, sent by the Staff analytics board.
  * Unlike RepairUpdateInput, it changes the ticket only, never the asset. (H-06)
  */
 export interface RepairStatusInput {
   progressStatus: string;
 }
 
-/** One row of GET /api/asset_repairs. */
+/** One row of GET /api/maintenance. */
 export interface RepairListItem {
-  /** Display id, "MNT-<repair_id>". */
+  /** Display id, "MNT-<maintenance_id>". */
   id: string;
   repairId: number;
   /** Always "db". Kept for screens that once mixed in browser-only tickets. */

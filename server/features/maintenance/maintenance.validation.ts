@@ -1,9 +1,9 @@
 /**
  * Repair request checks: is the request shaped correctly, before any database work.
- * Layer: validation. Called by repairs.controller.ts. Calls shared/errors/AppError.ts.
+ * Layer: validation. Called by maintenance.controller.ts. Calls shared/errors/AppError.ts.
  * Used by: Custodian repair request, Staff progress updates (repair dialog and analytics board).
  */
-import type { RepairRequestInput, RepairStatusInput, RepairUpdateInput } from '@shared/types/repairs';
+import type { RepairRequestInput, RepairStatusInput, RepairUpdateInput } from '@shared/types/maintenance';
 import { AppError } from '../../shared/errors/AppError';
 
 /**
@@ -19,7 +19,7 @@ export function checkRepairRequest(data: any): asserts data is RepairRequestInpu
 }
 
 /**
- * Checks a progress update for PUT /api/asset_repairs/:repairId: a whole-number repair id
+ * Checks a progress update for PUT /api/maintenance/:repairId: a whole-number repair id
  * and a progressStatus that is not only spaces. Any other text is accepted as a status. (H-07)
  *
  * @param repairId the id from the URL, already parsed (NaN if it was not a number)
@@ -36,7 +36,7 @@ export function checkRepairUpdate(repairId: number, progressStatus: string | und
 }
 
 /**
- * Checks a status-only update for PUT /api/asset_repairs/:repairId/status: progressStatus is present.
+ * Checks a status-only update for PUT /api/maintenance/:repairId/status: progressStatus is present.
  * The id is not checked here, so a bad or unknown id reaches the database and answers 500.
  *
  * @param progressStatus the `progressStatus` field of the body

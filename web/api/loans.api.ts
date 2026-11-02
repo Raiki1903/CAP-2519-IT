@@ -23,7 +23,7 @@ export function requestLoan(assetTag: string, input: LoanRequestInput): Promise<
  * @returns `success` and `loans`, an array of loan rows
  */
 export function listLoans(): Promise<ApiResult> {
-  return apiGet("/api/asset_loans");
+  return apiGet("/api/loans");
 }
 
 /**
@@ -35,5 +35,5 @@ export function listLoans(): Promise<ApiResult> {
  * @returns `success`, and `error` when the loan is missing or not pending
  */
 export function decideLoan(loanId: number | string, decision: string): Promise<ApiResult> {
-  return apiPut(`/api/asset_loans/${loanId}/decision`, { decision });
+  return apiPut(`/api/loans/${loanId}/decision`, { decision });
 }

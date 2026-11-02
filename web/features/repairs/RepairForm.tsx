@@ -1,12 +1,12 @@
 /**
  * Repair request form shown to a Custodian from the asset detail modal.
  * Layer: feature component. Called by features/assets/AssetDetailModal.tsx.
- * Calls: api/repairs.api.ts requestRepair(), then state/serverData.tsx syncFromDb().
+ * Calls: api/maintenance.api.ts requestRepair(), then state/serverData.tsx syncFromDb().
  * Used by: Custodian repair request (Staff handle the ticket).
  */
 import { useState, useRef } from "react";
 import { useServerData } from "@web/state/serverData";
-import * as repairsApi from "@web/api/repairs.api";
+import * as maintenanceApi from "@web/api/maintenance.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft, CheckCircle, Wrench, Trash2,
@@ -85,7 +85,7 @@ interface Props {
 }
 
 /**
- * Collects a justification and files a repair ticket through repairsApi.requestRepair().
+ * Collects a justification and files a repair ticket through maintenanceApi.requestRepair().
  * The success screen appears even when the server refuses or cannot be reached, with a
  * warning line, and its reference is made up in the browser.
  *
@@ -125,7 +125,7 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const data = await repairsApi.requestRepair(asset.id, {
+      const data = await maintenanceApi.requestRepair(asset.id, {
         description: justification,
         isImmediate: false,
       });

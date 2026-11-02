@@ -62,7 +62,7 @@ const at = (campus: string, lab: string) => `${campus}${LOCATION_SEPARATOR}${lab
 const addProject = () =>
   db.projects.create({
     data: {
-      project_id: "TEST-PRJ-1",
+      project_code: "TEST-PRJ-1",
       project_name: "Test Project",
       project_leader: "Test Project Leader",
       center_id: LAB.centerId,
@@ -79,8 +79,8 @@ async function addOverdueLoan(tag: string, daysOverdue: number, status = "approv
       asset_id: asset.assetId,
       borrower_id: USERS.custodianA.userId,
       purpose: "Test purpose: overdue loan",
-      loaned_on: new Date("2026-04-01T09:00:00Z"),
-      due_date: dateInDays(-daysOverdue),
+      requested_at: new Date("2026-04-01T09:00:00Z"),
+      return_by: dateInDays(-daysOverdue),
       status,
     },
   });
@@ -130,8 +130,8 @@ describe("GET /api/analytics/director", () => {
     const rows = [];
     for (const status of statuses) {
       rows.push(
-        await db.asset_disposals.create({
-          data: { asset_id: ASSETS.available.assetId, disposed_by_id: USERS.staffTsg.userId, disposal_reason: `Test disposal ${status}`, status },
+        await db.asset_retirements.create({
+          data: { asset_id: ASSETS.available.assetId, requested_by_id: USERS.staffTsg.userId, reason: `Test disposal ${status}`, status },
         }),
       );
     }
@@ -140,7 +140,7 @@ describe("GET /api/analytics/director", () => {
 
       expect(res.body.data.pendingDisposalsCount).toBe(3);
     } finally {
-      await db.asset_disposals.deleteMany({ where: { disposal_id: { in: rows.map((r) => r.disposal_id) } } });
+      await db.asset_retirements.deleteMany({ where: { retirement_id: { in: rows.map((r) => r.retirement_id) } } });
     }
   });
 
@@ -148,12 +148,12 @@ describe("GET /api/analytics/director", () => {
     const rows = [];
     for (const day of ["2026-05-14", "2026-05-15"]) {
       rows.push(
-        await db.asset_reports.create({
+        await db.asset_inspections.create({
           data: {
             asset_id: ASSETS.inspected.assetId,
-            reported_by_id: USERS.staffTsg.userId,
-            report_condition: "PERFECT",
-            report_date: new Date(`${day}T12:00:00Z`),
+            inspected_by_id: USERS.staffTsg.userId,
+            condition: "PERFECT",
+            inspected_at: new Date(`${day}T12:00:00Z`),
           },
         }),
       );
@@ -166,7 +166,7 @@ describe("GET /api/analytics/director", () => {
         { month: "May 26", count: 2 },
       ]);
     } finally {
-      await db.asset_reports.deleteMany({ where: { report_id: { in: rows.map((r) => r.report_id) } } });
+      await db.asset_inspections.deleteMany({ where: { inspection_id: { in: rows.map((r) => r.inspection_id) } } });
     }
   });
 
@@ -357,7 +357,7 @@ describe("GET /api/analytics/lab-head", () => {
 
   it("counts an asset whose newest record names a project as assigned, and lists the project in the allocation", async () => {
     const project = await addProject();
-    const asset = await addExtraAsset(db, { tag: "TEST-0711", projectId: project.master_id });
+    const asset = await addExtraAsset(db, { tag: "TEST-0711", projectId: project.project_id });
     try {
       const res = await labHead(TEST_LAB_QUERY);
 
@@ -377,7 +377,7 @@ describe("GET /api/analytics/lab-head", () => {
       ]);
     } finally {
       await removeExtraAssets(db, [asset.assetId]);
-      await db.projects.delete({ where: { master_id: project.master_id } });
+      await db.projects.delete({ where: { project_id: project.project_id } });
     }
   });
 
@@ -422,12 +422,12 @@ describe("GET /api/analytics/lab-head", () => {
 
   it("names an overdue loan's cohort after the project on the asset's newest record", async () => {
     const project = await addProject();
-    const overdue = await addOverdueLoan("TEST-0723", 20, "approved", project.master_id);
+    const overdue = await addOverdueLoan("TEST-0723", 20, "approved", project.project_id);
     try {
       const res = await labHead(TEST_LAB_QUERY);
 
       expect(res.body.data.delinquencies).toEqual([
-        expect.objectContaining({ id: overdue.loan.loan_id, daysOverdue: 20, project: "Test Project", projectId: project.master_id }),
+        expect.objectContaining({ id: overdue.loan.loan_id, daysOverdue: 20, project: "Test Project", projectId: project.project_id }),
       ]);
       expect(res.body.data.scatterData).toEqual([
         { cohort: "Test Project", avgDaysOverdue: 20, unreturnedCount: 1, bubbleSize: 170, color: "#EF4444", severity: "Critical Bottleneck" },
@@ -435,7 +435,7 @@ describe("GET /api/analytics/lab-head", () => {
       expect(res.body.data.heatmapData).toEqual([{ cohort: "Test Project", counts: [0, 0, 0, 1, 0], totalOverdue: 1 }]);
     } finally {
       await removeExtraAssets(db, [overdue.asset.assetId]);
-      await db.projects.delete({ where: { master_id: project.master_id } });
+      await db.projects.delete({ where: { project_id: project.project_id } });
     }
   });
 
@@ -559,23 +559,23 @@ describe("GET /api/analytics/tsg", () => {
   });
 
   it("lists repairs newest first and shows an empty status as Reported", async () => {
-    const repair = await db.asset_repairs.create({
+    const repair = await db.asset_maintenance.create({
       data: {
         asset_id: ASSETS.available.assetId,
         reported_by_id: USERS.staffTsg.userId,
         issue_description: "Test repair: no status yet",
         progress_status: "",
         is_immediate: true,
-        created_at: new Date("2026-05-01T09:00:00Z"),
+        reported_at: new Date("2026-05-01T09:00:00Z"),
       },
     });
     try {
       const res = await asStaff.get("/api/analytics/tsg");
 
-      expect(res.body.data.repairs.map((r: { repairId: number }) => r.repairId)).toEqual([repair.repair_id, SEEDED_ROWS.repairId]);
+      expect(res.body.data.repairs.map((r: { repairId: number }) => r.repairId)).toEqual([repair.maintenance_id, SEEDED_ROWS.repairId]);
       expect(res.body.data.repairs[0]).toMatchObject({ reportedBy: USERS.staffTsg.fullName, isImmediate: true, progressStatus: "Reported", createdAt: "2026-05-01" });
     } finally {
-      await db.asset_repairs.delete({ where: { repair_id: repair.repair_id } });
+      await db.asset_maintenance.delete({ where: { maintenance_id: repair.maintenance_id } });
     }
   });
 
@@ -710,15 +710,15 @@ describe("GET /api/analytics/advanced/inspection-progress", () => {
 
   it("counts every record of the center's projects, history included, and calls the ACTIVE ones inspected (new)", async () => {
     const project = await addProject();
-    const reassigned = await addExtraAsset(db, { tag: "TEST-0761", projectId: project.master_id });
-    const inRepair = await addExtraAsset(db, { tag: "TEST-0762", status: "MAINTENANCE", projectId: project.master_id });
+    const reassigned = await addExtraAsset(db, { tag: "TEST-0761", projectId: project.project_id });
+    const inRepair = await addExtraAsset(db, { tag: "TEST-0762", status: "MAINTENANCE", projectId: project.project_id });
     await db.asset_records.create({
       data: {
         asset_id: reassigned.assetId,
         status: "ON_LOAN",
         location: LAB.homeLocation,
         current_custodian: USERS.custodianA.userId,
-        project_id: project.master_id,
+        project_id: project.project_id,
         date_logged: new Date("2026-05-01T09:00:00Z"),
       },
     });
@@ -728,7 +728,7 @@ describe("GET /api/analytics/advanced/inspection-progress", () => {
       expect(res.body.data).toEqual([{ group: `${LAB.name} (${LAB.shortCode})`, inspected: 1, total: 3, percent: 33 }]);
     } finally {
       await removeExtraAssets(db, [reassigned.assetId, inRepair.assetId]);
-      await db.projects.delete({ where: { master_id: project.master_id } });
+      await db.projects.delete({ where: { project_id: project.project_id } });
     }
   });
 });

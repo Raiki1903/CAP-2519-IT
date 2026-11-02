@@ -12,7 +12,7 @@ import { prisma } from '../../config/prisma';
 /**
  * Every row of the nine tables the asset list is built from, read together.
  *
- * @returns [assets, asset_monetary, asset_records, users, approved asset_loans, asset_disposals, asset_transfers, asset_reports, projects]
+ * @returns [assets, asset_monetary, asset_records, users, approved asset_loans, asset_retirements, asset_transfers, asset_inspections, projects]
  */
 export function findListTables() {
     // The nine reads do not depend on each other, so they run together: about one round trip instead of nine,
@@ -28,16 +28,16 @@ export function findListTables() {
         // Approved loans only: they hold the due dates My Assets shows.
         prisma.asset_loans.findMany({
             where: { status: "approved" },
-            orderBy: { loaned_on: "desc" },
+            orderBy: { requested_at: "desc" },
         }),
-        prisma.asset_disposals.findMany({
-            orderBy: { disposal_date: "desc" },
+        prisma.asset_retirements.findMany({
+            orderBy: { requested_at: "desc" },
         }),
         prisma.asset_transfers.findMany({
             orderBy: { requested_on: "desc" }
         }),
-        prisma.asset_reports.findMany({
-            orderBy: { report_date: "desc" }
+        prisma.asset_inspections.findMany({
+            orderBy: { inspected_at: "desc" }
         }),
         prisma.projects.findMany(),
     ]);
@@ -150,7 +150,7 @@ export async function createWithRecords(
 /** What an edit adds once the newest record is known: a new record if any, and an inspection report if any. */
 export interface EditRows {
     record: Omit<Prisma.asset_recordsUncheckedCreateInput, 'asset_id'> | null;
-    report: Prisma.asset_reportsUncheckedCreateInput | null;
+    report: Prisma.asset_inspectionsUncheckedCreateInput | null;
 }
 
 /**
@@ -202,7 +202,7 @@ export function saveEdit(
             await tx.asset_records.create({ data: { asset_id: existing.asset_id, ...record } });
         }
         if (report) {
-            await tx.asset_reports.create({ data: report });
+            await tx.asset_inspections.create({ data: report });
         }
 
         return asset;
@@ -211,12 +211,12 @@ export function saveEdit(
 
 /** How many inspection or condition reports the asset has. A delete is refused when there is any. (issue #69) */
 export function countReports(assetId: number) {
-    return prisma.asset_reports.count({ where: { asset_id: assetId } });
+    return prisma.asset_inspections.count({ where: { asset_id: assetId } });
 }
 
 /**
  * Deletes an asset and the rows of seven tables that point at it, in one transaction.
- * asset_reports is not among them: an asset with reports is refused before this is called. (H-03, issue #69)
+ * asset_inspections is not among them: an asset with reports is refused before this is called. (H-03, issue #69)
  */
 export function deleteWithHistory(assetId: number) {
     // The schema has no ON DELETE CASCADE, so the child rows go first, or the delete fails on a foreign key.
@@ -225,10 +225,10 @@ export function deleteWithHistory(assetId: number) {
         await tx.asset_records.deleteMany({ where: { asset_id: id } });
         await tx.asset_monetary.deleteMany({ where: { asset_id: id } });
         await tx.asset_loans.deleteMany({ where: { asset_id: id } });
-        await tx.asset_repairs.deleteMany({ where: { asset_id: id } });
+        await tx.asset_maintenance.deleteMany({ where: { asset_id: id } });
         await tx.asset_transfers.deleteMany({ where: { asset_id: id } });
         await tx.asset_returns.deleteMany({ where: { asset_id: id } });
-        await tx.asset_disposals.deleteMany({ where: { asset_id: id } });
+        await tx.asset_retirements.deleteMany({ where: { asset_id: id } });
         await tx.assets.delete({ where: { asset_id: id } });
     });
 }

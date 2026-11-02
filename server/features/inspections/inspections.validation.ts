@@ -34,7 +34,7 @@ export function checkInspectionReport(data: any): asserts data is InspectionRepo
  * else a default sentence, cut to the column's 255 characters. The image is the first of three fields that is set, else null.
  *
  * @param data the request body, already checked by checkInspectionReport
- * @returns the condition (an asset_reports_condition value), the remarks, and the image text or null
+ * @returns the condition (an asset_inspections_condition value), the remarks, and the image text or null
  */
 // The image text is stored as sent, without the image check that PUT /api/assets/:assetTag applies.
 // Pinned by tests/api/inspections.test.ts; reusing the asset image check is its own fix.

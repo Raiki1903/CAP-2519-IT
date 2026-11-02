@@ -14,12 +14,12 @@ export interface LoanRequestInput {
 }
 
 /**
- * The two words PUT /api/asset_loans/:loanId/decision accepts.
+ * The two words PUT /api/loans/:loanId/decision accepts.
  * Transfers accept the same two; disposals use "reject" instead of "decline".
  */
 export type LoanDecision = "approve" | "decline";
 
-/** One row of GET /api/asset_loans. Several fields come in two spellings because different screens read each. */
+/** One row of GET /api/loans. Several fields come in two spellings because different screens read each. */
 export interface LoanListItem {
   /** Display id, "LOAN-<loan_id>". */
   id: string;

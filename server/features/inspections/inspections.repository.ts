@@ -3,7 +3,7 @@
  * Layer: repository. Called by inspections.service.ts. Calls server/config/prisma.ts.
  * Used by: Custodian condition report, Staff inspection finalize, and the screens that list reports.
  */
-import type { Prisma, asset_records, asset_reports } from '@prisma/client';
+import type { Prisma, asset_inspections, asset_records } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
 /** How a new report changes the asset's records: update the newest record in place, or create the first one. */
@@ -16,25 +16,25 @@ export type RecordSync =
  * The newest report and the newest record are read inside the transaction, after the insert, and handed
  * to the service, which decides the record change.
  *
- * @param data the new asset_reports row
+ * @param data the new asset_inspections row
  * @param syncRecord decides the record change from the newest report and the newest record
- * @returns the created asset_reports row
+ * @returns the created asset_inspections row
  */
 export function saveReport(
-    data: Prisma.asset_reportsUncheckedCreateInput,
-    syncRecord: (latestReport: asset_reports | null, latestRecord: asset_records | null) => RecordSync,
+    data: Prisma.asset_inspectionsUncheckedCreateInput,
+    syncRecord: (latestReport: asset_inspections | null, latestRecord: asset_records | null) => RecordSync,
 ) {
     // The report and the record change are written together, so a failure on either leaves neither
     // (a reportedById that is no account fails the insert, and nothing is written).
     return prisma.$transaction(async (tx) => {
         // Every report is a new row; older reports are kept.
-        const report = await tx.asset_reports.create({ data });
+        const report = await tx.asset_inspections.create({ data });
 
         // Ties on the one-second report_date fall to the higher report_id, so among reports filed in the
         // same second, the one just written counts as the newest.
-        const latestReport = await tx.asset_reports.findFirst({
+        const latestReport = await tx.asset_inspections.findFirst({
             where: { asset_id: data.asset_id },
-            orderBy: [{ report_date: "desc" }, { report_id: "desc" }],
+            orderBy: [{ inspected_at: "desc" }, { inspection_id: "desc" }],
         });
 
         // TODO(M-09): no tie-break on asset_record_id, so two records logged in the same second can be read in the wrong order. Phase 3, with the shared asset state rule.
@@ -61,13 +61,13 @@ export function saveReport(
  * Every report (newest first), user, and asset, read together so the short list can name
  * each report's asset and reporter.
  *
- * @returns [asset_reports, users, assets]
+ * @returns [asset_inspections, users, assets]
  */
 // TODO(M-09): report_date has one-second resolution and no tie-break here, so reports filed in the same second come back in no fixed order (in both lists). Phase 3, with the shared ordering rule.
 export function findSummaryLookups() {
     return Promise.all([
-        prisma.asset_reports.findMany({
-            orderBy: { report_date: 'desc' }
+        prisma.asset_inspections.findMany({
+            orderBy: { inspected_at: 'desc' }
         }),
         prisma.users.findMany(),
         prisma.assets.findMany(),
@@ -76,8 +76,8 @@ export function findSummaryLookups() {
 
 /** Every report, newest first, each with its asset and its reporter, for the detailed list. */
 export function findAllWithAssetAndReporter() {
-    return prisma.asset_reports.findMany({
-        orderBy: { report_date: "desc" },
+    return prisma.asset_inspections.findMany({
+        orderBy: { inspected_at: "desc" },
         include: {
             assets: true,
             users: true

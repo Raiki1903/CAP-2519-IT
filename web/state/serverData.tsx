@@ -11,8 +11,8 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback } f
 import * as loansApi from "../api/loans.api";
 import * as assetsApi from "../api/assets.api";
 import * as transfersApi from "../api/transfers.api";
-import * as repairsApi from "../api/repairs.api";
-import * as disposalsApi from "../api/disposals.api";
+import * as maintenanceApi from "../api/maintenance.api";
+import * as retirementsApi from "../api/retirements.api";
 import * as inspectionsApi from "../api/inspections.api";
 import * as authApi from "../api/auth.api";
 import type { ApiResult } from "../api/client";
@@ -29,7 +29,7 @@ const REGISTRATION_READERS: Role[] = ["LabHead"];
 // refreshSharedLists() skips a reload that started less than this long ago, or is still running.
 const RECENT_SYNC_MS = 5000;
 
-/** A repair ticket as `GET /api/asset_repairs` returns it, and as the repair forms build one to send. */
+/** A repair ticket as `GET /api/maintenance` returns it, and as the repair forms build one to send. */
 export interface RepairRequest {
   id: string;
   assetId: string;
@@ -177,13 +177,13 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  *
  * What it shares, and the api function behind each:
  * - `assets`: assetsApi.listAssets. `assetsVersion`: goes up by one each time a new asset list is stored.
- * - `repairRequests`, `unacknowledgedCount`: repairsApi.listRepairs.
- * - `addRepairRequest(req)`: repairsApi.requestRepairRaw. `acknowledgeRepair(id)` and
- *   `updateRepairStatus(id, status)`: repairsApi.updateRepairRaw. Each reloads afterwards.
+ * - `repairRequests`, `unacknowledgedCount`: maintenanceApi.listRepairs.
+ * - `addRepairRequest(req)`: maintenanceApi.requestRepairRaw. `acknowledgeRepair(id)` and
+ *   `updateRepairStatus(id, status)`: maintenanceApi.updateRepairRaw. Each reloads afterwards.
  * - `dbLoans`: loansApi.listLoans. `reloadLoans()`: reloads only this list and returns the answer.
  *   `authorizeLoan(loanId, decision)`: loansApi.decideLoan.
  * - `dbTransfers`: transfersApi.listTransfers. `dbReports`: inspectionsApi.listReportSummaries.
- * - `pendingDisposals`: disposalsApi.listDisposals, pending ones only.
+ * - `pendingDisposals`: retirementsApi.listDisposals, pending ones only.
  * - `pendingRegistrations`, `approveRegistration`, `rejectRegistration`: authApi.
  * - `isDbLoading`: true while a reload is running. `syncFromDb()`: runs one.
  * - `refreshSharedLists()`: runs one too, unless one is running or started in the last few seconds.
@@ -271,7 +271,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
       if (role && DISPOSAL_READERS.includes(role)) {
         try {
-          const jsonD: any = await disposalsApi.listDisposals();
+          const jsonD: any = await retirementsApi.listDisposals();
           if (jsonD.success && Array.isArray(jsonD.disposals)) {
             // The endpoint returns decided disposals too. Only pending ones are kept,
             // so one that was just approved or rejected leaves the bell. (H-01)
@@ -289,7 +289,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       }
 
       try {
-        const data = await repairsApi.listRepairs();
+        const data = await maintenanceApi.listRepairs();
         if (data.success && Array.isArray(data.repairs)) {
           setRepairRequests(data.repairs);
         }
@@ -318,7 +318,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   // and the custodian condition report). RepairForm posts its ticket itself. (M-07)
   const addRepairRequest = async (req: RepairRequest) => {
     try {
-      await repairsApi.requestRepairRaw(req.assetId, {
+      await maintenanceApi.requestRepairRaw(req.assetId, {
         description: req.description,
         isImmediate: req.priority === "Critical" || req.statusLabel === "Disposal Recommendation",
       });
@@ -334,7 +334,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     const numericId = parseInt(id.replace(/^MNT-/, ""), 10);
     if (!isNaN(numericId)) {
       try {
-        await repairsApi.updateRepairRaw(numericId, { progressStatus: "Inspection Phase" });
+        await maintenanceApi.updateRepairRaw(numericId, { progressStatus: "Inspection Phase" });
       } catch (e) {
         console.error("Failed to acknowledge repair in DB API:", e);
       }
@@ -346,7 +346,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     const numericId = parseInt(id.replace(/^MNT-/, ""), 10);
     if (!isNaN(numericId)) {
       try {
-        await repairsApi.updateRepairRaw(numericId, { progressStatus: statusLabel });
+        await maintenanceApi.updateRepairRaw(numericId, { progressStatus: statusLabel });
       } catch (e) {
         console.error("Failed to update repair status in DB API:", e);
       }

@@ -24,7 +24,7 @@ export interface ExtraAssetOptions {
   /** Where the asset is right now. Defaults to its home lab. */
   currentLocation?: string;
   remarks?: string;
-  /** The project the record assigns the asset to (projects.master_id). */
+  /** The project the record assigns the asset to (projects.project_id). */
   projectId?: number;
   warrantyExpiry?: Date;
   fundingSource?: string;
@@ -89,9 +89,9 @@ export async function removeExtraAssets(db: PrismaClient, assetIds: number[]): P
   await db.asset_loans.deleteMany({ where });
   await db.asset_returns.deleteMany({ where });
   await db.asset_transfers.deleteMany({ where });
-  await db.asset_repairs.deleteMany({ where });
-  await db.asset_reports.deleteMany({ where });
-  await db.asset_disposals.deleteMany({ where });
+  await db.asset_maintenance.deleteMany({ where });
+  await db.asset_inspections.deleteMany({ where });
+  await db.asset_retirements.deleteMany({ where });
   await db.asset_records.deleteMany({ where });
   await db.asset_monetary.deleteMany({ where });
   await db.assets.deleteMany({ where });

@@ -84,9 +84,9 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
             if (st === "ON_LOAN") {
                 const loan = dbLoans.find(l => l.asset_id === asset.asset_id);
                 if (loan) {
-                    borrowedOn = formatDate(loan.loaned_on);
-                    dueDate = formatDate(loan.due_date);
-                    daysLeft = Math.ceil((loan.due_date.getTime() - Date.now()) / MS_PER_DAY);
+                    borrowedOn = formatDate(loan.requested_at);
+                    dueDate = formatDate(loan.return_by);
+                    daysLeft = Math.ceil((loan.return_by.getTime() - Date.now()) / MS_PER_DAY);
                     if (daysLeft < 0) status = "Overdue";
                 }
             }
@@ -95,15 +95,15 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
         // The disposal named by the newest record, or else any approved disposal of the asset.
         // TODO(M-13): the pathway and justification are parsed back out of the packed reason text. Columns of their own, Phase 3.
         const disposal = dbDisposals.find(d =>
-            (latestRecord?.disposal_id && d.disposal_id === latestRecord.disposal_id) ||
+            (latestRecord?.retirement_id && d.retirement_id === latestRecord.retirement_id) ||
             (d.asset_id === asset.asset_id && d.status === "approved")
         );
-        const disposerUser = disposal ? dbUsers.find(u => u.user_id === disposal.disposed_by_id) : null;
+        const disposerUser = disposal ? dbUsers.find(u => u.user_id === disposal.requested_by_id) : null;
         const disposerHidden = !!disposerUser && !nameShown(disposerUser.user_id);
 
         let disposalDetails: any = undefined;
         if (disposal) {
-            const reasonText = disposal.disposal_reason || "";
+            const reasonText = disposal.reason || "";
             const pathwayMatch = reasonText.match(/Disposal Pathway:\s*(.+)/i);
             const pathway = pathwayMatch ? pathwayMatch[1].trim() : "Decommission — Scrap / Recycle";
             const justificationMatch = reasonText.match(/Breakdown Justification:\s*([\s\S]+)/i);
@@ -113,7 +113,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
                 lastCustodian: custodianHidden ? undefined : (custodianName || "No Custodian"),
                 breakdownReasons: justification || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
                 disposalPathway: pathway,
-                decommissionDate: formatDate(disposal.disposal_date),
+                decommissionDate: formatDate(disposal.requested_at),
                 decommissionedBy: disposerHidden ? undefined : (disposerUser ? `${disposerUser.first_name} ${disposerUser.last_name}` : "AdRIC Director"),
             };
         }
@@ -170,19 +170,19 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
 
         const assetReports = dbReports.filter(r => r.asset_id === asset.asset_id);
         const mappedReports = assetReports.map(r => {
-            const rUser = dbUsers.find(u => u.user_id === r.reported_by_id);
+            const rUser = dbUsers.find(u => u.user_id === r.inspected_by_id);
             return {
-                id: r.report_id,
-                reportId: `RPT-${r.report_id}`,
+                id: r.inspection_id,
+                reportId: `RPT-${r.inspection_id}`,
                 assetId: asset.asset_tag,
                 reportedBy: rUser ? (nameShown(rUser.user_id) ? `${rUser.first_name} ${rUser.last_name}` : undefined) : "Staff",
                 reporterRole: rUser?.role || "Inspection Inspector",
-                reportDate: r.report_date ? formatDate(r.report_date) : "N/A",
-                date_logged: r.report_date ? formatDate(r.report_date) : "N/A",
-                created_at: r.report_date ? r.report_date.toISOString() : new Date().toISOString(),
-                condition: r.report_condition,
-                remarks: r.report_remarks || "Routine physical inspection logged in AdRIC registry.",
-                image: r.report_img || undefined,
+                reportDate: r.inspected_at ? formatDate(r.inspected_at) : "N/A",
+                date_logged: r.inspected_at ? formatDate(r.inspected_at) : "N/A",
+                created_at: r.inspected_at ? r.inspected_at.toISOString() : new Date().toISOString(),
+                condition: r.condition,
+                remarks: r.remarks || "Routine physical inspection logged in AdRIC registry.",
+                image: r.photo || undefined,
                 status: "Verified Inspection"
             };
         });
@@ -211,7 +211,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
             borrowedOn,
             dueDate,
             daysLeft,
-            disposalId: disposal ? `DISP-${disposal.disposal_id}` : undefined,
+            disposalId: disposal ? `DISP-${disposal.retirement_id}` : undefined,
             disposalDetails,
             image: asset.image_url,
             image_url: asset.image_url,
@@ -417,7 +417,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
     if (data.custodianId === null) {
         custodianId = POOL_CUSTODIAN_ID;
     } else if (data.custodianId !== undefined) {
-        const custodian = data.custodianId === POOL_CUSTODIAN_ID ? null : await authRepository.findUserWithRole(data.custodianId, "CUSTODIAN");
+        const custodian = data.custodianId === POOL_CUSTODIAN_ID ? null : await authRepository.findUserWithRole(data.custodianId, "RESEARCHER");
         if (!custodian) {
             throw new AppError(400, UNKNOWN_CUSTODIAN);
         }
@@ -486,10 +486,10 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
             report = {
                 asset_id: existing.asset_id,
                 // Filed under the Staff member who made the edit. (issue #32)
-                reported_by_id: editorId,
-                report_condition: conditionMap[rawCond] || "PERFECT",
-                report_remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
-                report_img: imageVal || null,
+                inspected_by_id: editorId,
+                condition: conditionMap[rawCond] || "PERFECT",
+                remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
+                photo: imageVal || null,
             };
         }
 
@@ -500,7 +500,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
             status: (data.status?.toUpperCase().replace(" ", "_") || latestRecord?.status || "ACTIVE") as any,
             location: [data.location, data.lab].filter(Boolean).join(" — ") || latestRecord?.location || "Unassigned",
             current_custodian: custodianId ?? latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
-            asset_condition: (report ? report.report_condition : ASSET_CONDITIONS.includes(data.assetCondition) ? data.assetCondition : latestRecord?.asset_condition ?? "PERFECT") as any,
+            asset_condition: (report ? report.condition : ASSET_CONDITIONS.includes(data.assetCondition) ? data.assetCondition : latestRecord?.asset_condition ?? "PERFECT") as any,
             Asset_Remarks: remarksVal,
         };
 

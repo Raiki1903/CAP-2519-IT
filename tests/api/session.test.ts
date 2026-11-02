@@ -51,19 +51,19 @@ const ROUTES: [number, string, string, Role[]][] = [
   [11, "POST", "/api/assets", [S]],
   [12, "PUT", "/api/assets/NOPE-9999", [S]],
   [13, "DELETE", "/api/assets/NOPE-9999", [S]],
-  [14, "POST", "/api/assets/NOPE-9999/disposal", [S]],
-  [15, "GET", "/api/asset_disposals", [S, D, L]],
-  [16, "PUT", "/api/asset_disposals/999999/decision", [D]],
+  [14, "POST", "/api/assets/NOPE-9999/retirement", [S]],
+  [15, "GET", "/api/retirements", [S, D, L]],
+  [16, "PUT", "/api/retirements/999999/decision", [D]],
   [17, "POST", "/api/assets/NOPE-9999/inspection", [C, S]],
-  [18, "GET", "/api/asset_reports", [S, D]],
-  [19, "GET", "/api/asset-reports", [S]],
-  [20, "GET", "/api/asset_loans", ANY],
+  [18, "GET", "/api/inspections", [S, D]],
+  [19, "GET", "/api/inspections/log", [S]],
+  [20, "GET", "/api/loans", ANY],
   [21, "POST", "/api/assets/NOPE-9999/borrow", [C]],
-  [22, "PUT", "/api/asset_loans/999999/decision", [L]],
-  [23, "POST", "/api/assets/NOPE-9999/repair", [C, L, S]],
-  [24, "GET", "/api/asset_repairs", ANY],
-  [25, "PUT", "/api/asset_repairs/999999", [S]],
-  [26, "PUT", "/api/asset_repairs/999999/status", [S]],
+  [22, "PUT", "/api/loans/999999/decision", [L]],
+  [23, "POST", "/api/assets/NOPE-9999/maintenance", [C, L, S]],
+  [24, "GET", "/api/maintenance", ANY],
+  [25, "PUT", "/api/maintenance/999999", [S]],
+  [26, "PUT", "/api/maintenance/999999/status", [S]],
   [27, "POST", "/api/assets/NOPE-9999/return", [S]],
   [28, "GET", "/api/asset_returns", [S]],
   [29, "POST", "/api/assets/NOPE-9999/transfer", [C]],
@@ -243,7 +243,7 @@ describe("requireRole: the role is read from the database, at most once a minute
       const fresh = await logIn(USERS.custodianB);
       expect((await withCookie(fresh).get("/api/auth/pending-registrations")).status, "a new cookie, looked up").toBe(200);
     } finally {
-      await db.user_roles.updateMany({ where: { user_id: USERS.custodianB.userId }, data: { role_id: ROLE_IDS.CUSTODIAN } });
+      await db.user_roles.updateMany({ where: { user_id: USERS.custodianB.userId }, data: { role_id: ROLE_IDS.RESEARCHER } });
     }
     const after = await logIn(USERS.custodianB);
     expect((await withCookie(after).get("/api/auth/pending-registrations")).status).toBe(403);

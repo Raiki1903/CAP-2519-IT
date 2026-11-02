@@ -1,9 +1,9 @@
 /**
  * Disposal request checks: is the request shaped correctly, before any database work.
- * Layer: validation. Called by disposals.controller.ts. Calls shared/errors/AppError.ts.
+ * Layer: validation. Called by retirements.controller.ts. Calls shared/errors/AppError.ts.
  * Used by: Staff disposal filing, Director approval.
  */
-import type { DisposalDecision, DisposalRequestInput } from '@shared/types/disposals';
+import type { DisposalDecision, DisposalRequestInput } from '@shared/types/retirements';
 import { AppError } from '../../shared/errors/AppError';
 
 /**

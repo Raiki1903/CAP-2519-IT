@@ -77,14 +77,14 @@ describe("GET /api/assets", () => {
 
   it("shows an asset whose approved loan is past due as Overdue, with negative days left", async () => {
     const original = await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.approvedLoanId } });
-    await db.asset_loans.update({ where: { loan_id: SEEDED_ROWS.approvedLoanId }, data: { due_date: new Date(Date.now() - 2 * DAY_MS) } });
+    await db.asset_loans.update({ where: { loan_id: SEEDED_ROWS.approvedLoanId }, data: { return_by: new Date(Date.now() - 2 * DAY_MS) } });
     try {
       const listed = await listedAsset(ASSETS.onLoan.tag);
 
       expect(listed.status).toBe("Overdue");
       expect(listed.daysLeft).toBeLessThan(0);
     } finally {
-      await db.asset_loans.update({ where: { loan_id: SEEDED_ROWS.approvedLoanId }, data: { due_date: original.due_date } });
+      await db.asset_loans.update({ where: { loan_id: SEEDED_ROWS.approvedLoanId }, data: { return_by: original.return_by } });
     }
   });
 
@@ -337,7 +337,7 @@ describe("PUT /api/assets/:tag", () => {
       current_custodian: recordBefore.current_custodian,
       asset_condition: recordBefore.asset_condition,
     });
-    expect(await db.asset_reports.count({ where: { asset_id: ASSETS.available.assetId } })).toBe(0);
+    expect(await db.asset_inspections.count({ where: { asset_id: ASSETS.available.assetId } })).toBe(0);
   });
 
   it("adds a record for a location change and leaves the older record as it was (H-14 fixed, issue #74)", async () => {
@@ -368,21 +368,21 @@ describe("PUT /api/assets/:tag", () => {
     expect(await db.asset_records.count({ where: { asset_id: ASSETS.pendingLoan.assetId } })).toBe(countBefore + 1);
     const record = await newestRecord(ASSETS.pendingLoan.assetId);
     expect(record).toMatchObject({ current_custodian: USERS.custodianB.userId, asset_condition: "MINOR_DRIFT", Asset_Remarks: "Test edit remark" });
-    const reports = await db.asset_reports.findMany({ where: { asset_id: ASSETS.pendingLoan.assetId } });
+    const reports = await db.asset_inspections.findMany({ where: { asset_id: ASSETS.pendingLoan.assetId } });
     expect(reports).toHaveLength(1);
-    expect(reports[0]).toMatchObject({ reported_by_id: USERS.staffTsg.userId, report_condition: "MINOR_DRIFT", report_remarks: "Test edit remark" });
+    expect(reports[0]).toMatchObject({ inspected_by_id: USERS.staffTsg.userId, condition: "MINOR_DRIFT", remarks: "Test edit remark" });
   });
 
   it("answers 400 for an id that is not a Custodian account, and saves nothing (issue #95)", async () => {
     const recordsBefore = await db.asset_records.count({ where: { asset_id: ASSETS.inRepair.assetId } });
-    const reportsBefore = await db.asset_reports.count({ where: { asset_id: ASSETS.inRepair.assetId } });
+    const reportsBefore = await db.asset_inspections.count({ where: { asset_id: ASSETS.inRepair.assetId } });
 
     const res = await asStaff.put(`/api/assets/${ASSETS.inRepair.tag}`, { custodianId: USERS.labHead.userId, remarks: "Test remark for a Lab Head" });
 
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ success: false, error: "Pick a custodian from the list." });
     expect(await db.asset_records.count({ where: { asset_id: ASSETS.inRepair.assetId } })).toBe(recordsBefore);
-    expect(await db.asset_reports.count({ where: { asset_id: ASSETS.inRepair.assetId } })).toBe(reportsBefore);
+    expect(await db.asset_inspections.count({ where: { asset_id: ASSETS.inRepair.assetId } })).toBe(reportsBefore);
   });
 
   it("sets None as the placeholder, user 1, in a new record (issue #95)", async () => {
@@ -514,7 +514,7 @@ describe("PUT /api/assets/:tag", () => {
       image_url: "data:image/png;base64,iVBORw0KGgo=",
     });
     expect(await db.asset_records.findMany({ where: { asset_id: asset.assetId } })).toEqual([recordBefore]);
-    expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(0);
+    expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(0);
   });
 
   it("adds no record when a record field is sent with the value it already has (issue #74)", async () => {
@@ -558,9 +558,9 @@ describe("PUT /api/assets/:tag", () => {
     expect(res.status).toBe(200);
     expect(await db.asset_records.findUniqueOrThrow({ where: { asset_record_id: recordBefore.asset_record_id } })).toEqual(recordBefore);
     expect(await newestRecord(asset.assetId)).toMatchObject({ asset_condition: "MINOR_DRIFT", Asset_Remarks: null });
-    const reports = await db.asset_reports.findMany({ where: { asset_id: asset.assetId } });
+    const reports = await db.asset_inspections.findMany({ where: { asset_id: asset.assetId } });
     expect(reports).toHaveLength(1);
-    expect(reports[0]).toMatchObject({ reported_by_id: USERS.staffTsg.userId, report_condition: "MINOR_DRIFT", report_remarks: "Routine inspection verified." });
+    expect(reports[0]).toMatchObject({ inspected_by_id: USERS.staffTsg.userId, condition: "MINOR_DRIFT", remarks: "Routine inspection verified." });
   });
 
   it("builds on the record with the higher id when two share a date_logged (M-09)", async () => {
@@ -601,9 +601,9 @@ describe("DELETE /api/assets/:tag", () => {
   it("deletes the asset with its records, monetary row, loans, repairs, transfers, returns, and disposals", async () => {
     const assetId = ASSETS.disposed.assetId;
     await db.asset_loans.create({
-      data: { asset_id: assetId, borrower_id: USERS.custodianA.userId, purpose: "Test old loan", due_date: new Date("2026-01-20"), status: "approved" },
+      data: { asset_id: assetId, borrower_id: USERS.custodianA.userId, purpose: "Test old loan", return_by: new Date("2026-01-20"), status: "approved" },
     });
-    await db.asset_repairs.create({ data: { asset_id: assetId, reported_by_id: USERS.custodianA.userId, issue_description: "Test old repair", progress_status: "Fixed & Completed" } });
+    await db.asset_maintenance.create({ data: { asset_id: assetId, reported_by_id: USERS.custodianA.userId, issue_description: "Test old repair", progress_status: "Fixed & Completed" } });
     await db.asset_transfers.create({
       data: { asset_id: assetId, from_custodian_id: USERS.admin.userId, to_custodian_id: USERS.custodianA.userId, justification: "Test old transfer", status: "declined" },
     });
@@ -619,17 +619,17 @@ describe("DELETE /api/assets/:tag", () => {
       records: await db.asset_records.count(where),
       monetary: await db.asset_monetary.count(where),
       loans: await db.asset_loans.count(where),
-      repairs: await db.asset_repairs.count(where),
+      repairs: await db.asset_maintenance.count(where),
       transfers: await db.asset_transfers.count(where),
       returns: await db.asset_returns.count(where),
-      disposals: await db.asset_disposals.count(where),
+      disposals: await db.asset_retirements.count(where),
     }).toEqual({ assets: 0, records: 0, monetary: 0, loans: 0, repairs: 0, transfers: 0, returns: 0, disposals: 0 });
     expect((await asStaff.get("/api/assets")).body.assets.map((a: { id: string }) => a.id)).not.toContain(ASSETS.disposed.tag);
   });
 
   it("answers 409 for an asset with an inspection report, says why, and deletes nothing (issue #69)", async () => {
     const recordsBefore = await db.asset_records.count({ where: { asset_id: ASSETS.inspected.assetId } });
-    const reportsBefore = await db.asset_reports.count({ where: { asset_id: ASSETS.inspected.assetId } });
+    const reportsBefore = await db.asset_inspections.count({ where: { asset_id: ASSETS.inspected.assetId } });
 
     const res = await asStaff.delete(`/api/assets/${ASSETS.inspected.tag}`);
 
@@ -640,7 +640,7 @@ describe("DELETE /api/assets/:tag", () => {
     });
     expect(await db.assets.count({ where: { asset_id: ASSETS.inspected.assetId } })).toBe(1);
     expect(await db.asset_records.count({ where: { asset_id: ASSETS.inspected.assetId } })).toBe(recordsBefore);
-    expect(await db.asset_reports.count({ where: { asset_id: ASSETS.inspected.assetId } })).toBe(reportsBefore);
+    expect(await db.asset_inspections.count({ where: { asset_id: ASSETS.inspected.assetId } })).toBe(reportsBefore);
   });
 
   it("answers 404 for an unknown tag", async () => {

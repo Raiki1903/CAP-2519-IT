@@ -109,7 +109,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       ...intakeRecord(ASSETS.disposed.assetId, USERS.admin.userId),
       status: "DISPOSED" as const,
       current_location: null,
-      disposal_id: SEEDED_ROWS.disposalId,
+      retirement_id: SEEDED_ROWS.disposalId,
       Asset_Remarks: `Decommissioned via Disposal #DISP-${SEEDED_ROWS.disposalId}`,
       date_logged: AT.disposed,
     },
@@ -125,8 +125,8 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
         asset_id: ASSETS.onLoan.assetId,
         borrower_id: USERS.custodianA.userId,
         purpose: `Destination Lab: ${LAB.shortCode}\n\nTest purpose: approved loan`,
-        loaned_on: AT.loanApproved,
-        due_date: new Date(Date.now() + 30 * DAY_MS),
+        requested_at: AT.loanApproved,
+        return_by: new Date(Date.now() + 30 * DAY_MS),
         status: "approved",
       },
       {
@@ -134,44 +134,44 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
         asset_id: ASSETS.pendingLoan.assetId,
         borrower_id: USERS.custodianB.userId,
         purpose: `Destination Lab: ${LAB.shortCode}\n\nTest purpose: pending loan`,
-        loaned_on: AT.pendingLoanFiled,
-        due_date: new Date(Date.now() + 14 * DAY_MS),
+        requested_at: AT.pendingLoanFiled,
+        return_by: new Date(Date.now() + 14 * DAY_MS),
         status: "pending",
       },
     ],
   });
 
-  await prisma.asset_repairs.create({
+  await prisma.asset_maintenance.create({
     data: {
-      repair_id: SEEDED_ROWS.repairId,
+      maintenance_id: SEEDED_ROWS.repairId,
       asset_id: ASSETS.inRepair.assetId,
       reported_by_id: USERS.custodianA.userId,
       issue_description: "Test repair: the lens does not focus",
       is_immediate: false,
       progress_status: "Inspection Phase",
-      created_at: AT.repairReported,
+      reported_at: AT.repairReported,
     },
   });
 
-  await prisma.asset_disposals.create({
+  await prisma.asset_retirements.create({
     data: {
-      disposal_id: SEEDED_ROWS.disposalId,
+      retirement_id: SEEDED_ROWS.disposalId,
       asset_id: ASSETS.disposed.assetId,
-      disposed_by_id: USERS.staffTsg.userId,
-      disposal_reason: "Disposal Pathway: Test pathway\n\nBreakdown Justification:\nTest breakdown: the board is burnt",
-      disposal_date: AT.disposalFiled,
+      requested_by_id: USERS.staffTsg.userId,
+      reason: "Disposal Pathway: Test pathway\n\nBreakdown Justification:\nTest breakdown: the board is burnt",
+      requested_at: AT.disposalFiled,
       status: "approved",
     },
   });
 
-  await prisma.asset_reports.create({
+  await prisma.asset_inspections.create({
     data: {
-      report_id: SEEDED_ROWS.reportId,
+      inspection_id: SEEDED_ROWS.reportId,
       asset_id: ASSETS.inspected.assetId,
-      reported_by_id: USERS.staffTsg.userId,
-      report_condition: "OPERATIONAL",
-      report_remarks: "Test inspection: minor scuffs on the casing",
-      report_date: AT.reportFiled,
+      inspected_by_id: USERS.staffTsg.userId,
+      condition: "OPERATIONAL",
+      remarks: "Test inspection: minor scuffs on the casing",
+      inspected_at: AT.reportFiled,
     },
   });
 }

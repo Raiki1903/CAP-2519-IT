@@ -129,7 +129,7 @@ export async function listTransfers(viewer: SessionIdentity): Promise<TransferLi
 
         // A transfer belongs to the lab that owns the asset, read from the tag prefix ("CeLT-0004" is CeLT).
         // The prefix is set at intake and never changes, unlike the asset's current location.
-        // GET /api/asset_loans and /api/analytics/lab-head use the same convention.
+        // GET /api/loans and /api/analytics/lab-head use the same convention.
         // The campus is taken from the latest record for display only.
         const latestRecord = dbRecords.find(r => r.asset_id === t.asset_id);
         const [campus] = (latestRecord?.location || "Unassigned").split(" — ");

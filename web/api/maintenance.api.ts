@@ -3,7 +3,7 @@
  * Layer: api. Called by RepairForm, ReturnForm, useRepairTickets, StaffAnalyticsView, and state/serverData.tsx. Calls client.ts.
  * Used by: Custodian repair request, Staff repair queue and progress updates.
  */
-import type { RepairRequestInput, RepairUpdateInput } from "@shared/types/repairs";
+import type { RepairRequestInput, RepairUpdateInput } from "@shared/types/maintenance";
 import { apiGet, apiPost, apiPostRaw, apiPut, apiPutRaw, type ApiResult } from "./client";
 
 /**
@@ -14,7 +14,7 @@ import { apiGet, apiPost, apiPostRaw, apiPut, apiPutRaw, type ApiResult } from "
  * @returns `success`, and `error` when the ticket is refused
  */
 export function requestRepair(assetTag: string, input: RepairRequestInput): Promise<ApiResult> {
-  return apiPost(`/api/assets/${assetTag}/repair`, input);
+  return apiPost(`/api/assets/${assetTag}/maintenance`, input);
 }
 
 /**
@@ -24,7 +24,7 @@ export function requestRepair(assetTag: string, input: RepairRequestInput): Prom
  * @returns the raw Response
  */
 export function requestRepairRaw(assetTag: string, input: RepairRequestInput): Promise<Response> {
-  return apiPostRaw(`/api/assets/${assetTag}/repair`, input);
+  return apiPostRaw(`/api/assets/${assetTag}/maintenance`, input);
 }
 
 /**
@@ -33,7 +33,7 @@ export function requestRepairRaw(assetTag: string, input: RepairRequestInput): P
  * @returns `success` and `repairs`, an array of ticket rows
  */
 export function listRepairs(): Promise<ApiResult> {
-  return apiGet("/api/asset_repairs");
+  return apiGet("/api/maintenance");
 }
 
 /**
@@ -45,7 +45,7 @@ export function listRepairs(): Promise<ApiResult> {
  * @returns `success`, and `error` when the update is refused
  */
 export function updateRepair(repairId: number | string, input: RepairUpdateInput): Promise<ApiResult> {
-  return apiPut(`/api/asset_repairs/${repairId}`, input);
+  return apiPut(`/api/maintenance/${repairId}`, input);
 }
 
 /**
@@ -55,7 +55,7 @@ export function updateRepair(repairId: number | string, input: RepairUpdateInput
  * @returns the raw Response
  */
 export function updateRepairRaw(repairId: number | string, input: RepairUpdateInput): Promise<Response> {
-  return apiPutRaw(`/api/asset_repairs/${repairId}`, input);
+  return apiPutRaw(`/api/maintenance/${repairId}`, input);
 }
 
 /**
@@ -67,5 +67,5 @@ export function updateRepairRaw(repairId: number | string, input: RepairUpdateIn
  */
 // TODO(H-06): this endpoint and the one behind updateRepair have different side effects: this one never changes the asset's status. Kept in step 12 as decided; merging them is its own behavior-change commit.
 export function updateRepairStatus(repairId: number | string, progressStatus: string): Promise<ApiResult> {
-  return apiPut(`/api/asset_repairs/${repairId}/status`, { progressStatus });
+  return apiPut(`/api/maintenance/${repairId}/status`, { progressStatus });
 }

@@ -6,18 +6,18 @@ datasource db {
   provider = "mysql"
 }
 
-model asset_disposals {
-  disposal_id     Int      @id @default(autoincrement())
+model asset_retirements {
+  retirement_id   Int      @id @default(autoincrement())
   asset_id        Int
-  disposed_by_id  Int
-  disposal_date   DateTime @default(now()) @db.DateTime(0)
-  disposal_reason String   @db.Text
+  requested_by_id Int
+  requested_at    DateTime @default(now()) @db.DateTime(0)
+  reason          String   @db.Text
   status          String   @default("pending") @db.VarChar(50)
   assets          assets   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_disposals_asset")
-  users           users    @relation(fields: [disposed_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_disposals_user")
+  users           users    @relation(fields: [requested_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_disposals_user")
 
   @@index([asset_id])
-  @@index([disposed_by_id])
+  @@index([requested_by_id])
 }
 
 model asset_monetary {
@@ -40,9 +40,9 @@ model asset_records {
   Asset_Remarks     String?                       @db.Text
   project_id        Int?
   transfer_id       Int?
-  disposal_id       Int?
-  repair_id         Int?
-  projects          projects?                     @relation(fields: [project_id], references: [master_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_assets_project")
+  retirement_id     Int?
+  maintenance_id    Int?
+  projects          projects?                     @relation(fields: [project_id], references: [project_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_assets_project")
   assets            assets                        @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_records_asset")
   users             users                         @relation(fields: [current_custodian], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_records_custodian")
 
@@ -51,14 +51,14 @@ model asset_records {
   @@index([project_id], map: "fk_records_project")
 }
 
-model asset_repairs {
-  repair_id         Int      @id @default(autoincrement())
+model asset_maintenance {
+  maintenance_id    Int      @id @default(autoincrement())
   asset_id          Int
   reported_by_id    Int
   issue_description String   @db.Text
   is_immediate      Boolean  @default(false)
   progress_status   String   @db.VarChar(100)
-  created_at        DateTime @default(now()) @db.DateTime(0)
+  reported_at       DateTime @default(now()) @db.DateTime(0)
   assets            assets   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_repairs_asset")
   users             users    @relation(fields: [reported_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_repairs_reporter")
 
@@ -67,38 +67,38 @@ model asset_repairs {
 }
 
 model assets {
-  asset_id         Int               @id @default(autoincrement())
-  asset_tag        String            @unique @db.VarChar(50)
-  name             String            @db.VarChar(255)
-  serial_number    String?           @db.VarChar(255)
-  manufacturer     String?           @db.VarChar(255)
-  category         assets_category
-  procurement_date DateTime?         @db.Date
-  warranty_expiry  DateTime?         @db.Date
-  image_url        String?           @db.LongText
-  asset_disposals  asset_disposals[]
-  asset_loans      asset_loans[]
-  asset_monetary   asset_monetary?
-  asset_records    asset_records[]
-  asset_repairs    asset_repairs[]
-  asset_reports    asset_reports[]
-  asset_returns    asset_returns[]
-  asset_transfers  asset_transfers[]
+  asset_id          Int                 @id @default(autoincrement())
+  asset_tag         String              @unique @db.VarChar(50)
+  name              String              @db.VarChar(255)
+  serial_number     String?             @db.VarChar(255)
+  manufacturer      String?             @db.VarChar(255)
+  category          assets_category
+  procurement_date  DateTime?           @db.Date
+  warranty_expiry   DateTime?           @db.Date
+  image_url         String?             @db.LongText
+  asset_retirements asset_retirements[]
+  asset_loans       asset_loans[]
+  asset_monetary    asset_monetary?
+  asset_records     asset_records[]
+  asset_maintenance asset_maintenance[]
+  asset_inspections asset_inspections[]
+  asset_returns     asset_returns[]
+  asset_transfers   asset_transfers[]
 }
 
-model asset_reports {
-  report_id        Int                     @id @default(autoincrement())
-  asset_id         Int
-  reported_by_id   Int
-  report_date      DateTime                @default(now()) @db.DateTime(0)
-  report_img       String?                 @db.LongText
-  report_condition asset_reports_condition
-  report_remarks   String?                 @db.VarChar(255)
-  assets           assets                  @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_asset")
-  users            users                   @relation(fields: [reported_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_user")
+model asset_inspections {
+  inspection_id   Int                         @id @default(autoincrement())
+  asset_id        Int
+  inspected_by_id Int
+  inspected_at    DateTime                    @default(now()) @db.DateTime(0)
+  photo           String?                     @db.LongText
+  condition       asset_inspections_condition
+  remarks         String?                     @db.VarChar(255)
+  assets          assets                      @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_asset")
+  users           users                       @relation(fields: [inspected_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reports_user")
 
   @@index([asset_id])
-  @@index([reported_by_id])
+  @@index([inspected_by_id])
 }
 
 model research_centers {
@@ -139,34 +139,34 @@ model user_roles {
 }
 
 model users {
-  user_id         Int               @id @default(autoincrement())
-  first_name      String            @db.VarChar(255)
-  last_name       String            @db.VarChar(255)
-  email           String            @unique @db.VarChar(255)
-  password        String            @db.VarChar(255)
-  id_number       Int               @unique
-  user_img        String?           @db.LongText
-  user_type       users_user_type
-  asset_disposals asset_disposals[]
-  asset_loans     asset_loans[]
-  asset_records   asset_records[]
-  asset_repairs   asset_repairs[]
-  asset_reports   asset_reports[]
-  asset_returns   asset_returns[]
-  user_centers    user_centers[]
-  user_roles      user_roles[]
+  user_id           Int                 @id @default(autoincrement())
+  first_name        String              @db.VarChar(255)
+  last_name         String              @db.VarChar(255)
+  email             String              @unique @db.VarChar(255)
+  password          String              @db.VarChar(255)
+  id_number         Int                 @unique
+  user_img          String?             @db.LongText
+  user_type         users_user_type
+  asset_retirements asset_retirements[]
+  asset_loans       asset_loans[]
+  asset_records     asset_records[]
+  asset_maintenance asset_maintenance[]
+  asset_inspections asset_inspections[]
+  asset_returns     asset_returns[]
+  user_centers      user_centers[]
+  user_roles        user_roles[]
 }
 
 model asset_loans {
-  loan_id     Int      @id @default(autoincrement())
-  asset_id    Int
-  borrower_id Int
-  purpose     String   @db.Text
-  loaned_on   DateTime @default(now()) @db.DateTime(0)
-  due_date    DateTime @db.Date
-  status      String   @default("pending") @db.VarChar(50)
-  assets      assets   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_loans_asset")
-  users       users    @relation(fields: [borrower_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_loans_borrower")
+  loan_id      Int      @id @default(autoincrement())
+  asset_id     Int
+  borrower_id  Int
+  purpose      String   @db.Text
+  requested_at DateTime @default(now()) @db.DateTime(0)
+  return_by    DateTime @db.Date
+  status       String   @default("pending") @db.VarChar(50)
+  assets       assets   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_loans_asset")
+  users        users    @relation(fields: [borrower_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_loans_borrower")
 
   @@index([asset_id])
   @@index([borrower_id])
@@ -201,8 +201,8 @@ model asset_transfers {
 }
 
 model projects {
-  master_id        Int              @id @default(autoincrement())
-  project_id       String           @unique @db.VarChar(255)
+  project_id       Int              @id @default(autoincrement())
+  project_code     String           @unique @db.VarChar(255)
   project_name     String           @db.VarChar(255)
   project_leader   String           @db.VarChar(255)
   center_id        Int
@@ -257,13 +257,12 @@ enum assets_category {
 }
 
 enum roles_role_name {
-  ADMIN
+  IT_ADMIN
   ADRIC_DIRECTOR
   ADRIC_SECRETARY
   TSG_STAFF
-  ITS_STAFF
   LAB_HEAD
-  CUSTODIAN
+  RESEARCHER
 }
 
 enum asset_records_asset_condition {
@@ -274,7 +273,7 @@ enum asset_records_asset_condition {
   CRITICAL_DEFECT @map("CRITICAL DEFECT")
 }
 
-enum asset_reports_condition {
+enum asset_inspections_condition {
   PERFECT
   OPERATIONAL
   MINOR_DRIFT     @map("MINOR DRIFT")

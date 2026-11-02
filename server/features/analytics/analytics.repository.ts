@@ -102,7 +102,7 @@ export function sumAcquisitionValue() {
 /** How many disposals are pending, in any of three spellings. */
 export function countPendingDisposals() {
     // The status column is free text, and older rows were written in other letter cases. (H-07)
-    return prisma.asset_disposals.count({
+    return prisma.asset_retirements.count({
         where: { status: { in: ['pending', 'Pending', 'PENDING'] } }
     });
 }
@@ -145,14 +145,14 @@ export function findRecordsForDirector(locationContains: string | null, startDat
 export function findReportsForDirector(startDate: Date | null, endDate: Date | null) {
     const reportsWhere: any = {};
     if (startDate || endDate) {
-        reportsWhere.report_date = {};
-        if (startDate && !isNaN(startDate.getTime())) reportsWhere.report_date.gte = startDate;
-        if (endDate && !isNaN(endDate.getTime())) reportsWhere.report_date.lte = endDate;
+        reportsWhere.inspected_at = {};
+        if (startDate && !isNaN(startDate.getTime())) reportsWhere.inspected_at.gte = startDate;
+        if (endDate && !isNaN(endDate.getTime())) reportsWhere.inspected_at.lte = endDate;
     }
 
-    return prisma.asset_reports.findMany({
+    return prisma.asset_inspections.findMany({
         where: Object.keys(reportsWhere).length > 0 ? reportsWhere : undefined,
-        orderBy: { report_date: 'asc' }
+        orderBy: { inspected_at: 'asc' }
     });
 }
 
@@ -171,9 +171,9 @@ export function findReportsForDirector(startDate: Date | null, endDate: Date | n
 export function findLoansForLabHead(prefixFilter: string, startDate: Date | null, endDate: Date | null) {
     const loanWhere: any = {};
     if (startDate || endDate) {
-        loanWhere.loaned_on = {};
-        if (startDate && !isNaN(startDate.getTime())) loanWhere.loaned_on.gte = startDate;
-        if (endDate && !isNaN(endDate.getTime())) loanWhere.loaned_on.lte = endDate;
+        loanWhere.requested_at = {};
+        if (startDate && !isNaN(startDate.getTime())) loanWhere.requested_at.gte = startDate;
+        if (endDate && !isNaN(endDate.getTime())) loanWhere.requested_at.lte = endDate;
     }
     if (prefixFilter) {
         loanWhere.assets = {
@@ -184,7 +184,7 @@ export function findLoansForLabHead(prefixFilter: string, startDate: Date | null
     return prisma.asset_loans.findMany({
         where: Object.keys(loanWhere).length > 0 ? loanWhere : undefined,
         include: { assets: true, users: true },
-        orderBy: { loaned_on: 'desc' }
+        orderBy: { requested_at: 'desc' }
     });
 }
 
@@ -278,7 +278,7 @@ export function findLoansForDelinquency(prefixFilter: string) {
             },
             users: true
         },
-        orderBy: { due_date: 'asc' }
+        orderBy: { return_by: 'asc' }
     });
 }
 
@@ -288,9 +288,9 @@ export function findLoansForDelinquency(prefixFilter: string) {
 
 /** Every repair ticket, newest first, with its asset and reporter. */
 export function findRepairsWithAssetAndReporter() {
-    return prisma.asset_repairs.findMany({
+    return prisma.asset_maintenance.findMany({
         include: { assets: true, users: true },
-        orderBy: { created_at: 'desc' }
+        orderBy: { reported_at: 'desc' }
     });
 }
 

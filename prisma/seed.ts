@@ -15,9 +15,9 @@ import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, typ
 // (server/features/assets/assets.service.ts). Written as an escape so this file holds no literal em dash.
 const LOCATION_SEPARATOR = " \u2014 ";
 
-/** Every table prisma/migrations/0_init creates. The seed needs all of them, and fills only empty ones. */
+/** Every table the migrations create. The seed needs all of them, and fills only empty ones. */
 const REQUIRED_TABLES = [
-  "asset_disposals", "asset_loans", "asset_monetary", "asset_records", "asset_repairs", "asset_reports", "asset_returns",
+  "asset_inspections", "asset_loans", "asset_maintenance", "asset_monetary", "asset_records", "asset_retirements", "asset_returns",
   "asset_transfers", "assets", "projects", "research_centers", "roles", "user_centers", "user_roles", "users",
 ];
 

@@ -9,7 +9,7 @@ import { prisma } from '../../config/prisma';
 /** Every asset_loans row, newest request first. */
 export function findAllNewestFirst() {
     return prisma.asset_loans.findMany({
-        orderBy: { loaned_on: 'desc' }
+        orderBy: { requested_at: 'desc' }
     });
 }
 

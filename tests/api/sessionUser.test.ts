@@ -1,6 +1,6 @@
 /**
  * The session user (step 13c): what a Custodian may see of other people, and the checks that need to know who is asking.
- * Covers GET /api/asset_loans, GET /api/asset_transfers, GET /api/assets, GET /api/assets/:tag/custodian-history
+ * Covers GET /api/loans, GET /api/asset_transfers, GET /api/assets, GET /api/assets/:tag/custodian-history
  * (other people's names hidden from a Custodian, D2; the placeholder custodian never named; no id numbers; emails for a
  * Lab Head only), POST
  * /api/assets/:tag/transfer (only the current custodian), and the acting user of a Staff repair ticket and of a
@@ -23,9 +23,9 @@ const NOT_THE_HOLDER = "Only the asset's current custodian can request its trans
 /** The row with this display id, as the JSON came back (untyped, like res.body). */
 const byId = (rows: { id: string }[], id: string): any => rows.find((r) => r.id === id);
 
-describe("GET /api/asset_loans: names for a Custodian (D2)", () => {
+describe("GET /api/loans: names for a Custodian (D2)", () => {
   it("leaves another borrower's name out but keeps borrower_id, and keeps the caller's own name", async () => {
-    const res = await asCustodianA.get("/api/asset_loans");
+    const res = await asCustodianA.get("/api/loans");
 
     expect(res.status).toBe(200);
     const others = byId(res.body.loans, `LOAN-${SEEDED_ROWS.pendingLoanId}`);
@@ -36,7 +36,7 @@ describe("GET /api/asset_loans: names for a Custodian (D2)", () => {
   });
 
   it("sends every borrower's name to a Lab Head, as before", async () => {
-    const res = await asLabHead.get("/api/asset_loans");
+    const res = await asLabHead.get("/api/loans");
 
     expect(byId(res.body.loans, `LOAN-${SEEDED_ROWS.pendingLoanId}`).borrower).toBe(USERS.custodianB.fullName);
     expect(byId(res.body.loans, `LOAN-${SEEDED_ROWS.approvedLoanId}`).borrower).toBe(USERS.custodianA.fullName);
@@ -106,7 +106,7 @@ describe("GET /api/assets: names for a Custodian (D2) and the placeholder custod
     const transfer = await db.asset_transfers.create({
       data: { asset_id: ASSETS.inspected.assetId, from_custodian_id: USERS.custodianB.userId, to_custodian_id: USERS.labHead.userId, justification: "Test old transfer", status: "declined" },
     });
-    await db.asset_reports.create({ data: { asset_id: asset.assetId, reported_by_id: USERS.custodianA.userId, report_condition: "PERFECT", report_remarks: "Test own report" } });
+    await db.asset_inspections.create({ data: { asset_id: asset.assetId, inspected_by_id: USERS.custodianA.userId, condition: "PERFECT", remarks: "Test own report" } });
 
     const assets = (await asCustodianA.get("/api/assets")).body.assets;
 
@@ -199,7 +199,7 @@ describe("Who acted, where the body used to say", () => {
   it("files a ticket Staff open under the Staff member, not the asset's custodian (answer 7)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0841", custodianId: USERS.custodianA.userId });
 
-    const res = await asStaff.post(`/api/assets/${asset.tag}/repair`, { reportedBy: USERS.custodianA.fullName, description: "Test fault from Staff" });
+    const res = await asStaff.post(`/api/assets/${asset.tag}/maintenance`, { reportedBy: USERS.custodianA.fullName, description: "Test fault from Staff" });
 
     expect(res.status).toBe(200);
     expect(res.body.repair.reported_by_id).toBe(USERS.staffTsg.userId);

@@ -16,7 +16,7 @@ const asCustodian = as(USERS.custodianA);
 const EXPECTED_ROLES: { user: TestUser; role: string; staffUnit: string | null }[] = [
   { user: USERS.admin, role: "Staff", staffUnit: "ITS" },
   { user: USERS.secretary, role: "Staff", staffUnit: "ITS" },
-  { user: USERS.staffIts, role: "Staff", staffUnit: "ITS" },
+  { user: USERS.staffIts, role: "Staff", staffUnit: "TSG" },
   { user: USERS.staffTsg, role: "Staff", staffUnit: "TSG" },
   { user: USERS.director, role: "AdRICDirector", staffUnit: null },
   { user: USERS.labHead, role: "LabHead", staffUnit: null },
@@ -47,11 +47,11 @@ describe("POST /api/auth/login", () => {
     },
   );
 
-  it("maps ITS_STAFF to Staff with unit ITS (M-11, the Phase 2 check the team asked for)", async () => {
+  it("maps a former ITS_STAFF account, moved to TSG_STAFF by the rename migration, to Staff with unit TSG", async () => {
     const res = await api.post("/api/auth/login", { email: USERS.staffIts.email, password: USERS.staffIts.password });
 
     expect(res.body.role).toBe("Staff");
-    expect(res.body.user.staffUnit).toBe("ITS");
+    expect(res.body.user.staffUnit).toBe("TSG");
   });
 
   it("answers labAffiliation CITe4D for an account linked to no lab", async () => {

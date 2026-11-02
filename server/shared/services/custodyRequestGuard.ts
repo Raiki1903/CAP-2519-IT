@@ -2,15 +2,15 @@
  * The custody request guard: one pending loan, transfer, or disposal per asset, and only from a status that allows it,
  * checked again when the request is approved.
  * Layer: shared service. Called by features/loans/loans.service.ts, features/transfers/transfers.service.ts,
- * and features/disposals/disposals.service.ts, for each request and each approval.
+ * and features/retirements/retirements.service.ts, for each request and each approval.
  * Calls features/assets/assets.repository.ts, features/loans/loans.repository.ts, features/transfers/transfers.repository.ts,
- * and features/disposals/disposals.repository.ts.
+ * and features/retirements/retirements.repository.ts.
  * Used by: Custodian borrow and transfer requests, Staff disposal requests, and the Lab Head and Director approvals.
  */
 import * as assetsRepository from '../../features/assets/assets.repository';
 import * as loansRepository from '../../features/loans/loans.repository';
 import * as transfersRepository from '../../features/transfers/transfers.repository';
-import * as disposalsRepository from '../../features/disposals/disposals.repository';
+import * as retirementsRepository from '../../features/retirements/retirements.repository';
 
 /**
  * Says why a new loan, transfer, or disposal request on an asset must be refused, or null if it may go ahead.
@@ -31,12 +31,12 @@ export async function findCustodyRequestConflict(
         assetsRepository.findLatestRecordStatus(asset.asset_id),
         loansRepository.findPendingLoanId(asset.asset_id),
         transfersRepository.findPendingTransferId(asset.asset_id),
-        disposalsRepository.findPendingDisposalId(asset.asset_id),
+        retirementsRepository.findPendingDisposalId(asset.asset_id),
     ]);
 
     if (pendingLoan) return `${asset.asset_tag} already has a pending loan request (LOAN-${pendingLoan.loan_id}).`;
     if (pendingTransfer) return `${asset.asset_tag} already has a pending transfer request (TRF-${pendingTransfer.transfer_id}).`;
-    if (pendingDisposal) return `${asset.asset_tag} already has a pending disposal request (DISP-${pendingDisposal.disposal_id}).`;
+    if (pendingDisposal) return `${asset.asset_tag} already has a pending disposal request (DISP-${pendingDisposal.retirement_id}).`;
 
     // An asset with no record yet is listed as Active, so it is treated as ACTIVE here too.
     const status = latestRecord?.status ?? "ACTIVE";

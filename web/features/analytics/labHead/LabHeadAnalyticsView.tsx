@@ -571,7 +571,7 @@ export const DelinquencyTable: React.FC<{ lab: string }> = ({ lab }) => {
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-1">
-              Active equipment loans assigned to students in {lab} past expected return date (`asset_loans.due_date`). Reporting only.
+              Active equipment loans assigned to students in {lab} past expected return date (`asset_loans.return_by`). Reporting only.
             </CardDescription>
           </div>
           <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50 font-bold text-xs">

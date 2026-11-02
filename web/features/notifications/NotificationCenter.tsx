@@ -1,7 +1,7 @@
 /**
  * Notification bell: a floating panel listing requests, reminders, and clearance holds for the signed-in role.
  * Layer: feature component. Called by app/layouts/RootLayout.tsx, on every signed-in screen.
- * Calls: api/transfers.api.ts decideTransfer(), api/disposals.api.ts decideDisposal(), and state/serverData.tsx
+ * Calls: api/transfers.api.ts decideTransfer(), api/retirements.api.ts decideDisposal(), and state/serverData.tsx
  * (the shared lists, authorizeLoan, acknowledgeRepair). It fetches nothing itself.
  * Used by: every role.
  */
@@ -12,7 +12,7 @@ import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";
 import { openReturnRequests } from "@web/features/returns/openReturnRequests";
 import * as transfersApi from "@web/api/transfers.api";
-import * as disposalsApi from "@web/api/disposals.api";
+import * as retirementsApi from "@web/api/retirements.api";
 import { labMatches } from "@web/features/labs/labMatches";
 import type { Role } from "@shared/enums/role";
 import { motion, AnimatePresence } from "motion/react";
@@ -567,7 +567,7 @@ export function NotificationCenter() {
       return;
     }
     try {
-      const data = await disposalsApi.decideDisposal(disp.disposalId, decision);
+      const data = await retirementsApi.decideDisposal(disp.disposalId, decision);
       if (!data.success) console.error("Failed to decide disposal:", data.error);
     } catch (err) {
       console.error("Failed to decide disposal:", err);

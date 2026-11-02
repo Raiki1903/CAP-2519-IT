@@ -64,7 +64,7 @@ const statusPills = [
  * - myassets: assets whose custodian name matches the signed-in user, without Disposed ones.
  * - available: Active assets, filtered by category, campus, lab, and search, with the detail modal for a loan request.
  * - scan: reads a QR tag from the camera or an uploaded picture and opens that asset.
- * - report: a condition report, posted to asset_reports, optionally filing a repair too.
+ * - report: a condition report, posted to asset_inspections, optionally filing a repair too.
  *
  * @param activeTab "myassets", "available", "scan", or "report"
  */
@@ -355,7 +355,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     setReportError(null);
 
     try {
-      // 1. Post directly to MySQL database table asset_reports
+      // 1. Post directly to MySQL database table asset_inspections
       const res = await inspectionsApi.submitInspectionRaw(targetTag, {
         reportCondition: reportConditionEnum,
         reportRemarks: fullRemarks,
@@ -392,7 +392,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
       await fetchDbAssets();
     } catch (err: any) {
-      console.error("❌ Failed to save custodian inspection report in MySQL asset_reports:", err);
+      console.error("❌ Failed to save custodian inspection report in MySQL asset_inspections:", err);
       setReportError(err?.message || "The inspection report could not be saved: the server could not be reached. Please try again.");
     } finally {
       setSubmitting(false);

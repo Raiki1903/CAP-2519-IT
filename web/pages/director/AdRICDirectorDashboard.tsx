@@ -1,7 +1,7 @@
 /**
  * Director screen: Overview, Analytics, Disposal Approvals, and the Inventory Report, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
- * Calls: api/disposals.api.ts listDisposals() and decideDisposal(),
+ * Calls: api/retirements.api.ts listDisposals() and decideDisposal(),
  * features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
  * Used by: AdRIC Director (disposal decisions, inventory reports).
  */
@@ -11,7 +11,7 @@ import DirectorAnalyticsView from "@web/features/analytics/director/DirectorAnal
 import { useSession } from "@web/state/session";
 import { useServerData, type Asset } from "@web/state/serverData";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
-import * as disposalsApi from "@web/api/disposals.api";
+import * as retirementsApi from "@web/api/retirements.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
@@ -103,9 +103,9 @@ export function getLatestRecordConditionScore(asset: any): number {
  * Shows one Director tab.
  * - overview: campus distribution and the status of every lab.
  * - analytics: the Director analytics view.
- * - clearance-disposal: the pending disposal queue, authorized or rejected through disposalsApi.decideDisposal().
+ * - clearance-disposal: the pending disposal queue, authorized or rejected through retirementsApi.decideDisposal().
  * - reports: the inventory report, with a per-asset history and CSV export.
- * Shows the shared asset list. Each time a tab opens it loads its own disposal list (disposalsApi.listDisposals)
+ * Shows the shared asset list. Each time a tab opens it loads its own disposal list (retirementsApi.listDisposals)
  * and reloads the shared lists once (refreshSharedLists), so the bell and the analytics show other people's changes.
  *
  * @param activeTab "overview", "analytics", "clearance-disposal", or "reports"
@@ -137,7 +137,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
     const assetRepairs = (repairRequests || []).filter(r => r.assetId === asset.id);
 
-    // Only the reports saved in asset_reports, the same ones the Staff inspection log shows. (F-28)
+    // Only the reports saved in asset_inspections, the same ones the Staff inspection log shows. (F-28)
     const assetReports = asset.asset_reports || [];
 
     let csvContent = `Asset History Report\n`;
@@ -209,7 +209,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     setLoadingDbDisposals(true);
     setDbDisposalsError(null);
     try {
-      const data = await disposalsApi.listDisposals();
+      const data = await retirementsApi.listDisposals();
       if (data.success) {
         setDbDisposals(data.disposals);
       } else {
@@ -233,7 +233,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const decideDisposal = async (disposalId: number, decision: "approve" | "reject") => {
     setDisposalActionId(disposalId);
     try {
-      const data = await disposalsApi.decideDisposal(disposalId, decision);
+      const data = await retirementsApi.decideDisposal(disposalId, decision);
       if (!data.success) {
         setDbDisposalsError(data.error || `Failed to ${decision} disposal.`);
         return;

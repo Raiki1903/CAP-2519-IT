@@ -44,14 +44,14 @@ export interface DemoAccount {
  * Addresses are @dlsu.edu.ph because the login page accepts no other domain.
  */
 export const DEMO_ACCOUNTS: DemoAccount[] = [
-  { userId: POOL_CUSTODIAN_ID, lastName: "Admin", email: "demo.admin@dlsu.edu.ph", role: "ADMIN", userType: "STAFF", lab: null },
+  { userId: POOL_CUSTODIAN_ID, lastName: "Admin", email: "demo.admin@dlsu.edu.ph", role: "IT_ADMIN", userType: "STAFF", lab: null },
   { userId: 2, lastName: "Director", email: "demo.director@dlsu.edu.ph", role: "ADRIC_DIRECTOR", userType: "FACULTY", lab: null },
   { userId: 3, lastName: "TSG Staff", email: "demo.tsg@dlsu.edu.ph", role: "TSG_STAFF", userType: "STAFF", lab: null },
   { userId: 4, lastName: "Lab Head CITe4D", email: "demo.labhead.cite4d@dlsu.edu.ph", role: "LAB_HEAD", userType: "FACULTY", lab: "CITe4D" },
   { userId: 5, lastName: "Lab Head CAR", email: "demo.labhead.car@dlsu.edu.ph", role: "LAB_HEAD", userType: "FACULTY", lab: "CAR" },
-  { userId: 6, lastName: "Custodian A", email: "demo.custodian.a@dlsu.edu.ph", role: "CUSTODIAN", userType: "STUDENT", lab: "CITe4D" },
-  { userId: 7, lastName: "Custodian B", email: "demo.custodian.b@dlsu.edu.ph", role: "CUSTODIAN", userType: "STUDENT", lab: "CITe4D" },
-  { userId: 8, lastName: "Custodian C", email: "demo.custodian.c@dlsu.edu.ph", role: "CUSTODIAN", userType: "STUDENT", lab: "CAR" },
+  { userId: 6, lastName: "Custodian A", email: "demo.custodian.a@dlsu.edu.ph", role: "RESEARCHER", userType: "STUDENT", lab: "CITe4D" },
+  { userId: 7, lastName: "Custodian B", email: "demo.custodian.b@dlsu.edu.ph", role: "RESEARCHER", userType: "STUDENT", lab: "CITe4D" },
+  { userId: 8, lastName: "Custodian C", email: "demo.custodian.c@dlsu.edu.ph", role: "RESEARCHER", userType: "STUDENT", lab: "CAR" },
 ];
 
 /** One demo asset: tag, name, serial number, manufacturer, category, procurement date, warranty end, funding source, value. */

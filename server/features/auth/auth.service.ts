@@ -135,7 +135,7 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
     await refuseTakenByAccount(targetReq.email, targetReq.idNumber);
 
     // The request's requestedRole is never read: an older request in the file can still name another role.
-    const roleRecord = await authRepository.findRoleByName("CUSTODIAN");
+    const roleRecord = await authRepository.findRoleByName("RESEARCHER");
 
     let centerRecord = null;
     if (targetReq.labAffiliation && targetReq.labAffiliation !== "Not Affiliated" && targetReq.labAffiliation !== "No affiliation") {
@@ -193,14 +193,11 @@ export function rejectRegistration(requestId: string): void {
 function appRoleFor(roles: (user_roles & { roles: roles })[]): { role: string; staffUnit: StaffUnit | null } {
     let determinedRole = "Custodian";
     let staffUnit: StaffUnit | null = null;
-    if (roles.some(ur => ur.roles?.role_name === "ADMIN" || ur.roles?.role_name === "ADRIC_SECRETARY")) {
+    if (roles.some(ur => ur.roles?.role_name === "IT_ADMIN" || ur.roles?.role_name === "ADRIC_SECRETARY")) {
         determinedRole = "Staff";
         staffUnit = "ITS";
     } else if (roles.some(ur => ur.roles?.role_name === "ADRIC_DIRECTOR")) {
         determinedRole = "AdRICDirector";
-    } else if (roles.some(ur => ur.roles?.role_name === "ITS_STAFF")) {
-        determinedRole = "Staff";
-        staffUnit = "ITS";
     } else if (roles.some(ur => ur.roles?.role_name === "TSG_STAFF")) {
         determinedRole = "Staff";
         staffUnit = "TSG";

@@ -1,18 +1,18 @@
 /**
  * Disposal controller: unpacks disposal requests, calls the service, and writes the JSON answers.
- * Layer: controller. Called by disposals.routes.ts. Calls disposals.validation.ts, disposals.service.ts, and shared/middleware/requireAuth.ts
+ * Layer: controller. Called by retirements.routes.ts. Calls retirements.validation.ts, retirements.service.ts, and shared/middleware/requireAuth.ts
  * (sessionUserOf: who is acting).
  * Used by: Staff disposal filing, Director approval.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
-import * as disposalsService from './disposals.service';
+import * as retirementsService from './retirements.service';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
-import { checkDisposalDecision, checkDisposalRequest } from './disposals.validation';
+import { checkDisposalDecision, checkDisposalRequest } from './retirements.validation';
 
 /**
- * Handles POST /api/assets/:assetTag/disposal: files a pending disposal request, then emails the Director.
+ * Handles POST /api/assets/:assetTag/retirement: files a pending disposal request, then emails the Director.
  * Answers `{ success, disposal }` with the new row, or the AppError's status and message
  * (400 missing field, 404 unknown tag, 409 refused by the custody request guard), or 500.
  */
@@ -24,26 +24,26 @@ export async function requestDisposal(req: Request<{ assetTag: string }>, res: R
 
     checkDisposalRequest(data);
     const requesterId = sessionUserOf(req).userId;
-    const { disposal, asset } = await disposalsService.requestDisposal(assetTag, data, requesterId);
+    const { disposal, asset } = await retirementsService.requestDisposal(assetTag, data, requesterId);
 
-    console.log("✅ Disposal request logged in MySQL successfully:", disposal.disposal_id, assetTag);
+    console.log("✅ Disposal request logged in MySQL successfully:", disposal.retirement_id, assetTag);
     res.json({ success: true, disposal });
 
     // Sent after the answer and not awaited, so a slow mail service never delays it. sendEmail catches its own send failures.
-    disposalsService.notifyDirector(asset, assetTag, data, requesterId);
+    retirementsService.notifyDirector(asset, assetTag, data, requesterId);
 }
 
 /**
- * Handles GET /api/asset_disposals: every disposal request, newest first, as `{ success, disposals }`.
+ * Handles GET /api/retirements: every disposal request, newest first, as `{ success, disposals }`.
  * A failure answers errorHandler's generic 500.
  */
 export async function listDisposals(req: Request, res: Response): Promise<void> {
-    const disposals = await disposalsService.listDisposals();
+    const disposals = await retirementsService.listDisposals();
     res.json({ success: true, disposals });
 }
 
 /**
- * Handles PUT /api/asset_disposals/:disposalId/decision: approves or rejects a pending disposal,
+ * Handles PUT /api/retirements/:disposalId/decision: approves or rejects a pending disposal,
  * then emails the requester.
  * Answers `{ success, disposal }` with the updated row, or the AppError's status and message
  * (400 bad id, bad decision word, or disposal not pending; 404 unknown disposal; 409 an approval the asset no longer allows), or 500.
@@ -55,11 +55,11 @@ export async function decideDisposal(req: Request<{ disposalId: string }>, res: 
     console.log(`🚀 Server received disposal decision for #${disposalId}:`, decision);
 
     checkDisposalDecision(disposalId, decision);
-    const updatedDisposal = await disposalsService.decideDisposal(disposalId, decision);
+    const updatedDisposal = await retirementsService.decideDisposal(disposalId, decision);
 
     console.log(`✅ Disposal #${disposalId} ${decision}d successfully.`);
     res.json({ success: true, disposal: updatedDisposal });
 
     // Sent after the answer and not awaited, as for the request above.
-    disposalsService.notifyDecision(disposalId, updatedDisposal.disposed_by_id, decision);
+    retirementsService.notifyDecision(disposalId, updatedDisposal.requested_by_id, decision);
 }

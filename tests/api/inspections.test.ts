@@ -1,6 +1,6 @@
 /**
  * Inspections and reports API: filing a condition report and the two report lists.
- * Covers POST /api/assets/:tag/inspection, GET /api/asset-reports, GET /api/asset_reports.
+ * Covers POST /api/assets/:tag/inspection, GET /api/inspections/log, GET /api/inspections.
  * Workflow: inspection (a custodian or staff member reports an asset's condition, which is copied onto the asset).
  * Fixtures: the seeded report RPT-1 by Staff TSG on TEST-0006, the accounts (USERS). The list tests run first and
  * remove the rows they add. The write tests use their own extra assets (TEST-0501 onward, see extraAssets.ts) and
@@ -31,35 +31,35 @@ const newestRecord = (assetId: number) =>
 
 /** Adds two reports newer than the seeded one, runs the check, and removes them again. */
 async function withNewerReports(check: (ids: { older: number; newer: number }) => Promise<void>) {
-  const older = await db.asset_reports.create({
+  const older = await db.asset_inspections.create({
     data: {
       asset_id: ASSETS.available.assetId,
-      reported_by_id: USERS.custodianA.userId,
-      report_condition: "DEGRADED",
-      report_remarks: "Test report: older",
-      report_img: "data:image/png;base64,TEST",
-      report_date: new Date("2026-06-01T09:00:00Z"),
+      inspected_by_id: USERS.custodianA.userId,
+      condition: "DEGRADED",
+      remarks: "Test report: older",
+      photo: "data:image/png;base64,TEST",
+      inspected_at: new Date("2026-06-01T09:00:00Z"),
     },
   });
-  const newer = await db.asset_reports.create({
+  const newer = await db.asset_inspections.create({
     data: {
       asset_id: ASSETS.onLoan.assetId,
-      reported_by_id: USERS.custodianB.userId,
-      report_condition: "PERFECT",
-      report_remarks: "Test report: newer",
-      report_date: new Date("2026-06-02T09:00:00Z"),
+      inspected_by_id: USERS.custodianB.userId,
+      condition: "PERFECT",
+      remarks: "Test report: newer",
+      inspected_at: new Date("2026-06-02T09:00:00Z"),
     },
   });
   try {
-    await check({ older: older.report_id, newer: newer.report_id });
+    await check({ older: older.inspection_id, newer: newer.inspection_id });
   } finally {
-    await db.asset_reports.deleteMany({ where: { report_id: { in: [older.report_id, newer.report_id] } } });
+    await db.asset_inspections.deleteMany({ where: { inspection_id: { in: [older.inspection_id, newer.inspection_id] } } });
   }
 }
 
-describe("GET /api/asset-reports", () => {
+describe("GET /api/inspections/log", () => {
   it("lists the seeded report with the fields the inspection log reads", async () => {
-    const res = await asStaff.get("/api/asset-reports");
+    const res = await asStaff.get("/api/inspections/log");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -77,14 +77,14 @@ describe("GET /api/asset-reports", () => {
   });
 
   it("includes the reporter's email, for any caller (known issue, 01C 4.2)", async () => {
-    const res = await asStaff.get("/api/asset-reports");
+    const res = await asStaff.get("/api/inspections/log");
 
     expect(res.body.reports[0].reporterEmail).toBe(USERS.staffTsg.email);
   });
 
   it("lists reports newest first, with the image", async () => {
     await withNewerReports(async ({ older, newer }) => {
-      const res = await asStaff.get("/api/asset-reports");
+      const res = await asStaff.get("/api/inspections/log");
 
       expect(res.body.reports.map((r: { reportId: number }) => r.reportId)).toEqual([newer, older, SEEDED_ROWS.reportId]);
       expect(res.body.reports[1]).toMatchObject({ assetId: ASSETS.available.tag, reportedBy: USERS.custodianA.fullName, reportImg: "data:image/png;base64,TEST" });
@@ -92,9 +92,9 @@ describe("GET /api/asset-reports", () => {
   });
 });
 
-describe("GET /api/asset_reports", () => {
+describe("GET /api/inspections", () => {
   it("lists the seeded report in the short shape, with no email and no image (L-07)", async () => {
-    const res = await asStaff.get("/api/asset_reports");
+    const res = await asStaff.get("/api/inspections");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -118,7 +118,7 @@ describe("GET /api/asset_reports", () => {
 
   it("lists reports newest first", async () => {
     await withNewerReports(async ({ older, newer }) => {
-      const res = await asStaff.get("/api/asset_reports");
+      const res = await asStaff.get("/api/inspections");
 
       expect(res.body.reports.map((r: { id: number }) => r.id)).toEqual([newer, older, SEEDED_ROWS.reportId]);
     });
@@ -135,12 +135,12 @@ describe("POST /api/assets/:tag/inspection", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.report).toMatchObject({
       asset_id: asset.assetId,
-      reported_by_id: USERS.custodianA.userId,
-      report_condition: "MINOR_DRIFT",
-      report_remarks: "Test inspection: loose hinge",
-      report_img: null,
+      inspected_by_id: USERS.custodianA.userId,
+      condition: "MINOR_DRIFT",
+      remarks: "Test inspection: loose hinge",
+      photo: null,
     });
-    expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(1);
+    expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(1);
   });
 
   it("writes the condition and remarks into the newest record in place instead of adding one (known defect H-14)", async () => {
@@ -166,7 +166,7 @@ describe("POST /api/assets/:tag/inspection", () => {
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reporterEmail: undefined, reportedById: USERS.custodianB.userId }));
 
-    expect(res.body.report.reported_by_id).toBe(USERS.custodianA.userId);
+    expect(res.body.report.inspected_by_id).toBe(USERS.custodianA.userId);
   });
 
   it.each([
@@ -179,7 +179,7 @@ describe("POST /api/assets/:tag/inspection", () => {
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody(reporter));
 
     expect(res.status).toBe(200);
-    expect(res.body.report.reported_by_id).toBe(USERS.custodianA.userId);
+    expect(res.body.report.inspected_by_id).toBe(USERS.custodianA.userId);
   });
 
   it("ignores a reportedById that is no account, and files the report under the session user (it answered a generic 500 before 13c)", async () => {
@@ -188,8 +188,8 @@ describe("POST /api/assets/:tag/inspection", () => {
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reporterEmail: undefined, reportedById: 9999 }));
 
     expect(res.status).toBe(200);
-    expect(res.body.report.reported_by_id).toBe(USERS.custodianA.userId);
-    expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(1);
+    expect(res.body.report.inspected_by_id).toBe(USERS.custodianA.userId);
+    expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(1);
     expect((await newestRecord(asset.assetId)).asset_condition).toBe("MINOR_DRIFT");
   });
 
@@ -205,7 +205,7 @@ describe("POST /api/assets/:tag/inspection", () => {
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportCondition: sent }));
 
     expect(res.status).toBe(200);
-    expect(res.body.report.report_condition).toBe(sent);
+    expect(res.body.report.condition).toBe(sent);
     expect((await newestRecord(asset.assetId)).asset_condition).toBe(sent);
   });
 
@@ -223,7 +223,7 @@ describe("POST /api/assets/:tag/inspection", () => {
 
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ success: false, error });
-    expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(0);
+    expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(0);
     expect(await newestRecord(asset.assetId)).toEqual(before);
   });
 
@@ -232,7 +232,7 @@ describe("POST /api/assets/:tag/inspection", () => {
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportCondition: undefined, assetCondition: "DEGRADED" }));
 
-    expect(res.body.report.report_condition).toBe("DEGRADED");
+    expect(res.body.report.condition).toBe("DEGRADED");
   });
 
   it("writes the default remarks when none are sent", async () => {
@@ -240,7 +240,7 @@ describe("POST /api/assets/:tag/inspection", () => {
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportRemarks: undefined }));
 
-    expect(res.body.report.report_remarks).toBe("Routine technical inspection completed.");
+    expect(res.body.report.remarks).toBe("Routine technical inspection completed.");
     expect((await newestRecord(asset.assetId)).Asset_Remarks).toBe("Routine technical inspection completed.");
   });
 
@@ -251,7 +251,7 @@ describe("POST /api/assets/:tag/inspection", () => {
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportRemarks: longRemarks }));
 
     expect(res.status).toBe(200);
-    expect(res.body.report.report_remarks).toBe(longRemarks.slice(0, 255));
+    expect(res.body.report.remarks).toBe(longRemarks.slice(0, 255));
     expect((await newestRecord(asset.assetId)).Asset_Remarks).toBe(longRemarks.slice(0, 255));
   });
 
@@ -261,7 +261,7 @@ describe("POST /api/assets/:tag/inspection", () => {
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportImg: "not an image" }));
 
     expect(res.status).toBe(200);
-    expect(res.body.report.report_img).toBe("not an image");
+    expect(res.body.report.photo).toBe("not an image");
   });
 
   it("looks a numeric tag up as an asset id", async () => {
@@ -299,7 +299,7 @@ describe("POST /api/assets/:tag/inspection", () => {
 
     expect(res.status).toBe(409);
     expect(res.body).toEqual({ success: false, error: "TEST-0543 is disposed and cannot take an inspection report." });
-    expect(await db.asset_reports.count({ where: { asset_id: asset.assetId } })).toBe(0);
+    expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(0);
     expect(await newestRecord(asset.assetId)).toEqual(before);
   });
 
@@ -313,12 +313,12 @@ describe("POST /api/assets/:tag/inspection", () => {
   });
 
   it("answers 404 for an unknown tag, and writes nothing", async () => {
-    const before = await db.asset_reports.count();
+    const before = await db.asset_inspections.count();
 
     const res = await asCustodian.post("/api/assets/TEST-9999/inspection", inspectionBody());
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
-    expect(await db.asset_reports.count()).toBe(before);
+    expect(await db.asset_inspections.count()).toBe(before);
   });
 });

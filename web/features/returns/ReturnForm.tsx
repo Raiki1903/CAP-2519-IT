@@ -2,7 +2,7 @@
  * Return form: a Custodian asks to hand an asset back, and Staff finalize the return.
  * Layer: feature component. Called by features/assets/AssetDetailModal.tsx (Custodian return request, Staff Record Return)
  * and pages/staff/ReturnsPage.tsx (Staff pending returns).
- * Calls: api/returns.api.ts finalizeReturn(), api/repairs.api.ts requestRepair(), state/browserOnly.tsx (the request list).
+ * Calls: api/returns.api.ts finalizeReturn(), api/maintenance.api.ts requestRepair(), state/browserOnly.tsx (the request list).
  * Used by: Custodian return request, Staff return finalization, Staff Record Return.
  */
 import { useState } from "react";
@@ -10,7 +10,7 @@ import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly, type ReturnRequest } from "@web/state/browserOnly";
 import * as returnsApi from "@web/api/returns.api";
-import * as repairsApi from "@web/api/repairs.api";
+import * as maintenanceApi from "@web/api/maintenance.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, ArrowLeft, CheckCircle, CornerUpLeft,
@@ -39,7 +39,7 @@ interface Props {
 /**
  * Does one of two things, by role.
  * - Custodian: saves a return request in this browser (useBrowserOnly().addReturnRequest)
- *   and, if "flag for repair" is on, files a repair through repairsApi.requestRepair().
+ *   and, if "flag for repair" is on, files a repair through maintenanceApi.requestRepair().
  *   Nothing about the return itself reaches the server at this stage.
  * - Staff: records the condition and calls returnsApi.finalizeReturn(), then marks the
  *   request passed in (the row clicked) finalized and reloads the shared lists. The success
@@ -93,7 +93,7 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
       // the same repair queue RepairForm writes to, so it shows up on the Staff Repairs page.
       if (flagForRepair) {
         try {
-          const data = await repairsApi.requestRepair(asset.id, {
+          const data = await maintenanceApi.requestRepair(asset.id, {
             description: inspection || "Flagged for repair assessment during asset return.",
             isImmediate: false,
           });

@@ -324,7 +324,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                   ].filter(Boolean).join(" | ") || "Routine periodic physical inspection verified.";
 
                   try {
-                    // Save report under asset_reports table in MySQL database before reloading data
+                    // Save report under asset_inspections table in MySQL database before reloading data
                     if (selectedQueueItem.rawAsset?.id || selectedQueueItem.id) {
                       const conditionEnumMap: Record<string, string> = {
                         "Perfect": "PERFECT",
@@ -342,7 +342,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                           reportImg: inspectionImgOption || null,
                         });
                       } catch (e) {
-                        console.error("Failed to save asset inspection report in MySQL asset_reports:", e);
+                        console.error("Failed to save asset inspection report in MySQL asset_inspections:", e);
                         alert("The inspection report could not be saved: the server could not be reached. Please try again.");
                         return;
                       }

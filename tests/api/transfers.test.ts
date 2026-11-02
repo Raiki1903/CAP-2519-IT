@@ -227,14 +227,14 @@ describe("POST /api/assets/:tag/transfer: one pending request per asset (issue #
 
   it("answers 409 while the asset has a pending disposal request, and writes nothing (issue #54)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0313", custodianId: USERS.custodianA.userId });
-    const disposal = await db.asset_disposals.create({
-      data: { asset_id: asset.assetId, disposed_by_id: USERS.staffTsg.userId, disposal_reason: "Test pending disposal", status: "pending" },
+    const disposal = await db.asset_retirements.create({
+      data: { asset_id: asset.assetId, requested_by_id: USERS.staffTsg.userId, reason: "Test pending disposal", status: "pending" },
     });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB));
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe(`TEST-0313 already has a pending disposal request (DISP-${disposal.disposal_id}).`);
+    expect(res.body.error).toBe(`TEST-0313 already has a pending disposal request (DISP-${disposal.retirement_id}).`);
     expect(await db.asset_transfers.count({ where: { asset_id: asset.assetId } })).toBe(0);
   });
 

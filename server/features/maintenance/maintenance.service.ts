@@ -1,14 +1,14 @@
 /**
  * Repairs service: the business rules for repair tickets, their progress, and the asset status that follows them.
- * Layer: service. Called by repairs.controller.ts. Calls repairs.repository.ts, features/assets/assets.repository.ts,
+ * Layer: service. Called by maintenance.controller.ts. Calls maintenance.repository.ts, features/assets/assets.repository.ts,
  * shared/constants/poolCustodian.ts, and @shared/enums/assetCondition.
  * Used by: Custodian repair request (RepairForm, and ReturnForm's "flag for repair"), Staff repair queue,
  * repair dialog, and the Staff analytics board.
  */
-import type { Prisma, asset_records, asset_repairs } from '@prisma/client';
-import type { RepairListItem, RepairRequestInput } from '@shared/types/repairs';
+import type { Prisma, asset_maintenance, asset_records } from '@prisma/client';
+import type { RepairListItem, RepairRequestInput } from '@shared/types/maintenance';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
-import * as repairsRepository from './repairs.repository';
+import * as maintenanceRepository from './maintenance.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
@@ -21,18 +21,18 @@ const recentRepairSubmissions = new Map<string, number>();
 const DUPLICATE_WINDOW_MS = 8000;
 
 /**
- * Opens a repair ticket for an asset. Only the asset_repairs row is written: the asset keeps its
+ * Opens a repair ticket for an asset. Only the asset_maintenance row is written: the asset keeps its
  * status until Staff move the ticket into a maintenance status (updateRepair).
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the checked body: description and optional urgency
  * @param reporterId the session user, who reports the fault; any reporter name in the body is ignored (issue #32)
- * @returns the created asset_repairs row
+ * @returns the created asset_maintenance row
  * @throws AppError 409 if the same tag and description arrived less than 8 seconds ago (M-07)
  * @throws AppError 404 if no asset has this tag
  */
-// TODO(H-05): no status check, so a disposed asset, or one already under repair, takes a new ticket. Its own fix; tests/api/repairs.test.ts pins it.
-export async function requestRepair(assetTag: string, data: RepairRequestInput, reporterId: number): Promise<asset_repairs> {
+// TODO(H-05): no status check, so a disposed asset, or one already under repair, takes a new ticket. Its own fix; tests/api/maintenance.test.ts pins it.
+export async function requestRepair(assetTag: string, data: RepairRequestInput, reporterId: number): Promise<asset_maintenance> {
     const dedupeKey = `${assetTag}::${data.description}`;
     const lastSeen = recentRepairSubmissions.get(dedupeKey);
     if (lastSeen && Date.now() - lastSeen < DUPLICATE_WINDOW_MS) {
@@ -46,7 +46,7 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput, 
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    return repairsRepository.create({
+    return maintenanceRepository.create({
         asset_id: existing.asset_id,
         reported_by_id: reporterId,
         issue_description: data.description,
@@ -58,10 +58,10 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput, 
 /**
  * Lists every repair ticket, newest first, shaped for the screens.
  *
- * @returns one RepairListItem per asset_repairs row
+ * @returns one RepairListItem per asset_maintenance row
  */
 export async function listRepairs(): Promise<RepairListItem[]> {
-    const [dbRepairs, dbAssets, dbUsers] = await repairsRepository.findListLookups();
+    const [dbRepairs, dbAssets, dbUsers] = await maintenanceRepository.findListLookups();
 
     // The two statuses requestRepair opens a ticket with. The schema has no "acknowledged"
     // column, so any other status counts as acknowledged.
@@ -71,15 +71,15 @@ export async function listRepairs(): Promise<RepairListItem[]> {
         const asset = dbAssets.find(a => a.asset_id === repair.asset_id);
         const reporter = dbUsers.find(u => u.user_id === repair.reported_by_id);
 
-        const submittedAt = repair.created_at.toLocaleString("en-US", {
+        const submittedAt = repair.reported_at.toLocaleString("en-US", {
             month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit"
         });
 
         return {
-            id: `MNT-${repair.repair_id}`,
-            repairId: repair.repair_id,
+            id: `MNT-${repair.maintenance_id}`,
+            repairId: repair.maintenance_id,
             _source: "db",
-            _repairId: repair.repair_id,
+            _repairId: repair.maintenance_id,
             assetId: asset?.asset_tag || `EQ-2024-${String(repair.asset_id).padStart(3, "0")}`,
             assetName: asset?.name || "Unknown Asset",
             // The screens label this "custodian", but it is the reporter, who may not hold the asset.
@@ -92,7 +92,7 @@ export async function listRepairs(): Promise<RepairListItem[]> {
             priority: repair.is_immediate ? "Critical" : "Medium",
             acknowledged: !DB_PENDING_STATUSES.includes(repair.progress_status),
             submittedAt,
-            createdAt: repair.created_at.toISOString(),
+            createdAt: repair.reported_at.toISOString(),
         };
     });
 }
@@ -117,7 +117,7 @@ const TSG_OFFICE_LOCATION = "Manila — TSG Office";
  * @param progressStatus the new status, already checked to be present
  * @param assetCondition the condition after a completed repair; anything not in ASSET_CONDITIONS keeps the current one
  * @param assetRemarks remarks for the completed repair; a default sentence when empty
- * @returns the updated asset_repairs row
+ * @returns the updated asset_maintenance row
  * @throws AppError 404 if no ticket has this id
  */
 // TODO(H-07): any text is saved as a status, "Pending TSG Review" does not take the asset out of maintenance, and "Fixed & Completed" adds a record and a report even for a ticket that never went into maintenance. Phase 3 makes the status an enum with allowed moves.
@@ -126,8 +126,8 @@ export async function updateRepair(
     progressStatus: string,
     assetCondition: string | undefined,
     assetRemarks: string | undefined,
-): Promise<asset_repairs> {
-    const existing = await repairsRepository.findById(repairId);
+): Promise<asset_maintenance> {
+    const existing = await maintenanceRepository.findById(repairId);
     if (!existing) {
         throw new AppError(404, `No repair ticket found with id ${repairId}.`);
     }
@@ -139,7 +139,7 @@ export async function updateRepair(
             ? "MAINTENANCE"
             : null;
 
-    return repairsRepository.saveProgress(
+    return maintenanceRepository.saveProgress(
         repairId,
         progressStatus,
         existing.asset_id,
@@ -158,15 +158,15 @@ export async function updateRepair(
  * out on loan or transfer. The report is filed under the ticket's reporter, with the remarks cut to
  * the column's 255 characters.
  */
-// Neither the record nor the report links back to the ticket: asset_records.repair_id stays null, here
+// Neither the record nor the report links back to the ticket: asset_records.maintenance_id stays null, here
 // and in maintenanceRecord. Phase 3, with the repair status enum.
 function completionRows(
-    existing: asset_repairs,
+    existing: asset_maintenance,
     preMaintenanceRecord: asset_records | null,
     latestRecord: asset_records | null,
     assetCondition: string | undefined,
     assetRemarks: string | undefined,
-): repairsRepository.CompletionRows {
+): maintenanceRepository.CompletionRows {
     const conditionVal = (ASSET_CONDITIONS.includes(assetCondition as any)
         ? assetCondition
         : latestRecord?.asset_condition ?? "PERFECT") as any;
@@ -185,9 +185,9 @@ function completionRows(
         },
         report: {
             asset_id: existing.asset_id,
-            reported_by_id: existing.reported_by_id,
-            report_condition: conditionVal,
-            report_remarks: remarksVal.slice(0, 255),
+            inspected_by_id: existing.reported_by_id,
+            condition: conditionVal,
+            remarks: remarksVal.slice(0, 255),
         },
     };
 }
@@ -197,7 +197,7 @@ function completionRows(
  * is already MAINTENANCE. Condition, home location, and custodian carry over from that record.
  */
 function maintenanceRecord(
-    existing: asset_repairs,
+    existing: asset_maintenance,
     desiredStatus: "MAINTENANCE",
     latestRecord: asset_records | null,
 ): Prisma.asset_recordsUncheckedCreateInput | null {
@@ -220,9 +220,9 @@ function maintenanceRecord(
  *
  * @param repairId the id from the URL, unchecked (NaN if it was not a number)
  * @param progressStatus the new status; stored as text
- * @returns the updated asset_repairs row
+ * @returns the updated asset_maintenance row
  */
 // TODO(H-06): a second way to change a ticket's status, without updateRepair's asset changes. Kept in step 12 as decided; merging the two endpoints is its own behavior-change commit.
-export function updateRepairStatus(repairId: number, progressStatus: string): Promise<asset_repairs> {
-    return repairsRepository.updateProgressStatus(repairId, String(progressStatus));
+export function updateRepairStatus(repairId: number, progressStatus: string): Promise<asset_maintenance> {
+    return maintenanceRepository.updateProgressStatus(repairId, String(progressStatus));
 }

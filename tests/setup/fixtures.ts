@@ -23,15 +23,14 @@ export const LAB = {
 /** Where the server says an asset under maintenance is (its TSG_OFFICE_LOCATION). */
 export const TSG_OFFICE_LOCATION = `Manila${LOCATION_SEPARATOR}TSG Office`;
 
-/** Role rows, one per database role name, in the order of the roles_role_name enum. */
+/** Role rows, one per database role name. Id 5 was ITS_STAFF, which the rename migration removed. */
 export const ROLE_IDS = {
-  ADMIN: 1,
+  IT_ADMIN: 1,
   ADRIC_DIRECTOR: 2,
   ADRIC_SECRETARY: 3,
   TSG_STAFF: 4,
-  ITS_STAFF: 5,
   LAB_HEAD: 6,
-  CUSTODIAN: 7,
+  RESEARCHER: 7,
 } as const;
 
 export type RoleName = keyof typeof ROLE_IDS;
@@ -68,17 +67,17 @@ function user(userId: number, lastName: string, emailName: string, userType: Tes
 }
 
 /**
- * Seeded accounts. ADMIN must be user 1: the server records an asset nobody holds under user 1
+ * Seeded accounts. IT_ADMIN must be user 1: the server records an asset nobody holds under user 1
  * (POOL_CUSTODIAN_ID, the placeholder custodian) and checks it exists on startup.
  */
 export const USERS = {
-  admin: user(1, "Admin", "admin", "STAFF", "ADMIN", false),
+  admin: user(1, "Admin", "admin", "STAFF", "IT_ADMIN", false),
   director: user(2, "Director", "director", "FACULTY", "ADRIC_DIRECTOR", false),
   staffTsg: user(3, "Staff TSG", "staff.tsg", "STAFF", "TSG_STAFF", false),
-  staffIts: user(4, "Staff ITS", "staff.its", "STAFF", "ITS_STAFF", false),
+  staffIts: user(4, "Staff ITS", "staff.its", "STAFF", "TSG_STAFF", false),
   labHead: user(5, "Lab Head", "labhead", "FACULTY", "LAB_HEAD", true),
-  custodianA: user(6, "Custodian A", "custodian.a", "STUDENT", "CUSTODIAN", true),
-  custodianB: user(7, "Custodian B", "custodian.b", "STUDENT", "CUSTODIAN", true),
+  custodianA: user(6, "Custodian A", "custodian.a", "STUDENT", "RESEARCHER", true),
+  custodianB: user(7, "Custodian B", "custodian.b", "STUDENT", "RESEARCHER", true),
   secretary: user(8, "Secretary", "secretary", "STAFF", "ADRIC_SECRETARY", false),
 } as const satisfies Record<string, TestUser>;
 

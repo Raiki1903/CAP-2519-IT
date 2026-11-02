@@ -115,7 +115,7 @@ describe("POST /api/assets/:tag/return", () => {
 
     expect(res.status).toBe(200);
     expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.approvedLoanId } })).status).toBe("returned");
-    const loans = await asStaff.get("/api/asset_loans");
+    const loans = await asStaff.get("/api/loans");
     expect(loans.body.loans.find((l: { loanId: number }) => l.loanId === SEEDED_ROWS.approvedLoanId).status).toBe("Returned");
     const listed = await listedAsset(ASSETS.onLoan.tag);
     expect(listed.status).toBe("Active");
@@ -131,8 +131,8 @@ describe("POST /api/assets/:tag/return", () => {
           asset_id: assetId,
           borrower_id: USERS.custodianA.userId,
           purpose: "Test purpose: loan on a returned asset",
-          loaned_on: new Date(loanedOn),
-          due_date: new Date("2026-12-01T00:00:00Z"),
+          requested_at: new Date(loanedOn),
+          return_by: new Date("2026-12-01T00:00:00Z"),
           status,
         },
       });
@@ -171,7 +171,7 @@ describe("POST /api/assets/:tag/return", () => {
         asset_id: asset.assetId,
         borrower_id: USERS.custodianA.userId,
         purpose: "Test purpose: loan on an asset under maintenance",
-        due_date: new Date("2026-12-01T00:00:00Z"),
+        return_by: new Date("2026-12-01T00:00:00Z"),
         status: "approved",
       },
     });

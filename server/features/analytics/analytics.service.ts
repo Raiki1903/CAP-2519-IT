@@ -333,7 +333,7 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
     // Month labels such as "Oct 26", in the server's time zone, in the order the months first appear (oldest first).
     const reportsByMonthMap = new Map<string, number>();
     for (const rep of reports) {
-        const d = new Date(rep.report_date);
+        const d = new Date(rep.inspected_at);
         const monthLabel = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
         reportsByMonthMap.set(monthLabel, (reportsByMonthMap.get(monthLabel) || 0) + 1);
     }
@@ -391,8 +391,8 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
             borrower: l.users ? `${l.users.first_name} ${l.users.last_name}` : "Borrower",
             purpose: cleanPurpose,
             destinationLab,
-            requestedOn: l.loaned_on.toISOString().split('T')[0],
-            dueDate: l.due_date.toISOString().split('T')[0],
+            requestedOn: l.requested_at.toISOString().split('T')[0],
+            dueDate: l.return_by.toISOString().split('T')[0],
             status: l.status.charAt(0).toUpperCase() + l.status.slice(1)
         };
     });
@@ -454,10 +454,10 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
     const projectAllocation: any[] = [];
     let colorIdx = 0;
     for (const p of allProjects) {
-        const count = projectCountsMap.get(p.master_id) || 0;
+        const count = projectCountsMap.get(p.project_id) || 0;
         if (count > 0) {
             projectAllocation.push({
-                projectId: p.project_id,
+                projectId: p.project_code,
                 name: p.project_name,
                 leader: p.project_leader,
                 center: p.research_centers?.name || "Research Center",
@@ -479,15 +479,15 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
 
     // TODO(H-04): a loan counts as overdue unless its status is returned or declined. A pending request past its due date counts, although nothing was handed over, and a loan returned before issue #99 is still approved and counts until its asset's next return. Phase 3.
     const overdueLoans = allLoansForDelinquency.filter(l => {
-        const dueDate = new Date(l.due_date);
+        const dueDate = new Date(l.return_by);
         return dueDate.getTime() < now.getTime() && l.status !== 'returned' && l.status !== 'declined';
     });
 
     const delinquencies = overdueLoans.map(l => {
-        const dueDate = new Date(l.due_date);
+        const dueDate = new Date(l.return_by);
         const daysOverdue = Math.max(1, Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
         const assetRecord = l.assets?.asset_records[0];
-        const project = allProjects.find(p => p.master_id === assetRecord?.project_id);
+        const project = allProjects.find(p => p.project_id === assetRecord?.project_id);
 
         return {
             id: l.loan_id,
@@ -497,9 +497,9 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
             // TODO(H-09): an invented address when the borrower is missing. The borrower is a required relation, so it does not happen today.
             email: l.users?.email || "student@dlsu.edu.ph",
             daysOverdue,
-            dueDate: l.due_date.toISOString(),
+            dueDate: l.return_by.toISOString(),
             project: project?.project_name || "Unassigned Cohort",
-            projectId: project?.master_id || 0
+            projectId: project?.project_id || 0
         };
     });
 
@@ -584,14 +584,14 @@ export async function staffDashboard(): Promise<StaffAnalyticsData> {
     const dbRepairs = await analyticsRepository.findRepairsWithAssetAndReporter();
 
     const repairs = dbRepairs.map(r => ({
-        repairId: r.repair_id,
+        repairId: r.maintenance_id,
         assetId: r.assets?.asset_tag || `ASSET-${r.asset_id}`,
         assetName: r.assets?.name || "Equipment",
         reportedBy: r.users ? `${r.users.first_name} ${r.users.last_name}` : "Staff",
         issueDescription: r.issue_description,
         isImmediate: r.is_immediate,
         progressStatus: r.progress_status || "Reported",
-        createdAt: r.created_at.toISOString().split('T')[0]
+        createdAt: r.reported_at.toISOString().split('T')[0]
     }));
 
     // Records come newest first, so the first one seen per asset is its newest.

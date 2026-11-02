@@ -1,11 +1,11 @@
 /**
  * Request and response shapes of the disposal endpoints.
- * Layer: shared. Imported by server/features/disposals/ and web/api/disposals.api.ts. Imports nothing.
+ * Layer: shared. Imported by server/features/retirements/ and web/api/retirements.api.ts. Imports nothing.
  * Used by: Staff disposal filing, Director approval.
  */
 
 /**
- * The body of POST /api/assets/:assetTag/disposal, as DisposalFormDialog sends it. The last custodian is not sent:
+ * The body of POST /api/assets/:assetTag/retirement, as DisposalFormDialog sends it. The last custodian is not sent:
  * the server names the asset's holder. (issue #12)
  */
 // TODO(M-13): the server packs pathway, last custodian, and date into one text column. Phase 3 splits them into columns.
@@ -17,14 +17,14 @@ export interface DisposalRequestInput {
 }
 
 /**
- * The two words PUT /api/asset_disposals/:disposalId/decision accepts.
+ * The two words PUT /api/retirements/:disposalId/decision accepts.
  * Loans and transfers use "decline" instead of "reject".
  */
 export type DisposalDecision = "approve" | "reject";
 
-/** One row of GET /api/asset_disposals. */
+/** One row of GET /api/retirements. */
 export interface DisposalListItem {
-  /** Display id, "DISP-<disposal_id>". */
+  /** Display id, "DISP-<retirement_id>". */
   id: string;
   disposalId: number;
   /** The asset's tag; "" if the asset is gone. */

@@ -239,7 +239,7 @@ describe("POST /api/auth/approve-registration", () => {
     expect(res.body.success).toBe(true);
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
     expect(created).toMatchObject({ first_name: body.firstName, last_name: body.lastName, id_number: body.idNumber, user_type: "FACULTY" });
-    expect(await roleNamesOf(created.user_id)).toEqual(["CUSTODIAN"]);
+    expect(await roleNamesOf(created.user_id)).toEqual(["RESEARCHER"]);
     const links = await db.user_centers.findMany({ where: { user_id: created.user_id } });
     expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
     expect(await pendingIds()).not.toContain(registration.id);
@@ -271,7 +271,7 @@ describe("POST /api/auth/approve-registration", () => {
   });
 
   it.each(["Custodian", "Lab Head", "TSG", "ITS", "Admin"])("approves a request that asks for role %s as a Custodian (C-05 family)", async (requestedRole) => {
-    const expectedRole: RoleName = "CUSTODIAN";
+    const expectedRole: RoleName = "RESEARCHER";
     const { body, registration } = await requestSignUp({ requestedRole, labAffiliation: LAB.shortCode });
 
     const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
@@ -329,7 +329,7 @@ describe("POST /api/auth/approve-registration", () => {
 
     expect(res.status).toBe(200);
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(await roleNamesOf(created.user_id)).toEqual(["CUSTODIAN"]);
+    expect(await roleNamesOf(created.user_id)).toEqual(["RESEARCHER"]);
     expect(await db.users.count({ where: { email: other.email } })).toBe(0);
   });
 
