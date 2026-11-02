@@ -113,12 +113,11 @@ export function createUser(data: Prisma.usersUncheckedCreateInput, roleId: numbe
     });
 }
 
-/** The user with this email (trimmed) and password, with their roles and labs, or null. (C-03: compared as plain text) */
-export function findUserByCredentials(email: string, password: string) {
+/** The user with this email (trimmed), with their roles and labs, or null. The service checks the password. */
+export function findUserForLogin(email: string) {
     return prisma.users.findFirst({
         where: {
-            email: email.trim(),
-            password: password
+            email: email.trim()
         },
         include: {
             user_roles: {

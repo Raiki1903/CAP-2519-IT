@@ -1,10 +1,11 @@
 /**
  * Auth service: the rules for logging in and out, the session's profile and app role, account updates, and sign-ups.
  * Layer: service. Called by auth.controller.ts and shared/middleware/requireAuth.ts. Calls auth.repository.ts,
- * shared/services/session.ts, and config/env.ts (the session secret).
+ * shared/services/session.ts, shared/services/passwords.ts, and config/env.ts (the session secret).
  * Used by: login for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
  */
 import type { roles, user_roles, users } from '@prisma/client';
+import { MAX_PASSWORD_LENGTH } from '@shared/constants/passwords';
 import type { Role, StaffUnit } from '@shared/enums/role';
 import type {
     AccountUpdateInput,
@@ -21,6 +22,7 @@ import type {
 import * as authRepository from './auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { env } from '../../config/env';
+import { DUMMY_PASSWORD_HASH, isPasswordHash, verifyPassword } from '../../shared/services/passwords';
 import { createSessionToken, isLoggedOut, markLoggedOut, verifySessionToken } from '../../shared/services/session';
 import { forgetIdentity, recallIdentity, rememberIdentity } from '../../shared/services/sessionCache';
 
@@ -200,8 +202,15 @@ function appRoleFor(roles: (user_roles & { roles: roles })[]): { role: string; s
     return { role: determinedRole, staffUnit };
 }
 
+const LOGIN_REFUSED_MESSAGE = "Invalid institutional email address or password.";
+
+/** What a dummy verify hashes in place of a password that is not worth hashing. */
+const UNUSABLE_PASSWORD_STAND_IN = "unusable";
+
 /**
- * Logs a user in by email and password.
+ * Logs a user in by email and password. Every refusal runs one verify and gives the same answer, so neither the
+ * answer nor its timing reveals which emails exist. An account whose password is still plain text cannot log in:
+ * prisma/hashExistingPasswords.ts is the path for old accounts.
  * The lab is the short code of the account's first lab link, or "CITe4D" when it has none.
  *
  * @param email the email as sent; the repository trims it
@@ -209,12 +218,21 @@ function appRoleFor(roles: (user_roles & { roles: roles })[]): { role: string; s
  * @returns the app role and the profile the session keeps
  * @throws AppError 401 if no account has this email and password
  */
-// TODO(C-03): the password is compared as plain text inside the database query, where the column's collation ignores case, so a password in another letter case also logs in (issue #10). Hashing, Phase 3.
 export async function login(email: string, password: string): Promise<{ role: string; user: LoginUser }> {
-    const user = await authRepository.findUserByCredentials(email, password);
+    // Refused before the lookup, so the email plays no part. The check also stops a huge password being hashed.
+    if (typeof password !== 'string' || password.length > MAX_PASSWORD_LENGTH) {
+        await verifyPassword(UNUSABLE_PASSWORD_STAND_IN, DUMMY_PASSWORD_HASH);
+        throw new AppError(401, LOGIN_REFUSED_MESSAGE);
+    }
 
-    if (!user) {
-        throw new AppError(401, "Invalid institutional email address or password.");
+    const user = await authRepository.findUserForLogin(email);
+
+    // A plain-text row fails verifyPassword at once, which would reveal the account, so it takes the dummy path too.
+    const storedHash = user && isPasswordHash(user.password) ? user.password : DUMMY_PASSWORD_HASH;
+    const passwordMatches = await verifyPassword(password, storedHash);
+
+    if (!user || !passwordMatches) {
+        throw new AppError(401, LOGIN_REFUSED_MESSAGE);
     }
 
     const { role: determinedRole, staffUnit } = appRoleFor(user.user_roles || []);

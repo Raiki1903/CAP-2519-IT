@@ -43,6 +43,7 @@ export interface TestUser {
   lastName: string;
   fullName: string;
   email: string;
+  /** The plain password, only for logging in. seed.ts stores its hash. */
   password: string;
   idNumber: number;
   userType: "STUDENT" | "FACULTY" | "STAFF";
