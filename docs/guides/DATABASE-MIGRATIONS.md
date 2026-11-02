@@ -130,6 +130,31 @@ To start over: drop and create the database again (step 1), then steps 2 and 3.
 
 ---
 
+## Hashing the passwords of existing data
+
+Since issue #10, login checks a hash and has no plain-text fallback, so an account whose password is still plain text cannot log in. `prisma/hashExistingPasswords.ts` hashes every `users.password` that is not a hash yet. The password each person types stays the same. Already-hashed rows are skipped, so running it twice changes nothing. It prints only the two counts, `[hash] hashed: 8, skipped: 0`, and never a password, a hash, an email, or a name.
+
+It takes its database only from `HASH_TARGET_URL`, never from `.env`, and refuses any host but `localhost` or `127.0.0.1` unless `--allow-remote` is given. If the database password contains `@`, `:`, `/`, or `#`, encode it as in [tests/README.md](../../tests/README.md), step 3.
+
+**Nothing runs against CCS Cloud before the Nov 8 deploy.** The deployed UAT site runs the frozen old code against CCS Cloud, and the UAT sessions use it. Running the script there would lock everyone out of that site. Merging this change is safe, because `main` is not deployed until then. After the merge, `main` run against CCS Cloud refuses every login, so use a local copy.
+
+**Local copies** (`adric_uat_local`, `adric_uat_check`, anyone's): after pulling `main`, run the script on the local copy. Run it again after every `uat-reset.sql` load, because that file puts plain passwords back. In PowerShell, as one line:
+
+```
+$env:HASH_TARGET_URL = "mysql://root:<password>@localhost:3306/adric_uat_check"; npx.cmd tsx prisma/hashExistingPasswords.ts; Remove-Item Env:HASH_TARGET_URL
+```
+
+**Nov 8 deploy, recommended path:** a fresh database from the migrations plus the seed ("A fresh local database with demo data" shows both commands). The seed writes hashes, so the script is not needed.
+
+**Nov 8, only if Macy upgrades the existing UAT data instead:**
+
+1. Back up first. The backup holds plain passwords, so it is never committed, posted, or shared.
+2. Deploy the new code.
+3. Run the script straight away, with `--allow-remote` after the file name. It is the same command as above, with the deployed database in the URL.
+4. Decline any sign-up request made before the change. Approving one answers 409, because it holds no hash, and the applicant signs up again.
+
+---
+
 ## Writing a Phase 3 change
 
 Every structure change is a migration, tested on your local test database before it is merged. Nobody changes CCS Cloud by hand.
