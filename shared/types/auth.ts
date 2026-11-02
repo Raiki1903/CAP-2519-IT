@@ -19,8 +19,8 @@ export interface RegistrationRequestInput {
   userType?: "STUDENT" | "FACULTY" | "STAFF";
   /** A lab name or code; CITe4D when not sent. */
   labAffiliation?: string;
-  /** "password123" when not sent. (C-03) */
-  password?: string;
+  /** The password as typed. The server stores only its hash. (C-03) */
+  password: string;
   /** The picture as a data URL; becomes users.user_img on approval. */
   avatarUrl?: string;
 }
@@ -37,7 +37,10 @@ export interface PendingRegistration {
   /** "Custodian" for every new request; approval always creates a Custodian, whatever an older request says. (C-05 family) */
   requestedRole: string;
   labAffiliation: string;
-  /** Plain text in the file (C-03, H-17), and never sent: the answers use PendingRegistrationView. (C-04) */
+  /**
+   * The password's hash, never sent: the answers use PendingRegistrationView. (C-04) A request filed before passwords
+   * were hashed can still hold plain text or nothing; approval refuses it. (C-03)
+   */
   password?: string;
   avatarUrl?: string;
   /** A display date such as "Oct 11, 2026", not a timestamp. */

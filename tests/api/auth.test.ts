@@ -5,6 +5,7 @@
  * and the Director, so they run after the login and profile tests.
  */
 import { describe, expect, it } from "vitest";
+import { MAX_PASSWORD_LENGTH } from "../../shared/constants/passwords";
 import { LAB, USERS, type TestUser } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
@@ -68,23 +69,71 @@ describe("POST /api/auth/login", () => {
     expect(noEmail.body.success).toBe(false);
   });
 
-  it("answers 401 for a wrong password and for an unknown email", async () => {
-    const wrongPassword = await api.post("/api/auth/login", { email: USERS.custodianA.email, password: "not-the-password" });
-    const unknownEmail = await api.post("/api/auth/login", { email: "nobody@example.test", password: USERS.custodianA.password });
+  describe("wrong credentials", () => {
+    const LOGIN_REFUSED = { success: false, error: "Invalid institutional email address or password." };
 
-    expect(wrongPassword.status).toBe(401);
-    expect(unknownEmail.status).toBe(401);
-    expect(wrongPassword.body.success).toBe(false);
-  });
+    it("answers the same 401 body for a wrong password and for an unknown email", async () => {
+      const wrongPassword = await api.post("/api/auth/login", { email: USERS.custodianA.email, password: "not-the-password" });
+      const unknownEmail = await api.post("/api/auth/login", { email: "nobody@example.test", password: USERS.custodianA.password });
 
-  it("logs in with the password in a different letter case (known defect C-03)", async () => {
-    const res = await api.post("/api/auth/login", {
-      email: USERS.custodianA.email,
-      password: USERS.custodianA.password.toUpperCase(),
+      expect(wrongPassword.status).toBe(401);
+      expect(unknownEmail.status).toBe(401);
+      expect(wrongPassword.body).toEqual(LOGIN_REFUSED);
+      expect(unknownEmail.body).toEqual(LOGIN_REFUSED);
     });
 
-    expect(res.status).toBe(200);
-    expect(res.body.user.userId).toBe(USERS.custodianA.userId);
+    it("refuses the right password in a different letter case (C-03 fixed)", async () => {
+      const res = await api.post("/api/auth/login", {
+        email: USERS.custodianA.email,
+        password: USERS.custodianA.password.toUpperCase(),
+      });
+
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual(LOGIN_REFUSED);
+    });
+
+    it("answers the same 401 body for a password over the longest allowed, with a known or an unknown email", async () => {
+      const tooLong = "x".repeat(MAX_PASSWORD_LENGTH + 1);
+
+      for (const email of [USERS.custodianA.email, "nobody@example.test"]) {
+        const res = await api.post("/api/auth/login", { email, password: tooLong });
+
+        expect(res.status, email).toBe(401);
+        expect(res.body, email).toEqual(LOGIN_REFUSED);
+      }
+    });
+
+    it("answers the same 401 body for a password that is not a string", async () => {
+      for (const password of [12345678, { contains: "a" }, [USERS.custodianA.password], true]) {
+        const res = await api.post("/api/auth/login", { email: USERS.custodianA.email, password });
+
+        expect(res.status, JSON.stringify(password)).toBe(401);
+        expect(res.body, JSON.stringify(password)).toEqual(LOGIN_REFUSED);
+      }
+    });
+
+    it("refuses an account whose password is still plain text: there is no fallback", async () => {
+      const plain = "test-password-still-plain";
+      const row = await db.users.create({
+        data: { first_name: "Test", last_name: "Plain Row", email: "plain.row@example.test", password: plain, id_number: 90009998, user_type: "STUDENT" },
+      });
+      try {
+        const res = await api.post("/api/auth/login", { email: row.email, password: plain });
+
+        expect(res.status).toBe(401);
+        expect(res.body).toEqual(LOGIN_REFUSED);
+      } finally {
+        await db.users.delete({ where: { user_id: row.user_id } });
+      }
+    });
+
+    it("refuses the stored hash typed as the password", async () => {
+      const { password: storedHash } = await db.users.findUniqueOrThrow({ where: { user_id: USERS.custodianA.userId } });
+
+      const res = await api.post("/api/auth/login", { email: USERS.custodianA.email, password: storedHash });
+
+      expect(res.status).toBe(401);
+    });
   });
 
   it("trims spaces around the email", async () => {

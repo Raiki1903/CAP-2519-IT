@@ -1,21 +1,27 @@
 /**
  * Auth request checks: is each sign-up, login, profile, and account request shaped correctly, before any database work.
- * Layer: validation. Called by auth.controller.ts. Calls shared/errors/AppError.ts.
+ * Layer: validation. Called by auth.controller.ts. Calls shared/errors/AppError.ts and shared/constants/passwords.ts.
  * Used by: login, self-registration, the session reload, and the account page.
  */
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '@shared/constants/passwords';
 import type { AccountUpdateInput, LoginInput, RegistrationRequestInput } from '@shared/types/auth';
 import { AppError } from '../../shared/errors/AppError';
 
 /**
- * Checks that a sign-up request has names, email, and id number.
- * The password is not required: the service stores a default when it is missing. (C-03)
+ * Checks that a sign-up request has names, email, id number, and a password of an allowed length. (C-03)
  *
  * @param data the fields read from the body
- * @throws AppError 400 if any of the four is missing or empty
+ * @throws AppError 400 if any of the four is missing or empty, or if the password is not a string of an allowed length
  */
 export function checkRegistrationRequest(data: any): asserts data is RegistrationRequestInput {
     if (!data.firstName || !data.lastName || !data.email || !data.idNumber) {
         throw new AppError(400, "Missing required registration fields.");
+    }
+    if (typeof data.password !== 'string' || data.password.length < MIN_PASSWORD_LENGTH) {
+        throw new AppError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
+    }
+    if (data.password.length > MAX_PASSWORD_LENGTH) {
+        throw new AppError(400, `Password must be at most ${MAX_PASSWORD_LENGTH} characters long.`);
     }
 }
 

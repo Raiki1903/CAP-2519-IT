@@ -15,7 +15,7 @@ async function main() {
     console.log(`Total users: ${users.length}`);
     users.forEach((u) => {
         const roles = u.user_roles.map(ur => ur.roles.role_name).join(', ');
-        console.log(`ID: ${u.user_id}, Name: ${u.first_name} ${u.last_name}, Email: ${u.email}, Password: ${u.password}, Roles: ${roles}`);
+        console.log(`ID: ${u.user_id}, Name: ${u.first_name} ${u.last_name}, Email: ${u.email}, Roles: ${roles}`);
     });
 }
 

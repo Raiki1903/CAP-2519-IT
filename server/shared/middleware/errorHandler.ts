@@ -1,11 +1,14 @@
 /**
  * Error handler: the one place that turns a failed request into its answer. (H-16)
  * Layer: shared (server middleware). Mounted last by server/app.ts; Express calls it with the error of any controller
- * (a thrown error or a rejected promise), body parser, or router. Calls shared/errors/AppError.ts and the console.
+ * (a thrown error or a rejected promise), body parser, or router. Calls shared/errors/AppError.ts, shared/services/passwords.ts,
+ * and the console.
  * Used by: every request to the API that fails.
  */
+import { inspect } from 'node:util';
 import type { NextFunction, Request, Response } from 'express';
 import { AppError } from '../errors/AppError';
+import { hidePasswordHashes } from '../services/passwords';
 
 /** The `error` text of every 500 answer. Written for the user: it names no table, file, or query. */
 export const SERVER_ERROR_MESSAGE = "Something went wrong on the server. Please try again.";
@@ -32,7 +35,7 @@ function isBodyReadError(err: unknown): boolean {
  * an AppError answers its own status with `{ success: false, error: message }`;
  * a body the parsers could not read keeps its status (400, 413, or 415) and answers `{ success: false, error, code: "BAD_REQUEST" }`;
  * Express's own client errors, such as an undecodable path parameter (400), keep Express's answer;
- * anything else is logged in full (method, URL, the error with its stack) and answers 500 with
+ * anything else is logged in full (method, URL, the error with its stack, any password hash hidden) and answers 500 with
  * `{ success: false, error: SERVER_ERROR_MESSAGE, code: "SERVER_ERROR" }`, so no database text, stack, or path reaches the browser.
  * Unknown paths never reach it: they keep Express's own 404.
  *
@@ -52,8 +55,8 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
     }
 
     if (isBodyReadError(err)) {
-        // Only the type and message: a body that failed to parse can hold a password.
-        console.error(`⚠️ ${req.method} ${req.originalUrl}: request body could not be read (${(err as any).type}): ${(err as Error).message}`);
+        // Only the type: the parser's message can quote the body, which can hold a password.
+        console.error(`⚠️ ${req.method} ${req.originalUrl}: request body could not be read (${(err as any).type})`);
         res.status(statusOf(err)!).json({ success: false, error: BAD_REQUEST_MESSAGE, code: 'BAD_REQUEST' });
         return;
     }
@@ -64,6 +67,6 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
         return;
     }
 
-    console.error(`❌ ${req.method} ${req.originalUrl} failed:`, err);
+    console.error(`❌ ${req.method} ${req.originalUrl} failed:`, hidePasswordHashes(inspect(err)));
     res.status(500).json({ success: false, error: SERVER_ERROR_MESSAGE, code: 'SERVER_ERROR' });
 }

@@ -1463,3 +1463,27 @@ Eight, in the log section 7: who is in the custodian dropdown; one lookups route
 1. Raiki reviews the nine commits on `fix/95-people-pickers`, merges `main` into it (`git pull origin main`; PR #129 is on `main`), pushes, and opens the pull request (`Closes #95`, `Closes #74`, `Closes #12`, `Closes #32`).
 2. Raiki files the bell's display-name matches (`NotificationCenter.tsx`, Joel's branch) as a new issue.
 3. If PR #130 merges first, its `registerAsset` and `createWithRecords` changes do not overlap this branch's lines.
+
+## Batch 2a (password hashing, issue #10), 2026-11-02
+
+**Prompt followed:** the brief and Raiki's answers in [tasks/batch-2a-password-hashing.md](tasks/batch-2a-password-hashing.md), the source of truth for this batch.
+
+### What was produced
+
+- C-03 and the plain-password part of H-17 are fixed. `server/shared/services/passwords.ts` is the only code that hashes or checks a password (Node's scrypt, no new package). Login looks the user up by email and verifies in code, with one verify on every path and no plain-text fallback. Sign-up needs 8 to 128 characters and stores only the hash. Approval copies the hash and answers 409 for a request filed before the change.
+- `prisma/hashExistingPasswords.ts`, with `prisma/hashTarget.ts`, hashes existing rows. It takes its database only from `HASH_TARGET_URL`, and a remote host needs `--allow-remote`. Both seeds write hashes.
+- The error handler, the pending file's load error, and the demo seed's error text hold no password or hash. `pending_registrations.json` itself stays until Batch 2b.
+- Typecheck **49** after every commit. Tests **443** to **513**: 512 pass on 2026-11-02, and the one failure is `transfers.test.ts`, which hardcodes that date and fails only on it.
+
+### Key findings
+
+- **Before this batch, the server log could hold secrets:** the JSON parser's message quoted part of a malformed body, and a Prisma error quoted the values it was given. Both are fixed and pinned by tests.
+- **Deploy order matters.** The deployed UAT site runs the frozen old code against CCS Cloud, so nothing runs against CCS Cloud before the Nov 8 deploy. After the merge, `main` run against CCS Cloud refuses every login.
+- **`uat-reset.sql` puts plain passwords back,** so run the script again after every load.
+- All hand checks passed, H0 to H6b. Raiki ran H1 and H2, because the agent's reload of the local copy was blocked by the permission check.
+
+### Exact next step
+
+1. Raiki reviews the branch, merges `main` into it (`git pull origin main`), pushes, and opens the pull request (`Closes #10`), with the `dd524809` note under "Notes".
+2. After the merge, everyone with a local copy runs the script on it, using the command in `docs/guides/DATABASE-MIGRATIONS.md`.
+3. Batch 2b (sign-ups as database rows, IT Admin approval) is Aryan's. The follow-ups are listed in the task file, "## Final report".

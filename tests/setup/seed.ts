@@ -1,9 +1,10 @@
 /**
  * Writes the fixtures into the emptied test database: lab, roles, accounts, assets, and their workflow rows.
- * Layer: test setup. Called by harness.ts before each test file. Calls Prisma; reads fixtures.ts.
+ * Layer: test setup. Called by harness.ts before each test file. Calls Prisma and the server's password helper; reads fixtures.ts.
  * Used by: every API test file.
  */
 import type { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../../server/shared/services/passwords";
 import { ASSETS, FUNDING_SOURCE, LAB, ROLE_IDS, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "./fixtures";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -36,13 +37,14 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
     data: Object.entries(ROLE_IDS).map(([roleName, roleId]) => ({ role_id: roleId, role_name: roleName as keyof typeof ROLE_IDS })),
   });
 
+  const passwordHashes = await Promise.all(users.map((u) => hashPassword(u.password)));
   await prisma.users.createMany({
-    data: users.map((u) => ({
+    data: users.map((u, i) => ({
       user_id: u.userId,
       first_name: u.firstName,
       last_name: u.lastName,
       email: u.email,
-      password: u.password,
+      password: passwordHashes[i],
       id_number: u.idNumber,
       user_type: u.userType,
     })),

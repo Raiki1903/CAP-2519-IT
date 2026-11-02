@@ -73,7 +73,7 @@ PRISMA_TARGET_URL="mysql://root:<password>@localhost:3306/adric_db_dev" npx pris
 
 It ends with "All migrations have been successfully applied."
 
-**3. Seed it.** `SEED_PASSWORD` is the password every demo account gets: choose one, at least 8 characters. It is not stored anywhere but in the database (as plain text, like every password until issue #10).
+**3. Seed it.** `SEED_PASSWORD` is the password every demo account gets: choose one, at least 8 characters. It is not stored anywhere: the database holds only its hash.
 
 PowerShell:
 ```
@@ -90,7 +90,7 @@ SEED_DATABASE_URL="mysql://root:<password>@localhost:3306/AdRIC_DB_dev" SEED_PAS
 
 It prints `[seed] Done: 7 roles, 10 labs, 8 demo accounts, 100 demo assets held by nobody.`
 
-What it writes: the 7 roles; the 10 research centers; 8 demo accounts, first name "Demo", password `SEED_PASSWORD`:
+What it writes: the 7 roles; the 10 research centers; 8 demo accounts, first name "Demo", who log in with `SEED_PASSWORD`:
 
 | Email | Role | Lab |
 |---|---|---|
@@ -127,6 +127,31 @@ The server prints `Pool custodian check passed: user_id 1 (Demo Admin) ...`: tha
 **Use a private browser window for the demo database, or log out before switching.** The login cookie holds only your user id (and when it expires), not which database it came from. A browser logged in while the server ran on one database stays logged in as the same user id after the server is switched to another: for example, demo user 3 (Demo TSG Staff) becomes CCS Cloud's user 3, whoever that is, until the cookie expires (8 hours) or you log out. A private window keeps the demo login apart and forgets it when closed.
 
 To start over: drop and create the database again (step 1), then steps 2 and 3.
+
+---
+
+## Hashing the passwords of existing data
+
+Since issue #10, login checks a hash and has no plain-text fallback, so an account whose password is still plain text cannot log in. `prisma/hashExistingPasswords.ts` hashes every `users.password` that is not a hash yet. The password each person types stays the same. Already-hashed rows are skipped, so running it twice changes nothing. It prints only the two counts, `[hash] hashed: 8, skipped: 0`, and never a password, a hash, an email, or a name.
+
+It takes its database only from `HASH_TARGET_URL`, never from `.env`, and refuses any host but `localhost` or `127.0.0.1` unless `--allow-remote` is given.
+
+**Nothing runs against CCS Cloud before the Nov 8 deploy.** The deployed UAT site runs the frozen old code against CCS Cloud, and the UAT sessions use it. Running the script there would lock everyone out of that site. Merging this change is safe, because `main` is not deployed until then. After the merge, `main` run against CCS Cloud refuses every login, so use a local copy.
+
+**Local copies** (`adric_uat_local`, `adric_uat_check`, anyone's): after pulling `main`, run the script on the local copy. Run it again after every `uat-reset.sql` load, because that file puts plain passwords back. In PowerShell, as one line. It asks for your local MySQL root password without showing it, encodes it for the URL, and keeps it out of the shell history:
+
+```
+$s = Read-Host "Local MySQL root password" -AsSecureString; $p = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)); $env:HASH_TARGET_URL = "mysql://root:$([uri]::EscapeDataString($p))@localhost:3306/adric_uat_check"; npx.cmd tsx prisma/hashExistingPasswords.ts; Remove-Item Env:HASH_TARGET_URL; Remove-Variable p, s
+```
+
+**Nov 8 deploy, recommended path:** a fresh database from the migrations plus the seed ("A fresh local database with demo data" shows both commands). The seed writes hashes, so the script is not needed.
+
+**Nov 8, only if Macy upgrades the existing UAT data instead:**
+
+1. Back up first. The backup holds plain passwords, so it is never committed, posted, or shared.
+2. Deploy the new code.
+3. Run the script straight away, with `--allow-remote` after the file name. It is the same command as above, with the deployed database's user, host, and name in the URL.
+4. Decline any sign-up request made before the change. Approving one answers 409, because it holds no hash, and the applicant signs up again.
 
 ---
 

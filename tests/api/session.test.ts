@@ -10,6 +10,7 @@
  * show the cache through a second login, which gets a new cookie and so a fresh lookup.
  */
 import { describe, expect, it } from "vitest";
+import { hashPassword } from "../../server/shared/services/passwords";
 import { signSessionToken, SESSION_COOKIE_NAME, SESSION_LIFETIME_SECONDS } from "../../server/shared/services/session";
 import {
   clearIdentityCache,
@@ -213,7 +214,7 @@ describe("requireAuth: who gets a 401", () => {
 
   it("keeps accepting the cookie of an account deleted after login for up to 60 seconds (the lookup cache), and a new login fails", async () => {
     const temp = await db.users.create({
-      data: { first_name: "Test", last_name: "Temporary", email: "temporary@example.test", password: "test-password-temporary", id_number: 90009999, user_type: "STUDENT" },
+      data: { first_name: "Test", last_name: "Temporary", email: "temporary@example.test", password: await hashPassword("test-password-temporary"), id_number: 90009999, user_type: "STUDENT" },
     });
     const tempUser = { ...USERS.custodianA, userId: temp.user_id, email: temp.email, password: "test-password-temporary" };
     try {
