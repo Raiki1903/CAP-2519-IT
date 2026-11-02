@@ -386,3 +386,9 @@ In `docs/guides/DATABASE-MIGRATIONS.md`:
 
 - **Asset search** `GET /api/assets?q=` (part of the tag, serial number or name, any letter case) is small, so it is live in Batch 1. It lands in commit 6, where the asset list is rewritten.
 - **Lab Head office accounts:** an account that heads a lab is the lab's office account and cannot request loans (403 "Use your personal account to borrow."). The rule is enforced with the loan chain in Batch 3; commit 7's helpers expose "heads a lab" for it. `idNumber` (the person's own) joins the session in commit 7.
+
+**Stop 2 answers (Raiki, Nov 3):**
+
+- **Stop 2 finding:** `uat-reset.sql` holds 12 users, 127 assets and 14 loans; `adric_uat_check` holds more (17 users, 128 assets, 16 loans) from earlier hand checks. The rules above apply to whatever data the migration meets; Stop 3 reports the counts on `adric_b1_scratch` (the reset data).
+- **N, IT Admin and Secretary for the hand checks:** after the commit 11 reset, users 10 and 11 become IT_ADMIN and ADRIC_SECRETARY through the never-committed scratch SQL file. This replaces D (users 13 and 14 do not exist in the reset data).
+- **O, Lab Heads in the migration:** the migration sets `head_user_id` only where a lab has exactly one LAB_HEAD holder (who heads no other lab), and Stop 3 lists the labs left without a Head. Raiki's CITe4D pick goes in the same scratch SQL file, by name, checked against the reset data at Stop 3. No user id is written into a migration.
