@@ -231,6 +231,48 @@ Database: `adric_uat_check`, local. App started only through `start-local-uat.ps
 
 ### The pending file during H5
 
-The app runs from the repo root, so H5 used the real `pending_registrations.json`. Only its size and date were checked, never its contents. It was 444 bytes, dated 2026-10-28, before H5, and 2 bytes, dated 2026-11-02 14:23, after. The server's pending list then held 0 requests. The H5 approval was the only approval and removes one id, and no decline was sent, so the code does not explain the difference. The server log holds no load error for the file. The cause is not known. `C:\dev\uat-data\pending_registrations.backup.json` exists and was not opened.
+Nothing was lost. Raiki had moved the real `pending_registrations.json` out of the repo before these checks. The server started with no file, H5 created one, and the approval emptied it to "[]". Raiki restored the real file. The agent's size comparison was a mistake: Raiki's rule against comparing that file and its backup includes their size. It never read the contents.
 
 H5 also left one made-up account, user 17, in `adric_uat_check`. The next `uat-reset.sql` load removes it.
+
+## Final report
+
+Status: all commits are on `fix/10-password-hashing`, nothing pushed.
+
+### What changed
+
+| Commit | Change | Typecheck | Tests (total) |
+|---|---|---|---|
+| `e7935880`, `4a0e34c4` | Docs: this brief, the plan, and the stop 1 answers | 49 | 443 |
+| `e33d8a73` | Password helper, with unit tests | 49 | 456 |
+| `623227a1` | Login checks the hash, with no fallback. The test seed and fixtures move to hashes. `auth.test.ts` and `session.test.ts` changed | 49 | 460 |
+| `2ee0229f` | Sign-up needs 8 to 128 characters and stores only the hash. Approval copies it and answers 409 for an old request. `registration.test.ts` changed | 49 | 493 |
+| `b9c59abf` | The upgrade script and its guide. `parseSeedTarget` takes optional rules, and `SeedRefused` an optional tool name | 49 | 503 |
+| `dd524809` | The demo seed writes hashes. Also holds the first version of commit 7's tests, by mistake | 49 | 505 |
+| `c634a521` | The logs hold no password or hash. `scratch/check_users.ts` no longer prints the password | 49 | 513 |
+| `627c0b2c` | The sign-up page shows the length error instead of cutting long passwords | 49 | 513 |
+| `b360ebf7` | Docs: hand check results and the stop 2 and 3 answers | 49 | 513 |
+| Commit 9 | Docs: `AGENTS.md`, the guide's masked command, `docs/README.md`, `docs/HANDOFF.md`, this report | 49 | 513 |
+
+The findings register has no status column, so it was not changed. `prisma/schema.prisma`, `prisma/migrations`, `package.json`, and `package-lock.json` were not changed.
+
+### Checks
+
+Run on 2026-11-02 before commit 9, which changes only docs:
+
+- Typecheck: **49**, unchanged.
+- Build: passes.
+- Tests: **513**, up from 443 because of the new tests above. **512 pass.** The only failure is `tests/api/transfers.test.ts`, "packs the destination lab into the justification and stores the effective date nowhere". It hardcodes 2026-11-02, which is the day of this run, and is not caused by this batch.
+
+### Hand checks
+
+H0 to H6b all passed, on the local `adric_uat_check` only, with nothing run against CCS Cloud. The results are in "## Hand checks: results" above. Raiki ran H1 and H2.
+
+### Follow-ups, not fixed here
+
+- **Emails in logs:** `auth.controller.ts` logs emails at sign-up and at the account update, which breaks the `AGENTS.md` rule.
+- **No login rate limit:** each attempt costs about 70 ms and 32 MiB.
+- **Invalid `userType`:** a sign-up with one is accepted, then fails at approval with a 500. The log no longer holds the hash.
+- **Stale C-04 note:** `web/state/serverData.tsx:132` and `:142` hold an old note and an unused `password` field.
+- **Hardcoded date:** `tests/api/transfers.test.ts:21` hardcodes 2026-11-02.
+- **For the PR "Notes":** `dd524809` holds commit 7's tests, so those tests fail at that one commit and pass from `c634a521`. This repo merges with merge commits, so the commit stays in `main`'s history.
