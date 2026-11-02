@@ -203,7 +203,7 @@ describe("GET /api/assets/:tag/custodian-history", () => {
   });
 
   it("invents a first entry for an asset with no records (H-09 family)", async () => {
-    const bare = await db.assets.create({ data: { asset_tag: "TEST-9001", name: "Test Asset With No Records", category: "AUDIO" } });
+    const bare = await db.assets.create({ data: { asset_tag: "TEST-9001", name: "Test Asset With No Records", category: "AUDIO", center_id: LAB.centerId } });
     try {
       const res = await asStaff.get("/api/assets/TEST-9001/custodian-history");
 
@@ -283,16 +283,14 @@ describe("POST /api/assets", () => {
     expect(unknown.body.asset.category).toBe("DEV_KIT");
   });
 
-  it("uses the CITe4D tag prefix and location Unassigned when no lab or location is sent", async () => {
+  it("answers 400 and writes nothing when the lab is not a known research center: the asset's home lab is stored on it", async () => {
+    const before = await db.assets.count();
+
     const res = await asStaff.post("/api/assets", { name: "Test Unplaced Asset", category: "AUDIO" });
 
-    expect(res.status).toBe(200);
-    expect(res.body.asset.asset_tag).toBe("CITe4D-0001");
-    const record = await newestRecord(res.body.asset.asset_id);
-    expect(record.location).toBe("Unassigned");
-    const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: res.body.asset.asset_id } });
-    expect(monetary.funding_source).toBe("Unspecified");
-    expect(Number(monetary.acquisition_value)).toBe(0);
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ success: false, error: "Pick a lab from the list." });
+    expect(await db.assets.count()).toBe(before);
   });
 
   it("accepts a data:image picture", async () => {
@@ -601,9 +599,9 @@ describe("DELETE /api/assets/:tag", () => {
   it("deletes the asset with its records, monetary row, loans, repairs, transfers, returns, and disposals", async () => {
     const assetId = ASSETS.disposed.assetId;
     await db.asset_loans.create({
-      data: { asset_id: assetId, borrower_id: USERS.custodianA.userId, purpose: "Test old loan", return_by: new Date("2026-01-20"), status: "approved" },
+      data: { asset_id: assetId, borrower_id: USERS.custodianA.userId, purpose: "Test old loan", requested_at: new Date("2026-01-10"), return_by: new Date("2026-01-20"), status: "ON_LOAN" },
     });
-    await db.asset_maintenance.create({ data: { asset_id: assetId, reported_by_id: USERS.custodianA.userId, issue_description: "Test old repair", progress_status: "Fixed & Completed" } });
+    await db.asset_maintenance.create({ data: { asset_id: assetId, reported_by_id: USERS.custodianA.userId, issue_description: "Test old repair", status: "RESOLVED" } });
     await db.asset_transfers.create({
       data: { asset_id: assetId, from_custodian_id: USERS.admin.userId, to_custodian_id: USERS.custodianA.userId, justification: "Test old transfer", status: "declined" },
     });

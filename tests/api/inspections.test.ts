@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { addExtraAsset } from "../setup/extraAssets";
-import { ASSETS, SEEDED_ROWS, USERS } from "../setup/fixtures";
+import { ASSETS, LAB, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
 const { db, as } = useApiHarness();
@@ -35,6 +35,7 @@ async function withNewerReports(check: (ids: { older: number; newer: number }) =
     data: {
       asset_id: ASSETS.available.assetId,
       inspected_by_id: USERS.custodianA.userId,
+      type: "SELF_REPORT",
       condition: "DEGRADED",
       remarks: "Test report: older",
       photo: "data:image/png;base64,TEST",
@@ -45,6 +46,7 @@ async function withNewerReports(check: (ids: { older: number; newer: number }) =
     data: {
       asset_id: ASSETS.onLoan.assetId,
       inspected_by_id: USERS.custodianB.userId,
+      type: "SELF_REPORT",
       condition: "PERFECT",
       remarks: "Test report: newer",
       inspected_at: new Date("2026-06-02T09:00:00Z"),
@@ -274,7 +276,7 @@ describe("POST /api/assets/:tag/inspection", () => {
   });
 
   it("gives an asset with no records a first ACTIVE record at 'DLSU Campus' under the reporter, the session user", async () => {
-    const asset = await db.assets.create({ data: { asset_tag: "TEST-0542", name: "Test Asset Without Records", category: "DEV_KIT" } });
+    const asset = await db.assets.create({ data: { asset_tag: "TEST-0542", name: "Test Asset Without Records", category: "DEV_KIT", center_id: LAB.centerId } });
 
     const res = await asCustodian.post(`/api/assets/${asset.asset_tag}/inspection`, inspectionBody());
 

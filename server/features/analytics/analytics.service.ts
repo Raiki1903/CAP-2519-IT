@@ -15,7 +15,10 @@ import type {
     LocationStatusData,
     StaffAnalyticsData,
 } from '@shared/types/analytics';
+import { asset_loans_status } from '@prisma/client';
 import * as analyticsRepository from './analytics.repository';
+import { progressTextOf } from '../maintenance/maintenance.service';
+import { legacyLoanStatusLabel } from '../loans/loans.service';
 import type { DirectorFilters, LabHeadFilters } from './analytics.validation';
 
 // ===========================================================================
@@ -393,7 +396,7 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
             destinationLab,
             requestedOn: l.requested_at.toISOString().split('T')[0],
             dueDate: l.return_by.toISOString().split('T')[0],
-            status: l.status.charAt(0).toUpperCase() + l.status.slice(1)
+            status: legacyLoanStatusLabel(l.status)
         };
     });
 
@@ -477,10 +480,10 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
 
     const allLoansForDelinquency = await analyticsRepository.findLoansForDelinquency(prefixFilter);
 
-    // TODO(H-04): a loan counts as overdue unless its status is returned or declined. A pending request past its due date counts, although nothing was handed over, and a loan returned before issue #99 is still approved and counts until its asset's next return. Phase 3.
+    // TODO(H-04): a loan counts as overdue unless it is returned or declined, so a pending request past its due date counts, although nothing was handed over. Batch 3.
     const overdueLoans = allLoansForDelinquency.filter(l => {
         const dueDate = new Date(l.return_by);
-        return dueDate.getTime() < now.getTime() && l.status !== 'returned' && l.status !== 'declined';
+        return dueDate.getTime() < now.getTime() && l.status !== asset_loans_status.RETURNED && l.status !== asset_loans_status.DECLINED;
     });
 
     const delinquencies = overdueLoans.map(l => {
@@ -590,7 +593,7 @@ export async function staffDashboard(): Promise<StaffAnalyticsData> {
         reportedBy: r.users ? `${r.users.first_name} ${r.users.last_name}` : "Staff",
         issueDescription: r.issue_description,
         isImmediate: r.is_immediate,
-        progressStatus: r.progress_status || "Reported",
+        progressStatus: progressTextOf(r),
         createdAt: r.reported_at.toISOString().split('T')[0]
     }));
 

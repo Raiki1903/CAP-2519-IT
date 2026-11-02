@@ -4,7 +4,7 @@
  * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/services/mailer.ts, and shared/constants/poolCustodian.ts.
  * Used by: Staff disposal filing (DisposalFormDialog), Director approval (Approvals & Holds tab and the bell).
  */
-import type { Prisma, asset_records, asset_retirements, assets } from '@prisma/client';
+import { asset_retirements_status, type Prisma, type asset_records, type asset_retirements, type assets } from '@prisma/client';
 import type { DisposalDecision, DisposalListItem, DisposalRequestInput } from '@shared/types/retirements';
 import * as retirementsRepository from './retirements.repository';
 import * as assetsRepository from '../assets/assets.repository';
@@ -64,7 +64,7 @@ export async function requestDisposal(
         asset_id: existing.asset_id,
         requested_by_id: disposedById,
         reason,
-        status: "pending",
+        status: asset_retirements_status.PENDING,
     });
 
     return { disposal, asset: existing };
@@ -109,8 +109,8 @@ export async function listDisposals(): Promise<DisposalListItem[]> {
         const requester = dbUsers.find(u => u.user_id === d.requested_by_id);
 
         let status: "Pending" | "Approved" | "Rejected" = "Pending";
-        if (d.status === "approved") status = "Approved";
-        else if (d.status === "rejected") status = "Rejected";
+        if (d.status === asset_retirements_status.APPROVED || d.status === asset_retirements_status.COMPLETED) status = "Approved";
+        else if (d.status === asset_retirements_status.DENIED) status = "Rejected";
 
         return {
             id: `DISP-${d.retirement_id}`,
@@ -124,6 +124,15 @@ export async function listDisposals(): Promise<DisposalListItem[]> {
         };
     });
 }
+
+/** The word the old screens and messages use for each retirement status. */
+// TODO(H-07): the screens still read the old status words. The new statuses and their labels reach them from shared/constants (Batch 1, commit 5 onward).
+const LEGACY_DISPOSAL_WORDS: Record<asset_retirements_status, string> = {
+    PENDING: "pending",
+    APPROVED: "approved",
+    DENIED: "rejected",
+    COMPLETED: "approved",
+};
 
 /**
  * Approves or rejects a pending disposal request.
@@ -145,8 +154,8 @@ export async function decideDisposal(disposalId: number, decision: DisposalDecis
     if (!disposal) {
         throw new AppError(404, `No disposal request found with id ${disposalId}.`);
     }
-    if (disposal.status !== "pending") {
-        throw new AppError(400, `Disposal #${disposalId} has already been ${disposal.status}.`);
+    if (disposal.status !== asset_retirements_status.PENDING) {
+        throw new AppError(400, `Disposal #${disposalId} has already been ${LEGACY_DISPOSAL_WORDS[disposal.status]}.`);
     }
     if (decision === "approve") {
         // The same allowed statuses as requestDisposal.
@@ -156,7 +165,8 @@ export async function decideDisposal(disposalId: number, decision: DisposalDecis
         }
     }
 
-    const newStatus = decision === "approve" ? "approved" : "rejected";
+    // There is no separate completion step yet, so an approval disposes of the asset at once, as before.
+    const newStatus = decision === "approve" ? asset_retirements_status.COMPLETED : asset_retirements_status.DENIED;
     // A reject writes no record: the asset never left its status, so Staff can file again or keep using it.
     return retirementsRepository.saveDecision(
         disposal,

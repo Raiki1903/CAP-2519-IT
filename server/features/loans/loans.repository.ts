@@ -3,7 +3,7 @@
  * Layer: repository. Called by loans.service.ts and shared/services/custodyRequestGuard.ts (the pending loan). Calls server/config/prisma.ts.
  * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
  */
-import type { Prisma, asset_loans, asset_records } from '@prisma/client';
+import { asset_loans_status, type Prisma, type asset_loans, type asset_records } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
 /** Every asset_loans row, newest request first. */
@@ -31,7 +31,7 @@ export function findListLookups() {
 
 /** The asset's pending loan (its id only), or null. Read by the custody request guard. (H-05) */
 export function findPendingLoanId(assetId: number) {
-    return prisma.asset_loans.findFirst({ where: { asset_id: assetId, status: "pending" }, select: { loan_id: true } });
+    return prisma.asset_loans.findFirst({ where: { asset_id: assetId, status: asset_loans_status.PENDING_APPROVAL }, select: { loan_id: true } });
 }
 
 /** Inserts an asset_loans row and returns it. */
@@ -50,13 +50,13 @@ export function findById(loanId: number) {
  * and handed to the service to build the new record from.
  *
  * @param loan the pending loan being decided
- * @param newStatus "approved" or "declined"
+ * @param newStatus ON_LOAN or DECLINED
  * @param buildHandoverRecord builds the new asset_records row from the latest one; null for a decline
  * @returns the updated asset_loans row
  */
 export function saveDecision(
     loan: asset_loans,
-    newStatus: string,
+    newStatus: asset_loans_status,
     buildHandoverRecord: ((latestRecord: asset_records | null) => Prisma.asset_recordsUncheckedCreateInput) | null,
 ) {
     // The loan status and the custody record are written together, so a failure on either

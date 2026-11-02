@@ -5,7 +5,7 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../../server/shared/services/passwords";
-import { ASSETS, FUNDING_SOURCE, LAB, ROLE_IDS, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "./fixtures";
+import { ASSET_STATUS_OF_RECORD, ASSETS, FUNDING_SOURCE, LAB, ROLE_IDS, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "./fixtures";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -55,6 +55,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.user_centers.createMany({
     data: users.filter((u) => u.inLab).map((u) => ({ user_id: u.userId, center_id: LAB.centerId })),
   });
+  await prisma.research_centers.update({ where: { center_id: LAB.centerId }, data: { head_user_id: USERS.labHead.userId } });
 
   await prisma.assets.createMany({
     data: assets.map((a) => ({
@@ -62,6 +63,8 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       asset_tag: a.tag,
       name: a.name,
       category: a.category,
+      status: ASSET_STATUS_OF_RECORD[a.recordStatus],
+      center_id: LAB.centerId,
       serial_number: `TEST-SN-${a.assetId}`,
       manufacturer: "Test Manufacturer",
       procurement_date: new Date("2025-06-01"),
@@ -127,7 +130,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
         purpose: `Destination Lab: ${LAB.shortCode}\n\nTest purpose: approved loan`,
         requested_at: AT.loanApproved,
         return_by: new Date(Date.now() + 30 * DAY_MS),
-        status: "approved",
+        status: "ON_LOAN",
       },
       {
         loan_id: SEEDED_ROWS.pendingLoanId,
@@ -136,7 +139,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
         purpose: `Destination Lab: ${LAB.shortCode}\n\nTest purpose: pending loan`,
         requested_at: AT.pendingLoanFiled,
         return_by: new Date(Date.now() + 14 * DAY_MS),
-        status: "pending",
+        status: "PENDING_APPROVAL",
       },
     ],
   });
@@ -148,7 +151,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       reported_by_id: USERS.custodianA.userId,
       issue_description: "Test repair: the lens does not focus",
       is_immediate: false,
-      progress_status: "Inspection Phase",
+      status: "INSPECTING",
       reported_at: AT.repairReported,
     },
   });
@@ -160,7 +163,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       requested_by_id: USERS.staffTsg.userId,
       reason: "Disposal Pathway: Test pathway\n\nBreakdown Justification:\nTest breakdown: the board is burnt",
       requested_at: AT.disposalFiled,
-      status: "approved",
+      status: "COMPLETED",
     },
   });
 
@@ -169,6 +172,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       inspection_id: SEEDED_ROWS.reportId,
       asset_id: ASSETS.inspected.assetId,
       inspected_by_id: USERS.staffTsg.userId,
+      type: "ROUTINE",
       condition: "OPERATIONAL",
       remarks: "Test inspection: minor scuffs on the casing",
       inspected_at: AT.reportFiled,

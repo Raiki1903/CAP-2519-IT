@@ -3,7 +3,7 @@
  * Covers every route of the approved 13b role table (docs/phase-1c-restructure/02-restructure-log.md, "Route role table"),
  * POST /api/auth/login and POST /api/auth/logout, and the SESSION_SECRET check in server/config/env.ts.
  * Workflow: every signed-in screen; the table is the specification, so this file restates it on purpose.
- * Fixtures: the seeded accounts (USERS) and ROLE_IDS. Requests use ids and tags that do not exist and empty bodies, so an
+ * Fixtures: the seeded accounts (USERS) and LAB, whose Head the cache test changes. Requests use ids and tags that do not exist and empty bodies, so an
  * allowed request is refused by its handler (400 or 404) and writes nothing. The role-change test puts Custodian B's role back;
  * the deleted-account test creates and removes its own account. The server's 60-second lookup cache runs in the server's
  * process, out of the tests' reach: the cache tests use the module directly with their own clock, and the server tests
@@ -20,7 +20,7 @@ import {
   rememberIdentity,
   SESSION_CACHE_SECONDS,
 } from "../../server/shared/services/sessionCache";
-import { ROLE_IDS, USERS, type TestUser } from "../setup/fixtures";
+import { LAB, USERS, type TestUser } from "../setup/fixtures";
 import { useApiHarness, type ApiClient } from "../setup/harness";
 import { loadTestDatabaseConfig } from "../setup/testDatabase";
 import { startTestServer, TEST_SESSION_SECRET, TEST_WEB_ORIGIN } from "../setup/testServer";
@@ -233,17 +233,17 @@ describe("requireAuth: who gets a 401", () => {
 });
 
 describe("requireRole: the role is read from the database, at most once a minute per cookie", () => {
-  it("keeps a cookie's role for up to 60 seconds after the account's role changes, while a new login gets the new role at once", async () => {
+  it("keeps a cookie's view for up to 60 seconds after the account starts heading a lab, while a new login gets the Lab Head view at once", async () => {
     const cookie = await logIn(USERS.custodianB);
     expect((await withCookie(cookie).get("/api/auth/pending-registrations")).status).toBe(403);
 
-    await db.user_roles.updateMany({ where: { user_id: USERS.custodianB.userId }, data: { role_id: ROLE_IDS.LAB_HEAD } });
+    await db.research_centers.update({ where: { center_id: LAB.centerId }, data: { head_user_id: USERS.custodianB.userId } });
     try {
       expect((await withCookie(cookie).get("/api/auth/pending-registrations")).status, "the old cookie, remembered").toBe(403);
       const fresh = await logIn(USERS.custodianB);
       expect((await withCookie(fresh).get("/api/auth/pending-registrations")).status, "a new cookie, looked up").toBe(200);
     } finally {
-      await db.user_roles.updateMany({ where: { user_id: USERS.custodianB.userId }, data: { role_id: ROLE_IDS.RESEARCHER } });
+      await db.research_centers.update({ where: { center_id: LAB.centerId }, data: { head_user_id: USERS.labHead.userId } });
     }
     const after = await logIn(USERS.custodianB);
     expect((await withCookie(after).get("/api/auth/pending-registrations")).status).toBe(403);

@@ -23,13 +23,15 @@ export const LAB = {
 /** Where the server says an asset under maintenance is (its TSG_OFFICE_LOCATION). */
 export const TSG_OFFICE_LOCATION = `Manila${LOCATION_SEPARATOR}TSG Office`;
 
-/** Role rows, one per database role name. Id 5 was ITS_STAFF, which the rename migration removed. */
+/**
+ * Role rows, one per database role name. Ids 5 and 6 were ITS_STAFF and LAB_HEAD, which the migrations removed:
+ * a Lab Head is the account that heads a lab (LAB's head, the labHead account).
+ */
 export const ROLE_IDS = {
   IT_ADMIN: 1,
   ADRIC_DIRECTOR: 2,
   ADRIC_SECRETARY: 3,
   TSG_STAFF: 4,
-  LAB_HEAD: 6,
   RESEARCHER: 7,
 } as const;
 
@@ -75,7 +77,8 @@ export const USERS = {
   director: user(2, "Director", "director", "FACULTY", "ADRIC_DIRECTOR", false),
   staffTsg: user(3, "Staff TSG", "staff.tsg", "STAFF", "TSG_STAFF", false),
   staffIts: user(4, "Staff ITS", "staff.its", "STAFF", "TSG_STAFF", false),
-  labHead: user(5, "Lab Head", "labhead", "FACULTY", "LAB_HEAD", true),
+  /** Heads LAB (research_centers.head_user_id), which gives it the Lab Head view. */
+  labHead: user(5, "Lab Head", "labhead", "FACULTY", "RESEARCHER", true),
   custodianA: user(6, "Custodian A", "custodian.a", "STUDENT", "RESEARCHER", true),
   custodianB: user(7, "Custodian B", "custodian.b", "STUDENT", "RESEARCHER", true),
   secretary: user(8, "Secretary", "secretary", "STAFF", "ADRIC_SECRETARY", false),
@@ -121,6 +124,14 @@ export const ASSETS = {
   /** Held by Custodian A in OPERATIONAL condition, with one inspection report by Staff TSG. */
   inspected: asset(6, "Test Projector Inspected", "PROJECTOR", "ACTIVE", "Active"),
 } as const satisfies Record<string, TestAsset>;
+
+/** The assets.status that goes with each asset_records status, as the foundation migration maps it. */
+export const ASSET_STATUS_OF_RECORD = {
+  ACTIVE: "AVAILABLE",
+  ON_LOAN: "ON_LOAN",
+  MAINTENANCE: "MAINTENANCE",
+  DISPOSED: "RETIRED",
+} as const;
 
 /** Ids of the seeded workflow rows, for tests that act on them. */
 export const SEEDED_ROWS = {

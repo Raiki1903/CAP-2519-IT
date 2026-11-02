@@ -4,7 +4,7 @@
  * assets.validation.ts, shared/constants/poolCustodian.ts, and @shared/enums.
  * Used by: every role's inventory view and the bell, the asset detail modal, Staff asset registration, editing, and deletion.
  */
-import type { asset_records, assets } from '@prisma/client';
+import { asset_inspections_type, asset_retirements_status, type asset_records, type asset_retirements_pathway, type assets } from '@prisma/client';
 import type { AssetCreateInput, AssetListItem, AssetUpdateInput, CustodianHistory } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
@@ -15,6 +15,16 @@ import * as authRepository from '../auth/auth.repository';
 import { checkAssetImage, UNKNOWN_CUSTODIAN } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
+
+/** The pathway a retirement row holds in its own column, as the disposal details show it. */
+// TODO(H-07): plain words until the shared labels exist (Batch 1, commit 5).
+const RETIREMENT_PATHWAY_WORDS: Record<asset_retirements_pathway, string> = {
+    DONATE: "Donate",
+    RECYCLE: "Recycle",
+    RETURN_TO_FUNDER: "Return to Funder",
+    SELL: "Sell",
+    OTHER: "Other",
+};
 
 /**
  * Lists every asset with its current state, shaped for the screens.
@@ -96,7 +106,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
         // TODO(M-13): the pathway and justification are parsed back out of the packed reason text. Columns of their own, Phase 3.
         const disposal = dbDisposals.find(d =>
             (latestRecord?.retirement_id && d.retirement_id === latestRecord.retirement_id) ||
-            (d.asset_id === asset.asset_id && d.status === "approved")
+            (d.asset_id === asset.asset_id && d.status === asset_retirements_status.COMPLETED)
         );
         const disposerUser = disposal ? dbUsers.find(u => u.user_id === disposal.requested_by_id) : null;
         const disposerHidden = !!disposerUser && !nameShown(disposerUser.user_id);
@@ -106,13 +116,15 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
             const reasonText = disposal.reason || "";
             const pathwayMatch = reasonText.match(/Disposal Pathway:\s*(.+)/i);
             const pathway = pathwayMatch ? pathwayMatch[1].trim() : "Decommission — Scrap / Recycle";
+            // The migration moved a parsed pathway line out of the reason into its own column. (M-13)
+            const pathwayFromColumn = disposal.pathway ? RETIREMENT_PATHWAY_WORDS[disposal.pathway] : null;
             const justificationMatch = reasonText.match(/Breakdown Justification:\s*([\s\S]+)/i);
             const justification = justificationMatch ? justificationMatch[1].trim() : reasonText;
 
             disposalDetails = {
                 lastCustodian: custodianHidden ? undefined : (custodianName || "No Custodian"),
                 breakdownReasons: justification || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
-                disposalPathway: pathway,
+                disposalPathway: pathwayFromColumn ?? pathway,
                 decommissionDate: formatDate(disposal.requested_at),
                 decommissionedBy: disposerHidden ? undefined : (disposerUser ? `${disposerUser.first_name} ${disposerUser.last_name}` : "AdRIC Director"),
             };
@@ -333,6 +345,7 @@ function sanitizeCategory(cat: any): any {
  * @param data the checked body
  * @returns the created assets row and its tag
  * @throws AppError 400 if the picture is text but not an image
+ * @throws AppError 400 if the lab is not a known research center: the asset's home lab is stored on it
  */
 // TODO(H-11): the next number is read before the transaction, so two registrations in the same lab at once can pick the same tag; the second then fails with a 500. Move it into the transaction, its own commit (issue #75).
 export async function registerAsset(data: AssetCreateInput): Promise<{ asset: assets; assetTag: string }> {
@@ -344,7 +357,13 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
     }
 
     // The tag prefix is the lab code with anything but letters and digits removed.
-    const labPrefix = String(data.lab || "CITe4D").trim().replace(/[^a-zA-Z0-9]/g, "") || "CITe4D";
+    const labCode = String(data.lab || "CITe4D").trim().replace(/[^a-zA-Z0-9]/g, "") || "CITe4D";
+    const lab = await assetsRepository.findLabByCode(labCode);
+    if (!lab) {
+        throw new AppError(400, "Pick a lab from the list.");
+    }
+    // The lab's own short code, so the tag prefix always matches its lab letter for letter.
+    const labPrefix = lab.short_code;
     const existingLabAssets = await assetsRepository.findTagsWithPrefix(labPrefix);
 
     let maxSeq = 0;
@@ -363,6 +382,7 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
     const asset = await assetsRepository.createWithRecords(
         {
             asset_tag: assetTag,
+            center_id: lab.center_id,
             name: data.name,
             category: sanitizeCategory(data.category),
             serial_number: data.serial || null,
@@ -417,7 +437,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
     if (data.custodianId === null) {
         custodianId = POOL_CUSTODIAN_ID;
     } else if (data.custodianId !== undefined) {
-        const custodian = data.custodianId === POOL_CUSTODIAN_ID ? null : await authRepository.findUserWithRole(data.custodianId, "RESEARCHER");
+        const custodian = data.custodianId === POOL_CUSTODIAN_ID ? null : await authRepository.findAssetHolderCandidate(data.custodianId);
         if (!custodian) {
             throw new AppError(400, UNKNOWN_CUSTODIAN);
         }
@@ -487,6 +507,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
                 asset_id: existing.asset_id,
                 // Filed under the Staff member who made the edit. (issue #32)
                 inspected_by_id: editorId,
+                type: asset_inspections_type.ROUTINE,
                 condition: conditionMap[rawCond] || "PERFECT",
                 remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
                 photo: imageVal || null,

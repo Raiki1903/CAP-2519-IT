@@ -3,7 +3,7 @@
  * Layer: repository. Called by maintenance.service.ts. Calls server/config/prisma.ts.
  * Used by: Custodian repair request, Staff repair queue and progress updates, and the screens that list repairs.
  */
-import type { Prisma, asset_records } from '@prisma/client';
+import type { Prisma, asset_maintenance_status, asset_records } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
 /** Inserts an asset_maintenance row and returns it. */
@@ -37,13 +37,19 @@ export interface CompletionRows {
     report: Prisma.asset_inspectionsUncheckedCreateInput;
 }
 
+/** A ticket's new status, and who has the asset when an outside service has it. */
+export interface TicketProgress {
+    status: asset_maintenance_status;
+    provider?: string;
+}
+
 /**
- * Sets a ticket's progress_status and moves the asset to match, in one transaction.
+ * Sets a ticket's status and moves the asset to match, in one transaction.
  * The asset's records are read inside the transaction, after the ticket update, and handed to
  * the service's builder; at most one of the two builders is given.
  *
  * @param repairId the ticket to update
- * @param progressStatus the new status text, stored as sent
+ * @param progress the new status, and the provider for an outside service
  * @param assetId the ticket's asset
  * @param buildCompletion for "Fixed & Completed": builds the restoring record and the report from the
  *   asset's newest record before maintenance and its newest record overall; null otherwise
@@ -53,7 +59,7 @@ export interface CompletionRows {
  */
 export function saveProgress(
     repairId: number,
-    progressStatus: string,
+    progress: TicketProgress,
     assetId: number,
     buildCompletion: ((preMaintenanceRecord: asset_records | null, latestRecord: asset_records | null) => CompletionRows) | null,
     buildMaintenanceRecord: ((latestRecord: asset_records | null) => Prisma.asset_recordsUncheckedCreateInput | null) | null,
@@ -63,7 +69,7 @@ export function saveProgress(
     return prisma.$transaction(async (tx) => {
         const repair = await tx.asset_maintenance.update({
             where: { maintenance_id: repairId },
-            data: { progress_status: progressStatus },
+            data: { status: progress.status, ...(progress.provider ? { provider: progress.provider } : {}) },
         });
 
         if (buildCompletion) {
@@ -101,14 +107,14 @@ export function saveProgress(
 }
 
 /**
- * Sets only a ticket's progress_status, for the status-only endpoint. The asset is not touched. (H-06)
+ * Sets only a ticket's status, for the status-only endpoint. The asset is not touched. (H-06)
  *
  * @returns the updated asset_maintenance row
  * @throws Prisma's error if the id is not a number or no ticket has it (answered as a 500, H-16)
  */
-export function updateProgressStatus(repairId: number, progressStatus: string) {
+export function updateProgressStatus(repairId: number, progress: TicketProgress) {
     return prisma.asset_maintenance.update({
         where: { maintenance_id: repairId },
-        data: { progress_status: progressStatus },
+        data: { status: progress.status, ...(progress.provider ? { provider: progress.provider } : {}) },
     });
 }

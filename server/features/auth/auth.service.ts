@@ -161,7 +161,9 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
             password: targetReq.password,
             id_number: targetReq.idNumber,
             user_type: targetReq.userType || "STUDENT",
-            user_img: targetReq.avatarUrl ? String(targetReq.avatarUrl) : null
+            user_img: targetReq.avatarUrl ? String(targetReq.avatarUrl) : null,
+            // An approved sign-up can log in at once; PENDING is for requests stored as accounts (Batch 2b).
+            account_status: "ACTIVE"
         },
         roleRecord ? roleRecord.role_id : null,
         centerRecord ? centerRecord.center_id : null,
@@ -186,11 +188,15 @@ export function rejectRegistration(requestId: string): void {
  * Maps a user's database roles to the app role and Staff unit, for login, /me, and every session check (requireRole).
  * The checks run in a fixed order and the first match wins, so an account with several roles gets only one.
  *
+ * There is no Lab Head role: an account that heads a lab (research_centers.head_user_id) gets the Lab Head view,
+ * ahead of Researcher.
+ *
  * @param roles the user's user_roles rows, each with its roles row
+ * @param headsLab whether the account heads a lab
  * @returns the app role ("Staff", "AdRICDirector", "LabHead", or "Custodian") and, for Staff, the unit
  */
 // TODO(M-11): ADRIC_SECRETARY maps to Staff (ITS); the team decided it gets the Director view, on the ITS removal branch.
-function appRoleFor(roles: (user_roles & { roles: roles })[]): { role: string; staffUnit: StaffUnit | null } {
+function appRoleFor(roles: (user_roles & { roles: roles })[], headsLab: boolean): { role: string; staffUnit: StaffUnit | null } {
     let determinedRole = "Custodian";
     let staffUnit: StaffUnit | null = null;
     if (roles.some(ur => ur.roles?.role_name === "IT_ADMIN" || ur.roles?.role_name === "ADRIC_SECRETARY")) {
@@ -201,7 +207,7 @@ function appRoleFor(roles: (user_roles & { roles: roles })[]): { role: string; s
     } else if (roles.some(ur => ur.roles?.role_name === "TSG_STAFF")) {
         determinedRole = "Staff";
         staffUnit = "TSG";
-    } else if (roles.some(ur => ur.roles?.role_name === "LAB_HEAD")) {
+    } else if (headsLab) {
         determinedRole = "LabHead";
     }
     return { role: determinedRole, staffUnit };
@@ -240,7 +246,7 @@ export async function login(email: string, password: string): Promise<{ role: st
         throw new AppError(401, LOGIN_REFUSED_MESSAGE);
     }
 
-    const { role: determinedRole, staffUnit } = appRoleFor(user.user_roles || []);
+    const { role: determinedRole, staffUnit } = appRoleFor(user.user_roles || [], user.headed_center !== null);
 
     const primaryCenter = user.user_centers[0]?.research_centers?.short_code || "CITe4D";
 
@@ -307,7 +313,7 @@ export async function sessionIdentityFor(token: string): Promise<SessionIdentity
     const user = await authRepository.findUserRolesById(claims.userId);
     if (!user) return null;
 
-    const { role, staffUnit } = appRoleFor(user.user_roles || []);
+    const { role, staffUnit } = appRoleFor(user.user_roles || [], user.headed_center !== null);
     const identity: SessionIdentity = { userId: user.user_id, role: role as Role, staffUnit };
     rememberIdentity(token, identity);
     return identity;
@@ -328,7 +334,7 @@ export async function getProfile(userId: number): Promise<ProfileUser> {
         throw new AppError(404, "User profile not found in database.");
     }
 
-    const { role: determinedRole, staffUnit } = appRoleFor(user.user_roles || []);
+    const { role: determinedRole, staffUnit } = appRoleFor(user.user_roles || [], user.headed_center !== null);
 
     const primaryCenter = user.user_centers[0]?.research_centers?.short_code || "CITe4D";
 

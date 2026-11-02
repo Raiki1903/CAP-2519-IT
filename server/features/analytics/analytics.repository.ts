@@ -5,6 +5,7 @@
  * Analytics is a read model across every table, so these queries read the other features' tables directly, as 01D
  * section 2 plans for features/analytics/. Most of them load whole tables and count in the service. (M-01)
  */
+import { asset_retirements_status } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
 // ---------------------------------------------------------------------------
@@ -103,7 +104,7 @@ export function sumAcquisitionValue() {
 export function countPendingDisposals() {
     // The status column is free text, and older rows were written in other letter cases. (H-07)
     return prisma.asset_retirements.count({
-        where: { status: { in: ['pending', 'Pending', 'PENDING'] } }
+        where: { status: asset_retirements_status.PENDING }
     });
 }
 

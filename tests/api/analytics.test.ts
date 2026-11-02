@@ -10,6 +10,7 @@
  * warranty relative to today, a record at another location) adds it with extraAssets.ts (tags TEST-0701 onward)
  * and removes it in a finally block, so every test starts from the seed. Nothing here changes a seeded row.
  */
+import type { asset_loans_status } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import { addExtraAsset, removeExtraAssets } from "../setup/extraAssets";
 import { ASSETS, FUNDING_SOURCE, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, USERS } from "../setup/fixtures";
@@ -72,7 +73,7 @@ const addProject = () =>
   });
 
 /** Adds an asset on loan to Custodian A through a loan whose due date was `daysOverdue` days ago. */
-async function addOverdueLoan(tag: string, daysOverdue: number, status = "approved", projectId?: number) {
+async function addOverdueLoan(tag: string, daysOverdue: number, status: asset_loans_status = "ON_LOAN", projectId?: number) {
   const asset = await addExtraAsset(db, { tag, status: "ON_LOAN", custodianId: USERS.custodianA.userId, projectId });
   const loan = await db.asset_loans.create({
     data: {
@@ -125,8 +126,8 @@ describe("GET /api/analytics/director", () => {
     }
   });
 
-  it("counts pending disposals in any of the three spellings, and nothing else", async () => {
-    const statuses = ["pending", "Pending", "PENDING", "Test unknown status"];
+  it("counts only Pending disposals, not approved, denied or completed ones", async () => {
+    const statuses = ["PENDING", "APPROVED", "DENIED", "COMPLETED"] as const;
     const rows = [];
     for (const status of statuses) {
       rows.push(
@@ -138,7 +139,7 @@ describe("GET /api/analytics/director", () => {
     try {
       const res = await asDirector.get("/api/analytics/director");
 
-      expect(res.body.data.pendingDisposalsCount).toBe(3);
+      expect(res.body.data.pendingDisposalsCount).toBe(1);
     } finally {
       await db.asset_retirements.deleteMany({ where: { retirement_id: { in: rows.map((r) => r.retirement_id) } } });
     }
@@ -152,6 +153,7 @@ describe("GET /api/analytics/director", () => {
           data: {
             asset_id: ASSETS.inspected.assetId,
             inspected_by_id: USERS.staffTsg.userId,
+            type: "ROUTINE",
             condition: "PERFECT",
             inspected_at: new Date(`${day}T12:00:00Z`),
           },
@@ -422,7 +424,7 @@ describe("GET /api/analytics/lab-head", () => {
 
   it("names an overdue loan's cohort after the project on the asset's newest record", async () => {
     const project = await addProject();
-    const overdue = await addOverdueLoan("TEST-0723", 20, "approved", project.project_id);
+    const overdue = await addOverdueLoan("TEST-0723", 20, "ON_LOAN", project.project_id);
     try {
       const res = await labHead(TEST_LAB_QUERY);
 
@@ -440,9 +442,9 @@ describe("GET /api/analytics/lab-head", () => {
   });
 
   it("leaves out returned and declined loans past due, but counts a pending request past its due date as overdue (new)", async () => {
-    const returned = await addOverdueLoan("TEST-0724", 5, "returned");
-    const declined = await addOverdueLoan("TEST-0725", 5, "declined");
-    const pending = await addOverdueLoan("TEST-0726", 5, "pending");
+    const returned = await addOverdueLoan("TEST-0724", 5, "RETURNED");
+    const declined = await addOverdueLoan("TEST-0725", 5, "DECLINED");
+    const pending = await addOverdueLoan("TEST-0726", 5, "PENDING_APPROVAL");
     try {
       const res = await labHead(TEST_LAB_QUERY);
 
@@ -464,7 +466,7 @@ describe("GET /api/analytics/lab-head", () => {
 
       const res = await labHead(TEST_LAB_QUERY);
 
-      expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: overdue.loan.loan_id } })).status).toBe("returned");
+      expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: overdue.loan.loan_id } })).status).toBe("RETURNED");
       expect(res.body.data.delinquencies).toEqual([]);
     } finally {
       await removeExtraAssets(db, [overdue.asset.assetId]);
@@ -540,7 +542,7 @@ describe("GET /api/analytics/tsg", () => {
   });
 
   it("shows an asset with no records as PERFECT and Unassigned, and counts it as good (H-09 family)", async () => {
-    const bare = await db.assets.create({ data: { asset_tag: "TEST-0734", name: "Test Asset Without Records", category: "MONITOR" } });
+    const bare = await db.assets.create({ data: { asset_tag: "TEST-0734", name: "Test Asset Without Records", category: "MONITOR", center_id: LAB.centerId } });
     try {
       const res = await asStaff.get("/api/analytics/tsg");
 
@@ -558,13 +560,13 @@ describe("GET /api/analytics/tsg", () => {
     }
   });
 
-  it("lists repairs newest first and shows an empty status as Reported", async () => {
+  it("lists repairs newest first, with the progress text the screens show", async () => {
     const repair = await db.asset_maintenance.create({
       data: {
         asset_id: ASSETS.available.assetId,
         reported_by_id: USERS.staffTsg.userId,
-        issue_description: "Test repair: no status yet",
-        progress_status: "",
+        issue_description: "Test repair: not received yet",
+        status: "PENDING_RECEIPT",
         is_immediate: true,
         reported_at: new Date("2026-05-01T09:00:00Z"),
       },
@@ -573,7 +575,7 @@ describe("GET /api/analytics/tsg", () => {
       const res = await asStaff.get("/api/analytics/tsg");
 
       expect(res.body.data.repairs.map((r: { repairId: number }) => r.repairId)).toEqual([repair.maintenance_id, SEEDED_ROWS.repairId]);
-      expect(res.body.data.repairs[0]).toMatchObject({ reportedBy: USERS.staffTsg.fullName, isImmediate: true, progressStatus: "Reported", createdAt: "2026-05-01" });
+      expect(res.body.data.repairs[0]).toMatchObject({ reportedBy: USERS.staffTsg.fullName, isImmediate: true, progressStatus: "Awaiting Immediate Dispatch", createdAt: "2026-05-01" });
     } finally {
       await db.asset_maintenance.delete({ where: { maintenance_id: repair.maintenance_id } });
     }
@@ -685,7 +687,7 @@ describe("GET /api/analytics/location-status", () => {
   });
 
   it("counts an asset with no records as Active at Manila, CITe4D (H-09 family)", async () => {
-    const bare = await db.assets.create({ data: { asset_tag: "TEST-0753", name: "Test Asset Without Records", category: "MONITOR" } });
+    const bare = await db.assets.create({ data: { asset_tag: "TEST-0753", name: "Test Asset Without Records", category: "MONITOR", center_id: LAB.centerId } });
     try {
       const res = await asStaff.get("/api/analytics/location-status");
 

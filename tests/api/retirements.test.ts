@@ -46,7 +46,7 @@ async function requestDisposal(tag: string, extra: Record<string, unknown> = {})
 /** Writes a pending disposal straight to the test database, as a row filed before the issue #54 guard would be. */
 async function addOldPendingDisposal(assetId: number): Promise<number> {
   const row = await db.asset_retirements.create({
-    data: { asset_id: assetId, requested_by_id: USERS.staffTsg.userId, reason: "Test old pending disposal", status: "pending" },
+    data: { asset_id: assetId, requested_by_id: USERS.staffTsg.userId, reason: "Test old pending disposal", status: "PENDING" },
   });
   return row.retirement_id;
 }
@@ -75,8 +75,8 @@ describe("GET /api/retirements", () => {
     expect(typeof res.body.disposals[0].requestedAt).toBe("string");
   });
 
-  it("lists disposals newest first, and shows any status other than approved or rejected as Pending (H-07 family)", async () => {
-    const statuses = ["pending", "rejected", "Test unknown status"];
+  it("lists disposals newest first, and shows Approved and Completed as Approved and Denied as Rejected", async () => {
+    const statuses = ["PENDING", "DENIED", "APPROVED"] as const;
     const rows = [];
     for (const [index, status] of statuses.entries()) {
       rows.push(
@@ -100,7 +100,7 @@ describe("GET /api/retirements", () => {
         rows[0].retirement_id,
         SEEDED_ROWS.disposalId,
       ]);
-      expect(res.body.disposals.map((d: { status: string }) => d.status)).toEqual(["Pending", "Rejected", "Pending", "Approved"]);
+      expect(res.body.disposals.map((d: { status: string }) => d.status)).toEqual(["Approved", "Rejected", "Pending", "Approved"]);
       expect(res.body.disposals[2]).toMatchObject({ assetId: ASSETS.available.tag, requestedBy: USERS.staffIts.fullName });
     } finally {
       await db.asset_retirements.deleteMany({ where: { retirement_id: { in: rows.map((r) => r.retirement_id) } } });
@@ -117,8 +117,8 @@ describe("POST /api/assets/:tag/retirement", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.disposal).toMatchObject({ asset_id: asset.assetId, requested_by_id: USERS.staffTsg.userId, status: "pending" });
-    expect(await db.asset_retirements.count({ where: { asset_id: asset.assetId, status: "pending" } })).toBe(1);
+    expect(res.body.disposal).toMatchObject({ asset_id: asset.assetId, requested_by_id: USERS.staffTsg.userId, status: "PENDING" });
+    expect(await db.asset_retirements.count({ where: { asset_id: asset.assetId, status: "PENDING" } })).toBe(1);
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
     const listed = await listedAsset(asset.tag);
     expect(listed).toMatchObject({ status: "Active", custodian: USERS.custodianA.fullName });
@@ -183,7 +183,7 @@ describe("POST /api/assets/:tag/retirement", () => {
 
     expect(second.status).toBe(409);
     expect(second.body.error).toBe(`TEST-0614 already has a pending disposal request (DISP-${first}).`);
-    expect(await db.asset_retirements.count({ where: { asset_id: asset.assetId, status: "pending" } })).toBe(1);
+    expect(await db.asset_retirements.count({ where: { asset_id: asset.assetId, status: "PENDING" } })).toBe(1);
   });
 
   it("answers 409 for an asset with a pending loan request, and writes nothing (issue #54)", async () => {
@@ -236,8 +236,8 @@ describe("PUT /api/retirements/:id/decision", () => {
     const res = await asDirector.put(`/api/retirements/${disposalId}/decision`, { decision: "approve" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ success: true, disposal: { retirement_id: disposalId, status: "approved" } });
-    expect(await disposalStatus(disposalId)).toBe("approved");
+    expect(res.body).toMatchObject({ success: true, disposal: { retirement_id: disposalId, status: "COMPLETED" } });
+    expect(await disposalStatus(disposalId)).toBe("COMPLETED");
     expect(await recordCount(asset.assetId)).toBe(recordsBefore + 1);
     expect(await newestRecord(asset.assetId)).toMatchObject({
       status: "DISPOSED",
@@ -278,7 +278,7 @@ describe("PUT /api/retirements/:id/decision", () => {
 
     expect(res.status).toBe(409);
     expect(res.body).toEqual({ success: false, error: `${tag} is ${described} now, so this disposal can only be rejected.` });
-    expect(await disposalStatus(disposalId)).toBe("pending");
+    expect(await disposalStatus(disposalId)).toBe("PENDING");
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
   });
 
@@ -295,7 +295,7 @@ describe("PUT /api/retirements/:id/decision", () => {
     expect(answers.map((a) => a.status)).toEqual([200, 409]);
     expect(answers[1].body.error).toBe("TEST-0624 is disposed now, so this disposal can only be rejected.");
     expect(await db.asset_records.count({ where: { asset_id: asset.assetId, status: "DISPOSED" } })).toBe(1);
-    expect(await disposalStatus(second)).toBe("pending");
+    expect(await disposalStatus(second)).toBe("PENDING");
   });
 
   it("approve: answers 409 while the asset has a pending transfer, naming it, and writes nothing (issue #28)", async () => {
@@ -312,7 +312,7 @@ describe("PUT /api/retirements/:id/decision", () => {
     expect(res.body.error).toBe(
       `TEST-0627 has a pending transfer request (TRF-${transfer.transfer_id}). It must be approved or declined before this disposal can be approved.`,
     );
-    expect(await disposalStatus(disposalId)).toBe("pending");
+    expect(await disposalStatus(disposalId)).toBe("PENDING");
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
   });
 
@@ -324,7 +324,7 @@ describe("PUT /api/retirements/:id/decision", () => {
     const res = await asDirector.put(`/api/retirements/${disposalId}/decision`, { decision: "reject" });
 
     expect(res.status).toBe(200);
-    expect(await disposalStatus(disposalId)).toBe("rejected");
+    expect(await disposalStatus(disposalId)).toBe("DENIED");
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
   });
 
@@ -336,8 +336,8 @@ describe("PUT /api/retirements/:id/decision", () => {
     const res = await asDirector.put(`/api/retirements/${disposalId}/decision`, { decision: "reject" });
 
     expect(res.status).toBe(200);
-    expect(res.body.disposal.status).toBe("rejected");
-    expect(await disposalStatus(disposalId)).toBe("rejected");
+    expect(res.body.disposal.status).toBe("DENIED");
+    expect(await disposalStatus(disposalId)).toBe("DENIED");
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
     expect((await listedAsset(asset.tag)).status).toBe("Active");
   });
@@ -349,7 +349,7 @@ describe("PUT /api/retirements/:id/decision", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/already been approved/);
-    expect(await disposalStatus(SEEDED_ROWS.disposalId)).toBe("approved");
+    expect(await disposalStatus(SEEDED_ROWS.disposalId)).toBe("COMPLETED");
     expect(await recordCount(ASSETS.disposed.assetId)).toBe(recordsBefore);
   });
 
@@ -359,13 +359,13 @@ describe("PUT /api/retirements/:id/decision", () => {
     { decision: undefined, why: "no decision" },
   ])("answers 400 for $decision, $why, and leaves the disposal pending", async ({ decision }) => {
     const disposal = await db.asset_retirements.create({
-      data: { asset_id: ASSETS.available.assetId, requested_by_id: USERS.staffTsg.userId, reason: "Test word check", status: "pending" },
+      data: { asset_id: ASSETS.available.assetId, requested_by_id: USERS.staffTsg.userId, reason: "Test word check", status: "PENDING" },
     });
     try {
       const res = await asDirector.put(`/api/retirements/${disposal.retirement_id}/decision`, { decision });
 
       expect(res.status).toBe(400);
-      expect(await disposalStatus(disposal.retirement_id)).toBe("pending");
+      expect(await disposalStatus(disposal.retirement_id)).toBe("PENDING");
     } finally {
       await db.asset_retirements.delete({ where: { retirement_id: disposal.retirement_id } });
     }

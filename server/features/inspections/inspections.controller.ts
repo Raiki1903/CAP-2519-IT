@@ -24,7 +24,7 @@ export async function fileReport(req: Request<{ assetTag: string }>, res: Respon
     console.log(`📋 Server received inspection report for ${assetTag}:`, data);
 
     checkInspectionReport(data);
-    const newReport = await inspectionsService.fileReport(assetTag, data, sessionUserOf(req).userId);
+    const newReport = await inspectionsService.fileReport(assetTag, data, sessionUserOf(req));
 
     console.log("✅ Inspection report saved under asset_inspections in DB:", newReport.inspection_id);
     res.json({ success: true, report: newReport });

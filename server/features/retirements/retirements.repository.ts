@@ -3,12 +3,12 @@
  * Layer: repository. Called by retirements.service.ts and shared/services/custodyRequestGuard.ts (the pending disposal). Calls server/config/prisma.ts.
  * Used by: Staff disposal filing, Director approval, and the screens that list disposals.
  */
-import type { Prisma, asset_records, asset_retirements } from '@prisma/client';
+import { asset_retirements_status, type Prisma, type asset_records, type asset_retirements } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
 /** The asset's pending disposal (its id only), or null. Read by the custody request guard. (H-05, issue #54) */
 export function findPendingDisposalId(assetId: number) {
-    return prisma.asset_retirements.findFirst({ where: { asset_id: assetId, status: "pending" }, select: { retirement_id: true } });
+    return prisma.asset_retirements.findFirst({ where: { asset_id: assetId, status: asset_retirements_status.PENDING }, select: { retirement_id: true } });
 }
 
 /** Inserts an asset_retirements row and returns it. */
@@ -42,13 +42,13 @@ export function findById(disposalId: number) {
  * and handed to the service to build the new record from.
  *
  * @param disposal the pending disposal being decided
- * @param newStatus "approved" or "rejected"
+ * @param newStatus COMPLETED or DENIED
  * @param buildDisposedRecord builds the new asset_records row from the latest one; null for a reject
  * @returns the updated asset_retirements row
  */
 export function saveDecision(
     disposal: asset_retirements,
-    newStatus: string,
+    newStatus: asset_retirements_status,
     buildDisposedRecord: ((latestRecord: asset_records | null) => Prisma.asset_recordsUncheckedCreateInput) | null,
 ) {
     // The disposal status and the DISPOSED record are written together, so a failure on either

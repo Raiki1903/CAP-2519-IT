@@ -228,7 +228,7 @@ describe("POST /api/assets/:tag/transfer: one pending request per asset (issue #
   it("answers 409 while the asset has a pending disposal request, and writes nothing (issue #54)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0313", custodianId: USERS.custodianA.userId });
     const disposal = await db.asset_retirements.create({
-      data: { asset_id: asset.assetId, requested_by_id: USERS.staffTsg.userId, reason: "Test pending disposal", status: "pending" },
+      data: { asset_id: asset.assetId, requested_by_id: USERS.staffTsg.userId, reason: "Test pending disposal", status: "PENDING" },
     });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/transfer`, transferBody(USERS.custodianB));

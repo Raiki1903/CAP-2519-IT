@@ -6,7 +6,7 @@
  * and inspections, and shared/services/custodyRequestGuard.ts. Calls config/prisma.ts.
  * Used by: every role's inventory view, Staff registration, editing, and deletion, and every workflow that starts from an asset tag.
  */
-import type { Prisma, asset_records, assets } from '@prisma/client';
+import { asset_loans_status, type Prisma, type asset_records, type assets } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
 /**
@@ -25,9 +25,9 @@ export function findListTables() {
             orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }]
         }),
         prisma.users.findMany(),
-        // Approved loans only: they hold the due dates My Assets shows.
+        // Open loans only: they hold the due dates My Assets shows.
         prisma.asset_loans.findMany({
-            where: { status: "approved" },
+            where: { status: asset_loans_status.ON_LOAN },
             orderBy: { requested_at: "desc" },
         }),
         prisma.asset_retirements.findMany({
@@ -95,6 +95,11 @@ export function findRecordsWithCustodian(assetId: number) {
             users: true
         }
     });
+}
+
+/** The research center with this short code, or null. The database compares it without letter case. */
+export function findLabByCode(shortCode: string) {
+    return prisma.research_centers.findFirst({ where: { short_code: shortCode } });
 }
 
 /** The tags of every asset whose tag starts with "<labPrefix>-", for the next tag number. */

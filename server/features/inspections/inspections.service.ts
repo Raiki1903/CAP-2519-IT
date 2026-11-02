@@ -5,7 +5,8 @@
  * Used by: Custodian condition report (CustodianPortal), Staff inspection finalize (InspectionQueue),
  * the Staff inspection log, and state/serverData.tsx.
  */
-import type { asset_inspections } from '@prisma/client';
+import { asset_inspections_type, type asset_inspections } from '@prisma/client';
+import type { SessionIdentity } from '@shared/types/auth';
 import type { InspectionReportInput, InspectionReportItem, ReportSummaryItem } from '@shared/types/inspections';
 import * as inspectionsRepository from './inspections.repository';
 import * as assetsRepository from '../assets/assets.repository';
@@ -20,13 +21,14 @@ import { AppError } from '../../shared/errors/AppError';
  * @param assetTag the asset's tag from the URL, or its numeric asset_id
  * @param data the request body, its condition already checked by the controller (issue #53); every other field
  * has a fallback. reporterEmail and reportedById are ignored (issue #32)
- * @param reporterId the session user, who files the report
+ * @param reporter the session user, who files the report. A TSG report is a routine inspection; anyone else's is
+ * the holder's own report.
  * @returns the created asset_inspections row
  * @throws AppError 404 if no asset has this tag (or, for a number, this id)
  * @throws AppError 409 if the asset is disposed
  */
 // TODO(H-05): the check and the write are not atomic, so a report filed in the same instant as a disposal approval can pass. Phase 3 database triggers.
-export async function fileReport(assetTag: string, data: InspectionReportInput, reporterId: number): Promise<asset_inspections> {
+export async function fileReport(assetTag: string, data: InspectionReportInput, reporter: SessionIdentity): Promise<asset_inspections> {
     // A tag that is a number is also tried as an asset_id.
     let asset = await assetsRepository.findByTag(assetTag);
     if (!asset && !isNaN(Number(assetTag))) {
@@ -49,7 +51,8 @@ export async function fileReport(assetTag: string, data: InspectionReportInput, 
     return inspectionsRepository.saveReport(
         {
             asset_id: asset.asset_id,
-            inspected_by_id: reporterId,
+            inspected_by_id: reporter.userId,
+            type: reporter.staffUnit === "TSG" ? asset_inspections_type.ROUTINE : asset_inspections_type.SELF_REPORT,
             condition,
             remarks: remarksVal,
             photo: imgVal || null,
@@ -79,7 +82,7 @@ export async function fileReport(assetTag: string, data: InspectionReportInput, 
                     status: "ACTIVE",
                     asset_condition: latestCondition as any,
                     location: "DLSU Campus",
-                    current_custodian: reporterId,
+                    current_custodian: reporter.userId,
                     Asset_Remarks: latestRemarks
                 },
             };

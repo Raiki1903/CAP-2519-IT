@@ -5,13 +5,64 @@
  * Used by: Custodian repair request (RepairForm, and ReturnForm's "flag for repair"), Staff repair queue,
  * repair dialog, and the Staff analytics board.
  */
-import type { Prisma, asset_maintenance, asset_records } from '@prisma/client';
+import { asset_inspections_type, asset_maintenance_status, type Prisma, type asset_maintenance, type asset_records } from '@prisma/client';
 import type { RepairListItem, RepairRequestInput } from '@shared/types/maintenance';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import * as maintenanceRepository from './maintenance.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
+
+/**
+ * The progress texts the screens send (the repair dialog's and the Staff analytics board's), and the status each
+ * stands for. The two outside services share one status; which one has the asset is kept as the provider.
+ */
+// TODO(H-07): the screens still send and show these texts. Batch 5 replaces them with the statuses and their labels.
+const PROGRESS_TEXTS: Record<string, { status: asset_maintenance_status; provider?: string }> = {
+    "Pending TSG Review": { status: asset_maintenance_status.PENDING_RECEIPT },
+    "Awaiting Immediate Dispatch": { status: asset_maintenance_status.PENDING_RECEIPT },
+    "Reported": { status: asset_maintenance_status.PENDING_RECEIPT },
+    "Inspection Phase": { status: asset_maintenance_status.INSPECTING },
+    "Diagnosing": { status: asset_maintenance_status.INSPECTING },
+    "Waiting for Parts": { status: asset_maintenance_status.REPAIRING },
+    "Warranty Holder Possession": { status: asset_maintenance_status.EXTERNAL_SERVICE, provider: "Warranty holder" },
+    "Third-Party Repairer Possession": { status: asset_maintenance_status.EXTERNAL_SERVICE, provider: "Third-party repairer" },
+    "Fixed & Completed": { status: asset_maintenance_status.RESOLVED },
+    "Resolved": { status: asset_maintenance_status.RESOLVED },
+};
+
+/**
+ * Reads a progress text the screens sent.
+ *
+ * @param progressText the text as sent
+ * @returns the status it stands for, and the provider for an outside service
+ * @throws AppError 400 for any other text: the status is an enum, so free text is no longer saved (H-07)
+ */
+function readProgressText(progressText: string): { status: asset_maintenance_status; provider?: string } {
+    const read = Object.prototype.hasOwnProperty.call(PROGRESS_TEXTS, progressText) ? PROGRESS_TEXTS[progressText] : undefined;
+    if (!read) {
+        throw new AppError(400, `Unknown progress status: ${progressText}.`);
+    }
+    return read;
+}
+
+/**
+ * The progress text the screens show for a ticket, the reverse of PROGRESS_TEXTS.
+ *
+ * @param ticket the ticket's status, urgency, and provider
+ * @returns the text, for example "Inspection Phase"
+ */
+export function progressTextOf(ticket: Pick<asset_maintenance, 'status' | 'is_immediate' | 'provider'>): string {
+    switch (ticket.status) {
+        case asset_maintenance_status.PENDING_RECEIPT: return ticket.is_immediate ? "Awaiting Immediate Dispatch" : "Pending TSG Review";
+        case asset_maintenance_status.INSPECTING: return "Inspection Phase";
+        case asset_maintenance_status.REPAIRING: return "Waiting for Parts";
+        case asset_maintenance_status.EXTERNAL_SERVICE: return ticket.provider === "Warranty holder" ? "Warranty Holder Possession" : "Third-Party Repairer Possession";
+        case asset_maintenance_status.RESOLVED: return "Fixed & Completed";
+        case asset_maintenance_status.BEYOND_REPAIR: return "Beyond Repair";
+        case asset_maintenance_status.CANCELLED: return "Cancelled";
+    }
+}
 
 // A safety net against the same ticket arriving twice within a few seconds (same tag, same
 // description), from when RepairForm posted every ticket twice. The form posts once since step 8 part 2.
@@ -51,7 +102,7 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput, 
         reported_by_id: reporterId,
         issue_description: data.description,
         is_immediate: !!data.isImmediate,
-        progress_status: data.isImmediate ? "Awaiting Immediate Dispatch" : "Pending TSG Review",
+        status: asset_maintenance_status.PENDING_RECEIPT,
     });
 }
 
@@ -62,10 +113,6 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput, 
  */
 export async function listRepairs(): Promise<RepairListItem[]> {
     const [dbRepairs, dbAssets, dbUsers] = await maintenanceRepository.findListLookups();
-
-    // The two statuses requestRepair opens a ticket with. The schema has no "acknowledged"
-    // column, so any other status counts as acknowledged.
-    const DB_PENDING_STATUSES = ["Pending TSG Review", "Awaiting Immediate Dispatch"];
 
     return dbRepairs.map(repair => {
         const asset = dbAssets.find(a => a.asset_id === repair.asset_id);
@@ -86,19 +133,24 @@ export async function listRepairs(): Promise<RepairListItem[]> {
             custodian: reporter ? `${reporter.first_name} ${reporter.last_name}` : "Unassigned",
             reportedBy: reporter ? `${reporter.first_name} ${reporter.last_name}` : "Unassigned",
             description: repair.issue_description,
-            statusLabel: repair.progress_status,
-            progressStatus: repair.progress_status,
+            statusLabel: progressTextOf(repair),
+            progressStatus: progressTextOf(repair),
             isImmediate: repair.is_immediate,
             priority: repair.is_immediate ? "Critical" : "Medium",
-            acknowledged: !DB_PENDING_STATUSES.includes(repair.progress_status),
+            // There is no "acknowledged" column, so any status but the starting one counts as acknowledged.
+            acknowledged: repair.status !== asset_maintenance_status.PENDING_RECEIPT,
             submittedAt,
             createdAt: repair.reported_at.toISOString(),
         };
     });
 }
 
-// The three in-progress statuses. Each puts the asset into MAINTENANCE.
-const MAINTENANCE_STATUSES = ["Inspection Phase", "Warranty Holder Possession", "Third-Party Repairer Possession"];
+// The in-progress statuses. Each puts the asset into MAINTENANCE.
+const MAINTENANCE_STATUSES: asset_maintenance_status[] = [
+    asset_maintenance_status.INSPECTING,
+    asset_maintenance_status.REPAIRING,
+    asset_maintenance_status.EXTERNAL_SERVICE,
+];
 // Where a MAINTENANCE record says the asset is. The asset's real location is restored from its
 // records when the repair completes.
 const TSG_OFFICE_LOCATION = "Manila — TSG Office";
@@ -118,9 +170,10 @@ const TSG_OFFICE_LOCATION = "Manila — TSG Office";
  * @param assetCondition the condition after a completed repair; anything not in ASSET_CONDITIONS keeps the current one
  * @param assetRemarks remarks for the completed repair; a default sentence when empty
  * @returns the updated asset_maintenance row
+ * @throws AppError 400 if the progress text is not one the screens send
  * @throws AppError 404 if no ticket has this id
  */
-// TODO(H-07): any text is saved as a status, "Pending TSG Review" does not take the asset out of maintenance, and "Fixed & Completed" adds a record and a report even for a ticket that never went into maintenance. Phase 3 makes the status an enum with allowed moves.
+// TODO(H-07): "Pending TSG Review" does not take the asset out of maintenance, and "Fixed & Completed" adds a record and a report even for a ticket that never went into maintenance. Batch 5 gives the statuses their allowed moves.
 export async function updateRepair(
     repairId: number,
     progressStatus: string,
@@ -132,16 +185,17 @@ export async function updateRepair(
         throw new AppError(404, `No repair ticket found with id ${repairId}.`);
     }
 
-    const isCompleting = progressStatus === "Fixed & Completed";
+    const progress = readProgressText(progressStatus);
+    const isCompleting = progress.status === asset_maintenance_status.RESOLVED;
     const desiredStatus = isCompleting
         ? null // completion takes its status from the records before maintenance (completionRows)
-        : MAINTENANCE_STATUSES.includes(progressStatus)
+        : MAINTENANCE_STATUSES.includes(progress.status)
             ? "MAINTENANCE"
             : null;
 
     return maintenanceRepository.saveProgress(
         repairId,
-        progressStatus,
+        progress,
         existing.asset_id,
         isCompleting
             ? (preMaintenanceRecord, latestRecord) => completionRows(existing, preMaintenanceRecord, latestRecord, assetCondition, assetRemarks)
@@ -186,6 +240,7 @@ function completionRows(
         report: {
             asset_id: existing.asset_id,
             inspected_by_id: existing.reported_by_id,
+            type: asset_inspections_type.MAINTENANCE,
             condition: conditionVal,
             remarks: remarksVal.slice(0, 255),
         },
@@ -215,14 +270,15 @@ function maintenanceRecord(
 }
 
 /**
- * Sets only a ticket's progress_status, for the Staff analytics board. The asset's status is not
+ * Sets only a ticket's status, for the Staff analytics board. The asset's status is not
  * changed, whatever the new status is, and no report is filed.
  *
  * @param repairId the id from the URL, unchecked (NaN if it was not a number)
- * @param progressStatus the new status; stored as text
+ * @param progressStatus the progress text the board sent
  * @returns the updated asset_maintenance row
+ * @throws AppError 400 if the progress text is not one the screens send
  */
 // TODO(H-06): a second way to change a ticket's status, without updateRepair's asset changes. Kept in step 12 as decided; merging the two endpoints is its own behavior-change commit.
 export function updateRepairStatus(repairId: number, progressStatus: string): Promise<asset_maintenance> {
-    return maintenanceRepository.updateProgressStatus(repairId, String(progressStatus));
+    return maintenanceRepository.updateProgressStatus(repairId, readProgressText(String(progressStatus)));
 }

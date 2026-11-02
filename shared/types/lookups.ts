@@ -11,7 +11,7 @@ export interface LookupLab {
   /** The full name, shown on the sign-up page. */
   name: string;
   /** research_centers.location. No screen reads it yet. */
-  campus: "MANILA" | "LAGUNA";
+  campus: "MANILA" | "LAGUNA" | "MCKINLEY";
 }
 
 /** The answer of GET /api/lookups, without `success`. Open to anyone: it names no person. */

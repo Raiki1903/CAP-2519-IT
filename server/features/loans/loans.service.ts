@@ -4,7 +4,7 @@
  * shared/services/custodyRequestGuard.ts, and shared/utils/campus.ts.
  * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
  */
-import type { Prisma, asset_loans, asset_records } from '@prisma/client';
+import { asset_loans_status, type Prisma, type asset_loans, type asset_records } from '@prisma/client';
 import type { LoanDecision, LoanListItem, LoanRequestInput } from '@shared/types/loans';
 import type { SessionIdentity } from '@shared/types/auth';
 import * as loansRepository from './loans.repository';
@@ -12,6 +12,34 @@ import * as assetsRepository from '../assets/assets.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { campusForLab } from '../../shared/utils/campus';
 import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/services/custodyRequestGuard';
+
+/**
+ * The word the screens show for each loan status, lower case. The list capitalizes it ("Pending", "Approved").
+ * An open loan is still "approved" to them.
+ */
+// TODO(H-07): the screens still read the old status words. The new statuses and their labels reach them from shared/constants (Batch 1, commit 5 onward).
+const LEGACY_LOAN_WORDS: Record<asset_loans_status, string> = {
+    PENDING_APPROVAL: "pending",
+    PENDING_RELEASE: "pending release",
+    DECLINED: "declined",
+    CANCELLED: "cancelled",
+    ON_LOAN: "approved",
+    RETURN_REQUESTED: "return requested",
+    RETURNED: "returned",
+    ENDED_BY_MAINTENANCE: "ended by maintenance",
+    ENDED_BY_LOSS: "ended by loss",
+};
+
+/**
+ * The status the loan screens show, capitalized from the old words: "Pending", "Approved", "Declined", "Returned".
+ *
+ * @param status the loan's status
+ * @returns the word the screens compare against
+ */
+export function legacyLoanStatusLabel(status: asset_loans_status): string {
+    const word = LEGACY_LOAN_WORDS[status];
+    return word.charAt(0).toUpperCase() + word.slice(1);
+}
 
 /**
  * Lists every loan, newest first, shaped for the screens.
@@ -61,7 +89,7 @@ export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]
             destinationLab,
             requestedOn: l.requested_at ? l.requested_at.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             dueDate: l.return_by ? l.return_by.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            status: l.status ? (l.status.charAt(0).toUpperCase() + l.status.slice(1)) : "Pending",
+            status: legacyLoanStatusLabel(l.status),
             location: center ? (center.location === "MANILA" ? "Manila" : "Laguna") : "Manila",
             lab,
             center_id: center?.center_id || 1
@@ -125,7 +153,7 @@ export async function requestLoan(assetTag: string, data: LoanRequestInput, borr
         borrower_id: borrowerId,
         purpose: purposeWithLab,
         return_by: new Date(data.dueDate),
-        status: "pending",
+        status: asset_loans_status.PENDING_APPROVAL,
     });
 }
 
@@ -147,8 +175,8 @@ export async function decideLoan(loanId: number, decision: LoanDecision): Promis
     if (!loan) {
         throw new AppError(404, `No loan found with id ${loanId}.`);
     }
-    if (loan.status !== "pending") {
-        throw new AppError(400, `Loan #${loanId} has already been ${loan.status}.`);
+    if (loan.status !== asset_loans_status.PENDING_APPROVAL) {
+        throw new AppError(400, `Loan #${loanId} has already been ${LEGACY_LOAN_WORDS[loan.status]}.`);
     }
     if (decision === "approve") {
         // The same allowed statuses as requestLoan.
@@ -158,7 +186,8 @@ export async function decideLoan(loanId: number, decision: LoanDecision): Promis
         }
     }
 
-    const newLoanStatus = decision === "approve" ? "approved" : "declined";
+    // There is no release step yet, so an approval puts the loan straight On Loan, as the old "approved" did.
+    const newLoanStatus = decision === "approve" ? asset_loans_status.ON_LOAN : asset_loans_status.DECLINED;
     // A decline writes no custody record: custody never left the current custodian, so there is nothing to undo.
     return loansRepository.saveDecision(
         loan,

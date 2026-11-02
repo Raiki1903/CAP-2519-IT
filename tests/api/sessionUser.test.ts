@@ -106,7 +106,7 @@ describe("GET /api/assets: names for a Custodian (D2) and the placeholder custod
     const transfer = await db.asset_transfers.create({
       data: { asset_id: ASSETS.inspected.assetId, from_custodian_id: USERS.custodianB.userId, to_custodian_id: USERS.labHead.userId, justification: "Test old transfer", status: "declined" },
     });
-    await db.asset_inspections.create({ data: { asset_id: asset.assetId, inspected_by_id: USERS.custodianA.userId, condition: "PERFECT", remarks: "Test own report" } });
+    await db.asset_inspections.create({ data: { asset_id: asset.assetId, inspected_by_id: USERS.custodianA.userId, type: "SELF_REPORT", condition: "PERFECT", remarks: "Test own report" } });
 
     const assets = (await asCustodianA.get("/api/assets")).body.assets;
 

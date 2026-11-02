@@ -3,7 +3,7 @@
  * Layer: repository. Called by returns.service.ts. Calls server/config/prisma.ts.
  * Used by: Staff return finalization, and the return list.
  */
-import type { Prisma, asset_records } from '@prisma/client';
+import { asset_loans_status, type Prisma, type asset_records } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 
 /**
@@ -50,12 +50,11 @@ export function saveReturn(
             data: buildTurnInRecord(latestRecord),
         });
 
-        // A return names no loan (asset_returns has no loan_id until Phase 3), so the loans are found by
-        // asset. Every approved one closes: the asset is back in the pool, so none of them is still out,
-        // and loans returned before issue #99 were left approved. (answer 1a of the group H questions)
+        // A return names no loan (asset_returns has no loan_id), so the loans are found by asset. Every open one
+        // closes: the asset is back in the pool, so none of them is still out. (answer 1a of the group H questions)
         await tx.asset_loans.updateMany({
-            where: { asset_id: returnData.asset_id, status: "approved" },
-            data: { status: "returned" },
+            where: { asset_id: returnData.asset_id, status: asset_loans_status.ON_LOAN },
+            data: { status: asset_loans_status.RETURNED },
         });
 
         return ret;

@@ -54,15 +54,15 @@ export function findUserByEmail(email: string) {
 }
 
 /**
- * The user with this id when they hold this database role, or null. Used by the asset edit, whose new custodian must
- * be a Custodian account. (issue #95)
+ * The user with this id when they may hold an asset, or null: a Researcher account that heads no lab. A lab's Head
+ * account is the lab's office account and never holds an asset. Used by the asset edit, whose new custodian must be
+ * one of these, as in the custodian picker (lookups.repository.ts). (issue #95)
  *
  * @param userId the users.user_id
- * @param roleName a roles.role_name value, for example "RESEARCHER"
  */
-export function findUserWithRole(userId: number, roleName: string) {
+export function findAssetHolderCandidate(userId: number) {
     return prisma.users.findFirst({
-        where: { user_id: userId, user_roles: { some: { roles: { role_name: roleName as any } } } },
+        where: { user_id: userId, user_roles: { some: { roles: { role_name: 'RESEARCHER' } } }, headed_center: { is: null } },
     });
 }
 
@@ -113,7 +113,7 @@ export function createUser(data: Prisma.usersUncheckedCreateInput, roleId: numbe
     });
 }
 
-/** The user with this email (trimmed), with their roles and labs, or null. The service checks the password. */
+/** The user with this email (trimmed), with their roles, labs, and the lab they head, or null. The service checks the password. */
 export function findUserForLogin(email: string) {
     return prisma.users.findFirst({
         where: {
@@ -129,27 +129,32 @@ export function findUserForLogin(email: string) {
                 include: {
                     research_centers: true
                 }
-            }
+            },
+            headed_center: { select: { center_id: true } }
         }
     });
 }
 
-/** The user with this id, with their roles and labs, or null. */
+/** The user with this id, with their roles, labs, and the lab they head, or null. */
 export function findUserProfileById(userId: number) {
     return prisma.users.findUnique({
         where: { user_id: userId },
         include: {
             user_roles: { include: { roles: true } },
-            user_centers: { include: { research_centers: true } }
+            user_centers: { include: { research_centers: true } },
+            headed_center: { select: { center_id: true } }
         }
     });
 }
 
-/** The user with this id and their roles, or null. Read for a session at most once a minute per cookie (sessionCache.ts). */
+/**
+ * The user with this id, their roles, and the lab they head, or null.
+ * Read for a session at most once a minute per cookie (sessionCache.ts).
+ */
 export function findUserRolesById(userId: number) {
     return prisma.users.findUnique({
         where: { user_id: userId },
-        include: { user_roles: { include: { roles: true } } }
+        include: { user_roles: { include: { roles: true } }, headed_center: { select: { center_id: true } } }
     });
 }
 

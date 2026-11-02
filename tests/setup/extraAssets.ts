@@ -7,7 +7,7 @@
  * tests, which count every asset and so put the database back after each test.
  */
 import type { PrismaClient } from "@prisma/client";
-import { FUNDING_SOURCE, LAB, USERS } from "./fixtures";
+import { ASSET_STATUS_OF_RECORD, FUNDING_SOURCE, LAB, USERS } from "./fixtures";
 
 /** Older than any record a request writes, so the record added here is never taken as the newest by mistake. (M-09) */
 const EXTRA_RECORD_DATE = new Date("2026-04-01T09:00:00Z");
@@ -54,6 +54,8 @@ export async function addExtraAsset(db: PrismaClient, options: ExtraAssetOptions
       asset_tag: options.tag,
       name,
       category: "DEV_KIT",
+      status: ASSET_STATUS_OF_RECORD[options.status ?? "ACTIVE"],
+      center_id: LAB.centerId,
       serial_number: `TEST-SN-${options.tag}`,
       warranty_expiry: options.warrantyExpiry ?? null,
     },
@@ -86,6 +88,7 @@ export async function addExtraAsset(db: PrismaClient, options: ExtraAssetOptions
  */
 export async function removeExtraAssets(db: PrismaClient, assetIds: number[]): Promise<void> {
   const where = { asset_id: { in: assetIds } };
+  await db.activity_log.deleteMany({ where });
   await db.asset_loans.deleteMany({ where });
   await db.asset_returns.deleteMany({ where });
   await db.asset_transfers.deleteMany({ where });
