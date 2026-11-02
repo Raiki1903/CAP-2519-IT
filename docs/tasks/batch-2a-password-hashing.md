@@ -190,3 +190,47 @@ Raiki accepted stop 1 with these answers and changes.
 - `claude/nov9-delivery-plan.md` is a Project doc, not in the repo. The brief is enough.
 
 **Stop 2 is now commits 2 to 7.** Typecheck and `npm test` after each, build after any commit touching web files, each count change reported with its reason. Stop after commit 7.
+
+### Answers (stop 2)
+
+**Q1: A.** Leave `dd524809` as it is, and note it in the PR "Notes". This repo merges with merge commits, not squash, so the commit stays in main's history. The note is enough.
+
+**Fix first, as commit 8 (docs becomes commit 9):** `fix(auth): the sign-up page shows the length error instead of cutting long passwords (#10)`. Remove `maxLength` from both password boxes in `Register.tsx`. The "at most 128" check already refuses with a message, so nothing is cut silently. The placeholder and the min and max checks stay on the constants.
+
+**Stop 3 additions:**
+
+- H0, before the script: reload the data with `uat-reset.sql` so the rows are plain, start the app on this branch, and log in as the Custodian with the usual password. Expect the normal "Invalid institutional email address or password." refusal. This proves there is no plain-text fallback.
+- H6b: on the sign-up page, paste a 129-character password into both boxes. Expect "Password must be at most 128 characters long." and no request sent.
+- If the start script gives the connection details, use them and never print the URL or the password. If it doesn't, give Raiki H1 and H2 as one-line PowerShell commands with `<password>` as a placeholder.
+- Afterwards: stop the servers, delete `.playwright-mcp` from the repo, and confirm git status is clean apart from the task file. Commit 9 (docs) waits for Raiki's go.
+
+### Answers (stop 3)
+
+H1 and H2 were run by Raiki, with a command that prompts for the password instead of putting it in the URL. Both passed.
+
+**For commit 9, when Raiki says go:** the guide's one-line command in `DATABASE-MIGRATIONS.md` becomes this. It prompts for the password with masked input, encodes it, and keeps it out of the history. The "encode it as in tests/README.md" note is not needed for this command.
+
+```
+$s = Read-Host "Local MySQL root password" -AsSecureString; $p = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)); $env:HASH_TARGET_URL = "mysql://root:$([uri]::EscapeDataString($p))@localhost:3306/adric_uat_check"; npx.cmd tsx prisma/hashExistingPasswords.ts; Remove-Item Env:HASH_TARGET_URL; Remove-Variable p, s
+```
+
+## Hand checks: results
+
+Database: `adric_uat_check`, local. App started only through `start-local-uat.ps1`, on this branch at `627c0b2c`, with ports 4000 and 5173 free first.
+
+| Check | Result | Seen |
+|---|---|---|
+| H0 | Passed | After Raiki's `uat-reset.sql` reload, with no upgrade script run: the Custodian with the usual password got POST `/api/auth/login` 401 and "Invalid institutional email address or password.", and stayed on `/login`. |
+| H1 | Passed | Run by Raiki on `adric_uat_check`, with a command that prompts for the password. First run `hashed: 16, skipped: 0`. Second run `hashed: 0, skipped: 16`. |
+| H2 | Passed | Run by Raiki. One row: prefix `scrypt$`, 16 users. |
+| H3 | Passed | Staff, Lab Head, Director, and Custodian with their usual passwords: each 200, landing on `/staff/overview`, `/lab-head/custody`, `/adric-director/overview`, and `/custodian/myassets`. |
+| H4 | Passed | The Custodian's password in upper case and in lower case: each 401, "Invalid institutional email address or password.", stayed on `/login`. |
+| H5 | Passed, with one thing to check | A new made-up applicant signed up from the page (200). The CITe4D Lab Head approved them on `/lab-head/approvals` (200). The new account logged in (200), and its password in upper case got 401. No sign-up or login answer held the password or "scrypt$", the pending list held neither a hash nor a password field, and the server log held neither. To check: the real `pending_registrations.json` went from 444 bytes to 2 bytes. See below. |
+| H6 | Passed | 7 characters in both boxes: "Password must be at least 8 characters long." The page stayed on `/register`, and no `register-request` was sent. The placeholder reads "Min. 8 characters". |
+| H6b | Passed | 129 characters inserted in both boxes: both held all 129, neither has a `maxlength`. "Password must be at most 128 characters long." No `register-request` was sent. |
+
+### The pending file during H5
+
+The app runs from the repo root, so H5 used the real `pending_registrations.json`. Only its size and date were checked, never its contents. It was 444 bytes, dated 2026-10-28, before H5, and 2 bytes, dated 2026-11-02 14:23, after. The server's pending list then held 0 requests. The H5 approval was the only approval and removes one id, and no decline was sent, so the code does not explain the difference. The server log holds no load error for the file. The cause is not known. `C:\dev\uat-data\pending_registrations.backup.json` exists and was not opened.
+
+H5 also left one made-up account, user 17, in `adric_uat_check`. The next `uat-reset.sql` load removes it.
