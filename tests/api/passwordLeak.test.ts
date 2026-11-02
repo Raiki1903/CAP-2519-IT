@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { ASSETS, LAB, USERS, type TestUser } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, as } = useApiHarness();
+const { api, as, server } = useApiHarness();
 
 const PLAIN = "test-password-leak-check";
 const SEEDED_PASSWORDS = Object.values(USERS).map((u) => u.password);
@@ -48,6 +48,50 @@ describe("the sign-up path and the session answers", () => {
     const account = await as(newUser).put("/api/auth/account", { firstName: "Test", lastName: "Leak Check" });
     expect(account.status).toBe(200);
     expectNoSecret("account", account.body);
+  });
+});
+
+describe("the server's own output", () => {
+  /** Waits for a line to reach the captured output, since the child's output arrives a little after its answer. */
+  async function outputOnceItHas(text: string): Promise<string> {
+    for (let attempt = 0; attempt < 40 && !server().output().includes(text); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    expect(server().output()).toContain(text);
+    return server().output();
+  }
+
+  it("holds no part of a password sent in a body that cannot be parsed", async () => {
+    const res = await fetch(`${server().baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: `{"password": ${PLAIN}}`,
+    });
+    expect(res.status).toBe(400);
+
+    const output = await outputOnceItHas("request body could not be read");
+    expect(output).not.toContain(PLAIN.slice(0, 8));
+  });
+
+  it("holds no hash when creating the account fails on approval, though the database error quotes its values", async () => {
+    const signUp = await api.post("/api/auth/register-request", {
+      firstName: "Test",
+      lastName: "Bad Type",
+      email: "bad.type@example.test",
+      idNumber: 94000002,
+      userType: "NOT_A_TYPE",
+      labAffiliation: LAB.shortCode,
+      password: PLAIN,
+    });
+    expect(signUp.status).toBe(200);
+
+    const approval = await as(USERS.labHead).post("/api/auth/approve-registration", { requestId: signUp.body.registration.id });
+    expect(approval.status).toBe(500);
+    expectNoSecret("approval", approval.body);
+
+    const output = await outputOnceItHas("/api/auth/approve-registration failed");
+    expect(output).not.toContain("scrypt$");
+    expect(output).not.toContain(PLAIN);
   });
 });
 

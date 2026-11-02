@@ -73,7 +73,7 @@ PRISMA_TARGET_URL="mysql://root:<password>@localhost:3306/adric_db_dev" npx pris
 
 It ends with "All migrations have been successfully applied."
 
-**3. Seed it.** `SEED_PASSWORD` is the password every demo account gets: choose one, at least 8 characters. It is not stored anywhere but in the database (as plain text, like every password until issue #10).
+**3. Seed it.** `SEED_PASSWORD` is the password every demo account gets: choose one, at least 8 characters. It is not stored anywhere: the database holds only its hash.
 
 PowerShell:
 ```
@@ -90,7 +90,7 @@ SEED_DATABASE_URL="mysql://root:<password>@localhost:3306/AdRIC_DB_dev" SEED_PAS
 
 It prints `[seed] Done: 7 roles, 10 labs, 8 demo accounts, 100 demo assets held by nobody.`
 
-What it writes: the 7 roles; the 10 research centers; 8 demo accounts, first name "Demo", password `SEED_PASSWORD`:
+What it writes: the 7 roles; the 10 research centers; 8 demo accounts, first name "Demo", who log in with `SEED_PASSWORD`:
 
 | Email | Role | Lab |
 |---|---|---|

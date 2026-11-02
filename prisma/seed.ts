@@ -1,12 +1,13 @@
 /**
  * The demo seed (npm run seed): fills an empty local database, built by prisma/migrations, with roles, labs, demo accounts, and demo assets.
  * Layer: database tooling, not part of the server. Run by npm run seed. Calls seedTarget.ts, seedData.ts, Prisma with the MariaDB adapter,
- * and the server's POOL_CUSTODIAN_ID constant.
+ * the server's password helper, and its POOL_CUSTODIAN_ID constant.
  * Used by: a teammate setting up a local copy of the app (docs/guides/DATABASE-MIGRATIONS.md). Never CCS Cloud, never the tests.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient, roles_role_name } from "@prisma/client";
 import { POOL_CUSTODIAN_ID } from "../server/shared/constants/poolCustodian";
+import { hashPassword } from "../server/shared/services/passwords";
 import { DEMO_ACCOUNTS, DEMO_ASSETS, DEMO_LABS } from "./seedData";
 import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, type SeedTarget } from "./seedTarget";
 
@@ -74,6 +75,7 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
   const roleId = new Map(roleNames.map((name, i) => [name, i + 1]));
   const labs = DEMO_LABS.map((lab, i) => ({ ...lab, centerId: i + 1 }));
   const labByCode = new Map(labs.map((lab) => [lab.shortCode, lab]));
+  const passwordHashes = await Promise.all(DEMO_ACCOUNTS.map(() => hashPassword(password)));
 
   await prisma.$transaction(
     async (tx) => {
@@ -83,12 +85,12 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
       });
 
       await tx.users.createMany({
-        data: DEMO_ACCOUNTS.map((a) => ({
+        data: DEMO_ACCOUNTS.map((a, i) => ({
           user_id: a.userId,
           first_name: "Demo",
           last_name: a.lastName,
           email: a.email,
-          password,
+          password: passwordHashes[i],
           id_number: 80000000 + a.userId,
           user_type: a.userType,
         })),

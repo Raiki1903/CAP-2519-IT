@@ -87,8 +87,8 @@ export function parseSeedTarget(url: string | undefined, rules: TargetRules = SE
 export const MIN_SEED_PASSWORD_LENGTH = 8;
 
 /**
- * Checks SEED_PASSWORD, the one password every demo account gets. It comes from the shell so that
- * no password is written in the repository; passwords are stored as plain text until issue #10 (C-03).
+ * Checks SEED_PASSWORD, the one password every demo account logs in with. It comes from the shell so that
+ * no password is written in the repository; the database holds only its hash.
  *
  * @param value the value of SEED_PASSWORD
  * @returns the password, unchanged
