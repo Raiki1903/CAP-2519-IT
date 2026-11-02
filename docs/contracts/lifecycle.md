@@ -224,9 +224,11 @@ Pathways: `DONATE` (Donate), `RECYCLE` (Recycle), `RETURN_TO_FUNDER` (Return to 
 
 Types: `BUG` (Bug), `ACCOUNT_ACCESS` (Account Access), `QUESTION` (Question), `OTHER` (Other).
 
+There is no ticket form on the login page: `user_tickets.created_by_id` is a required account, and an open form invites spam. The login page says "Can't log in? Contact the IT Admin."
+
 | From | To | Who |
 |---|---|---|
-| (new) | Open | Any Active account, or the login page's "Can't log in?" form |
+| (new) | Open | Any Active account (a ticket always needs a login) |
 | Open | In Progress, Resolved or Rejected | The IT Admin |
 | In Progress | Resolved or Rejected | The IT Admin (resolution remarks required) |
 
@@ -271,7 +273,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 
 - Success: `{ "success": true, ...fields }`. Failure: `{ "success": false, "error": "<plain message>" }`. Show `error` as is.
 - Dates are `yyyy-mm-dd`; date-times are ISO 8601 (`2026-11-20T09:30:00.000Z`).
-- Every endpoint needs a login except login, sign-up, the ticket form on the login page, and `GET /api/lookups`. Without one: **401**.
+- Every endpoint needs a login except login, sign-up and `GET /api/lookups`. Without one: **401**.
 - The acting person always comes from the session, never from the body.
 
 **Errors** (each endpoint lists the ones it adds):
@@ -326,15 +328,17 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
 | Request a loan | `POST /api/assets/:assetTag/loans` | Researcher (incl. a Lab Head) with at least one lab | `{ destinationCenterId, destinationRoom?, projectId?, returnBy, purpose }`; `destinationCenterId` must be one of the borrower's labs | `{ loan: Loan }` | 400 (return-by before today, lab not theirs); 403; 404; 409 asset not Available or already has a waiting loan; 409 the lab has no Head | planned (Batch 3) |
-| Cancel my request | `PUT /api/asset_loans/:loanId/cancel` | the borrower | | `{ loan: Loan }` | 403 not theirs; 404; 409 not Pending Approval or Pending Release | planned (Batch 3) |
-| Approve | `PUT /api/asset_loans/:loanId/approve` | Head of the asset's home lab | `{ decisionRemarks? }` | `{ loan: Loan }` | 403 not the Head of that lab; 404; 409 not Pending Approval; 409 the lab has no Head | planned (Batch 3) |
-| Decline | `PUT /api/asset_loans/:loanId/decline` | Head of the asset's home lab | `{ decisionRemarks }` | `{ loan: Loan }` | 400 no remarks; 403; 404; 409 | planned (Batch 3) |
-| Release to the borrower | `PUT /api/asset_loans/:loanId/release` | TSG | `{ inspection: InspectionInput }` | `{ loan: Loan }` | 400; 403; 404; 409 not Pending Release | planned (Batch 3) |
-| Ask to return | `PUT /api/asset_loans/:loanId/return-request` | the borrower | `{ remarks? }` | `{ loan: Loan }` | 403; 404; 409 not On Loan | planned (Batch 3) |
-| Receive the return | `PUT /api/asset_loans/:loanId/receive` | TSG | `{ inspection: InspectionInput, remarks?, returnDamage?: { issueTypeId, issueDescription } }` | `{ loan: Loan, maintenance?: Maintenance }` | 400; 403; 404; 409 not On Loan or Return Requested | planned (Batch 3) |
-| My loans | `GET /api/asset_loans/mine` | logged in | `?status=` optional | `{ loans: Loan[] }` | | planned (Batch 3) |
-| My lab's requests | `GET /api/asset_loans/lab-requests` | a Lab Head | `?status=` optional | `{ loans: Loan[] }` for assets of the lab they head | 403 heads no lab | planned (Batch 3) |
-| Accountability Form data | `GET /api/asset_loans/:loanId/accountability-form` | the borrower, the Head of the home lab, TSG | | `{ loan: Loan, asset: Asset, borrower: { userId, name, idNumber, labs }, releaseInspection: Inspection }` | 403; 404; 409 not yet released | planned (Batch 3) |
+| Cancel my request | `PUT /api/loans/:loanId/cancel` | the borrower | | `{ loan: Loan }` | 403 not theirs; 404; 409 not Pending Approval or Pending Release | planned (Batch 3) |
+| Approve | `PUT /api/loans/:loanId/approve` | Head of the asset's home lab | `{ decisionRemarks? }` | `{ loan: Loan }` | 403 not the Head of that lab; 404; 409 not Pending Approval; 409 the lab has no Head | planned (Batch 3) |
+| Decline | `PUT /api/loans/:loanId/decline` | Head of the asset's home lab | `{ decisionRemarks }` | `{ loan: Loan }` | 400 no remarks; 403; 404; 409 | planned (Batch 3) |
+| Release to the borrower | `PUT /api/loans/:loanId/release` | TSG | `{ inspection: InspectionInput }` | `{ loan: Loan }` | 400; 403; 404; 409 not Pending Release | planned (Batch 3) |
+| Ask to return | `PUT /api/loans/:loanId/return-request` | the borrower | `{ remarks? }` | `{ loan: Loan }` | 403; 404; 409 not On Loan | planned (Batch 3) |
+| Receive the return | `PUT /api/loans/:loanId/receive` | TSG | `{ inspection: InspectionInput, remarks?, returnDamage?: { issueTypeId, issueDescription } }` | `{ loan: Loan, maintenance?: Maintenance }` | 400; 403; 404; 409 not On Loan or Return Requested | planned (Batch 3) |
+| Loan list | `GET /api/loans` | logged in; a Researcher sees names only on their own loans | | `{ loans: [...] }`, today's fields | | live (Batch 1), renamed from `/api/asset_loans`; the `Loan` shape from Batch 3 |
+| Approve or decline (today's step) | `PUT /api/loans/:loanId/decision` | Head of the asset's home lab | `{ decision: "approve" or "decline" }` | `{ loan }` | 403; 404; 409 | live (Batch 1), renamed from `/api/asset_loans/:loanId/decision`; replaced by approve and decline in Batch 3 |
+| My loans | `GET /api/loans/mine` | logged in | `?status=` optional | `{ loans: Loan[] }` | | planned (Batch 3) |
+| My lab's requests | `GET /api/loans/lab-requests` | a Lab Head | `?status=` optional | `{ loans: Loan[] }` for assets of the lab they head | 403 heads no lab | planned (Batch 3) |
+| Accountability Form data | `GET /api/loans/:loanId/accountability-form` | the borrower, the Head of the home lab, TSG | | `{ loan: Loan, asset: Asset, borrower: { userId, name, idNumber, labs }, releaseInspection: Inspection }` | 403; 404; 409 not yet released | planned (Batch 3) |
 | Clearance record | `POST /api/users/:userId/clearance-record` | TSG | | `{ person: { userId, name, idNumber, labs }, cleared, loans: Loan[] }`; writes CLEARANCE_RECORD_PRINTED | 403; 404 | planned (Batch 3) |
 
 ### 7.4 Maintenance
@@ -392,7 +396,7 @@ Activity events: LOGIN_SUCCESS, LOGIN_FAILURE, SIGNUP_APPROVED, SIGNUP_REJECTED,
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| Create a ticket | `POST /api/tickets` | any Active account; the login page's form without a login (type Account Access only) | `{ type, title, description }` | `{ ticket: Ticket }` | 400 | planned (module 6) |
+| Create a ticket | `POST /api/tickets` | any Active account | `{ type, title, description }` | `{ ticket: Ticket }` | 400 | planned (module 6) |
 | My tickets | `GET /api/tickets/mine` | logged in | | `{ tickets: Ticket[] }` | | planned (module 6) |
 | All tickets | `GET /api/tickets` | IT Admin | `?status=&type=` | `{ tickets: Ticket[] }` | 403 | planned (module 6) |
 | Change status | `PUT /api/tickets/:ticketId/status` | IT Admin | `{ status, resolutionRemarks? }` (required for Resolved and Rejected) | `{ ticket: Ticket }` | 400; 403; 404; 409 not a listed move | planned (module 6) |

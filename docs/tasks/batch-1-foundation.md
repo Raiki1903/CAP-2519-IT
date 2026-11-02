@@ -366,3 +366,18 @@ In `docs/guides/DATABASE-MIGRATIONS.md`:
 - **F:** Stops 2 and 3 run on `adric_b1_scratch` (0_init, `uat-reset.sql`, resolve, deploy); `adric_uat_check` is upgraded once, in commit 11.
 - **G:** Raiki confirms the backup file before Stop 4.
 - The packed pathway text has two spellings; both map to RECYCLE.
+
+**Stop 1 answers (Raiki, Nov 2):**
+
+- **H, a chosen Head's role:** every LAB_HEAD row becomes RESEARCHER, the chosen Heads' too. When the server picks the view, heading a lab wins over Researcher.
+- **J, Head of CITe4D:** user 6 ("UAT LabHead CITe4D One"). User 7 becomes a plain Researcher.
+- **J2, Head of CAR:** user 8 ("UAT LabHead CAR").
+- **Approved loans:** only the newest approved loan of an asset whose newest record is ON_LOAN maps to ON_LOAN (Stop 0: 9 loans). Any other approved loan maps to RETURNED with `closed_at` NULL, listed at Stop 3.
+- **K, loan 13 (asset 104, Retired while still on loan):** RETURNED, remark "Closed by migration: asset retired while on loan", `closed_at` NULL.
+- **Pending disposals:** an asset with a pending disposal gets PENDING_RETIREMENT, with `previous_status` from its newest record (Stop 0: disposals 2 and 3, both AVAILABLE). A DISPOSED asset with no approved disposal stays RETIRED and is reported (Stop 0: 1 asset).
+- **User 1 ("Pool Placeholder", no role, no lab):** set INACTIVE in the backfill.
+- **Funding sources:** DOST, USAID, CHED, Internal Grants, DOST-PCIEERD and DOST-SEI, each its own row.
+- **L, completing a retirement:** approval keeps the asset Pending Retirement; Complete moves it to Retired. Pending Retirement allows Decide (retirement Pending) and Complete (retirement Approved). Retired allows nothing.
+- **M, the guide line in 14.5:** the "Pool custodian check" goes with the placeholder in 9b. In its place the server prints `Database: <name> on <host>` at startup (never the password), and the guide line says to check that line.
+- **Tickets need a login:** no ticket form on the login page (`user_tickets.created_by_id` is a required account, and an open form invites spam). The login page says "Can't log in? Contact the IT Admin."
+- **Loan routes:** `/api/asset_loans` becomes `/api/loans` in commit 3, next to `/api/maintenance` and `/api/retirements`. `/api/asset_returns` goes with its table in 9b. Planned loan actions are `/api/loans/:loanId/...`; the request stays `POST /api/assets/:assetTag/loans`.
