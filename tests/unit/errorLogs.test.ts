@@ -34,7 +34,8 @@ const logged = (): string =>
   consoleError.mock.calls.flat().map((part: unknown) => (typeof part === "string" ? part : inspect(part))).join(" ");
 
 function expectNoSecret(text: string): void {
-  expect(text).not.toContain(PLAIN);
+  // The start alone: the JSON parser quotes only a few characters of what it could not read.
+  expect(text).not.toContain(PLAIN.slice(0, 8));
   expect(text).not.toContain("scrypt$");
 }
 

@@ -7,7 +7,7 @@
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient, roles_role_name } from "@prisma/client";
 import { POOL_CUSTODIAN_ID } from "../server/shared/constants/poolCustodian";
-import { hashPassword } from "../server/shared/services/passwords";
+import { hashPassword, hidePasswordHashes } from "../server/shared/services/passwords";
 import { DEMO_ACCOUNTS, DEMO_ASSETS, DEMO_LABS } from "./seedData";
 import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, type SeedTarget } from "./seedTarget";
 
@@ -168,7 +168,7 @@ main().catch((error) => {
   if (error instanceof SeedRefused) {
     console.error(`[seed] ${error.message}`);
   } else {
-    // A Prisma error can quote the values it was given, the demo password among them.
+    // A Prisma error can quote the values it was given, the demo password and its hashes among them.
     const secrets = [process.env.SEED_PASSWORD, process.env.SEED_DATABASE_URL].filter((s): s is string => !!s);
     let text = String((error as Error)?.stack ?? error);
     for (const secret of secrets) text = text.split(secret).join("<hidden>");
@@ -178,7 +178,7 @@ main().catch((error) => {
     } catch {
       // No URL to take a password from: nothing more to hide.
     }
-    console.error(`[seed] Failed. Nothing was kept: every write runs in one transaction.\n${text}`);
+    console.error(`[seed] Failed. Nothing was kept: every write runs in one transaction.\n${hidePasswordHashes(text)}`);
   }
   process.exit(1);
 });

@@ -113,3 +113,13 @@ export const DUMMY_PASSWORD_HASH = formatHash(
     randomBytes(SALT_BYTES),
     randomBytes(KEY_BYTES),
 );
+
+/**
+ * Hides any password hash in text about to be logged: a database error can quote the values it was given.
+ *
+ * @param text the text to log
+ * @returns the text, with each hash, whole or cut off, replaced by <hidden>
+ */
+export function hidePasswordHashes(text: string): string {
+    return text.replace(/scrypt\$[A-Za-z0-9+/=$]*/g, '<hidden>');
+}

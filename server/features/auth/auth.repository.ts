@@ -180,7 +180,7 @@ export function findResearchCenterForLab(labName: string, extractedCode: string)
 // TODO(H-17): the file holds each applicant's personal data and password hash, beside the code. A table, Phase 3.
 const PENDING_FILE = path.join(process.cwd(), "pending_registrations.json");
 
-/** Reads the file, or returns [] when it is missing or unreadable (the error is logged). */
+/** Reads the file, or returns [] when it is missing or unreadable (the error's name is logged). */
 function loadPendingRegistrations(): PendingRegistration[] {
     try {
         if (fs.existsSync(PENDING_FILE)) {
@@ -188,7 +188,8 @@ function loadPendingRegistrations(): PendingRegistration[] {
             return JSON.parse(raw);
         }
     } catch (e) {
-        console.error("Error loading pending_registrations.json:", e);
+        // Only the name: a JSON error's message can quote the file, which holds password hashes and personal data.
+        console.error("Error loading pending_registrations.json:", (e as Error).name);
     }
     return [];
 }
