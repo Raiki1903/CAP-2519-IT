@@ -211,7 +211,17 @@ Pathways: `DONATE` (Donate), `RECYCLE` (Recycle), `RETURN_TO_FUNDER` (Return to 
 | Inactive | Active | The IT Admin (reactivate) |
 
 - Only an Active account can log in or act. A Pending or Inactive account gets **403** on every action.
-- Anonymize (IT Admin) clears the name, email and ID number of an Inactive or Rejected account and sets `anonymizedAt`. Its loans and inspections stay, under "Former user".
+- Anonymize (IT Admin), for an Inactive or Rejected account. Each field becomes:
+
+  | Field | Becomes |
+  |---|---|
+  | Name | "Former researcher" (first name "Former", last name "researcher") |
+  | Email | `anonymized-<userId>@invalid` |
+  | ID number | empty (NULL) |
+  | Password | cleared, so the account can never log in again |
+  | `anonymizedAt` | the time of the step |
+
+  The history is kept: the person's loans, inspections, tickets and log rows stay, under "Former researcher". The step writes a USER_ANONYMIZED row in the activity log.
 
 ### Ticket (`user_tickets.status`)
 
@@ -256,11 +266,15 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 | TSG | Register assets, edit master data, and every physical step: release, receive, inspect, maintenance, mark missing and found, request and complete retirements, print clearance records |
 | Secretary (AdRIC Secretary) | Edit asset master data only, and decide retirements. Registration and every physical step answer 403 |
 | Director | Decide retirements; read analytics and reports |
-| Lab Head (whoever heads a lab) | Approve and decline loans for assets whose home lab they head; everything a Researcher may do |
+| Lab Head (the account that heads a lab) | Approve and decline loans for assets whose home lab it heads; report an issue on its lab's assets. It does not borrow: a loan request answers 403 "Use your personal account to borrow." |
 | Researcher | Request, cancel and ask to return their own loans; report an issue on an asset they hold; file a Self Report |
 | IT Admin | Accounts, labs, Heads, tickets and the activity log. **No asset actions:** every asset step answers 403 |
 
 - A Lab Head is not a separate role: the role is Researcher, and heading a lab (`research_centers.head_user_id`) gives the Lab Head view. Heading a lab wins over Researcher when the server picks the view.
+- **The Lab Head account is an office account** for the lab's Head position, like the practicum coordinator's account. It is handed over when the Head changes. The person who holds the position borrows with their own personal account; the office account cannot request loans (403 "Use your personal account to borrow.").
+- When the Head changes, the office account is **not** deactivated or anonymized. Only its password changes.
+- "Approved by" and "Declined by" show the office account, not the person behind it.
+- Known limit (for the manuscript): when a Head borrows an asset of their own lab with their personal account, the approval comes from the office account they also hold.
 - The app's internal role key for a Researcher is still `"Custodian"` (the screens under `/custodian`); the label shown is "Researcher".
 - In Batch 1 the IT Admin and the Secretary still land on the Staff view; their own views come later.
 - A Researcher never sees another person's name or id on an asset or loan (`holder: { "hidden": true }`).
@@ -311,13 +325,13 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 | Who am I | `GET /api/auth/me` | logged in | | `{ user: SessionUser }` | 404 account gone | live (Batch 1) |
 | Form option lists | `GET /api/lookups` | anyone | | `{ labs: [{ centerId, code, name, campus, campusLabel, headUserId }], categories: [{ key, label }], fundingSources: [{ fundingSourceId, name }], issueTypes: [{ issueTypeId, key, name, suggestedAction }], metricsByCategory: { "<CATEGORY>": [{ metricId, metricKey, name, unit, higherIsBetter }] }, projects: [{ projectId, code, name, centerId }] }` | | live (Batch 1) |
 
-`SessionUser`: `{ userId, firstName, lastName, email, role, roleLabel, staffUnit, accountStatus, labs: [{ centerId, code, name, campus }], headOf: { centerId, code } or null, userImg }`. `labs` lists every lab the person belongs to; there is no "first" or default lab, and a person with no lab gets `[]`.
+`SessionUser`: `{ userId, firstName, lastName, email, idNumber, role, roleLabel, staffUnit, accountStatus, labs: [{ centerId, code, name, campus }], headOf: { centerId, code } or null, userImg }`. `labs` lists every lab the person belongs to; there is no "first" or default lab, and a person with no lab gets `[]`. `idNumber` is the person's own (never anyone else's), so the loan request form can prefill the name, ID number and labs.
 
 ### 7.2 Assets
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| Asset list | `GET /api/assets` | logged in | `?status=&centerId=` optional | `{ assets: Asset[] }` | | live (Batch 1) |
+| Asset list and search | `GET /api/assets` | logged in | `?q=&status=&centerId=` optional. `q` matches part of the tag, serial number or name, in any letter case (the fallback when a QR code will not scan, CAP1DEF 1) | `{ assets: Asset[] }` | | live (Batch 1) |
 | One asset's history | `GET /api/assets/:assetTag/history` | logged in | | `{ events: [{ at, kind, label, actor, details, loanId?, maintenanceId?, retirementId?, inspectionId? }] }`, oldest first | 404 | live (Batch 1) |
 | Register an asset | `POST /api/assets` | TSG | `{ name, serialNumber?, manufacturer?, category, centerId, homeRoom?, projectId?, fundingSourceId?, acquisitionValue?, procurementDate?, warrantyExpiry?, accessories?, itsPropertyTag?, tsgTag?, imageUrl?, initialInspection: InspectionInput }` | `{ asset: Asset }` with the new tag `<lab>-<next number>` | 400; 403 | live (Batch 1) |
 | Edit master data | `PUT /api/assets/:assetTag` | TSG, Secretary | any of the register fields except `initialInspection` | `{ asset: Asset }` | 400 the body has `status`, `holder`, `location` or `condition`; 403; 404; 409 Pending Retirement or Retired | live (Batch 1) |
@@ -327,7 +341,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| Request a loan | `POST /api/assets/:assetTag/loans` | Researcher (incl. a Lab Head) with at least one lab | `{ destinationCenterId, destinationRoom?, projectId?, returnBy, purpose }`; `destinationCenterId` must be one of the borrower's labs | `{ loan: Loan }` | 400 (return-by before today, lab not theirs); 403; 404; 409 asset not Available or already has a waiting loan; 409 the lab has no Head | planned (Batch 3) |
+| Request a loan | `POST /api/assets/:assetTag/loans` | Researcher with at least one lab, whose account heads no lab | `{ destinationCenterId, destinationRoom?, projectId?, returnBy, purpose }`; `destinationCenterId` must be one of the borrower's labs | `{ loan: Loan }` | 400 (return-by before today, lab not theirs); 403; 403 "Use your personal account to borrow." when the account heads a lab; 404; 409 asset not Available or already has a waiting loan; 409 the lab has no Head | planned (Batch 3) |
 | Cancel my request | `PUT /api/loans/:loanId/cancel` | the borrower | | `{ loan: Loan }` | 403 not theirs; 404; 409 not Pending Approval or Pending Release | planned (Batch 3) |
 | Approve | `PUT /api/loans/:loanId/approve` | Head of the asset's home lab | `{ decisionRemarks? }` | `{ loan: Loan }` | 403 not the Head of that lab; 404; 409 not Pending Approval; 409 the lab has no Head | planned (Batch 3) |
 | Decline | `PUT /api/loans/:loanId/decline` | Head of the asset's home lab | `{ decisionRemarks }` | `{ loan: Loan }` | 400 no remarks; 403; 404; 409 | planned (Batch 3) |
@@ -336,6 +350,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 | Receive the return | `PUT /api/loans/:loanId/receive` | TSG | `{ inspection: InspectionInput, remarks?, returnDamage?: { issueTypeId, issueDescription } }` | `{ loan: Loan, maintenance?: Maintenance }` | 400; 403; 404; 409 not On Loan or Return Requested | planned (Batch 3) |
 | Loan list | `GET /api/loans` | logged in; a Researcher sees names only on their own loans | | `{ loans: [...] }`, today's fields | | live (Batch 1), renamed from `/api/asset_loans`; the `Loan` shape from Batch 3 |
 | Approve or decline (today's step) | `PUT /api/loans/:loanId/decision` | Head of the asset's home lab | `{ decision: "approve" or "decline" }` | `{ loan }` | 403; 404; 409 | live (Batch 1), renamed from `/api/asset_loans/:loanId/decision`; replaced by approve and decline in Batch 3 |
+| Loans by status (TSG Releases and Returns tabs) | `GET /api/loans?status=` | TSG | `?status=PENDING_RELEASE`, `?status=RETURN_REQUESTED`, or several separated by commas | `{ loans: Loan[] }` in the new shape | 400 unknown status; 403 | planned (Batch 3) |
 | My loans | `GET /api/loans/mine` | logged in | `?status=` optional | `{ loans: Loan[] }` | | planned (Batch 3) |
 | My lab's requests | `GET /api/loans/lab-requests` | a Lab Head | `?status=` optional | `{ loans: Loan[] }` for assets of the lab they head | 403 heads no lab | planned (Batch 3) |
 | Accountability Form data | `GET /api/loans/:loanId/accountability-form` | the borrower, the Head of the home lab, TSG | | `{ loan: Loan, asset: Asset, borrower: { userId, name, idNumber, labs }, releaseInspection: Inspection }` | 403; 404; 409 not yet released | planned (Batch 3) |
@@ -405,10 +420,34 @@ Activity events: LOGIN_SUCCESS, LOGIN_FAILURE, SIGNUP_APPROVED, SIGNUP_REJECTED,
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| Insights | `GET /api/analytics/insights` | Director, Secretary; a Lab Head gets their lab only | `?centerId=` optional | `{ replaceSoon: [{ asset: Asset, reason }], mostRequested: [{ asset: Asset, requests }], loansPerWeekPerLab: [{ weekStart, centerId, code, loans }] }` | 403 | planned (analytics batch) |
-| Inventory Report | `GET /api/analytics/inventory-report` | Director, Secretary, TSG | `?centerId=&status=&campus=` | `{ rows: [{ tag, name, category, homeLab, campus, homeRoom, status, condition, holder, acquisitionValue, fundingSource, procurementDate, warrantyExpiry }], totals: { count, acquisitionValue } }`; the screen makes the CSV | 403 | planned (analytics batch) |
+| Dashboard snapshot | `GET /api/analytics/snapshot` | Director, Secretary, TSG; a Lab Head gets their lab only | `?centerId=&campus=` optional | `{ total, byStatus: [{ status, label, count }], byCondition: [{ condition, label, count }], byHomeLab: [{ centerId, code, count }], byCampus: [{ campus, label, count }], byCategory: [{ category, label, count }], byProject: [{ projectId, code, name, count }] }`. Assets TSG never inspected count under `condition: null`; assets with no project under `projectId: null` | 403 | planned (analytics batch) |
+| Insights | `GET /api/analytics/insights` | Director, Secretary; a Lab Head gets their lab only | `?centerId=` optional | `{ replaceSoon: [{ asset: Asset, reason }], mostRequested: [{ asset: Asset, requests }], loansPerWeekPerLab: [{ weekStart, centerId, code, loans }], averageLoanDays, timeOnLoanShare: [{ centerId, code, share }] }` | 403 | planned (analytics batch) |
+| Inventory Report | `GET /api/analytics/inventory-report` | Director, Secretary, TSG | `?centerId=&status=&campus=&fundingSourceId=&acquiredFrom=&acquiredTo=` (today's filters kept; the acquisition dates filter the procurement date, `yyyy-mm-dd`) | `{ rows: [{ tag, name, category, homeLab, campus, homeRoom, status, condition, holder, acquisitionValue, fundingSource, procurementDate, warrantyExpiry }], totals: { count, acquisitionValue } }`; the screen makes the CSV | 403 | planned (analytics batch) |
 
 Replace-soon, most-requested and the weekly counts are worked out on the server from loans, inspections and warranty dates. The screen draws them; it does not compute them.
+
+- **Average loan length** (`averageLoanDays`, CAP1DEF 8): over released loans, the days from `releasedAt` to `closedAt`, or to now for a loan still open.
+- **Share of time on loan** (`timeOnLoanShare`, CAP1DEF 8): per lab, the days its assets spent between release and close in the period, divided by the days its assets existed in the period (0 to 1).
+- **The Inventory Report's `holder` is a person's name.** That is why the report is for the Director, the Secretary and TSG only.
+
+### 7.10 Notifications
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| My notifications | `GET /api/notifications/mine` | logged in | | `{ notifications: [{ kind, label, loanId?, assetTag?, centerId?, date? }] }` | | planned (Batch 3) |
+
+Worked out on each call from loans and the inspection schedule; there is no notifications table. Each person gets only the kinds that apply to them:
+
+| Kind | For | When |
+|---|---|---|
+| `LOAN_AWAITING_APPROVAL` | the account that heads the asset's home lab | a loan on its lab's asset is Pending Approval |
+| `RELEASE_WAITING` | TSG | a loan is Pending Release |
+| `RETURN_WAITING` | TSG | a loan is Return Requested |
+| `LOAN_DUE_SOON` | the borrower | their open loan's return-by date is within 3 days |
+| `LOAN_OVERDUE` | the borrower | their open loan's return-by date has passed |
+| `STATUS_CHECK_DUE` | members of a lab | the routine inspection cycle of their lab starts (sent once the schedule exists, Batch 5) |
+
+People are matched by user id, never by display name. This replaces the notification bell's name matching (#131).
 
 ---
 

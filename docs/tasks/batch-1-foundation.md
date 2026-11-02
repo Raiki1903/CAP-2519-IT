@@ -381,3 +381,8 @@ In `docs/guides/DATABASE-MIGRATIONS.md`:
 - **M, the guide line in 14.5:** the "Pool custodian check" goes with the placeholder in 9b. In its place the server prints `Database: <name> on <host>` at startup (never the password), and the guide line says to check that line.
 - **Tickets need a login:** no ticket form on the login page (`user_tickets.created_by_id` is a required account, and an open form invites spam). The login page says "Can't log in? Contact the IT Admin."
 - **Loan routes:** `/api/asset_loans` becomes `/api/loans` in commit 3, next to `/api/maintenance` and `/api/retirements`. `/api/asset_returns` goes with its table in 9b. Planned loan actions are `/api/loans/:loanId/...`; the request stays `POST /api/assets/:assetTag/loans`.
+
+**Contract review (advisor, Nov 3):** the contract doc gains asset search, loans by status, `idNumber` in the session, a dashboard snapshot, loan length and time-on-loan insights, the Inventory Report's filters, worked-out notifications, the anonymize fields, and Lab Head office accounts. Two of them touch Batch 1:
+
+- **Asset search** `GET /api/assets?q=` (part of the tag, serial number or name, any letter case) is small, so it is live in Batch 1. It lands in commit 6, where the asset list is rewritten.
+- **Lab Head office accounts:** an account that heads a lab is the lab's office account and cannot request loans (403 "Use your personal account to borrow."). The rule is enforced with the loan chain in Batch 3; commit 7's helpers expose "heads a lab" for it. `idNumber` (the person's own) joins the session in commit 7.
