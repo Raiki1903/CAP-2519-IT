@@ -397,3 +397,27 @@ In `docs/guides/DATABASE-MIGRATIONS.md`:
 
 - The six commit 4 decisions are confirmed: the maintenance text map (the board's texts mapped, any other text 400, the outside service kept as `provider`); `destination_center_id` filled from the purpose's "Destination Lab:" line; `asset_inspection_metrics` keyed by (`inspection_id`, `metric_id`); motor speed `higher_is_better` true; user 1 INACTIVE only when it has no role.
 - `projects.funding_agency` stays until commit 9b and is dropped there with the other replaced columns (section 3.4).
+
+## Resume here (paused 2026-11-03, after Stop 3)
+
+**Branch** `feat/batch-1-foundation`. **Last commit** `50726b29` docs(tasks): record the Stop 3 answers and drop projects.funding_agency in 9b. Code was last changed in `0ee5dec0` (commit 4). Checks at that commit: typecheck 49, build passes, tests 512 of 513 (the one failure is the date-bound transfers test, H-19, which commit 9 removes). Commit 5 has not started.
+
+**Still to do, from sections 3.4, 4 and 7:**
+
+- **Commit 5** `feat(shared)`: the constants in `shared/constants/` (section 4): asset, loan, maintenance, retirement, inspection, ticket and activity statuses and types with labels; campus labels; page titles; metric flag rules by `metric_key`; care guidelines; health score suggestion. Move the commit 4 bridge maps that keep the old screen words (`LEGACY_LOAN_WORDS`, `LEGACY_DISPOSAL_WORDS`, `PROGRESS_TEXTS` and `progressTextOf`, `RETIREMENT_PATHWAY_WORDS`, all marked `TODO(H-07)`) onto these labels. Funding sources, issue types and metrics come from their tables through `GET /api/lookups`; remove `shared/constants/fundingSources.ts` once nothing imports it.
+- **Commit 6** `feat(server)`: `lifecycleGuard.ts`, `assetStatus.ts` (`setAssetStatus`, the only writer of `assets.status`), `assetState.ts` (holder, current location, condition, overdue, open loan, a user's open loans, each with a one-query list version), `activityLog.ts`, `rowLocks.ts`. Every reader of `asset_records` moves to `assets.status` and these helpers. The asset list gains the contract fields and `?q=` search. `GET /api/assets/:assetTag/history` replaces custodian-history.
+- **Commit 7** `feat(server)`: the permission helpers and `resolveLoanApprover` (409 "This lab has no Lab Head yet. Ask the IT Admin to set one."), applied to the existing loan, return, maintenance, retirement and inspection routes; the IT Admin gets 403 on every asset action. The session and `/me` return all labs, the lab headed, and `idNumber`; remove `user_centers[0]` and every `|| "CITe4D"` default; the 3 web readers of `labAffiliation` change with it.
+- **Commit 8** `fix(assets)` (#75): lock the lab row when numbering tags; copy Aryan's test by hand from `fix/75-concurrent-tags`, with his trailer; remove `findTagsWithPrefix` if unused.
+- **Commit 9** `feat(assets)`: master-data-only edits (ASSET_EDITED with the changed field names; TSG and the Secretary), the delete guard (409), registration with an INITIAL inspection and ASSET_REGISTERED, and transfers removed: folder, routes, web client, every call (including `serverData.tsx`), buttons and form, and the transfer tests.
+- **Commit 9b** `db`: drop `asset_records`, `asset_returns`, `asset_transfers`, `asset_monetary`, `asset_maintenance.is_immediate` (Stop 3: 0 true on the UAT data), `projects.funding_agency`, and the old condition enums. Remove the placeholder check and print `Database: <name> on <host>` at startup (answer M).
+
+**Open items**
+
+- **Answer G:** before the Stop 4 dry run, read only the first 25 and last 5 lines of `C:\dev\uat-data\Dump20261021.sql` and report the dump date and time, so Raiki can confirm with Macy that it was taken before the UAT data was loaded.
+- **Commit 10 tests:** the migration mapping tests on fixture rows (section 8) need a second local test database at the commit 3 state. Ask Raiki before adding it (name, guard rule, how the harness builds it).
+- **Scratch SQL for `adric_uat_check`** (never committed), run after the commit 11 reset and the hash script: users 10 ("UAT Custodian Two") and 11 ("UAT Custodian Three") get IT_ADMIN and ADRIC_SECRETARY in place of RESEARCHER (answer N), and CITe4D's `head_user_id` is set to "UAT LabHead CITe4D One" by name (answer O; user 6 in the reset data). Not written yet.
+
+**Scratch files still needed** (in the agent's session scratchpad, which may be cleared; each is easy to rebuild):
+
+- `stop3-scratch.ps1` with `stop3-counts-before.sql` and `stop3-counts-after.sql`: rebuilds the local `adric_b1_scratch` from 0_init and `uat-reset.sql`, applies the migrations, and counts. Prompts for the password once; refuses any other database or host. Reused for checking commits 5 to 9b and as the base of the commit 11 reset path.
+- `apply_edits.py`: applies exact replacements with an expected count per file, keeping line endings.
