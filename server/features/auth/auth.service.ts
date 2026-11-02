@@ -22,7 +22,7 @@ import type {
 import * as authRepository from './auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { env } from '../../config/env';
-import { DUMMY_PASSWORD_HASH, isPasswordHash, verifyPassword } from '../../shared/services/passwords';
+import { DUMMY_PASSWORD_HASH, hashPassword, isPasswordHash, verifyPassword } from '../../shared/services/passwords';
 import { createSessionToken, isLoggedOut, markLoggedOut, verifySessionToken } from '../../shared/services/session';
 import { forgetIdentity, recallIdentity, rememberIdentity } from '../../shared/services/sessionCache';
 
@@ -42,7 +42,7 @@ async function refuseTakenByAccount(email: string, idNumber: number): Promise<vo
     }
 }
 
-/** A stored sign-up request without its password, for an answer. (C-04) */
+/** A stored sign-up request without its password hash, for an answer. (C-04) */
 function withoutPassword(request: PendingRegistration): PendingRegistrationView {
     const { password, ...view } = request;
     return view;
@@ -63,14 +63,18 @@ export function listPendingRegistrations(): PendingRegistrationView[] {
  *
  * Every request asks for the Custodian role: a role in the body is ignored, since this route is public. (C-05 family)
  *
- * @param data the checked body: names, email, id number, and the optional user type, lab, password, and picture
- * @returns the stored request, with its REG- id, without its password (C-04)
+ * @param data the checked body: names, email, id number, password, and the optional user type, lab, and picture
+ * @returns the stored request, with its REG- id, without its password hash (C-04)
  * @throws AppError 409 if the email or the id number already belongs to an account, or to a request still waiting (issues #14, #81)
  */
 export async function requestRegistration(data: RegistrationRequestInput): Promise<PendingRegistrationView> {
     const { firstName, lastName, email, idNumber, userType, labAffiliation, password, avatarUrl } = data;
 
     await refuseTakenByAccount(email, Number(idNumber));
+
+    // Hashed before the waiting checks: they and the add must run with no await between them, or a double submit
+    // could pass both checks and file two requests (issues #14, #81).
+    const passwordHash = await hashPassword(password);
 
     const sameEmail = (r: PendingRegistrationView) => String(r.email).trim().toLowerCase() === String(email).trim().toLowerCase();
     const waiting = listPendingRegistrations();
@@ -91,8 +95,7 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
         userType: userType || "STUDENT",
         requestedRole: "Custodian",
         labAffiliation: labAffiliation || "CITe4D",
-        // TODO(C-03): a request without a password gets "password123", stored as plain text (issue #10). Phase 3.
-        password: password || "password123",
+        password: passwordHash,
         avatarUrl,
         submittedAt: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
         status: "PENDING"
@@ -112,6 +115,7 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
  * @returns the new account's id, names, and email (no password or id number: 01C 4.1)
  * @throws AppError 400 if the request's lab matches no research center; nothing is created and the request is kept (issue #73)
  * @throws AppError 404 if the id matches no pending request
+ * @throws AppError 409 if the request was filed before passwords were hashed, so it has no hash to copy; the request is kept (C-03)
  * @throws AppError 409 if an account has the request's email or id number by now; the request is kept (issue #14)
  */
 export async function approveRegistration(data: ApproveRegistrationInput): Promise<ApprovedUser> {
@@ -120,6 +124,10 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
 
     if (!targetReq) {
         throw new AppError(404, "Pending registration request details not found.");
+    }
+
+    if (!isPasswordHash(targetReq.password)) {
+        throw new AppError(409, "This request was made before passwords were protected. Decline it and ask the applicant to sign up again.");
     }
 
     // Checked again here: a request filed before the duplicate checks, or an account created since, would otherwise
@@ -150,7 +158,7 @@ export async function approveRegistration(data: ApproveRegistrationInput): Promi
             first_name: targetReq.firstName,
             last_name: targetReq.lastName,
             email: targetReq.email,
-            password: targetReq.password || "password123",
+            password: targetReq.password,
             id_number: targetReq.idNumber,
             user_type: targetReq.userType || "STUDENT",
             user_img: targetReq.avatarUrl ? String(targetReq.avatarUrl) : null

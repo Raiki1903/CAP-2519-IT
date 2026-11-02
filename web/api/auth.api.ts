@@ -63,7 +63,7 @@ export function updateAccount(input: AccountUpdateInput): Promise<ApiResult> {
  * @param registration the registration form values
  * @returns the raw Response
  */
-// TODO(H-17): the server keeps pending sign-ups, password included, in a JSON file. Phase 3 makes it a table.
+// TODO(H-17): the server keeps pending sign-ups, with the password's hash, in a JSON file. Phase 3 makes it a table.
 export function requestRegistrationRaw(registration: RegistrationRequestInput): Promise<Response> {
   return apiPostRaw("/api/auth/register-request", registration);
 }

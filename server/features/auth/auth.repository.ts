@@ -177,7 +177,7 @@ export function findResearchCenterForLab(labName: string, extractedCode: string)
 // Pending sign-ups are kept in a JSON file, not in the database. The file is read once, when this module loads,
 // into the list below; every change rewrites the whole file from that list. The path is the server's working
 // folder, which is the repository root under the npm scripts and a temporary folder in the tests.
-// TODO(H-17): the file holds each applicant's personal data and password in plain text, beside the code. A table, Phase 3.
+// TODO(H-17): the file holds each applicant's personal data and password hash, beside the code. A table, Phase 3.
 const PENDING_FILE = path.join(process.cwd(), "pending_registrations.json");
 
 /** Reads the file, or returns [] when it is missing or unreadable (the error is logged). */

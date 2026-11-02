@@ -13,6 +13,7 @@ import { Label } from "@web/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import { useFormLookups } from "@web/features/lookups/useLookups";
 import { useServerData } from "@web/state/serverData";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@shared/constants/passwords";
 import * as authApi from "@web/api/auth.api";
 
 /** The lab value for a request with no lab. Approval finds no research center for it, so the account gets no lab link. */
@@ -29,13 +30,13 @@ const AVATAR_PRESETS = [
 
 /**
  * Collects name, email, ID number, user type, lab, password, and picture; checks them in the
- * browser (a @dlsu.edu.ph email, an 8-digit ID, matching passwords of 6 or more characters);
+ * browser (a @dlsu.edu.ph email, an 8-digit ID, matching passwords of an allowed length);
  * and sends the request through authApi.requestRegistrationRaw(). Every request asks for the
  * Custodian role. On success the request the server answers with (its stored copy, with the
  * server's id) is also added to this tab's in-memory pending list, until the next server reload
  * replaces that list. Takes no props.
  */
-// TODO(H-17): the server keeps this request, plaintext password included, in pending_registrations.json. Phase 3 makes it a table.
+// TODO(H-17): the server keeps this request, with the password's hash, in pending_registrations.json. Phase 3 makes it a table.
 export function Register() {
   const navigate = useNavigate();
   const { addPendingRegistration } = useServerData();
@@ -95,8 +96,12 @@ export function Register() {
       setError("Please enter a valid 8-digit DLSU ID number.");
       return;
     }
-    if (!password || password.length < 6) {
-      setError("Password must be at least 6 characters long.");
+    if (!password || password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
+      return;
+    }
+    if (password.length > MAX_PASSWORD_LENGTH) {
+      setError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long.`);
       return;
     }
     if (password !== confirmPassword) {
@@ -396,7 +401,8 @@ export function Register() {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min. 6 characters"
+                    maxLength={MAX_PASSWORD_LENGTH}
+                    placeholder={`Min. ${MIN_PASSWORD_LENGTH} characters`}
                     className="h-9 text-xs border-slate-200 pr-8 focus-visible:ring-[#005A36] focus-visible:border-[#005A36]"
                   />
                   <button
@@ -416,6 +422,7 @@ export function Register() {
                   type={showPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  maxLength={MAX_PASSWORD_LENGTH}
                   placeholder="Re-enter password"
                   className="h-9 text-xs border-slate-200 focus-visible:ring-[#005A36] focus-visible:border-[#005A36]"
                 />

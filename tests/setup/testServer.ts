@@ -113,12 +113,16 @@ async function waitUntilAnswering(baseUrl: string, child: ChildProcess, output: 
  *
  * @param config the guarded test database
  * @param envOverrides variables to set on top of buildServerEnv, or to remove with undefined
+ * @param pendingRegistrations sign-up requests to put in the file before the server reads it at startup
  * @returns the running server, once it answers HTTP requests
  * @throws Error when the server exits or does not answer within a minute
  */
-export async function startTestServer(config: TestDatabaseConfig, envOverrides: Record<string, string | undefined> = {}): Promise<RunningServer> {
+export async function startTestServer(config: TestDatabaseConfig, envOverrides: Record<string, string | undefined> = {}, pendingRegistrations?: unknown[]): Promise<RunningServer> {
   const port = await findFreePort();
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "adric-api-test-"));
+  if (pendingRegistrations) {
+    fs.writeFileSync(path.join(workDir, "pending_registrations.json"), JSON.stringify(pendingRegistrations), "utf-8");
+  }
   const tsxLoader = pathToFileURL(createRequire(path.join(REPO_ROOT, "package.json")).resolve("tsx")).href;
 
   const child = spawn(process.execPath, ["--import", tsxLoader, path.join(REPO_ROOT, "server", "main.ts")], {

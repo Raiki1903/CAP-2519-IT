@@ -9,10 +9,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { isPasswordHash, verifyPassword } from "../../server/shared/services/passwords";
 import { LAB, USERS, type RoleName } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
 const { api, db, server, as } = useApiHarness();
+const DEFAULT_PASSWORD = "test-password-applicant";
 const asLabHead = as(USERS.labHead);
 
 let applicantCount = 0;
@@ -25,6 +27,7 @@ function applicant(extra: Record<string, unknown> = {}) {
     lastName: `Applicant ${applicantCount}`,
     email: `applicant.${applicantCount}@example.test`,
     idNumber: 91000000 + applicantCount,
+    password: DEFAULT_PASSWORD,
     ...extra,
   };
 }
@@ -47,7 +50,7 @@ const roleNamesOf = async (userId: number): Promise<string[]> =>
 
 describe("POST /api/auth/register-request", () => {
   it("answers 200 with a PENDING registration and the default role, lab, and user type", async () => {
-    const body = applicant({ password: "test-password-applicant" });
+    const body = applicant();
     const res = await api.post("/api/auth/register-request", body);
 
     expect(res.status).toBe(200);
@@ -87,10 +90,59 @@ describe("POST /api/auth/register-request", () => {
     expect(pendingFile().find((r) => r.id === registration.id)).toMatchObject({ requestedRole: "Custodian" });
   });
 
-  it("stores password123 when no password is sent (known defect C-03)", async () => {
-    const { registration } = await requestSignUp();
+  it("stores only the password's hash in the file (C-03 fixed)", async () => {
+    const plain = "test-password-in-the-file";
+    const { registration } = await requestSignUp({ password: plain });
 
-    expect(pendingFile().find((r) => r.id === registration.id)?.password).toBe("password123");
+    const stored = pendingFile().find((r) => r.id === registration.id)?.password;
+    expect(stored).toMatch(/^scrypt\$/);
+    expect(await verifyPassword(plain, stored)).toBe(true);
+    expect(fs.readFileSync(path.join(server().workDir, "pending_registrations.json"), "utf-8")).not.toContain(plain);
+  });
+
+  it("answers 400 for no password, and stores nothing and no default (C-03 fixed)", async () => {
+    const { password, ...body } = applicant();
+
+    const res = await api.post("/api/auth/register-request", body);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Password must be at least 8 characters long.");
+    expect(pendingFile().map((r) => r.email)).not.toContain(body.email);
+  });
+
+  it("answers 400 for 7 characters and 200 for 8", async () => {
+    const tooShort = await api.post("/api/auth/register-request", applicant({ password: "x".repeat(7) }));
+    const shortest = await api.post("/api/auth/register-request", applicant({ password: "x".repeat(8) }));
+
+    expect(tooShort.status).toBe(400);
+    expect(tooShort.body.error).toBe("Password must be at least 8 characters long.");
+    expect(shortest.status).toBe(200);
+  });
+
+  it("answers 400 for 129 characters and 200 for 128", async () => {
+    const tooLong = await api.post("/api/auth/register-request", applicant({ password: "x".repeat(129) }));
+    const longest = await api.post("/api/auth/register-request", applicant({ password: "x".repeat(128) }));
+
+    expect(tooLong.status).toBe(400);
+    expect(tooLong.body.error).toBe("Password must be at most 128 characters long.");
+    expect(longest.status).toBe(200);
+  });
+
+  it("answers 400 for a password that is not a string", async () => {
+    for (const password of [12345678, { length: 8 }, ["a-long-enough-password"], true]) {
+      const res = await api.post("/api/auth/register-request", applicant({ password }));
+
+      expect(res.status, JSON.stringify(password)).toBe(400);
+    }
+  });
+
+  it("files one request when the same sign-up is sent twice at once, though hashing takes time (issues #14, #81)", async () => {
+    const body = applicant();
+
+    const answers = await Promise.all([api.post("/api/auth/register-request", body), api.post("/api/auth/register-request", body)]);
+
+    expect(answers.map((a) => a.status).sort()).toEqual([200, 409]);
+    expect(pendingFile().filter((r) => r.email === body.email)).toHaveLength(1);
   });
 
   it("answers 400 when the first name, last name, email, or id number is missing", async () => {
@@ -201,6 +253,21 @@ describe("POST /api/auth/approve-registration", () => {
 
     const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
     expect(res.body.user).toEqual({ userId: created.user_id, firstName: body.firstName, lastName: body.lastName, email: body.email });
+  });
+
+  it("copies the stored hash into the account, which logs in with the original password (C-03 fixed)", async () => {
+    const plain = "test-password-new-account";
+    const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode, password: plain });
+    const storedHash = pendingFile().find((r) => r.id === registration.id)?.password;
+
+    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
+
+    expect(res.status).toBe(200);
+    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
+    expect(isPasswordHash(created.password)).toBe(true);
+    expect(created.password).toBe(storedHash);
+    expect((await api.post("/api/auth/login", { email: body.email, password: plain })).status).toBe(200);
+    expect((await api.post("/api/auth/login", { email: body.email, password: plain.toUpperCase() })).status).toBe(401);
   });
 
   it.each(["Custodian", "Lab Head", "TSG", "ITS", "Admin"])("approves a request that asks for role %s as a Custodian (C-05 family)", async (requestedRole) => {
