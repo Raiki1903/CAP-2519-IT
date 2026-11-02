@@ -151,4 +151,42 @@ The log fixes in "Found beyond the brief", item 1, need a home: see question Q1.
 
 ## Questions (stop 1)
 
-See the stop 1 report. Answers go here at stop 2.
+### Answers
+
+Raiki accepted stop 1 with these answers and changes.
+
+**Q1: A.** New commit 7, before docs (docs becomes commit 8): `fix(auth): logs never hold a password or a hash (#10)`.
+
+- errorHandler body-parse log: method, URL and error type only. Drop the parser's message.
+- errorHandler 500 log: pass the logged text through `hidePasswordHashes`.
+- `auth.repository` pending-file load error: log only the error's name (for example SyntaxError), not its message.
+- The demo seed's error text also hides hashes.
+- Each fix gets a test that spies on `console.error` and checks that the output holds neither the plain password nor "scrypt$". Each test must fail on the old code.
+
+**Q2: A.** Remove the password from the print line in `scratch/check_users.ts`, in commit 7.
+
+**Q3: neither A nor B.** Fact not known at stop 1: the deployed UAT site runs the frozen old code against CCS Cloud, and the Nov 3 UAT sessions use it. Running the script there would lock everyone out of that site. The guide in commit 5 says:
+
+- Nothing runs against CCS Cloud before the Nov 8 deploy. Merging this branch is safe because main isn't deployed until then. After the merge, main run against CCS Cloud refuses every login, so use a local copy.
+- Local copies (adric_uat_local, adric_uat_check, anyone's): after pulling main, run the script on the local copy with HASH_TARGET_URL. Run it again after every uat-reset.sql load, because that file puts plain passwords back. The command is given as one PowerShell line.
+- Nov 8 deploy, recommended path: a fresh database from migrations plus the seed. The seed writes hashes, so the script is not needed.
+- Nov 8, only if Macy upgrades the existing UAT data instead: back up first. The backup holds plain passwords, so it is never committed, posted or shared. Deploy the new code, run the script with --allow-remote straight away, and decline any sign-up request made before the change (it gets 409).
+
+**Also added:**
+
+1. `MAX_PASSWORD_LENGTH = 128` in `shared/constants/passwords.ts`, next to the minimum, created in the first commit that needs it. The server takes bodies up to 50 MB, so an unbounded password costs CPU on every attempt.
+   - Sign-up: over 128 gives 400, "Password must be at most 128 characters long."
+   - Login: a non-string or over-128 password still runs one dummy verify (on a short fixed string), then gives the same 401. Nothing about the email changes the timing.
+   - Tests: a 129-character sign-up gives 400; a 129-character login gives the same 401 body as a wrong password.
+2. `Register.tsx`: the "Min. 6 characters" placeholder and the length check both use the constants, with maxLength on the input.
+3. The script's guard reuses `parseSeedTarget` from `prisma/seedTarget.ts` for the local-host rule, adding only the --allow-remote switch. The rule is not copied into a second file. Any change to its error class or messages is reported.
+4. The dummy hash uses the same N, r and p as real hashes, so a dummy verify takes the same time as a real one, pinned by a unit test that parses its parameters.
+
+**Confirmed:**
+
+- `prisma/hashExistingPasswords.ts` plus `prisma/hashTarget.ts`.
+- The extra test that list screens never contain "scrypt$".
+- Left out, and listed in the final report: the emails in `auth.controller` logs, the rate limit, and the userType 500.
+- `claude/nov9-delivery-plan.md` is a Project doc, not in the repo. The brief is enough.
+
+**Stop 2 is now commits 2 to 7.** Typecheck and `npm test` after each, build after any commit touching web files, each count change reported with its reason. Stop after commit 7.
