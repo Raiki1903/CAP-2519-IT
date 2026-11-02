@@ -147,7 +147,7 @@ New migration. Old tables stay until commit 9b, so the code can move over in com
 
 ### 3.4 Contract: drop what was replaced (commit 9b)
 
-After commits 5 to 9 have moved every reader and writer, a new migration drops: `asset_records`, `asset_returns`, `asset_transfers`, `asset_monetary`, `asset_maintenance.is_immediate` (report how many were true first), and the old condition enums. A grep shows no code uses them. This is a deliberate drop of data already copied or no longer needed (UAT test data; the Nov 8 deploy is a fresh database), so it is not the accidental DROP that rule 2.1 is about. Report row counts dropped per table.
+After commits 5 to 9 have moved every reader and writer, a new migration drops: `asset_records`, `asset_returns`, `asset_transfers`, `asset_monetary`, `asset_maintenance.is_immediate` (report how many were true first), `projects.funding_agency` (replaced by `funding_source_id`; Stop 3 answer), and the old condition enums. A grep shows no code uses them. This is a deliberate drop of data already copied or no longer needed (UAT test data; the Nov 8 deploy is a fresh database), so it is not the accidental DROP that rule 2.1 is about. Report row counts dropped per table.
 
 ### 3.5 Tag numbering (#75, folded from #130)
 
@@ -392,3 +392,8 @@ In `docs/guides/DATABASE-MIGRATIONS.md`:
 - **Stop 2 finding:** `uat-reset.sql` holds 12 users, 127 assets and 14 loans; `adric_uat_check` holds more (17 users, 128 assets, 16 loans) from earlier hand checks. The rules above apply to whatever data the migration meets; Stop 3 reports the counts on `adric_b1_scratch` (the reset data).
 - **N, IT Admin and Secretary for the hand checks:** after the commit 11 reset, users 10 and 11 become IT_ADMIN and ADRIC_SECRETARY through the never-committed scratch SQL file. This replaces D (users 13 and 14 do not exist in the reset data).
 - **O, Lab Heads in the migration:** the migration sets `head_user_id` only where a lab has exactly one LAB_HEAD holder (who heads no other lab), and Stop 3 lists the labs left without a Head. Raiki's CITe4D pick goes in the same scratch SQL file, by name, checked against the reset data at Stop 3. No user id is written into a migration.
+
+**Stop 3 answers (Raiki, Nov 3):**
+
+- The six commit 4 decisions are confirmed: the maintenance text map (the board's texts mapped, any other text 400, the outside service kept as `provider`); `destination_center_id` filled from the purpose's "Destination Lab:" line; `asset_inspection_metrics` keyed by (`inspection_id`, `metric_id`); motor speed `higher_is_better` true; user 1 INACTIVE only when it has no role.
+- `projects.funding_agency` stays until commit 9b and is dropped there with the other replaced columns (section 3.4).
