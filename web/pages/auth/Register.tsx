@@ -401,7 +401,6 @@ export function Register() {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    maxLength={MAX_PASSWORD_LENGTH}
                     placeholder={`Min. ${MIN_PASSWORD_LENGTH} characters`}
                     className="h-9 text-xs border-slate-200 pr-8 focus-visible:ring-[#005A36] focus-visible:border-[#005A36]"
                   />
@@ -422,7 +421,6 @@ export function Register() {
                   type={showPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  maxLength={MAX_PASSWORD_LENGTH}
                   placeholder="Re-enter password"
                   className="h-9 text-xs border-slate-200 focus-visible:ring-[#005A36] focus-visible:border-[#005A36]"
                 />
