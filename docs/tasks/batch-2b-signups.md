@@ -179,3 +179,118 @@ Made by Raiki before and at Stop 0 (2026-11-03). Where they differ from the sect
 - **Q5: A.** The ID number is 8 digits, not starting with 0 (`id_number` is a number column, so a leading 0 would be lost). Message: "Enter your 8-digit DLSU ID number."
 - **Also accepted:** no separate IT Admin layout file (a new `roleConfig` entry in `Sidebar.tsx`, under `RootLayout`); no seed change (seed user 11, `demo.pending@dlsu.edu.ph`, is already the Pending sign-up); tests that cannot pass after commit 3 are deleted in that commit (AGENTS.md rule 5); the web types the old flow uses stay until commit 8.
 - **Commit 5 addition:** `loginLimiter.ts` exports a reset function for tests, so existing login tests do not trip the limit. Failed tries are spread across accounts only where a test truly needs it.
+
+## Results at Stop 1 and Stop 2
+
+Branch `feat/batch-2b-signups`, from `main` at `d758e726`. Nothing pushed. No schema change, no new package, nothing run against CCS Cloud.
+
+| # | Commit | Hash | Typecheck | Tests (total) | Why the tests moved |
+|---|---|---|---|---|---|
+| 1 | `docs(tasks): save the 2b brief` | `3ab8b684` | 25 | 524 | Docs only |
+| 2 | `fix(server): plain log lines with no bodies, emails or emojis` | `5519a9c2` | 25 | 525 | +1: the no-emoji test (`tests/unit/noEmojiLogs.test.ts`) |
+| 3 | `feat(auth): sign-ups are stored as pending users` | `1b684ecf` | 25 | 522 | -3: 28 new sign-up tests replace the old ones that needed the file; one `passwordLeak` test (approval failing on a bad user type) is gone, since sign-up now answers 400 for it |
+| 4 | `feat(users): IT Admin approves or rejects sign-ups` | `7299fedc` | 25 | 556 | +34: `users.test.ts` +30, three session table rows, one IT Admin asset-route row |
+| 5 | `feat(auth): login messages by status, login log and a failed-login limit (#136)` | `15935ae9` | 25 | 578 | +22: `loginLimit.test.ts` +13, `loginLimiter.test.ts` +8, one Pending-login test |
+| 6 | `refactor(auth): remove the pending_registrations.json flow` | `eb97a204` | 25 | 569 | -9: the old-request test file (-4), the pending-file log tests (-2), the old session table rows (-3) |
+| 6a | `fix(server): log only the error name for disposal emails` | `2d753723` | 25 | 569 | Unchanged |
+| 7 | `feat(web): IT Admin view with the Approvals page` | `df16c265` | 25 | 569 | Unchanged (web only) |
+| 8 | `feat(web): sign-up page sends labs and shows the server's message` | `2e5b16c5` | 25 | 569 | Unchanged (web only) |
+| 9 | `docs: 2b contract, guide and counts` | this commit | 25 | 569 | Unchanged (docs only) |
+
+Build passes after every code commit. Typecheck stayed at 25 (the same 25 errors as `main`). `AGENTS.md` now says 569 tests.
+
+**Section 5 (seed):** no change. Seed user 11 (`demo.pending@dlsu.edu.ph`, a Student in CeLT) already is the Pending sign-up.
+
+**Where the build differs from the brief or went beyond it:**
+
+- Sign-up answers **201**, as the brief says. The sign-up page reads it through `readResult`.
+- `users` has no creation date, so the Approvals table has no "Requested on" column and the list is ordered by user id (Q1).
+- Reject remarks are limited to 255 characters, the size of `activity_log.details` (Q2). The Reject dialog does not cut the text: the count turns red, a message shows, and Confirm waits.
+- A right password on a Pending, Rejected or Inactive account writes LOGIN_FAILURE with a reason, and neither counts toward the limit nor clears it (Q3). A wrong password for a known account writes "Wrong password".
+- The row for a wrong password is awaited, so a known email's refusal is a few milliseconds slower than an unknown email's (see Recommendations notes).
+- The bell is hidden for the IT Admin, and its screens load no asset, loan or maintenance list (Q4). The server still answers those reads to any Active account.
+- An ID number cannot start with 0 (Q5). The sign-up page sends the ID number as typed, so a leading 0 is refused instead of lost.
+- The sign-up page no longer shows "Requested System Role" (the IT Admin picks the role) and shows a labs multi-select and three user types.
+- `loginLimiter.ts` exports `resetLoginLimiter()`, used by its unit tests. The API tests run the server as a separate process, so each test file's own fresh server starts with an empty limit (Stop 1, Q1: A).
+- `web/state/pendingSignUps.tsx` (new) holds the IT Admin's list, so the sidebar count and the Approvals page share it. `web/state/serverData.tsx` only lost code.
+- `scratch/test_registration_approval.ts` still calls the removed routes. `scratch/` is not built, so it was left.
+
+## Recommendations notes
+
+For the Recommendations document, from Batch 2b:
+
+- **The login limit is in memory.** A server restart clears every count, and two server processes would each keep their own. That is enough for one server behind nginx; a shared store (or a table) is the step up if the site ever runs more than one process.
+- **A known email's refusal is a few milliseconds slower** than an unknown email's, because the known one writes its LOGIN_FAILURE row before answering. The 5-try limit keeps that from being measured often. Writing the row without waiting would remove the difference, at the cost of a race with anything that deletes the account (module 6 anonymizes instead of deleting).
+- **Users have no sign-up date.** `users` has no creation column, so Approvals cannot show "Requested on" and sorts by user id. Module 6 can add `created_at` in its own migration.
+- **A rejected sign-up keeps its email and ID number** until the IT Admin anonymizes the account (module 6, Users page).
+- **The read-only asset, loan and maintenance lists are open to the IT Admin on the server.** Only the web hides them. If the team wants the server to refuse them too, that changes four routes and contract 7.2.
+- **`id_number` is a number column**, so it cannot hold a leading 0. Sign-up refuses one; a text column would be the other way.
+
+## Batch 2b hand checks
+
+Written for Raiki, to run by hand. The agent did not run them. Every check uses **`adric_uat_check` only** (the local copy), started through `C:\dev\uat-data\start-local-uat.ps1`. Nothing here touches CCS Cloud. Find this section by searching the exact heading text `Batch 2b hand checks` in `docs/tasks/batch-2b-signups.md`; each check below names its number.
+
+**Before the checks**
+
+1. Move `pending_registrations.json` out of the repository folder, to `C:\dev\uat-data\` (from the repository root: `Move-Item pending_registrations.json C:\dev\uat-data\`). The app no longer reads it.
+2. Make sure ports 4000 and 5173 are free (no leftover `npm run dev:all`, which talks to CCS Cloud).
+3. `adric_uat_check` must be at the latest migrations with hashed passwords (the guide's "Resetting a local UAT copy after Batch 1", step 6).
+4. Start the app with `C:\dev\uat-data\start-local-uat.ps1` on branch `feat/batch-2b-signups`. Use a private window per account, or log out between accounts. Accounts and passwords are in `C:\dev\uat-data\uat-passwords.txt` (do not copy them anywhere).
+5. Made-up applicants: the emails below end in `@dlsu.edu.ph` and are invented; ID numbers start at 99000001. Pick the labs from the list (two labs, for example CITe4D and the first other lab).
+6. **To read the database**, SELECT only, never the `password` column. PowerShell, it asks for the root password: `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "<SELECT>"`.
+7. These checks leave accounts and activity rows in `adric_uat_check`. The next `uat-reset.sql` load removes them.
+
+**2b-H1. A new Student signs up with two labs.** Database: `adric_uat_check` (writes one account).
+- Signed out, open `http://localhost:5173/register`. Fill: first name `Batch2b`, last name `One`, email `batch2b-h1@dlsu.edu.ph`, ID number `99000001`, user type Student, tick two labs, a password of 8 or more characters in both boxes. Click "Submit Registration Request for Approval".
+- Expect: the screen "Sign-up Sent" with "Your sign-up was sent. The IT Admin will review it. You can log in once it is approved."
+- Database (SELECT): `SELECT user_id, account_status FROM users WHERE email='batch2b-h1@dlsu.edu.ph'` shows PENDING. With that id: `SELECT center_id FROM user_centers WHERE user_id=<id>` shows the two labs, and `SELECT COUNT(*) FROM user_roles WHERE user_id=<id>` shows 0.
+
+**2b-H2. Refusals on the sign-up page, with the server's sentences.** Database: `adric_uat_check` (writes nothing).
+- On `/register`, fill the same email `batch2b-h1@dlsu.edu.ph` with a new ID `99000002` and the rest of the form filled in correctly, then submit. Expect "An account with this email or ID number already exists. Ask the IT Admin." and no "Server returned HTML" text.
+- Change the email to `batch2b-h2@example.com`. Expect "Use your @dlsu.edu.ph email address."
+- Use an ID number `01234567`, then `1234567`. Expect "Enter your 8-digit DLSU ID number." each time.
+- Untick every lab. Expect "Choose at least one lab."
+- The password box takes more than 8 characters when you type them (no cut-off).
+
+**2b-H3. The new account cannot log in yet.** Database: `adric_uat_check` (writes one activity row).
+- Log in at `/login` as `batch2b-h1@dlsu.edu.ph` with its password. Expect "Your sign-up is waiting for IT Admin approval." and you stay on the login page.
+
+**2b-H4. The IT Admin approves it.** Database: `adric_uat_check` (writes the account, its role and labs, one activity row).
+- Log in as the IT Admin (user 10, "UAT Custodian Two"). Expect to land on `/it-admin/approvals`, titled "System Administration", with the nav entry "Approvals" showing a count. If you land somewhere else, that account does not hold the IT Admin role in the copy: stop and report.
+- Expect the table columns Name, Email, ID Number, User Type, Requested Labs, Action, and **no** "Requested on" column. `Batch2b One` is listed with "Student" and the two lab codes.
+- Click Approve. The dialog opens with Role "Researcher" and both requested labs ticked. Choose Role "TSG Staff" and untick both labs: Approve stays enabled. Choose "Researcher" again with no lab: Approve is disabled and the dialog says "Choose at least one lab for a Researcher."
+- Tick one of the two labs only, Role "Researcher", click Approve. Expect the row to leave the list and the nav count to drop by one.
+- The bell icon is not shown anywhere on the IT Admin's screens, and the IT Admin's Account page has no "Lab" line.
+
+**2b-H5. The approved account logs in as a Researcher.** Database: `adric_uat_check` (writes one activity row).
+- Log out, then log in as `batch2b-h1@dlsu.edu.ph`. Expect the Researcher view (`/custodian/myassets`). Open Account: it shows only the one lab you ticked.
+- Database (SELECT): `SELECT event_type, details FROM activity_log WHERE target_user_id=<id> ORDER BY log_id` shows SIGNUP_APPROVED with `Role: RESEARCHER; labs: <that lab's code>`, and no email in `details`.
+
+**2b-H6. A rejected sign-up.** Database: `adric_uat_check` (writes one account and two activity rows).
+- Sign up a second account: `Batch2b Six`, `batch2b-h6@dlsu.edu.ph`, ID `99000003`, one lab. As the IT Admin, click Reject on its row, type the remark `Test remark: not a member of this lab.` and click Confirm. Expect the row to leave the list.
+- Log in as `batch2b-h6@dlsu.edu.ph`: expect "Your sign-up was not approved. Contact the IT Admin."
+- Sign up again with the same email: expect the 409 sentence from 2b-H2 (a rejected account keeps its email).
+- Database (SELECT): the SIGNUP_REJECTED row's `details` is the remark.
+
+**2b-H7. Each role sees the right views.** Database: `adric_uat_check` (writes only login rows).
+- As UAT LabHead CITe4D One: the nav shows no "Account Approvals" tab. Open `http://localhost:5173/lab-head/approvals`: expect the Not Found page.
+- As UAT Staff One: open `http://localhost:5173/it-admin/approvals`. Expect "You don't have access to this page".
+- As the IT Admin: open `http://localhost:5173/staff/inventory`. Expect "You don't have access to this page".
+
+**2b-H8. The failed-login limit.** Database: `adric_uat_check` (writes login rows). Run it last among the checks that use UAT Custodian One, or restart the app afterwards (a restart clears the count).
+- On `/login`, enter UAT Custodian One's email with a wrong password, 6 times. Tries 1 to 5 show "Invalid institutional email address or password." The 6th shows "Too many failed logins. Try again in 15 minutes."
+- Try the right password: still "Too many failed logins. Try again in 15 minutes."
+- In the same browser, log in as UAT Staff One with the right password: it works.
+
+**2b-H9. Nearby behavior still works.** Database: `adric_uat_check` (the loan request writes one loan).
+- As UAT Staff One: open Asset Inventory and Repairs. Both load with no error.
+- As UAT Custodian One (restart the app first if H8 blocked it): open Available Equipment, pick an Available asset, and send a borrow request with a purpose and a return date. Expect the success message and no error.
+
+**2b-H10. The server terminal is clean.** Database: `adric_uat_check` (reads nothing).
+- Across all of the above, look at the terminal where the server runs. Expect short plain lines (for example "Sign-up filed: user 21 is pending", "Sign-up of user 21 approved by user 10"), and **no** emoji, **no** email address, **no** password, **no** request body, and no mention of `pending_registrations.json`.
+
+**2b-H11. A Reject remark over 255 characters is refused.** Database: `adric_uat_check` (writes one account and, at the end, one activity row).
+- Sign up a third account: `Batch2b Eleven`, `batch2b-h11@dlsu.edu.ph`, ID `99000004`, one lab. Put 256 characters on the clipboard: `'x' * 256 | Set-Clipboard`.
+- As the IT Admin, click Reject on its row and paste into the remarks box. Expect the count "256 / 255" in red, the sentence "Remarks must be at most 255 characters.", and Confirm disabled. The text is not cut.
+- Delete one character. Expect "255 / 255", no red, and Confirm enabled. Click Confirm: the row leaves the list.
+- Database (SELECT): `SELECT LENGTH(details) FROM activity_log WHERE target_user_id=<id> AND event_type='SIGNUP_REJECTED'` shows 255.

@@ -156,9 +156,24 @@ $s = Read-Host "Local MySQL root password" -AsSecureString; $p = [Runtime.Intero
 1. Back up first. The backup holds plain passwords, so it is never committed, posted, or shared.
 2. Deploy the new code.
 3. Run the script straight away, with `--allow-remote` after the file name. It is the same command as above, with the deployed database's user, host, and name in the URL.
-4. Decline any sign-up request made before the change. Approving one answers 409, because it holds no hash, and the applicant signs up again.
+4. A sign-up request made before the change sits in `pending_registrations.json`, which the app no longer reads (see "Sign-ups since Batch 2b"). The applicant signs up again.
 
 ---
+
+## Sign-ups since Batch 2b
+
+A sign-up is a row in `users` with status PENDING and no role, plus `user_centers` rows for the labs it asked for. The IT Admin approves it with a role and labs, or rejects it, on the Approvals page (`/it-admin/approvals`). Nothing reads or writes `pending_registrations.json` any more, and the old Lab Head sign-up routes answer 404. The demo seed has one Pending sign-up (`demo.pending@dlsu.edu.ph`), so Approvals is not empty on a fresh database.
+
+**After pulling Batch 2b, move or delete `pending_registrations.json`** in your repository folder. The app ignores it. It holds personal data and old requests, so it is never committed or shared (its `.gitignore` line stays). The requests still in it are not carried over: those applicants sign up again, and their email and ID number are free, because no account exists for them. In PowerShell, from the repository root, either keeps it outside the repository for reference, or throws it away:
+
+```
+Move-Item pending_registrations.json C:\dev\uat-data\
+Remove-Item pending_registrations.json
+```
+
+**A rejected sign-up keeps its email and ID number.** The account is Rejected, not deleted, so the same person gets 409 "An account with this email or ID number already exists. Ask the IT Admin." when they sign up again. To free the email and ID number, the IT Admin anonymizes the account (contract section 4: the name, email and ID number are replaced, and the history stays). That is module 6's Users page; until it ships, no screen does it, and nobody changes the database by hand.
+
+**Failed logins** are counted in the server's memory: 5 failures for one email from one address within 15 minutes block that pair for 15 minutes (429). A server restart clears the count. On a local copy, restart the app (`start-local-uat.ps1`) to try again at once.
 
 ## Resetting a local UAT copy after Batch 1
 
