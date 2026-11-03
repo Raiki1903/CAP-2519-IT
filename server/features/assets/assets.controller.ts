@@ -8,32 +8,28 @@
  */
 import type { Request, Response } from 'express';
 import * as assetsService from './assets.service';
-import { checkAssetCreate, checkAssetUpdate } from './assets.validation';
+import { checkAssetCreate, checkAssetUpdate, readAssetListFilters } from './assets.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles GET /api/assets: every asset with its current state, as `{ success, assets }`. A Custodian gets no name
- * but their own (D2). A failure answers errorHandler's generic 500.
+ * Handles GET /api/assets: the assets with their state, as `{ success, assets }`, searched and filtered by the query
+ * string (`q`, `status`, `centerId`). A Custodian gets no name but their own (D2).
+ * Answers 400 for an unknown status or a centerId that is not a number, or errorHandler's generic 500.
  */
 export async function listAssets(req: Request, res: Response): Promise<void> {
-    const formatted = await assetsService.listAssets(sessionUserOf(req));
+    const filters = readAssetListFilters(req.query);
+    const formatted = await assetsService.listAssets(sessionUserOf(req), filters);
     res.json({ success: true, assets: formatted });
 }
 
 /**
- * Handles GET /api/assets/:assetTag/custodian-history: who has held the asset, oldest first. A Custodian gets no
- * other holder's name or email (answer 6 of the 13c questions).
- * Answers `{ success, assetTag, assetName, historyCount, custodianHistory }`, 404 for an unknown tag, or 500.
+ * Handles GET /api/assets/:assetTag/history: the asset's loans, inspections, maintenance, retirements, and activity
+ * rows, oldest first, as `{ success, assetTag, assetName, events }`. A Custodian gets no other person's name (D2).
+ * Answers 404 for an unknown tag, or 500.
  */
-export async function getCustodianHistory(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
-    const { assetTag } = req.params;
-
-    const history = await assetsService.custodianHistory(assetTag, sessionUserOf(req));
-
-    res.json({
-        success: true,
-        ...history
-    });
+export async function getAssetHistory(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
+    const history = await assetsService.assetHistory(req.params.assetTag, sessionUserOf(req));
+    res.json({ success: true, ...history });
 }
 
 /**

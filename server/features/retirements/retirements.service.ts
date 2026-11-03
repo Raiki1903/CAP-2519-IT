@@ -1,30 +1,29 @@
 /**
  * Disposals service: the business rules for disposal requests, the Director's decisions, and the disposal list.
  * Layer: service. Called by retirements.controller.ts. Calls retirements.repository.ts, features/assets/assets.repository.ts,
- * features/auth/auth.repository.ts, shared/services/custodyRequestGuard.ts, shared/services/mailer.ts, and shared/constants/poolCustodian.ts.
+ * features/auth/auth.repository.ts, shared/services/lifecycleGuard.ts, shared/services/assetState.ts, and shared/services/mailer.ts.
  * Used by: Staff disposal filing (DisposalFormDialog), Director approval (Approvals & Holds tab and the bell).
  */
-import { asset_retirements_status, type Prisma, type asset_records, type asset_retirements, type assets } from '@prisma/client';
+import { asset_retirements_status, type asset_retirements, type assets } from '@prisma/client';
 import type { DisposalDecision, DisposalListItem, DisposalRequestInput } from '@shared/types/retirements';
 import * as retirementsRepository from './retirements.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
 import { RETIREMENT_STATUS_LABELS } from '@shared/constants/retirementStatuses';
 import { AppError } from '../../shared/errors/AppError';
-import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
-import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/services/custodyRequestGuard';
+import { assertActionAllowed, isActionAllowed } from '../../shared/services/lifecycleGuard';
+import { holderOf } from '../../shared/services/assetState';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
 
 /**
- * Files a pending disposal request for an asset.
- * Only the asset_retirements row is written. The asset is not marked Disposed until the Director
- * approves (decideDisposal), so it keeps its status and custodian while the request is pending.
- * The custody request guard refuses an asset that is not Active, or already has a pending loan,
- * transfer, or disposal. (H-05, issue #54)
+ * Files a disposal request for an asset, in Pending: the asset_retirements row, with the asset's status before it,
+ * and the asset set to Pending Retirement, in one transaction. A denial gives the asset that status back.
+ * The lifecycle guard takes a request only on an asset that is Available, in Maintenance, or Missing, with no open
+ * loan in the way. (H-05, issue #54)
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the checked disposal body: pathway, justification, optional date. A last custodian in the body is ignored:
- *   the reason names the asset's holder from its newest record (issue #12)
+ *   the reason names the asset's holder, if it has one (issue #12)
  * @param disposedById the session user, who requests the disposal; any requester name in the body is ignored (issue #32)
  * @returns the created row, plus the asset for the email the controller sends after answering
  * @throws AppError 404 if no asset has this tag
@@ -40,32 +39,28 @@ export async function requestDisposal(
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    const conflict = await findCustodyRequestConflict(existing, ["ACTIVE"]);
-    if (conflict) {
-        throw new AppError(409, conflict);
-    }
-
-    // The last custodian is whoever holds the asset now. Nobody holds it (the placeholder): no line.
-    const latestRecord = await assetsRepository.findLatestRecordWithCustodian(existing.asset_id);
-    const holder = latestRecord && latestRecord.current_custodian !== POOL_CUSTODIAN_ID ? latestRecord.users : null;
+    const openLoan = await assetsRepository.findOpenLoan(existing.asset_id);
+    assertActionAllowed(existing, "REQUEST_RETIREMENT", openLoan);
+    const holder = holderOf(openLoan);
 
     // asset_retirements has one text column for all of this, so the fields are written as labelled
-    // lines. GET /api/assets parses them back out for a disposed asset's details.
-    // TODO(M-13): pathway, last custodian, and date are packed into one text column and parsed back with regex. Phase 3.
+    // lines. GET /api/assets parses them back out for a retired asset's details.
+    // TODO(M-13): pathway, last custodian, and date are packed into one text column and parsed back with regex. Batch 5 sends the pathway as its own field.
     const reason = [
         `Disposal Pathway: ${data.disposalPathway}`,
-        holder ? `Last Custodian: ${holder.first_name} ${holder.last_name}` : null,
+        holder ? `Last Custodian: ${holder.name}` : null,
         data.decommissionDate ? `Target Decommission Date: ${data.decommissionDate}` : null,
         "",
         "Breakdown Justification:",
         data.breakdownReasons,
     ].filter(line => line !== null).join("\n");
 
-    const disposal = await retirementsRepository.create({
+    const disposal = await retirementsRepository.createRequest({
         asset_id: existing.asset_id,
         requested_by_id: disposedById,
         reason,
         status: asset_retirements_status.PENDING,
+        previous_status: existing.status,
     });
 
     return { disposal, asset: existing };
@@ -127,21 +122,23 @@ export async function listDisposals(): Promise<DisposalListItem[]> {
 }
 
 /**
- * Approves or rejects a pending disposal request.
- * Approval decommissions the asset: the disposal becomes approved and a DISPOSED record is appended,
- * in one transaction. Reject changes only the disposal's status. The server does not check who
- * decides (C-02); the screens give the decision to the Director.
- * An approval checks the asset again: it must still be Active, as for the request, with no pending
- * loan or transfer, so an old second disposal on a disposed asset can only be rejected. (issue #28)
+ * Approves or rejects a pending disposal request, in one transaction.
+ * Approval retires the asset at once: there is no completion step yet, so the request goes straight to Completed and the
+ * asset to Retired. Rejection (Denied) gives the asset back its status from before the request.
+ * The server does not check who decides (C-02); the screens give the decision to the Director.
+ * An approval needs the asset still in Pending Retirement. A rejection is never refused, so stale requests can be
+ * cleared; it changes the asset only while the asset is in Pending Retirement. (issue #28)
  *
  * @param disposalId the numeric disposal id
  * @param decision "approve" or "reject"
+ * @param deciderId the session user who decides
  * @returns the updated asset_retirements row
  * @throws AppError 404 if no disposal has this id
  * @throws AppError 400 if the disposal is not pending any more
- * @throws AppError 409 if an approval finds the asset no longer Active, or with a pending loan or transfer
+ * @throws AppError 409 if an approval finds the asset no longer in Pending Retirement
  */
-export async function decideDisposal(disposalId: number, decision: DisposalDecision): Promise<asset_retirements> {
+// TODO(H-07): approval skips Approved and the TSG completion step. Batch 5 adds them.
+export async function decideDisposal(disposalId: number, decision: DisposalDecision, deciderId: number): Promise<asset_retirements> {
     const disposal = await retirementsRepository.findById(disposalId);
     if (!disposal) {
         throw new AppError(404, `No disposal request found with id ${disposalId}.`);
@@ -149,39 +146,15 @@ export async function decideDisposal(disposalId: number, decision: DisposalDecis
     if (disposal.status !== asset_retirements_status.PENDING) {
         throw new AppError(400, `Disposal #${disposalId} is ${RETIREMENT_STATUS_LABELS[disposal.status]}, so it can no longer be decided.`);
     }
+    const asset = await assetsRepository.findById(disposal.asset_id);
+    if (!asset) {
+        throw new AppError(404, `No asset found for disposal ${disposalId}.`);
+    }
     if (decision === "approve") {
-        // The same allowed statuses as requestDisposal.
-        const conflict = await findDecisionConflict(disposal.asset_id, ["ACTIVE"], "disposal");
-        if (conflict) {
-            throw new AppError(409, conflict);
-        }
+        assertActionAllowed(asset, "DECIDE_RETIREMENT");
     }
 
-    // There is no separate completion step yet, so an approval disposes of the asset at once, as before.
-    const newStatus = decision === "approve" ? asset_retirements_status.COMPLETED : asset_retirements_status.DENIED;
-    // A reject writes no record: the asset never left its status, so Staff can file again or keep using it.
-    return retirementsRepository.saveDecision(
-        disposal,
-        newStatus,
-        decision === "approve" ? (latestRecord) => disposedRecord(disposal, latestRecord) : null,
-    );
-}
-
-/**
- * Builds the record an approval appends: DISPOSED, linked to the disposal.
- * The condition, home location, and custodian carry over from the asset's latest record, so the
- * history shows who last held the asset when it was disposed. current_location is left null.
- */
-function disposedRecord(disposal: asset_retirements, latestRecord: asset_records | null): Prisma.asset_recordsUncheckedCreateInput {
-    return {
-        asset_id: disposal.asset_id,
-        status: "DISPOSED",
-        asset_condition: latestRecord?.asset_condition ?? "PERFECT",
-        location: latestRecord?.location ?? "Unassigned",
-        current_custodian: latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
-        retirement_id: disposal.retirement_id,
-        Asset_Remarks: `Decommissioned via Disposal #DISP-${disposal.retirement_id}`,
-    };
+    return retirementsRepository.saveDecision(disposal, decision === "approve", deciderId, isActionAllowed(asset.status, "DECIDE_RETIREMENT"));
 }
 
 /**

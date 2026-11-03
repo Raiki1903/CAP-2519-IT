@@ -1,18 +1,18 @@
 /**
  * Repairs service: the business rules for repair tickets, their progress, and the asset status that follows them.
  * Layer: service. Called by maintenance.controller.ts. Calls maintenance.repository.ts, features/assets/assets.repository.ts,
- * shared/constants/poolCustodian.ts, and @shared/enums/assetCondition.
+ * shared/services/lifecycleGuard.ts, shared/services/assetState.ts, and @shared (conditions and labels).
  * Used by: Custodian repair request (RepairForm, and ReturnForm's "flag for repair"), Staff repair queue,
  * repair dialog, and the Staff analytics board.
  */
-import { asset_inspections_type, asset_maintenance_status, type Prisma, type asset_maintenance, type asset_records } from '@prisma/client';
+import { asset_maintenance_status, type asset_condition, type asset_maintenance } from '@prisma/client';
 import type { RepairListItem, RepairRequestInput } from '@shared/types/maintenance';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import * as maintenanceRepository from './maintenance.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import { MAINTENANCE_STATUS_LABELS } from '@shared/constants/maintenanceStatuses';
 import { AppError } from '../../shared/errors/AppError';
-import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
+import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
 
 /**
  * The progress texts the screens send (the repair dialog's and the Staff analytics board's), and the status each
@@ -76,7 +76,8 @@ const DUPLICATE_WINDOW_MS = 8000;
 
 /**
  * Opens a repair ticket for an asset. Only the asset_maintenance row is written: the asset keeps its
- * status until Staff move the ticket into a maintenance status (updateRepair).
+ * status until Staff receive it (a maintenance status in updateRepair).
+ * The lifecycle guard takes a ticket only on an asset that is Available or On Loan.
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the checked body: description and optional urgency
@@ -84,8 +85,9 @@ const DUPLICATE_WINDOW_MS = 8000;
  * @returns the created asset_maintenance row
  * @throws AppError 409 if the same tag and description arrived less than 8 seconds ago (M-07)
  * @throws AppError 404 if no asset has this tag
+ * @throws AppError 409 if the asset's status takes no ticket (in maintenance, pending retirement, retired, or missing)
  */
-// TODO(H-05): no status check, so a disposed asset, or one already under repair, takes a new ticket. Its own fix; tests/api/maintenance.test.ts pins it.
+// TODO(H-05): a second open ticket on the same asset is still taken. Batch 5 refuses it.
 export async function requestRepair(assetTag: string, data: RepairRequestInput, reporterId: number): Promise<asset_maintenance> {
     const dedupeKey = `${assetTag}::${data.description}`;
     const lastSeen = recentRepairSubmissions.get(dedupeKey);
@@ -99,6 +101,7 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput, 
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
+    assertActionAllowed(existing, "START_MAINTENANCE");
 
     return maintenanceRepository.create({
         asset_id: existing.asset_id,
@@ -148,40 +151,40 @@ export async function listRepairs(): Promise<RepairListItem[]> {
     });
 }
 
-// The in-progress statuses. Each puts the asset into MAINTENANCE.
-const MAINTENANCE_STATUSES: asset_maintenance_status[] = [
+// The statuses of a ticket whose asset TSG has received. Moving a ticket into one of them receives the asset.
+const RECEIVED_STATUSES: asset_maintenance_status[] = [
     asset_maintenance_status.INSPECTING,
     asset_maintenance_status.REPAIRING,
     asset_maintenance_status.EXTERNAL_SERVICE,
 ];
-// Where a MAINTENANCE record says the asset is. The asset's real location is restored from its
-// records when the repair completes.
-const TSG_OFFICE_LOCATION = "Manila — TSG Office";
 
 /**
  * Sets a ticket's progress status and moves the asset to match, in one transaction
  * (Acknowledge & Assign Technician, and the repair dialog's Update Progress).
- * - A maintenance status puts the asset into MAINTENANCE at the TSG Office, unless it is already there,
- *   so moving between the three statuses does not pile up records.
- * - "Fixed & Completed" restores the status, custodian, and location from the asset's newest record
- *   before maintenance (ACTIVE in the pool, or ON_LOAN under whoever had it, who is not necessarily
- *   the reporter), with the condition Staff picked, and files an inspection report.
+ * - A received status (Inspection Phase, Waiting for Parts, an outside service) receives the asset the first time:
+ *   the lifecycle guard must allow it, the asset goes to Maintenance (at the TSG Office), and a held loan ends as
+ *   Ended by Maintenance. Moving between received statuses changes only the ticket.
+ * - "Fixed & Completed" closes the ticket as Resolved, files a Maintenance inspection under the Staff member with the
+ *   condition picked, and puts an asset that was in Maintenance back to Available.
  * - Any other text changes only the ticket.
  *
  * @param repairId the numeric ticket id
  * @param progressStatus the new status, already checked to be present
  * @param assetCondition the condition after a completed repair; anything not in ASSET_CONDITIONS keeps the current one
  * @param assetRemarks remarks for the completed repair; a default sentence when empty
+ * @param staffId the session user, who receives the asset or completes the repair
  * @returns the updated asset_maintenance row
  * @throws AppError 400 if the progress text is not one the screens send
  * @throws AppError 404 if no ticket has this id
+ * @throws AppError 409 if receiving the asset is refused by its status (retired, pending retirement, or missing)
  */
-// TODO(H-07): "Pending TSG Review" does not take the asset out of maintenance, and "Fixed & Completed" adds a record and a report even for a ticket that never went into maintenance. Batch 5 gives the statuses their allowed moves.
+// TODO(H-07): "Pending TSG Review" does not take the asset out of maintenance, and "Fixed & Completed" files an inspection even for a ticket that was never received. Batch 5 gives the statuses their allowed moves.
 export async function updateRepair(
     repairId: number,
     progressStatus: string,
     assetCondition: string | undefined,
     assetRemarks: string | undefined,
+    staffId: number,
 ): Promise<asset_maintenance> {
     const existing = await maintenanceRepository.findById(repairId);
     if (!existing) {
@@ -189,87 +192,26 @@ export async function updateRepair(
     }
 
     const progress = readProgressText(progressStatus);
-    const isCompleting = progress.status === asset_maintenance_status.RESOLVED;
-    const desiredStatus = isCompleting
-        ? null // completion takes its status from the records before maintenance (completionRows)
-        : MAINTENANCE_STATUSES.includes(progress.status)
-            ? "MAINTENANCE"
-            : null;
-
-    return maintenanceRepository.saveProgress(
-        repairId,
-        progress,
-        existing.asset_id,
-        isCompleting
-            ? (preMaintenanceRecord, latestRecord) => completionRows(existing, preMaintenanceRecord, latestRecord, assetCondition, assetRemarks)
-            : null,
-        desiredStatus
-            ? (latestRecord) => maintenanceRecord(existing, desiredStatus, latestRecord)
-            : null,
-    );
-}
-
-/**
- * Builds the record and the report a "Fixed & Completed" update appends.
- * The record goes back to where the asset was before maintenance, not the TSG Office: it may still be
- * out on loan or transfer. The report is filed under the ticket's reporter, with the remarks cut to
- * the column's 255 characters.
- */
-// Neither the record nor the report links back to the ticket: asset_records.maintenance_id stays null, here
-// and in maintenanceRecord. Phase 3, with the repair status enum.
-function completionRows(
-    existing: asset_maintenance,
-    preMaintenanceRecord: asset_records | null,
-    latestRecord: asset_records | null,
-    assetCondition: string | undefined,
-    assetRemarks: string | undefined,
-): maintenanceRepository.CompletionRows {
-    const conditionVal = (ASSET_CONDITIONS.includes(assetCondition as any)
-        ? assetCondition
-        : latestRecord?.asset_condition ?? "PERFECT") as any;
-
-    const remarksVal = String(assetRemarks || "Repair completed & verified fixed by technical staff.").trim();
-
-    return {
-        record: {
-            asset_id: existing.asset_id,
-            status: preMaintenanceRecord?.status ?? "ACTIVE",
-            asset_condition: conditionVal,
-            location: latestRecord?.location ?? "Unassigned",
-            current_location: preMaintenanceRecord?.current_location ?? preMaintenanceRecord?.location ?? latestRecord?.location ?? "Unassigned",
-            current_custodian: preMaintenanceRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
-            Asset_Remarks: remarksVal,
-        },
-        report: {
-            asset_id: existing.asset_id,
-            inspected_by_id: existing.reported_by_id,
-            type: asset_inspections_type.MAINTENANCE,
-            condition: conditionVal,
-            remarks: remarksVal.slice(0, 255),
-        },
-    };
-}
-
-/**
- * Builds the MAINTENANCE record for a maintenance status, or null when the asset's newest record
- * is already MAINTENANCE. Condition, home location, and custodian carry over from that record.
- */
-function maintenanceRecord(
-    existing: asset_maintenance,
-    desiredStatus: "MAINTENANCE",
-    latestRecord: asset_records | null,
-): Prisma.asset_recordsUncheckedCreateInput | null {
-    if (!latestRecord || latestRecord.status !== desiredStatus) {
-        return {
-            asset_id: existing.asset_id,
-            status: desiredStatus,
-            asset_condition: latestRecord?.asset_condition ?? "PERFECT",
-            location: latestRecord?.location ?? "Unassigned",
-            current_location: TSG_OFFICE_LOCATION,
-            current_custodian: latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
-        };
+    const asset = await assetsRepository.findDetailById(existing.asset_id);
+    if (!asset) {
+        throw new AppError(404, `No asset found for repair ticket ${repairId}.`);
     }
-    return null;
+
+    if (RECEIVED_STATUSES.includes(progress.status) && asset.status !== "MAINTENANCE") {
+        assertActionAllowed(asset, "RECEIVE_FOR_MAINTENANCE");
+        return maintenanceRepository.saveReceipt(existing, progress, staffId);
+    }
+
+    if (progress.status === asset_maintenance_status.RESOLVED) {
+        const current = (await assetsRepository.findState(asset)).condition;
+        const condition = (ASSET_CONDITIONS.includes(assetCondition as string)
+            ? assetCondition
+            : current?.condition ?? "PERFECT") as asset_condition;
+        const remarks = String(assetRemarks || "Repair completed & verified fixed by technical staff.").trim();
+        return maintenanceRepository.saveCompletion(existing, progress, staffId, condition, remarks, asset.status === "MAINTENANCE");
+    }
+
+    return maintenanceRepository.updateProgressStatus(repairId, progress);
 }
 
 /**

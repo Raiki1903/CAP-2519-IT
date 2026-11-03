@@ -1,8 +1,8 @@
 /**
- * The custody request guard: one pending loan, transfer, or disposal per asset, and only from a status that allows it,
- * checked again when the request is approved.
- * Layer: shared service. Called by features/loans/loans.service.ts, features/transfers/transfers.service.ts,
- * and features/retirements/retirements.service.ts, for each request and each approval.
+ * The custody request guard for transfers: one pending loan, transfer, or disposal per asset, and only from a record
+ * status that allows it, checked again when the transfer is approved. Loans and disposals use shared/services/lifecycleGuard.ts.
+ * Layer: shared service. Called by features/transfers/transfers.service.ts, for each request and each approval, until
+ * Batch 1 commit 9 removes transfers.
  * Calls features/assets/assets.repository.ts, features/loans/loans.repository.ts, features/transfers/transfers.repository.ts,
  * and features/retirements/retirements.repository.ts.
  * Used by: Custodian borrow and transfer requests, Staff disposal requests, and the Lab Head and Director approvals.

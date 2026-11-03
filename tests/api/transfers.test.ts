@@ -4,6 +4,8 @@
  * PUT /api/asset_transfers/:id/accept.
  * Workflow: custodianship transfer (the holder names a recipient by email, the recipient approves or declines,
  * custody moves on approval).
+ * The asset list no longer reads records, so these tests check the transfer's own records only; Batch 1 commit 9
+ * removes transfers with these tests.
  * Fixtures: the seeded assets in each state (the seed has no transfers), LOAN-2 pending on TEST-0005, the accounts
  * (USERS). The list tests run first and remove the rows they add. The write tests use their own extra assets
  * (TEST-0301 onward, see extraAssets.ts) and change no seeded row.
@@ -41,11 +43,6 @@ async function requestTransfer(tag: string, to: TestUser, extra: Record<string, 
   const res = await asCustodian.post(`/api/assets/${tag}/transfer`, transferBody(to, extra));
   expect(res.status, JSON.stringify(res.body)).toBe(200);
   return res.body.transfer.transfer_id;
-}
-
-async function listedAsset(tag: string) {
-  const res = await asStaff.get("/api/assets");
-  return res.body.assets.find((a: { id: string }) => a.id === tag);
 }
 
 describe("GET /api/asset_transfers", () => {
@@ -147,7 +144,6 @@ describe("POST /api/assets/:tag/transfer", () => {
     });
     expect(await db.asset_transfers.count({ where: { asset_id: asset.assetId, status: "pending" } })).toBe(1);
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active", custodian: USERS.custodianA.fullName });
   });
 
   it("packs the destination lab into the justification and stores the effective date nowhere (known defect H-19)", async () => {
@@ -266,7 +262,6 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
       current_location: `Laguna${LOCATION_SEPARATOR}CeLT`,
       asset_condition: "DEGRADED",
     });
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "On Loan", custodian: USERS.custodianB.fullName });
   });
 
   it("approve: keeps the asset's current location when the request named no lab", async () => {
@@ -288,7 +283,6 @@ describe("PUT /api/asset_transfers/:id/decision", () => {
     expect(res.status).toBe(200);
     expect(res.body.transfer.status).toBe("declined");
     expect(await recordCount(asset.assetId)).toBe(recordsBefore);
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active", custodian: USERS.custodianA.fullName });
   });
 
   it.each([

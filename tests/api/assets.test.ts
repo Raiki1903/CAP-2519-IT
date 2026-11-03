@@ -1,6 +1,6 @@
 /**
- * Assets API: the asset list, custodian history, registration, edit, and delete.
- * Covers GET /api/assets, GET /api/assets/:tag/custodian-history, POST /api/assets, PUT /api/assets/:tag,
+ * Assets API: the asset list and search, history, registration, edit, and delete.
+ * Covers GET /api/assets, GET /api/assets/:tag/history, POST /api/assets, PUT /api/assets/:tag,
  * DELETE /api/assets/:tag. Workflow: asset registry (intake, edit, delete) and the asset detail screens.
  * Fixtures: the six seeded assets (ASSETS) and their records, loans, repair, disposal, and report; the seeded
  * accounts (USERS). The read tests run first; the write tests add assets TEST-0007 onward and CITe4D-0001, edit
@@ -8,9 +8,9 @@
  * (addExtraAsset), each held as the test needs.
  */
 import { describe, expect, it } from "vitest";
-import { ASSETS, FUNDING_SOURCE, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "../setup/fixtures";
+import { ASSETS, FUNDING_SOURCE, LAB, LOCATION_SEPARATOR, LOOKUPS, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
-import { addExtraAsset } from "../setup/extraAssets";
+import { addExtraAsset, removeExtraAssets } from "../setup/extraAssets";
 
 const { db, as } = useApiHarness();
 const asStaff = as(USERS.staffTsg);
@@ -27,37 +27,53 @@ const newestRecord = (assetId: number) =>
   db.asset_records.findFirstOrThrow({ where: { asset_id: assetId }, orderBy: [{ date_logged: "desc" }, { asset_record_id: "desc" }] });
 
 describe("GET /api/assets", () => {
-  it("answers one entry per asset with the fields the screens read", async () => {
+  it("answers one entry per asset with the contract fields and the older fields the screens read", async () => {
     const res = await asStaff.get("/api/assets");
 
     expect(res.status).toBe(200);
     expect(res.body.assets).toHaveLength(Object.keys(ASSETS).length);
     expect(await listedAsset(ASSETS.available.tag)).toMatchObject({
-      id: ASSETS.available.tag,
+      assetId: ASSETS.available.assetId,
+      tag: ASSETS.available.tag,
       name: ASSETS.available.name,
       category: ASSETS.available.category,
-      status: "Active",
+      categoryLabel: "Dev Kit",
+      status: "AVAILABLE",
+      statusLabel: "Available",
+      homeLab: { centerId: LAB.centerId, code: LAB.shortCode, name: LAB.name, campus: "MANILA", campusLabel: "Manila" },
+      homeRoom: null,
+      currentLocation: LAB.shortCode,
+      holder: null,
+      condition: null,
+      conditionLabel: null,
+      healthScore: null,
+      isOverdue: false,
+      openLoan: null,
+      fundingSource: { fundingSourceId: LOOKUPS.fundingSources[0].fundingSourceId, name: FUNDING_SOURCE },
+      acquisitionValue: ASSETS.available.acquisitionValue,
+      procurementDate: "2025-06-01",
+      warrantyExpiry: "2027-06-01",
+      id: ASSETS.available.tag,
       location: "Manila",
       lab: LAB.shortCode,
-      currentLocation: LAB.homeLocation,
-      condition: 100,
-      assetCondition: "PERFECT",
       cost: ASSETS.available.acquisitionValue,
       funding: FUNDING_SOURCE,
       serial: `TEST-SN-${ASSETS.available.assetId}`,
       procured: "2025-06-01",
       warranty: "2027-06-01",
     });
-    // Held by the placeholder custodian: nobody holds it, so no name is sent. (answer 1)
+    // Nobody holds it, so no name is sent. (answer 1)
     expect((await listedAsset(ASSETS.available.tag)).custodian).toBeUndefined();
   });
 
-  it("sends each named custodian's user id, and none for the placeholder (issue #32)", async () => {
+  it("sends the holder's user id only for an asset someone holds through a loan (issue #32)", async () => {
     expect((await listedAsset(ASSETS.onLoan.tag)).custodianId).toBe(USERS.custodianA.userId);
     expect(await listedAsset(ASSETS.available.tag)).not.toHaveProperty("custodianId");
+    // The old record of TEST-0006 names Custodian A, but no loan does, so nobody holds it.
+    expect((await listedAsset(ASSETS.inspected.tag)).holder).toBeNull();
   });
 
-  it("shows each seeded asset in its seeded state", async () => {
+  it("shows each seeded asset in its stored status", async () => {
     const res = await asStaff.get("/api/assets");
 
     for (const asset of Object.values(ASSETS)) {
@@ -66,38 +82,52 @@ describe("GET /api/assets", () => {
     }
   });
 
-  it("gives an asset on loan its borrowed date, due date, and days left, with the borrower as custodian", async () => {
+  it("gives an asset on loan its holder, open loan, destination, borrowed date, due date, and days left", async () => {
     const listed = await listedAsset(ASSETS.onLoan.tag);
 
-    expect(listed).toMatchObject({ status: "On Loan", custodian: USERS.custodianA.fullName });
+    expect(listed).toMatchObject({
+      status: "ON_LOAN",
+      holder: { userId: USERS.custodianA.userId, name: USERS.custodianA.fullName },
+      custodian: USERS.custodianA.fullName,
+      openLoan: { loanId: SEEDED_ROWS.approvedLoanId, status: "ON_LOAN" },
+      currentLocation: LAB.shortCode,
+    });
     expect(typeof listed.borrowedOn).toBe("string");
     expect(typeof listed.dueDate).toBe("string");
     expect(listed.daysLeft).toBe(30);
   });
 
-  it("shows an asset whose approved loan is past due as Overdue, with negative days left", async () => {
+  it("marks an asset whose loan is past its return-by date overdue, with negative days left; the status stays On Loan", async () => {
     const original = await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.approvedLoanId } });
     await db.asset_loans.update({ where: { loan_id: SEEDED_ROWS.approvedLoanId }, data: { return_by: new Date(Date.now() - 2 * DAY_MS) } });
     try {
       const listed = await listedAsset(ASSETS.onLoan.tag);
 
-      expect(listed.status).toBe("Overdue");
+      expect(listed.status).toBe("ON_LOAN");
+      expect(listed.isOverdue).toBe(true);
       expect(listed.daysLeft).toBeLessThan(0);
     } finally {
       await db.asset_loans.update({ where: { loan_id: SEEDED_ROWS.approvedLoanId }, data: { return_by: original.return_by } });
     }
   });
 
-  it("shows an asset under maintenance at the TSG Office while its home lab stays the same", async () => {
-    const listed = await listedAsset(ASSETS.inRepair.tag);
+  it("gives a pending loan as the open loan but no holder, and does not mark it overdue", async () => {
+    const listed = await listedAsset(ASSETS.pendingLoan.tag);
 
-    expect(listed).toMatchObject({ status: "Maintenance", location: "Manila", lab: LAB.shortCode, currentLocation: TSG_OFFICE_LOCATION });
+    expect(listed).toMatchObject({ status: "AVAILABLE", holder: null, isOverdue: false, openLoan: { loanId: SEEDED_ROWS.pendingLoanId, status: "PENDING_APPROVAL" } });
   });
 
-  it("gives a disposed asset its disposal details, parsed back out of the reason text (known defect M-13)", async () => {
+  it("shows an asset in maintenance at the TSG Office while its home lab stays the same", async () => {
+    const listed = await listedAsset(ASSETS.inRepair.tag);
+
+    expect(listed).toMatchObject({ status: "MAINTENANCE", location: "Manila", lab: LAB.shortCode, homeLab: { code: LAB.shortCode }, currentLocation: "TSG Office" });
+  });
+
+  it("gives a retired asset no current location and its disposal details, parsed back out of the reason text (known defect M-13)", async () => {
     const listed = await listedAsset(ASSETS.disposed.tag);
 
-    expect(listed.status).toBe("Disposed");
+    expect(listed.status).toBe("RETIRED");
+    expect(listed.currentLocation).toBeNull();
     expect(listed.disposalId).toBe(`DISP-${SEEDED_ROWS.disposalId}`);
     expect(listed.disposalDetails).toMatchObject({
       lastCustodian: "No Custodian",
@@ -108,13 +138,13 @@ describe("GET /api/assets", () => {
     expect(typeof listed.disposalDetails.decommissionDate).toBe("string");
   });
 
-  it("maps each record condition to a number (OPERATIONAL is 90) and lists the asset's inspection reports", async () => {
+  it("gives an asset the condition of its newest TSG inspection, and lists its inspection reports", async () => {
     const listed = await listedAsset(ASSETS.inspected.tag);
 
     expect(listed).toMatchObject({
-      condition: 90,
+      condition: "OPERATIONAL",
+      conditionLabel: "Operational",
       assetCondition: "OPERATIONAL",
-      custodian: USERS.custodianA.fullName,
       remarks: "Test inspection: minor scuffs on the casing",
     });
     expect(listed.asset_reports).toHaveLength(1);
@@ -123,102 +153,126 @@ describe("GET /api/assets", () => {
       reportId: `RPT-${SEEDED_ROWS.reportId}`,
       assetId: ASSETS.inspected.tag,
       reportedBy: USERS.staffTsg.fullName,
+      reporterRole: "Routine",
       condition: "OPERATIONAL",
     });
+    expect(listed.asset_monetary).toMatchObject({ acquisition_value: ASSETS.inspected.acquisitionValue, funding_source: FUNDING_SOURCE });
   });
 
-  it("nests the asset's records newest first, with custodian names", async () => {
-    const listed = await listedAsset(ASSETS.onLoan.tag);
-
-    expect(listed.asset_records.map((r: { status: string }) => r.status)).toEqual(["ON_LOAN", "ACTIVE"]);
-    expect(listed.asset_records.map((r: { custodian: string }) => r.custodian)).toEqual([USERS.custodianA.fullName, USERS.admin.fullName]);
-    expect(listed.asset_transfers).toEqual([]);
-    expect(listed.asset_monetary).toMatchObject({ acquisition_value: ASSETS.onLoan.acquisitionValue, funding_source: FUNDING_SOURCE });
-  });
-
-  it("takes the record with the higher id as newest when two share a date_logged (M-09)", async () => {
-    const intake = await newestRecord(ASSETS.available.assetId);
-    const tie = await db.asset_records.create({
-      data: {
-        asset_id: ASSETS.available.assetId,
-        status: "MAINTENANCE",
-        location: intake.location,
-        current_custodian: intake.current_custodian,
-        date_logged: intake.date_logged,
-      },
+  it("ignores a newer Self Report for the condition", async () => {
+    const report = await db.asset_inspections.create({
+      data: { asset_id: ASSETS.inspected.assetId, inspected_by_id: USERS.custodianA.userId, type: "SELF_REPORT", condition: "CRITICAL_DEFECT", inspected_at: new Date() },
     });
     try {
-      expect((await listedAsset(ASSETS.available.tag)).status).toBe("Maintenance");
+      expect((await listedAsset(ASSETS.inspected.tag)).condition).toBe("OPERATIONAL");
     } finally {
-      await db.asset_records.delete({ where: { asset_record_id: tie.asset_record_id } });
+      await db.asset_inspections.delete({ where: { inspection_id: report.inspection_id } });
+    }
+  });
+
+  it("takes the inspection with the higher id as newest when two share an inspected_at (M-09)", async () => {
+    const seeded = await db.asset_inspections.findUniqueOrThrow({ where: { inspection_id: SEEDED_ROWS.reportId } });
+    const tie = await db.asset_inspections.create({
+      data: { asset_id: ASSETS.inspected.assetId, inspected_by_id: USERS.staffTsg.userId, type: "ROUTINE", condition: "DEGRADED", inspected_at: seeded.inspected_at },
+    });
+    try {
+      expect((await listedAsset(ASSETS.inspected.tag)).condition).toBe("DEGRADED");
+    } finally {
+      await db.asset_inspections.delete({ where: { inspection_id: tie.inspection_id } });
+    }
+  });
+
+  it("searches by part of the tag, serial number, or name in any letter case, and filters by status and lab", async () => {
+    const tags = async (query: string) => (await asStaff.get(`/api/assets?${query}`)).body.assets.map((a: { tag: string }) => a.tag);
+
+    expect(await tags("q=test-0002")).toEqual([ASSETS.onLoan.tag]);
+    expect(await tags("q=sn-3")).toEqual([ASSETS.inRepair.tag]);
+    expect(await tags("q=PROJECTOR")).toEqual([ASSETS.inspected.tag]);
+    expect(await tags("status=RETIRED")).toEqual([ASSETS.disposed.tag]);
+    expect(await tags(`centerId=${LAB.centerId}&status=AVAILABLE`)).toEqual([ASSETS.available.tag, ASSETS.pendingLoan.tag, ASSETS.inspected.tag]);
+    expect(await tags("q=nothing-matches")).toEqual([]);
+  });
+
+  it("answers 400 for an unknown status or a lab id that is not a number", async () => {
+    expect((await asStaff.get("/api/assets?status=Active")).status).toBe(400);
+    expect((await asStaff.get("/api/assets?centerId=TEST")).status).toBe(400);
+  });
+
+  it("runs the same number of queries for 6 assets as for 16: nothing is read per asset", async () => {
+    // MySQL counts every statement it receives; the test database has no other client while this runs.
+    const statements = async () => {
+      const [row] = await db.$queryRawUnsafe<{ Value: string }[]>("SHOW GLOBAL STATUS LIKE 'Questions'");
+      return Number(row.Value);
+    };
+    const queriesForList = async () => {
+      await asStaff.get("/api/assets");
+      const before = await statements();
+      await asStaff.get("/api/assets");
+      return (await statements()) - before;
+    };
+
+    const forSix = await queriesForList();
+    const extras = [];
+    for (let i = 0; i < 10; i++) {
+      extras.push(await addExtraAsset(db, { tag: `TEST-08${String(i).padStart(2, "0")}`, status: "ON_LOAN", custodianId: USERS.custodianB.userId, condition: "DEGRADED" }));
+    }
+    try {
+      expect(await queriesForList()).toBe(forSix);
+    } finally {
+      await removeExtraAssets(db, extras.map(e => e.assetId));
     }
   });
 });
 
-describe("GET /api/assets/:tag/custodian-history", () => {
-  it("answers the custody records oldest first, with the last one marked current", async () => {
-    const res = await asStaff.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
+describe("GET /api/assets/:tag/history", () => {
+  it("answers the asset's steps oldest first: the loan, then the inspections", async () => {
+    const res = await asStaff.get(`/api/assets/${ASSETS.onLoan.tag}/history`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ success: true, assetTag: ASSETS.onLoan.tag, assetName: ASSETS.onLoan.name, historyCount: 2 });
-    expect(res.body.custodianHistory).toMatchObject([
-      {
-        sequence: 1,
-        status: "ACTIVE",
-        location: LAB.homeLocation,
-        condition: "PERFECT",
-        remarks: "Initial Asset Registration Intake Record",
-        isCurrent: false,
-      },
-      {
-        sequence: 2,
-        custodianName: USERS.custodianA.fullName,
-        status: "ON_LOAN",
-        location: LAB.homeLocation,
-        condition: "PERFECT",
-        remarks: "Custody Update Record",
-        isCurrent: true,
-      },
-    ]);
-    // The first entry is the placeholder custodian's: no name, email, or id number. (answer 1)
-    expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianName");
-    expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianEmail");
-    expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianId");
+    expect(res.body).toMatchObject({ success: true, assetTag: ASSETS.onLoan.tag, assetName: ASSETS.onLoan.name });
+    expect(res.body.events.map((e: { kind: string }) => e.kind)).toEqual(["LOAN_REQUESTED", "LOAN_APPROVED"]);
+    expect(res.body.events[0]).toMatchObject({ loanId: SEEDED_ROWS.approvedLoanId, actor: { userId: USERS.custodianA.userId, name: USERS.custodianA.fullName } });
+    expect(res.body.events[1].actor).toEqual({ userId: USERS.labHead.userId, name: USERS.labHead.fullName });
   });
 
-  it("sends each custodian's email to a Lab Head only (01C 4.2), and no id number to any role (answer 6)", async () => {
-    const forLabHead = await as(USERS.labHead).get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
-    const forStaff = await asStaff.get(`/api/assets/${ASSETS.onLoan.tag}/custodian-history`);
+  it("lists a ticket's report and receipt, and a retirement's request, decision, and completion", async () => {
+    const repair = await asStaff.get(`/api/assets/${ASSETS.inRepair.tag}/history`);
+    const retired = await asStaff.get(`/api/assets/${ASSETS.disposed.tag}/history`);
 
-    expect(forLabHead.body.custodianHistory[1]).toMatchObject({ custodianEmail: USERS.custodianA.email });
-    expect(forStaff.body.custodianHistory[1]).not.toHaveProperty("custodianEmail");
-    for (const entry of [...forLabHead.body.custodianHistory, ...forStaff.body.custodianHistory]) expect(entry).not.toHaveProperty("custodianId");
+    expect(repair.body.events.map((e: { kind: string }) => e.kind)).toEqual(["MAINTENANCE_REPORTED", "MAINTENANCE_RECEIVED"]);
+    expect(retired.body.events.map((e: { kind: string }) => e.kind)).toEqual(["RETIREMENT_REQUESTED", "RETIREMENT_DECIDED", "RETIREMENT_COMPLETED"]);
+  });
+
+  it("hides other people from a Custodian, and shows their own name", async () => {
+    const forOther = await as(USERS.custodianB).get(`/api/assets/${ASSETS.onLoan.tag}/history`);
+    const forOwn = await as(USERS.custodianA).get(`/api/assets/${ASSETS.onLoan.tag}/history`);
+
+    expect(forOther.body.events[0].actor).toEqual({ hidden: true });
+    expect(forOwn.body.events[0].actor).toEqual({ userId: USERS.custodianA.userId, name: USERS.custodianA.fullName });
+    expect(JSON.stringify(forOther.body)).not.toContain(USERS.custodianA.lastName);
   });
 
   it("looks a numeric tag up as an asset id", async () => {
-    const res = await asStaff.get(`/api/assets/${ASSETS.onLoan.assetId}/custodian-history`);
+    const res = await asStaff.get(`/api/assets/${ASSETS.onLoan.assetId}/history`);
 
     expect(res.status).toBe(200);
     expect(res.body.assetTag).toBe(ASSETS.onLoan.tag);
   });
 
-  it("invents a first entry for an asset with no records (H-09 family)", async () => {
-    const bare = await db.assets.create({ data: { asset_tag: "TEST-9001", name: "Test Asset With No Records", category: "AUDIO", center_id: LAB.centerId } });
+  it("answers an empty list for an asset with nothing recorded", async () => {
+    const bare = await db.assets.create({ data: { asset_tag: "TEST-9001", name: "Test Asset With No History", category: "AUDIO", center_id: LAB.centerId } });
     try {
-      const res = await asStaff.get("/api/assets/TEST-9001/custodian-history");
+      const res = await asStaff.get("/api/assets/TEST-9001/history");
 
       expect(res.status).toBe(200);
-      expect(res.body.custodianHistory).toMatchObject([
-        { sequence: 1, custodianName: "Equipment Custodian", status: "ACTIVE", location: "DLSU Campus", isCurrent: true },
-      ]);
-      expect(res.body.custodianHistory[0]).not.toHaveProperty("custodianEmail");
+      expect(res.body.events).toEqual([]);
     } finally {
       await db.assets.delete({ where: { asset_id: bare.asset_id } });
     }
   });
 
   it("answers 404 for an unknown tag", async () => {
-    const res = await asStaff.get("/api/assets/TEST-9999/custodian-history");
+    const res = await asStaff.get("/api/assets/TEST-9999/history");
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
@@ -231,48 +285,39 @@ describe("POST /api/assets", () => {
     category: "CAMERA",
     serial: "TEST-SN-NEW",
     manufacturer: "Test Manufacturer",
-    funding: "Test Intake Grant",
+    funding: LOOKUPS.fundingSources[1].name,
     acquisitionValue: 12345.5,
     location: "Manila",
     lab: LAB.shortCode,
     ...extra,
   });
 
-  it("registers the asset under the next free tag for the lab, with its monetary row and an ACTIVE PERFECT record", async () => {
+  it("registers the asset under the next free tag for the lab, Available, with its funding source and value", async () => {
     const res = await asStaff.post("/api/assets", intake({ remarks: "Test intake remark" }));
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.asset).toMatchObject({ asset_tag: "TEST-0007", name: "Test Intake Camera", category: "CAMERA", serial_number: "TEST-SN-NEW" });
 
-    const assetId = res.body.asset.asset_id;
-    const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: assetId } });
-    expect(monetary.funding_source).toBe("Test Intake Grant");
-    expect(Number(monetary.acquisition_value)).toBe(12345.5);
-
-    const records = await db.asset_records.findMany({ where: { asset_id: assetId } });
-    expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({
-      status: "ACTIVE",
-      asset_condition: "PERFECT",
-      location: `Manila${LOCATION_SEPARATOR}${LAB.shortCode}`,
-      current_location: `Manila${LOCATION_SEPARATOR}${LAB.shortCode}`,
-      Asset_Remarks: "Test intake remark",
-    });
+    const row = await db.assets.findUniqueOrThrow({ where: { asset_id: res.body.asset.asset_id } });
+    expect(row).toMatchObject({ status: "AVAILABLE", center_id: LAB.centerId, funding_source_id: LOOKUPS.fundingSources[1].fundingSourceId });
+    expect(Number(row.acquisition_value)).toBe(12345.5);
+    expect(await db.asset_records.count({ where: { asset_id: row.asset_id } })).toBe(0);
   });
 
-  it("files the new asset under the placeholder custodian, user 1 (nobody holds it), when no custodian id is sent", async () => {
-    const res = await asStaff.post("/api/assets", intake());
+  it("stores no funding source for Unspecified or an empty one, and answers 400 for one that is not on the list", async () => {
+    const unspecified = await asStaff.post("/api/assets", intake({ funding: "Unspecified" }));
+    const unknown = await asStaff.post("/api/assets", intake({ funding: "Test Grant Nobody Has" }));
 
-    const record = await newestRecord(res.body.asset.asset_id);
-    expect(record.current_custodian).toBe(USERS.admin.userId);
+    expect((await db.assets.findUniqueOrThrow({ where: { asset_id: unspecified.body.asset.asset_id } })).funding_source_id).toBeNull();
+    expect(unknown.status).toBe(400);
+    expect(unknown.body.error).toBe("Pick a funding source from the list.");
   });
 
-  it("files the new asset under the custodian id when one is sent", async () => {
+  it("ignores a custodian id: a new asset is held by nobody", async () => {
     const res = await asStaff.post("/api/assets", intake({ custodianId: USERS.custodianB.userId }));
 
-    const record = await newestRecord(res.body.asset.asset_id);
-    expect(record.current_custodian).toBe(USERS.custodianB.userId);
+    expect((await listedAsset(res.body.asset.asset_tag)).holder).toBeNull();
   });
 
   it("normalizes a category name and stores an unknown category as DEV_KIT", async () => {
@@ -439,28 +484,30 @@ describe("PUT /api/assets/:tag", () => {
     expect(await newestRecord(asset.assetId)).toMatchObject({ status: "ACTIVE", current_custodian: USERS.custodianA.userId, Asset_Remarks: "Test remark on an old row" });
   });
 
-  it("saves a new funding source and acquisition value when the asset already has both (M-16 fixed)", async () => {
-    await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { funding: "Test New Grant", acquisitionValue: 99999 });
+  const funding = async (assetId: number) => {
+    const row = await db.assets.findUniqueOrThrow({ where: { asset_id: assetId } });
+    return { fundingSourceId: row.funding_source_id, value: row.acquisition_value === null ? null : Number(row.acquisition_value) };
+  };
 
-    const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: ASSETS.available.assetId } });
-    expect(monetary.funding_source).toBe("Test New Grant");
-    expect(Number(monetary.acquisition_value)).toBe(99999);
+  it("saves a new funding source and acquisition value on the asset (M-16 fixed)", async () => {
+    await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { funding: LOOKUPS.fundingSources[1].name, acquisitionValue: 99999 });
+
+    expect(await funding(ASSETS.available.assetId)).toEqual({ fundingSourceId: LOOKUPS.fundingSources[1].fundingSourceId, value: 99999 });
   });
 
   it("keeps the funding source when only an acquisition value is sent (M-16 fixed)", async () => {
     await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { acquisitionValue: 12345.5 });
 
-    const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: ASSETS.available.assetId } });
-    expect(monetary.funding_source).toBe("Test New Grant");
-    expect(Number(monetary.acquisition_value)).toBe(12345.5);
+    expect(await funding(ASSETS.available.assetId)).toEqual({ fundingSourceId: LOOKUPS.fundingSources[1].fundingSourceId, value: 12345.5 });
   });
 
-  it("keeps the acquisition value when only a funding source is sent", async () => {
-    await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { funding: "Test Third Grant" });
+  it("keeps the acquisition value when only a funding source is sent, and answers 400 for one not on the list", async () => {
+    await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { funding: LOOKUPS.fundingSources[0].name });
+    const unknown = await asStaff.put(`/api/assets/${ASSETS.available.tag}`, { funding: "Test Grant Nobody Has" });
 
-    const monetary = await db.asset_monetary.findUniqueOrThrow({ where: { asset_id: ASSETS.available.assetId } });
-    expect(monetary.funding_source).toBe("Test Third Grant");
-    expect(Number(monetary.acquisition_value)).toBe(12345.5);
+    expect(await funding(ASSETS.available.assetId)).toEqual({ fundingSourceId: LOOKUPS.fundingSources[0].fundingSourceId, value: 12345.5 });
+    expect(unknown.status).toBe(400);
+    expect(unknown.body.error).toBe("Pick a funding source from the list.");
   });
 
   it.each([
@@ -497,7 +544,7 @@ describe("PUT /api/assets/:tag", () => {
       serial: "TEST-SN-ROW-ONLY",
       manufacturer: "Test Maker",
       category: "CAMERA",
-      funding: "Test Other Grant",
+      funding: LOOKUPS.fundingSources[1].name,
       procured: "2025-01-15",
       warranty: "2028-01-15",
       image: "data:image/png;base64,iVBORw0KGgo=",

@@ -90,10 +90,10 @@ export interface TestAsset {
   tag: string;
   name: string;
   category: "DEV_KIT" | "MONITOR" | "CAMERA" | "ROUTER" | "TABLET" | "PROJECTOR";
-  /** The latest asset_records status after seeding. */
+  /** The latest asset_records status after seeding (Edit Asset and transfers still read the records until commit 9). */
   recordStatus: "ACTIVE" | "ON_LOAN" | "MAINTENANCE" | "DISPOSED";
-  /** The status text GET /api/assets shows for it. */
-  listStatus: "Active" | "On Loan" | "Maintenance" | "Disposed";
+  /** assets.status, which GET /api/assets sends as `status`. */
+  listStatus: "AVAILABLE" | "ON_LOAN" | "MAINTENANCE" | "RETIRED";
   acquisitionValue: number;
 }
 
@@ -111,18 +111,18 @@ function asset(assetId: number, name: string, category: TestAsset["category"], r
 
 /** Seeded assets, one per state the workflows care about. Comments say what else is attached. */
 export const ASSETS = {
-  /** In the pool with the Admin, nothing pending. Free to borrow. */
-  available: asset(1, "Test Dev Kit Available", "DEV_KIT", "ACTIVE", "Active"),
-  /** On loan to Custodian A through an approved loan due in 30 days. */
-  onLoan: asset(2, "Test Monitor On Loan", "MONITOR", "ON_LOAN", "On Loan"),
-  /** Under maintenance, with a repair ticket in "Inspection Phase" reported by Custodian A. */
-  inRepair: asset(3, "Test Camera In Repair", "CAMERA", "MAINTENANCE", "Maintenance"),
-  /** Disposed through an approved disposal requested by Staff TSG. */
-  disposed: asset(4, "Test Router Disposed", "ROUTER", "DISPOSED", "Disposed"),
-  /** Active, with a pending loan request from Custodian B. */
-  pendingLoan: asset(5, "Test Tablet Pending Loan", "TABLET", "ACTIVE", "Active"),
-  /** Held by Custodian A in OPERATIONAL condition, with one inspection report by Staff TSG. */
-  inspected: asset(6, "Test Projector Inspected", "PROJECTOR", "ACTIVE", "Active"),
+  /** Available, nothing pending. Free to borrow. */
+  available: asset(1, "Test Dev Kit Available", "DEV_KIT", "ACTIVE", "AVAILABLE"),
+  /** On loan to Custodian A through a loan On Loan, due in 30 days. */
+  onLoan: asset(2, "Test Monitor On Loan", "MONITOR", "ON_LOAN", "ON_LOAN"),
+  /** In maintenance, with a ticket in Inspecting that Custodian A reported and Staff TSG received. */
+  inRepair: asset(3, "Test Camera In Repair", "CAMERA", "MAINTENANCE", "MAINTENANCE"),
+  /** Retired through a completed disposal requested by Staff TSG and decided by the Director. */
+  disposed: asset(4, "Test Router Disposed", "ROUTER", "DISPOSED", "RETIRED"),
+  /** Available, with a loan request in Pending Approval from Custodian B. */
+  pendingLoan: asset(5, "Test Tablet Pending Loan", "TABLET", "ACTIVE", "AVAILABLE"),
+  /** Available, OPERATIONAL from one Routine inspection by Staff TSG. Its old record names Custodian A, but no loan does. */
+  inspected: asset(6, "Test Projector Inspected", "PROJECTOR", "ACTIVE", "AVAILABLE"),
 } as const satisfies Record<string, TestAsset>;
 
 /** The assets.status that goes with each asset_records status, as the foundation migration maps it. */

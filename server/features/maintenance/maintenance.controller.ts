@@ -50,7 +50,7 @@ export async function updateRepair(req: Request<{ repairId: string }>, res: Resp
     console.log(`🚀 Server received repair status update for #${repairId}:`, { progressStatus, assetCondition, assetRemarks });
 
     checkRepairUpdate(repairId, progressStatus);
-    const repair = await maintenanceService.updateRepair(repairId, progressStatus, assetCondition, assetRemarks);
+    const repair = await maintenanceService.updateRepair(repairId, progressStatus, assetCondition, assetRemarks, sessionUserOf(req).userId);
 
     console.log(`✅ Repair #${repairId} progress updated to "${progressStatus}".`);
     res.json({ success: true, repair });

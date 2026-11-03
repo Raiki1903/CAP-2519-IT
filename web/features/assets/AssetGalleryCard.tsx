@@ -22,7 +22,7 @@ import { Pencil, Archive, Trash2 } from "lucide-react";
  * @param onDelete, onEdit, onDecommission optional; each shows its button only when given
  */
 export function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommission }: { eq: any; onSelect: () => void; onDelete?: () => void; onEdit?: () => void; onDecommission?: () => void }) {
-  const isDisposed = eq.status === "Disposed";
+  const isDisposed = eq.status === "RETIRED";
   return (
     <Card onClick={onSelect} className={cn("overflow-hidden p-0 gap-0 transition-all relative cursor-pointer", isDisposed ? "opacity-85 bg-red-50/20 border-dashed border-red-200 shadow-none hover:opacity-100" : "hover:shadow-md")}>
       <div className="relative">

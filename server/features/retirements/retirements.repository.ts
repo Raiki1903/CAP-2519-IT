@@ -1,19 +1,33 @@
 /**
  * Disposal row access: every database read and write the disposal endpoints make.
- * Layer: repository. Called by retirements.service.ts and shared/services/custodyRequestGuard.ts (the pending disposal). Calls server/config/prisma.ts.
+ * Layer: repository. Called by retirements.service.ts and shared/services/custodyRequestGuard.ts (the pending disposal,
+ * for transfers). Calls server/config/prisma.ts, shared/services/assetStatus.ts, and shared/services/rowLocks.ts.
  * Used by: Staff disposal filing, Director approval, and the screens that list disposals.
  */
-import { asset_retirements_status, type Prisma, type asset_records, type asset_retirements } from '@prisma/client';
+import { asset_retirements_status, type Prisma, type asset_retirements } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { setAssetStatus } from '../../shared/services/assetStatus';
+import { lockAsset } from '../../shared/services/rowLocks';
 
-/** The asset's pending disposal (its id only), or null. Read by the custody request guard. (H-05, issue #54) */
+/** The asset's pending disposal (its id only), or null. Read by the custody request guard, for transfers. (H-05, issue #54) */
 export function findPendingDisposalId(assetId: number) {
     return prisma.asset_retirements.findFirst({ where: { asset_id: assetId, status: asset_retirements_status.PENDING }, select: { retirement_id: true } });
 }
 
-/** Inserts an asset_retirements row and returns it. */
-export function create(data: Prisma.asset_retirementsUncheckedCreateInput) {
-    return prisma.asset_retirements.create({ data });
+/**
+ * Files a disposal request in one transaction: the asset_retirements row, and the asset set to Pending Retirement.
+ * The asset row is locked first, so two requests on the same asset run one after the other.
+ *
+ * @param data the asset_retirements row, its previous_status included
+ * @returns the created row
+ */
+export function createRequest(data: Prisma.asset_retirementsUncheckedCreateInput) {
+    return prisma.$transaction(async (tx) => {
+        await lockAsset(tx, data.asset_id);
+        const disposal = await tx.asset_retirements.create({ data });
+        await setAssetStatus(tx, data.asset_id, "PENDING_RETIREMENT");
+        return disposal;
+    });
 }
 
 /**
@@ -37,40 +51,31 @@ export function findById(disposalId: number) {
 }
 
 /**
- * Sets a disposal's decided status and, for an approval, appends the DISPOSED record, in one transaction.
- * The asset's latest record is read inside the transaction, after the status update,
- * and handed to the service to build the new record from.
+ * Saves a decision in one transaction. Approval: Completed, with who decided and completed it and when, and the asset
+ * set to Retired. Rejection: Denied, with who decided and when, and the asset given back its status from before the
+ * request (Available when none was kept). The asset row is locked first.
  *
  * @param disposal the pending disposal being decided
- * @param newStatus COMPLETED or DENIED
- * @param buildDisposedRecord builds the new asset_records row from the latest one; null for a reject
+ * @param approve true to approve, false to reject
+ * @param deciderId the session user who decides
+ * @param assetIsPending whether the asset is in Pending Retirement; a rejection leaves any other status alone
  * @returns the updated asset_retirements row
  */
-export function saveDecision(
-    disposal: asset_retirements,
-    newStatus: asset_retirements_status,
-    buildDisposedRecord: ((latestRecord: asset_records | null) => Prisma.asset_recordsUncheckedCreateInput) | null,
-) {
-    // The disposal status and the DISPOSED record are written together, so a failure on either
-    // leaves neither: an approved disposal always has its record.
+export function saveDecision(disposal: asset_retirements, approve: boolean, deciderId: number, assetIsPending: boolean) {
     return prisma.$transaction(async (tx) => {
+        await lockAsset(tx, disposal.asset_id);
+        const now = new Date();
         const updated = await tx.asset_retirements.update({
             where: { retirement_id: disposal.retirement_id },
-            data: { status: newStatus },
+            data: approve
+                ? { status: asset_retirements_status.COMPLETED, decided_by_id: deciderId, decided_at: now, completed_by_id: deciderId, completed_at: now }
+                : { status: asset_retirements_status.DENIED, decided_by_id: deciderId, decided_at: now },
         });
-
-        if (buildDisposedRecord) {
-            // TODO(M-09): no tie-break on asset_record_id, so two records logged in the same second can be read in the wrong order. Phase 3, with the shared asset state rule.
-            const latestRecord = await tx.asset_records.findFirst({
-                where: { asset_id: disposal.asset_id },
-                orderBy: { date_logged: "desc" },
-            });
-
-            await tx.asset_records.create({
-                data: buildDisposedRecord(latestRecord),
-            });
+        if (approve) {
+            await setAssetStatus(tx, disposal.asset_id, "RETIRED");
+        } else if (assetIsPending) {
+            await setAssetStatus(tx, disposal.asset_id, disposal.previous_status ?? "AVAILABLE");
         }
-
         return updated;
     });
 }

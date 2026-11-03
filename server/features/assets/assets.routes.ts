@@ -1,7 +1,7 @@
 /**
  * Asset registry route table: which URL maps to which controller.
  * Layer: routes. Mounted by server/app.ts. Calls assets.controller.ts.
- * Used by: every role's inventory view and the bell (the list), the asset detail modal (history),
+ * Used by: every role's inventory view and the bell (the list and search), the asset detail modal (history),
  * Staff registration (IntakeWizard), editing (EditAssetDialog), and deletion.
  */
 import express from 'express';
@@ -15,7 +15,7 @@ export const assetsRouter = express.Router();
 // Every route needs a session; the roles are the approved 13b role table (rows 9 to 13). Any Staff account may delete
 // until issue #41 decides who may (TSG or a future Admin).
 assetsRouter.get('/api/assets', requireAuth, assetsController.listAssets);
-assetsRouter.get('/api/assets/:assetTag/custodian-history', requireAuth, assetsController.getCustodianHistory);
+assetsRouter.get('/api/assets/:assetTag/history', requireAuth, assetsController.getAssetHistory);
 assetsRouter.post('/api/assets', requireAuth, requireRole('Staff'), assetsController.registerAsset);
 assetsRouter.put('/api/assets/:assetTag', requireAuth, requireRole('Staff'), assetsController.updateAsset);
 assetsRouter.delete('/api/assets/:assetTag', requireAuth, requireRole('Staff'), assetsController.deleteAsset);

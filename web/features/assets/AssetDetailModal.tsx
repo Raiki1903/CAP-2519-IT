@@ -1,7 +1,7 @@
 /**
- * Asset detail modal: one asset's facts, QR tag, custodian history, and the request forms each role may open from it.
+ * Asset detail modal: one asset's facts, QR tag, history, and the request forms each role may open from it.
  * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and pages/staff/InventoryPage.tsx.
- * Calls: api/assets.api.ts getCustodianHistory(), state/serverData.tsx addRepairRequest() and reloadLoans(), and the loan, transfer, return, and repair forms.
+ * Calls: api/assets.api.ts getAssetHistory(), state/serverData.tsx addRepairRequest() and reloadLoans(), and the loan, transfer, return, and repair forms.
  * Used by: Custodian requests, Lab Head custody review, Staff maintenance flagging and Record Return.
  */
 import { useState, useEffect } from "react";
@@ -24,6 +24,13 @@ import { Badge } from "@web/components/ui/badge";
 import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
 import { QRCodeSVG } from "qrcode.react";
+import type { AssetHistoryEvent, PersonRef } from "@shared/types/assets";
+import { ASSET_CONDITION_LABELS, type AssetCondition } from "@shared/enums/assetCondition";
+
+/** Who did a history step, as this viewer may see them. */
+function actorLabel(actor: PersonRef): string {
+  return "userId" in actor ? actor.name : "Not shown";
+}
 
 /**
  * The asset shape every asset list hands to this modal and to the four request forms.
@@ -41,8 +48,13 @@ export interface AssetDetail {
   location?: string;
   currentLocation?: string;
   lab?: string;
+  /** One of the six asset statuses, for example "ON_LOAN". */
   status: string;
-  condition?: number;
+  statusLabel?: string;
+  /** The newest TSG inspection's condition, or null when TSG never inspected it. */
+  condition?: string | null;
+  healthScore?: number | null;
+  isOverdue?: boolean;
   assetCondition?: string;
   custodian?: string;
   /** The holder's user id, when the server sends their name. (issue #32) */
@@ -63,23 +75,17 @@ const viewTitles: Record<FormView, string> = {
   return: "Asset Return",
   repair: "Request Repair",
   loan: "Request Loan",
-  custodianHistory: "Custodian History",
+  custodianHistory: "Asset History",
 };
 
 const STATUS_CLASS: Record<string, string> = {
-  Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  "On Loan": "bg-blue-50   text-blue-700   border-blue-200",
-  Maintenance: "bg-amber-50  text-amber-700  border-amber-200",
-  Disposed: "bg-red-50    text-red-700    border-red-200",
+  AVAILABLE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  ON_LOAN: "bg-blue-50   text-blue-700   border-blue-200",
+  MAINTENANCE: "bg-amber-50  text-amber-700  border-amber-200",
+  PENDING_RETIREMENT: "bg-orange-50 text-orange-700 border-orange-200",
+  RETIRED: "bg-red-50    text-red-700    border-red-200",
+  MISSING: "bg-slate-100 text-slate-700  border-slate-300",
 };
-
-function getDescriptiveCondition(score: number): string {
-  if (score >= 95) return "Brand New";
-  if (score >= 80) return "Used";
-  if (score >= 65) return "Functional";
-  if (score >= 50) return "Functional with Issues";
-  return "Non-Functional / Repair Needed";
-}
 
 interface Props {
   asset: AssetDetail | null;
@@ -126,25 +132,25 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const holdsThisAsset = !!asset && !!currentUser && asset.custodianId === currentUser.userId;
   // Staff record a return straight from here, with no request needed in this browser, so a return works from
   // any computer. Only on an asset that is out: Overdue is On Loan past its due date. (issue #99)
-  const isOnLoan = !!asset && (asset.status === "On Loan" || asset.status === "Overdue");
+  const isOnLoan = !!asset && (asset.status === "ON_LOAN" || asset.isOverdue);
   const [view, setView] = useState<FormView>("detail");
 
-  const [custodianHistoryList, setCustodianHistoryList] = useState<any[]>([]);
+  const [historyEvents, setHistoryEvents] = useState<AssetHistoryEvent[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
-  const fetchCustodianHistory = async (assetTag: string) => {
+  const fetchAssetHistory = async (assetTag: string) => {
     setLoadingHistory(true);
     setHistoryError(null);
     try {
-      const data = await assetsApi.getCustodianHistory(assetTag);
+      const data = await assetsApi.getAssetHistory(assetTag);
       if (data.success) {
-        setCustodianHistoryList(data.custodianHistory || []);
+        setHistoryEvents(data.events || []);
       } else {
-        setHistoryError(data.error || "Failed to load custodian history.");
+        setHistoryError(data.error || "Failed to load the asset history.");
       }
     } catch (err: any) {
-      setHistoryError(err.message || "Failed to load custodian history.");
+      setHistoryError(err.message || "Failed to load the asset history.");
     } finally {
       setLoadingHistory(false);
     }
@@ -153,15 +159,12 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const resetAndClose = () => { setView("detail"); onClose(); };
   const goBack = () => setView("detail");
 
-  // Fetch real custody history as soon as the modal opens for an asset, so
-  // the inline "Custodian History" preview on the
-  // detail screen has live data — not just when the dedicated (LabHead-only)
-  // full-history button is clicked.
+  // The history loads as soon as the modal opens, so the short preview on the detail screen has it too.
   useEffect(() => {
     if (asset?.id) {
-      fetchCustodianHistory(asset.id);
+      fetchAssetHistory(asset.id);
     } else {
-      setCustodianHistoryList([]);
+      setHistoryEvents([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset?.id]);
@@ -186,15 +189,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [asset]);
 
-  // History comes back oldest -> newest, with the current holder flagged.
-  // "Previous custodian" walks back from just before the current entry to
-  // the most recent one under a *different* custodian, so records that
-  // only logged a condition/status change (custody unchanged) are skipped.
-  const currentHistoryEntry = custodianHistoryList.find(h => h.isCurrent) || custodianHistoryList[custodianHistoryList.length - 1];
-  const priorHistoryEntry = currentHistoryEntry
-    ? [...custodianHistoryList].reverse().find(h => h.sequence < currentHistoryEntry.sequence && h.custodianName !== currentHistoryEntry.custodianName)
-    : undefined;
-  const originalHistoryEntry = custodianHistoryList[0];
+  // The newest three steps, newest first, for the preview on the detail screen.
+  const recentEvents = [...historyEvents].reverse().slice(0, 3);
 
   const handleDirectMaintenance = () => {
     if (!asset) return;
@@ -236,11 +232,11 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     </Button>
   );
 
-  const descriptiveCond = asset?.assetCondition
-    ? asset.assetCondition.replace(/_/g, " ")
-    : asset?.condition !== undefined
-      ? getDescriptiveCondition(asset.condition)
-      : "Functional";
+  // The newest TSG inspection's condition; an asset TSG never inspected says so instead of guessing one.
+  const conditionKey = asset?.condition ?? asset?.assetCondition;
+  const descriptiveCond = conditionKey
+    ? ASSET_CONDITION_LABELS[conditionKey as AssetCondition] ?? conditionKey.replace(/_/g, " ")
+    : "Not inspected yet";
 
   const metaRows = asset ? [
     { icon: Tag, label: "Serial No.", value: asset.serial ?? "—" },
@@ -365,7 +361,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       transition={{ duration: 0.18 }}
                     >
                       {/* Image + metadata */}
-                      <div className={cn("flex flex-wrap gap-4 mb-5", asset.status === "Disposed" && "opacity-60 filter grayscale")}>
+                      <div className={cn("flex flex-wrap gap-4 mb-5", asset.status === "RETIRED" && "opacity-60 filter grayscale")}>
                         <div
                           className="rounded-xl overflow-hidden border border-border flex-shrink-0"
                           style={{ width: 148 }}
@@ -387,7 +383,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       </div>
 
                       {/* Disposal details card */}
-                      {asset.status === "Disposed" && (
+                      {asset.status === "RETIRED" && (
                         <div className="bg-red-50/50 border border-red-200/50 rounded-xl p-4 mt-4">
                           <p className="text-xs font-bold text-red-800">Asset Decommissioned &amp; Disposed</p>
                           <p className="text-[10px] text-red-600/80 mt-1">This hardware unit has been permanently retired and is no longer in service.</p>
@@ -411,38 +407,32 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         </p>
                       </div>
 
-                      {/* Collapsible Custodian History Lifecycle View */}
+                      {/* Collapsible preview of the asset's history */}
                       <details className="mt-4 bg-white border border-slate-200 rounded-xl p-3 text-xs group">
                         <summary className="font-extrabold text-slate-700 cursor-pointer flex items-center justify-between uppercase tracking-wider text-[10px]">
-                          <span>Custodian History</span>
+                          <span>Asset History</span>
                           <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
                         </summary>
                         <div className="mt-3 pt-3 border-t border-slate-100 space-y-2 font-mono text-[11px] text-slate-600">
                           {loadingHistory ? (
-                            <p className="text-slate-400 italic py-1">Loading custody history…</p>
+                            <p className="text-slate-400 italic py-1">Loading the history…</p>
                           ) : historyError ? (
                             <p className="text-red-500 italic py-1">{historyError}</p>
+                          ) : recentEvents.length === 0 ? (
+                            <p className="text-slate-400 italic py-1">Nothing recorded yet.</p>
                           ) : (
-                            <>
-                              <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                                <span>Current custodian: <strong className="text-emerald-700">{currentHistoryEntry ? holderLabel(currentHistoryEntry.custodianName, currentHistoryEntry.custodianHidden) : holderLabel(asset.custodian, asset.custodianHidden)}</strong></span>
-                                <span className="text-[10px] text-slate-400">Present</span>
+                            recentEvents.map((e, idx) => (
+                              <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-50 last:border-b-0">
+                                <span>{e.label}{e.actor ? <>: <strong>{actorLabel(e.actor)}</strong></> : null}</span>
+                                <span className="text-[10px] text-slate-400">{new Date(e.at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
                               </div>
-                              <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                                <span>Previous custodian: <strong>{priorHistoryEntry ? holderLabel(priorHistoryEntry.custodianName, priorHistoryEntry.custodianHidden) : "None"}</strong></span>
-                                <span className="text-[10px] text-slate-400">{priorHistoryEntry?.dateLogged || "—"}</span>
-                              </div>
-                              <div className="flex justify-between items-center py-1">
-                                <span>First custodian: <strong>{originalHistoryEntry ? holderLabel(originalHistoryEntry.custodianName, originalHistoryEntry.custodianHidden) : "Not assigned"}</strong></span>
-                                <span className="text-[10px] text-slate-400">{originalHistoryEntry?.dateLogged || asset.procured || "—"}</span>
-                              </div>
-                            </>
+                            ))
                           )}
                         </div>
                       </details>
 
                       {/* ── Action panel conditional rendering ── */}
-                      {asset.status !== "Disposed" && (role === "Staff" || role === "Custodian" || role === "LabHead") && (
+                      {asset.status !== "RETIRED" && (role === "Staff" || role === "Custodian" || role === "LabHead") && (
                         <>
                           <Separator className="mb-4" />
 
@@ -485,7 +475,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                     className="w-full h-auto flex-col py-3.5 px-2 gap-2 text-[#005A36] border-[#005A36]/30 hover:bg-emerald-50 hover:border-[#005A36] shadow-sm cursor-pointer"
                                     onClick={() => {
                                       setView("custodianHistory");
-                                      if (asset) fetchCustodianHistory(asset.id);
+                                      if (asset) fetchAssetHistory(asset.id);
                                     }}
                                   >
                                     <History size={20} className="text-[#005A36]" />
@@ -493,12 +483,12 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                       className="text-[10px] font-extrabold leading-tight text-center uppercase tracking-wider"
                                       style={{ fontFamily: "'Montserrat', sans-serif" }}
                                     >
-                                      Custodian<br />History
+                                      Asset<br />History
                                     </span>
                                   </Button>
                                 </motion.div>
                               </div>
-                            ) : asset.status === "Active" ? (
+                            ) : asset.status === "AVAILABLE" ? (
                               <div className="grid grid-cols-1 gap-2.5">
                                 {/* 0 — Request Loan */}
                                 {role === "Custodian" && pendingRequest && requestPendingTile}
@@ -539,7 +529,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                   </motion.div>
                                 )}
                               </div>
-                            ) : asset.status === "Maintenance" ? (
+                            ) : asset.status === "MAINTENANCE" ? (
                               <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-4 flex items-start gap-3">
                                 <Wrench size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
                                 <div>
@@ -714,10 +704,10 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         <div className="flex items-center justify-between border-b pb-3">
                           <div>
                             <h3 className="text-sm font-extrabold text-[#005A36] uppercase tracking-wider flex items-center gap-1.5 font-sans">
-                              <History size={16} /> Custodian History
+                              <History size={16} /> Asset History
                             </h3>
                             <p className="text-xs text-muted-foreground mt-0.5 font-sans">
-                              Chronological record of all custodians pulled from database (from oldest to newest).
+                              Every loan, inspection, maintenance, and retirement step of this asset, oldest first.
                             </p>
                           </div>
                           <Button variant="outline" size="sm" onClick={goBack} className="text-xs font-bold gap-1 cursor-pointer">
@@ -727,55 +717,40 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
 
                         {loadingHistory ? (
                           <div className="py-8 text-center text-xs text-muted-foreground animate-pulse font-mono">
-                            Loading custodian history…
+                            Loading the history…
                           </div>
                         ) : historyError ? (
                           <div className="p-3 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded-lg">
                             {historyError}
                           </div>
-                        ) : custodianHistoryList.length === 0 ? (
+                        ) : historyEvents.length === 0 ? (
                           <div className="py-8 text-center text-xs text-muted-foreground font-mono">
-                            No custodian history for this asset yet.
+                            Nothing recorded for this asset yet.
                           </div>
                         ) : (
                           <div className="relative pl-6 space-y-4 pt-1 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                            {custodianHistoryList.map((entry, idx) => (
-                              <div key={entry.sequence || idx} className="relative bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
-                                {/* Timeline Node Indicator */}
+                            {historyEvents.map((entry, idx) => (
+                              <div key={idx} className="relative bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
                                 <div className={cn(
                                   "absolute -left-6 top-3.5 w-3 h-3 rounded-full border-2 border-white flex-shrink-0",
-                                  entry.isCurrent ? "bg-emerald-600 ring-2 ring-emerald-100" : "bg-slate-400"
+                                  idx === historyEvents.length - 1 ? "bg-emerald-600 ring-2 ring-emerald-100" : "bg-slate-400"
                                 )} />
 
                                 <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
-                                  <div className="flex items-center gap-2">
-                                    <Badge className={cn(
-                                      "text-[9px] font-extrabold uppercase px-2 py-0.5",
-                                      entry.isCurrent ? "bg-emerald-700 text-white" : "bg-slate-200 text-slate-700"
-                                    )}>
-                                      {entry.isCurrent ? `#${entry.sequence} (Current Custodian)` : `#${entry.sequence} (Prior Custodian)`}
-                                    </Badge>
-                                    <span className="font-bold text-slate-800 text-sm">{holderLabel(entry.custodianName, entry.custodianHidden)}</span>
-                                  </div>
-                                  <span className="text-[10px] font-mono text-slate-500">{entry.dateLogged}</span>
+                                  <span className="font-bold text-slate-800 text-sm">{entry.label}</span>
+                                  <span className="text-[10px] font-mono text-slate-500">
+                                    {new Date(entry.at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                  </span>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 font-sans">
-                                  <div>
-                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Email:</span>
-                                    <span className="font-mono text-slate-700 font-bold">{entry.custodianEmail || "—"}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Availability / Condition:</span>
-                                    <span className="font-semibold text-slate-700">{assetStatusLabel(entry.status)} · {entry.condition || "Functional"}</span>
-                                  </div>
                                   <div className="col-span-2">
-                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">Location:</span>
-                                    <span className="text-slate-700">{entry.currentLocation || entry.location || "DLSU Campus"}</span>
+                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">By:</span>
+                                    <span className="font-semibold text-slate-700">{entry.actor ? actorLabel(entry.actor) : "Not recorded"}</span>
                                   </div>
-                                  {entry.remarks && (
+                                  {entry.details && (
                                     <div className="col-span-2 bg-white p-2 rounded-lg border border-slate-100 italic text-[11px] text-slate-600">
-                                      "{entry.remarks}"
+                                      "{entry.details}"
                                     </div>
                                   )}
                                 </div>

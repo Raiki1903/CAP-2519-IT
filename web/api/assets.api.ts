@@ -7,11 +7,10 @@ import type { AssetCreateInput, AssetUpdateInput } from "@shared/types/assets";
 import { apiDelete, apiGet, apiGetRaw, apiPostRaw, apiPutRaw, type ApiResult } from "./client";
 
 /**
- * Lists every asset with its current state.
+ * Lists every asset with its current state, worked out on the server.
  *
- * @returns `success` and `assets`, an array of asset view rows
+ * @returns `success` and `assets`, each an AssetListItem from @shared/types/assets
  */
-// TODO(M-01): the server loads nine whole tables for this, and most screens call it. Phase 3 replaces it with targeted queries (issue #76).
 export function listAssets(): Promise<ApiResult> {
   return apiGet("/api/assets");
 }
@@ -27,13 +26,13 @@ export function listAssetsRaw(): Promise<Response> {
 }
 
 /**
- * Lists who has held an asset.
+ * Lists what happened to an asset, oldest first: loans, inspections, maintenance, retirements, and logged steps.
  *
- * @param assetTag the asset's tag, sent as is (not URL-encoded)
- * @returns `success` and `custodianHistory`
+ * @param assetTag the asset's tag
+ * @returns `success` and `events`, each an AssetHistoryEvent from @shared/types/assets
  */
-export function getCustodianHistory(assetTag: string): Promise<ApiResult> {
-  return apiGet(`/api/assets/${assetTag}/custodian-history`);
+export function getAssetHistory(assetTag: string): Promise<ApiResult> {
+  return apiGet(`/api/assets/${encodeURIComponent(assetTag)}/history`);
 }
 
 /**

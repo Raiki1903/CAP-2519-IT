@@ -186,7 +186,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
       csvContent += `No physical routine inspections logged.\n`;
     }
 
-    if (asset.status === "Disposed" && asset.disposalDetails) {
+    if (asset.status === "RETIRED" && asset.disposalDetails) {
       csvContent += `\nDECOMMISSIONING & DISPOSAL DETAILS\n`;
       csvContent += `Disposal ID,${asset.disposalId}\n`;
       csvContent += `Decommission Date,${asset.disposalDetails.decommissionDate}\n`;
@@ -275,9 +275,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
   // The shared asset list. Typed loosely because the server sends fields the Asset type does not declare (H-13).
   const activeAssetList: any[] = assets;
-  const activeAssets = activeAssetList.filter(a => a.status !== "Disposed");
+  const activeAssets = activeAssetList.filter(a => a.status !== "RETIRED");
   const degradingAssets = activeAssets.filter(a => getLatestRecordConditionScore(a) <= 60);
-  const maintenanceCount = activeAssets.filter(a => a.status === "Maintenance" || a.status === "In Repair").length;
+  const maintenanceCount = activeAssets.filter(a => a.status === "MAINTENANCE" || a.status === "In Repair").length;
 
   const totalValuation = activeAssetList.reduce((sum, a) => {
     const val = Number(a.asset_monetary?.acquisition_value || a.cost || a.acquisition_value || a.acquisitionValue || 0);
@@ -333,7 +333,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   <div className="h-7 w-28 bg-muted/60 animate-pulse rounded-md mt-1" />
                 ) : (
                   <h3 className="text-2xl font-extrabold mt-1 text-foreground font-mono">
-                    {activeAssetList.filter(a => a.status !== "Disposed" && a.status !== "DISPOSED").length || activeAssetList.length} assets
+                    {activeAssetList.filter(a => a.status !== "RETIRED" && a.status !== "DISPOSED").length || activeAssetList.length} assets
                   </h3>
                 )}
               </div>
@@ -440,7 +440,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                         avgConditionNum = Math.round(totalScore / assetCount);
                         avgConditionStr = `${avgConditionNum}%`;
 
-                        const utilized = labAssets.filter(a => a.status === "On Loan" || a.status === "Overdue" || a.status === "Pending Return" || a.projectId || a.project_id).length;
+                        const utilized = labAssets.filter(a => a.status === "ON_LOAN" || a.isOverdue || a.status === "Pending Return" || a.projectId || a.project_id).length;
                         utilRateStr = `${Math.round((utilized / assetCount) * 100)}%`;
                       } else {
                         avgConditionStr = "N/A";
@@ -750,7 +750,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     </TableRow>
                   ) : (
                     filteredAssets.map(item => {
-                      const isDisposed = item.status === "Disposed";
+                      const isDisposed = item.status === "RETIRED";
                       const itemValuation = Number(item.asset_monetary?.acquisition_value || item.cost || item.acquisition_value || 0);
                       const itemFunding = item.asset_monetary?.funding_source || item.funding || "Unspecified";
                       const itemProcured = item.procurement_date || item.procured || "N/A";
@@ -780,8 +780,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                             ) : (
                               <div className="space-y-0.5">
                                 <Badge className={cn("text-[9px] font-bold border uppercase",
-                                  item.status === "Active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                    item.status === "On Loan" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                                  item.status === "AVAILABLE" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                    item.status === "ON_LOAN" ? "bg-blue-50 text-blue-700 border-blue-200" :
                                       "bg-amber-50 text-amber-700 border-amber-200"
                                 )}>
                                   {assetStatusLabel(item.status)}
@@ -939,7 +939,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                 </div>
 
                 {/* 5. Disposal Details if Disposed */}
-                {selectedAssetForAudit.status === "Disposed" && selectedAssetForAudit.disposalDetails && (
+                {selectedAssetForAudit.status === "RETIRED" && selectedAssetForAudit.disposalDetails && (
                   <div className="space-y-2.5 p-4 bg-red-50 border border-red-200 rounded-xl">
                     <h4 className="text-xs font-bold text-red-755 flex items-center gap-1.5">
                       <XCircle size={13} />

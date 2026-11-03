@@ -142,7 +142,7 @@ export function NotificationCenter() {
     });
 
     // System-flagged clearance holds (Overdue equipment delinquency)
-    const overdueAssets = assets.filter(a => a.status === "Overdue" || (a.daysLeft !== undefined && a.daysLeft < 0));
+    const overdueAssets = assets.filter(a => a.isOverdue || (a.daysLeft !== undefined && a.daysLeft < 0));
     const uniqueCustodiansWithOverdue = Array.from(new Set(overdueAssets.map(a => a.custodian).filter(Boolean)));
 
     uniqueCustodiansWithOverdue.forEach((custName, idx) => {
@@ -387,9 +387,9 @@ export function NotificationCenter() {
 
     // Overdue, Due Soon, or Degraded Health Equipment
     assets.forEach(asset => {
-      const isOverdue = asset.status === "Overdue" || (asset.daysLeft !== undefined && asset.daysLeft < 0);
+      const isOverdue = asset.isOverdue || (asset.daysLeft !== undefined && asset.daysLeft < 0);
       const isDueSoon = asset.daysLeft !== undefined && asset.daysLeft >= 0 && asset.daysLeft <= 5;
-      const isDegraded = asset.condition <= 60 && asset.status !== "Disposed";
+      const isDegraded = asset.healthScore != null && asset.healthScore <= 60 && asset.status !== "RETIRED";
 
       const isMyAsset = asset.custodian === currentUserName;
       const isHighValue = (asset.cost || 0) >= 50000;
@@ -453,7 +453,7 @@ export function NotificationCenter() {
             id: `REM-DEG-${asset.id}`,
             type: "degraded",
             title: `Degraded Health Alert: ${asset.name}`,
-            description: `Device condition is at ${asset.condition}% in lab ${asset.lab}. Maintenance inspection recommended.`,
+            description: `Device health score is ${asset.healthScore} in lab ${asset.lab}. Maintenance inspection recommended.`,
             needsAction: role === "Staff" || (role === "LabHead" && labMatches(currentUser?.labAffiliation, asset.lab)),
             targetTab: "repairs",
             meta: asset

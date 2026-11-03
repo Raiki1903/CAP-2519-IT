@@ -14,20 +14,19 @@ import { readInspectionReport } from './inspections.validation';
 import { AppError } from '../../shared/errors/AppError';
 
 /**
- * Saves an inspection report and writes its condition and remarks onto the asset's newest record,
- * in one transaction. Known inspection defects stay as they are, each marked at its line and pinned by
- * tests/api/inspections.test.ts: the record and reporter defects below.
+ * Saves an inspection report. The asset's condition now is worked out from its newest TSG inspection
+ * (shared/services/assetState.ts), so nothing else is written.
  *
  * @param assetTag the asset's tag from the URL, or its numeric asset_id
  * @param data the request body, its condition already checked by the controller (issue #53); every other field
  * has a fallback. reporterEmail and reportedById are ignored (issue #32)
  * @param reporter the session user, who files the report. A TSG report is a routine inspection; anyone else's is
- * the holder's own report.
+ * the holder's own report (Self Report), which never changes the asset's condition.
  * @returns the created asset_inspections row
  * @throws AppError 404 if no asset has this tag (or, for a number, this id)
- * @throws AppError 409 if the asset is disposed
+ * @throws AppError 409 if the asset is retired
  */
-// TODO(H-05): the check and the write are not atomic, so a report filed in the same instant as a disposal approval can pass. Phase 3 database triggers.
+// TODO(H-05): a report filed in the same instant as a retirement approval can pass the check. Batch 5 files inspections inside the step's transaction.
 export async function fileReport(assetTag: string, data: InspectionReportInput, reporter: SessionIdentity): Promise<asset_inspections> {
     // A tag that is a number is also tried as an asset_id.
     let asset = await assetsRepository.findByTag(assetTag);
@@ -39,55 +38,22 @@ export async function fileReport(assetTag: string, data: InspectionReportInput, 
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // A disposed asset is out of use, and the report would rewrite the condition its DISPOSED record keeps.
-    // An asset under maintenance is still accepted: Staff inspect assets in repair on purpose. (issue #88)
-    const latestRecord = await assetsRepository.findLatestRecordStatus(asset.asset_id);
-    if (latestRecord?.status === "DISPOSED") {
-        throw new AppError(409, `${asset.asset_tag} is disposed and cannot take an inspection report.`);
+    // A retired asset is out of use. An asset in maintenance is still accepted: Staff inspect assets in repair on
+    // purpose (issue #88). The routine inspection rule of the lifecycle guard comes with the routine queue, Batch 5.
+    if (asset.status === "RETIRED") {
+        throw new AppError(409, `${asset.asset_tag} is retired and cannot take an inspection report.`);
     }
 
     const { condition, remarks: remarksVal, image: imgVal } = readInspectionReport(data);
 
-    return inspectionsRepository.saveReport(
-        {
-            asset_id: asset.asset_id,
-            inspected_by_id: reporter.userId,
-            type: reporter.staffUnit === "TSG" ? asset_inspections_type.ROUTINE : asset_inspections_type.SELF_REPORT,
-            condition,
-            remarks: remarksVal,
-            photo: imgVal || null,
-        },
-        (latestReport, latestRecord) => {
-            // The asset takes the condition and remarks of its newest report, which is normally this one.
-            const latestCondition = latestReport ? latestReport.condition : condition;
-            const latestRemarks = latestReport ? latestReport.remarks : remarksVal;
-
-            // TODO(H-14): the newest record is changed in place (it keeps its id and date), so the history loses the condition it had. Append a record instead, Phase 3 with the shared asset state rule.
-            if (latestRecord) {
-                return {
-                    update: {
-                        assetRecordId: latestRecord.asset_record_id,
-                        data: {
-                            asset_condition: latestCondition as any,
-                            Asset_Remarks: latestRemarks,
-                        },
-                    },
-                };
-            }
-            // An asset with no records gets its first one here.
-            // TODO(H-09): "DLSU Campus" and the reporter as custodian are invented values, like the custodian history's made-up first entry. Phase 3.
-            return {
-                create: {
-                    asset_id: asset.asset_id,
-                    status: "ACTIVE",
-                    asset_condition: latestCondition as any,
-                    location: "DLSU Campus",
-                    current_custodian: reporter.userId,
-                    Asset_Remarks: latestRemarks
-                },
-            };
-        },
-    );
+    return inspectionsRepository.create({
+        asset_id: asset.asset_id,
+        inspected_by_id: reporter.userId,
+        type: reporter.staffUnit === "TSG" ? asset_inspections_type.ROUTINE : asset_inspections_type.SELF_REPORT,
+        condition,
+        remarks: remarksVal,
+        photo: imgVal || null,
+    });
 }
 
 /**

@@ -41,7 +41,7 @@ describe("errorHandler", () => {
   });
 
   it("keeps Express's own 400 for a path parameter that cannot be decoded", async () => {
-    const res = await fetch(`${server().baseUrl}/api/assets/%E0%A4%A/custodian-history`);
+    const res = await fetch(`${server().baseUrl}/api/assets/%E0%A4%A/history`);
 
     expect(res.status).toBe(400);
     expect(res.headers.get("content-type")).toMatch(/text\/html/);

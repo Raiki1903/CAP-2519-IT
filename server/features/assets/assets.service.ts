@@ -1,216 +1,173 @@
 /**
- * Assets service: the rules for the asset list, the custodian history, registration (with its tag), edits, and deletion.
+ * Assets service: the rules for the asset list and search, an asset's history, registration (with its tag), edits, and deletion.
  * Layer: service. Called by assets.controller.ts. Calls assets.repository.ts, features/auth/auth.repository.ts,
- * assets.validation.ts, shared/constants/poolCustodian.ts, and @shared/enums.
+ * assets.validation.ts, shared/constants/poolCustodian.ts, and @shared (enums and labels).
  * Used by: every role's inventory view and the bell, the asset detail modal, Staff asset registration, editing, and deletion.
  */
-import { asset_inspections_type, asset_retirements_status, type asset_records, type assets } from '@prisma/client';
-import type { AssetCreateInput, AssetListItem, AssetUpdateInput, CustodianHistory } from '@shared/types/assets';
+import { asset_inspections_type, type asset_records, type assets } from '@prisma/client';
+import type {
+    AssetCreateInput,
+    AssetHistory,
+    AssetHistoryEvent,
+    AssetListFilters,
+    AssetListItem,
+    AssetUpdateInput,
+    PersonRef,
+} from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
-import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
-import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
+import { ASSET_CONDITIONS, ASSET_CONDITION_LABELS } from '@shared/enums/assetCondition';
+import { ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, type AssetCategory } from '@shared/enums/assetCategory';
+import { ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
+import { CAMPUS_LABELS } from '@shared/constants/campuses';
+import { LOAN_STATUS_LABELS } from '@shared/constants/loanStatuses';
+import { MAINTENANCE_STATUS_LABELS } from '@shared/constants/maintenanceStatuses';
+import { RETIREMENT_PATHWAY_LABELS, RETIREMENT_STATUS_LABELS } from '@shared/constants/retirementStatuses';
+import { INSPECTION_TYPE_LABELS } from '@shared/constants/inspectionTypes';
+import { ACTIVITY_EVENT_LABELS } from '@shared/constants/activityEvents';
 import * as assetsRepository from './assets.repository';
 import type { EditRows } from './assets.repository';
 import * as authRepository from '../auth/auth.repository';
-import { RETIREMENT_PATHWAY_LABELS } from '@shared/constants/retirementStatuses';
 import { checkAssetImage, UNKNOWN_CUSTODIAN } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+/** A DATE column as yyyy-mm-dd, or null. */
+const dateOnly = (d: Date | null) => (d ? d.toISOString().split("T")[0] : null);
+
+/** A display date such as "Oct 9, 2026". */
+const displayDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+/** A person row with the name fields the answers use. */
+type NamedPerson = { user_id: number; first_name: string; last_name: string };
+
 /**
- * Lists every asset with its current state, shaped for the screens.
- * Each asset's state is read from its newest record (ties on date_logged go to the higher asset_record_id),
- * its due date from the newest approved loan, and its disposal details from the disposal's packed reason text.
- * A Custodian gets no other person's name (D2): not the holder of an asset they do not hold (which is marked
- * `custodianHidden` instead), not the disposal's last custodian or requester, and inside each asset not the
- * custodian of a record, the people of a transfer they are not part of, or the reporter of a report.
+ * The person as this viewer may see them: a Researcher (the "Custodian" app role) sees only their own name and id;
+ * anyone else is `{ hidden: true }`. (D2)
+ */
+function personFor(viewer: SessionIdentity, person: NamedPerson | null): PersonRef | null {
+    if (!person) return null;
+    if (viewer.role === "Custodian" && person.user_id !== viewer.userId) return { hidden: true };
+    return { userId: person.user_id, name: `${person.first_name} ${person.last_name}` };
+}
+
+/** The name of a person the viewer may see, or undefined. */
+function shownName(person: PersonRef | null): string | undefined {
+    return person && 'userId' in person ? person.name : undefined;
+}
+
+/**
+ * Lists the assets with their state worked out on the server, shaped for the screens, optionally searched and filtered.
+ * The status is the stored one; holder, current location, condition, overdue, and the open loan come from the loan
+ * and inspection rows (shared/services/assetState.ts), read for the whole list at once: the number of queries does
+ * not grow with the number of assets.
+ * A Researcher gets no other person's name (D2): the holder becomes `{ hidden: true }` and the older custodian fields
+ * are left out, as are the disposal's requester and the reporters of other people's reports.
  *
  * @param viewer the session user
- * @returns one AssetListItem per assets row, with its records, transfers, and reports
+ * @param filters `q` (part of the tag, serial number, or name, in any letter case), `status`, and `centerId`, each optional
+ * @returns one AssetListItem per matching asset, by asset id
  */
-// TODO(M-01): nine whole tables are loaded and joined in code on every call, and most screens call it. 01D rewrites it as targeted queries, in its own commit (issue #76).
-// TODO(H-13): reporterRole reads a `role` field users does not have, so it is always "Inspection Inspector"; and the condition score checks spellings the condition enum does not have. A small fix.
-export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem[]> {
-    // Whether this caller may see the name of the person with this id: everyone but a Custodian sees every name. (D2)
-    const nameShown = (userId: number) => viewer.role !== "Custodian" || userId === viewer.userId;
+export async function listAssets(viewer: SessionIdentity, filters: AssetListFilters = {}): Promise<AssetListItem[]> {
+    const dbAssets = await assetsRepository.findForList(filters);
+    const [states, inspections, retirements] = await assetsRepository.findListExtras(dbAssets);
 
-    const [dbAssets, dbMonetaries, dbRecords, dbUsers, dbLoans, dbDisposals, dbTransfers, dbReports, dbProjects] = await assetsRepository.findListTables();
+    return dbAssets.map(asset => {
+        const state = states.get(asset.asset_id)!;
+        const loan = state.openLoan;
+        const holder: PersonRef | null = state.holder
+            ? (viewer.role === "Custodian" && state.holder.userId !== viewer.userId ? { hidden: true } : { ...state.holder })
+            : null;
+        const holderShown = holder && 'userId' in holder ? holder : null;
+        const center = asset.research_centers;
 
-    const formatDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    const MS_PER_DAY = 1000 * 60 * 60 * 24;
-
-    const formatted = dbAssets.map(asset => {
-        const monetary = dbMonetaries.find(m => m.asset_id === asset.asset_id);
-
-        // dbRecords is newest first, so the first match is the newest record.
-        const records = dbRecords.filter(r => r.asset_id === asset.asset_id);
-        const latestRecord = records[0];
-
-        let custodianName = "";
-        let custodianId: number | undefined;
-        let custodianHidden = false;
-        let status = "Active";
-        let location = "Manila";
-        let lab = "CITe4D";
         let borrowedOn: string | undefined;
         let dueDate: string | undefined;
         let daysLeft: number | undefined;
-
-        if (latestRecord) {
-            // The placeholder stands for "nobody holds it", so it is not named. (answer 1 of the 13c questions)
-            const custodian = latestRecord.current_custodian === POOL_CUSTODIAN_ID
-                ? undefined
-                : dbUsers.find(u => u.user_id === latestRecord.current_custodian);
-            if (custodian && !nameShown(custodian.user_id)) {
-                custodianHidden = true;
-            } else if (custodian) {
-                custodianName = `${custodian.first_name} ${custodian.last_name}`;
-                custodianId = custodian.user_id;
-            }
-
-            const st = latestRecord.status;
-            if (st === "ACTIVE") status = "Active";
-            else if (st === "ON_LOAN") status = "On Loan";
-            else if (st === "MAINTENANCE") status = "Maintenance";
-            else if (st === "DISPOSED") status = "Disposed";
-
-            const parts = latestRecord.location.split(" — ");
-            if (parts[0]) location = parts[0];
-            if (parts[1]) lab = parts[1];
-
-            // The due date comes from the asset's newest approved loan (dbLoans is newest first), matched by
-            // asset alone, not by borrower: a transfer moves custody without touching the loan row, and the
-            // new custodian still needs the same due date.
-            // TODO(H-04): a loan returned before issue #99 stays approved (old rows, as CCS Cloud holds), so an asset put On Loan later by a transfer can show that old loan's dates. It closes at the asset's next return.
-            if (st === "ON_LOAN") {
-                const loan = dbLoans.find(l => l.asset_id === asset.asset_id);
-                if (loan) {
-                    borrowedOn = formatDate(loan.requested_at);
-                    dueDate = formatDate(loan.return_by);
-                    daysLeft = Math.ceil((loan.return_by.getTime() - Date.now()) / MS_PER_DAY);
-                    if (daysLeft < 0) status = "Overdue";
-                }
-            }
+        if (state.holder && loan) {
+            borrowedOn = displayDate(loan.releasedAt ?? loan.requestedAt);
+            dueDate = displayDate(loan.returnBy);
+            daysLeft = Math.ceil((loan.returnBy.getTime() - Date.now()) / MS_PER_DAY);
         }
 
-        // The disposal named by the newest record, or else any approved disposal of the asset.
-        // TODO(M-13): the pathway and justification are parsed back out of the packed reason text. Columns of their own, Phase 3.
-        const disposal = dbDisposals.find(d =>
-            (latestRecord?.retirement_id && d.retirement_id === latestRecord.retirement_id) ||
-            (d.asset_id === asset.asset_id && d.status === asset_retirements_status.COMPLETED)
-        );
-        const disposerUser = disposal ? dbUsers.find(u => u.user_id === disposal.requested_by_id) : null;
-        const disposerHidden = !!disposerUser && !nameShown(disposerUser.user_id);
-
-        let disposalDetails: any = undefined;
+        // The disposal details of a retired asset, from its newest completed retirement.
+        // TODO(M-13): the justification and the last custodian are parsed back out of the packed reason text. Batch 5 stores them in columns.
+        const disposal = asset.status === "RETIRED" ? retirements.find(r => r.asset_id === asset.asset_id) : undefined;
+        let disposalDetails: AssetListItem['disposalDetails'];
         if (disposal) {
             const reasonText = disposal.reason || "";
             const pathwayMatch = reasonText.match(/Disposal Pathway:\s*(.+)/i);
-            const pathway = pathwayMatch ? pathwayMatch[1].trim() : "Decommission — Scrap / Recycle";
-            // The migration moved a parsed pathway line out of the reason into its own column. (M-13)
-            const pathwayFromColumn = disposal.pathway ? RETIREMENT_PATHWAY_LABELS[disposal.pathway] : null;
             const justificationMatch = reasonText.match(/Breakdown Justification:\s*([\s\S]+)/i);
-            const justification = justificationMatch ? justificationMatch[1].trim() : reasonText;
-
+            const lastCustodianMatch = reasonText.match(/Last Custodian:\s*(.+)/i);
             disposalDetails = {
-                lastCustodian: custodianHidden ? undefined : (custodianName || "No Custodian"),
-                breakdownReasons: justification || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
-                disposalPathway: pathwayFromColumn ?? pathway,
-                decommissionDate: formatDate(disposal.requested_at),
-                decommissionedBy: disposerHidden ? undefined : (disposerUser ? `${disposerUser.first_name} ${disposerUser.last_name}` : "AdRIC Director"),
+                lastCustodian: viewer.role === "Custodian" ? undefined : (lastCustodianMatch ? lastCustodianMatch[1].trim() : "No Custodian"),
+                breakdownReasons: (justificationMatch ? justificationMatch[1].trim() : reasonText) || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
+                disposalPathway: disposal.pathway ? RETIREMENT_PATHWAY_LABELS[disposal.pathway] : (pathwayMatch ? pathwayMatch[1].trim() : "Not recorded"),
+                decommissionDate: displayDate(disposal.completed_at ?? disposal.requested_at),
+                decommissionedBy: shownName(personFor(viewer, disposal.users)),
             };
         }
 
-        const recordWithRemarks = records.find(r => r.Asset_Remarks && String(r.Asset_Remarks).trim() !== "");
-        const remarksText = recordWithRemarks?.Asset_Remarks || latestRecord?.Asset_Remarks || null;
+        const remarksText = state.condition?.remarks || null;
+        const acquisitionValue = asset.acquisition_value === null ? null : Number(asset.acquisition_value);
 
-        const rawCond = latestRecord?.asset_condition || "";
-        let calculatedCondition = 100;
-        if (rawCond.includes("35") || rawCond === "CRITICAL_DEFECT" || rawCond === "CRITICAL") calculatedCondition = 35;
-        else if (rawCond.includes("60") || rawCond === "DEGRADED" || rawCond === "DEGRADED_PERFORMANCE") calculatedCondition = 60;
-        else if (rawCond.includes("78") || rawCond === "MINOR_DRIFT") calculatedCondition = 78;
-        else if (rawCond.includes("90") || rawCond === "OPERATIONAL") calculatedCondition = 90;
-        else if (rawCond.includes("100") || rawCond === "PERFECT" || rawCond === "BRAND_NEW") calculatedCondition = 100;
-
-        const mappedRecords = records.map(r => {
-            const cUser = dbUsers.find(u => u.user_id === r.current_custodian);
-            return {
-                id: r.asset_record_id,
-                created_at: r.date_logged ? r.date_logged.toISOString() : new Date().toISOString(),
-                date_logged: r.date_logged ? formatDate(r.date_logged) : "N/A",
-                status: r.status,
-                condition: r.asset_condition,
-                location: r.location,
-                currentLocation: r.current_location || undefined,
-                custodian: cUser ? (nameShown(cUser.user_id) ? `${cUser.first_name} ${cUser.last_name}` : undefined) : "System Custodian",
-                remarks: r.Asset_Remarks || "Log entry recorded in asset lifecycle registry."
-            };
-        });
-
-        const assetTransfers = dbTransfers.filter(t => t.asset_id === asset.asset_id);
-        const mappedTransfers = assetTransfers.map(t => {
-            const fromUser = dbUsers.find(u => u.user_id === t.from_custodian_id);
-            const toUser = dbUsers.find(u => u.user_id === t.to_custodian_id);
-            // As in GET /api/asset_transfers: a Custodian sees both names only on a transfer they are part of.
-            const namesShown = nameShown(t.from_custodian_id) || nameShown(t.to_custodian_id);
-            return {
-                transfer_id: t.transfer_id,
-                id: `TR-${t.transfer_id}`,
-                asset_id: t.asset_id,
-                assetId: asset.asset_tag,
-                from_custodian_id: t.from_custodian_id,
-                to_custodian_id: t.to_custodian_id,
-                from: !namesShown ? undefined : fromUser ? `${fromUser.first_name} ${fromUser.last_name}` : `Custodian ID: ${t.from_custodian_id}`,
-                to: !namesShown ? undefined : toUser ? `${toUser.first_name} ${toUser.last_name}` : `Custodian ID: ${t.to_custodian_id}`,
-                requested_on: t.requested_on ? formatDate(t.requested_on) : "N/A",
-                initiated: t.requested_on ? formatDate(t.requested_on) : "N/A",
-                created_at: t.requested_on ? t.requested_on.toISOString() : new Date().toISOString(),
-                status: t.status,
-                justification: t.justification || "Custodianship transfer request",
-                lab: location || "CITe4D"
-            };
-        });
-
-        const assetReports = dbReports.filter(r => r.asset_id === asset.asset_id);
-        const mappedReports = assetReports.map(r => {
-            const rUser = dbUsers.find(u => u.user_id === r.inspected_by_id);
-            return {
-                id: r.inspection_id,
-                reportId: `RPT-${r.inspection_id}`,
-                assetId: asset.asset_tag,
-                reportedBy: rUser ? (nameShown(rUser.user_id) ? `${rUser.first_name} ${rUser.last_name}` : undefined) : "Staff",
-                reporterRole: rUser?.role || "Inspection Inspector",
-                reportDate: r.inspected_at ? formatDate(r.inspected_at) : "N/A",
-                date_logged: r.inspected_at ? formatDate(r.inspected_at) : "N/A",
-                created_at: r.inspected_at ? r.inspected_at.toISOString() : new Date().toISOString(),
-                condition: r.condition,
-                remarks: r.remarks || "Routine physical inspection logged in AdRIC registry.",
-                image: r.photo || undefined,
-                status: "Verified Inspection"
-            };
-        });
+        const reports = inspections.filter(r => r.asset_id === asset.asset_id).map(r => ({
+            id: r.inspection_id,
+            reportId: `RPT-${r.inspection_id}`,
+            assetId: asset.asset_tag,
+            reportedBy: shownName(personFor(viewer, r.users)),
+            reporterRole: INSPECTION_TYPE_LABELS[r.type],
+            reportDate: displayDate(r.inspected_at),
+            date_logged: displayDate(r.inspected_at),
+            created_at: r.inspected_at.toISOString(),
+            condition: r.condition,
+            remarks: r.remarks || "Routine physical inspection logged in AdRIC registry.",
+            image: r.photo || undefined,
+            status: "Verified Inspection",
+        }));
 
         return {
-            id: asset.asset_tag,
+            assetId: asset.asset_id,
+            tag: asset.asset_tag,
             name: asset.name,
-            serial: asset.serial_number || "",
-            manufacturer: asset.manufacturer || "",
+            serialNumber: asset.serial_number,
+            manufacturer: asset.manufacturer,
             category: asset.category,
-            funding: monetary?.funding_source || "Unspecified",
-            cost: monetary ? Number(monetary.acquisition_value) : 0,
-            procured: asset.procurement_date ? asset.procurement_date.toISOString().split("T")[0] : "",
-            warranty: asset.warranty_expiry ? asset.warranty_expiry.toISOString().split("T")[0] : "",
-            location,
-            lab,
-            // Where the asset is right now ("Campus — Lab": a loan or transfer destination, or the TSG Office
-            // during a repair), unlike location and lab above, which are always its home.
-            currentLocation: latestRecord?.current_location || undefined,
-            status,
-            condition: calculatedCondition,
-            assetCondition: latestRecord?.asset_condition || "PERFECT",
-            custodian: custodianName || undefined,
-            custodianId,
-            custodianHidden: custodianHidden ? (true as const) : undefined,
+            categoryLabel: ASSET_CATEGORY_LABELS[asset.category as AssetCategory],
+            status: asset.status,
+            statusLabel: ASSET_STATUS_LABELS[asset.status],
+            homeLab: { centerId: center.center_id, code: center.short_code, name: center.name, campus: center.location, campusLabel: CAMPUS_LABELS[center.location] },
+            homeRoom: asset.home_room,
+            currentLocation: state.currentLocation,
+            holder,
+            condition: state.condition?.condition ?? null,
+            conditionLabel: state.condition ? ASSET_CONDITION_LABELS[state.condition.condition] : null,
+            healthScore: state.condition?.healthScore ?? null,
+            isOverdue: state.isOverdue,
+            openLoan: loan ? { loanId: loan.loanId, status: loan.status, returnBy: dateOnly(loan.returnBy)! } : null,
+            project: asset.projects ? { projectId: asset.projects.project_id, code: asset.projects.project_code, name: asset.projects.project_name } : null,
+            fundingSource: asset.funding_sources ? { fundingSourceId: asset.funding_sources.funding_source_id, name: asset.funding_sources.name } : null,
+            acquisitionValue,
+            procurementDate: dateOnly(asset.procurement_date),
+            warrantyExpiry: dateOnly(asset.warranty_expiry),
+            accessories: asset.accessories,
+            itsPropertyTag: asset.its_property_tag,
+            tsgTag: asset.tsg_tag,
+            imageUrl: asset.image_url,
+
+            id: asset.asset_tag,
+            serial: asset.serial_number || "",
+            funding: asset.funding_sources?.name || "Unspecified",
+            cost: acquisitionValue ?? 0,
+            procured: dateOnly(asset.procurement_date) ?? "",
+            warranty: dateOnly(asset.warranty_expiry) ?? "",
+            location: CAMPUS_LABELS[center.location],
+            lab: center.short_code,
+            assetCondition: state.condition?.condition,
+            custodian: holderShown?.name,
+            custodianId: holderShown?.userId,
+            custodianHidden: holder && !holderShown ? (true as const) : undefined,
             borrowedOn,
             dueDate,
             daysLeft,
@@ -222,104 +179,70 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
             remarks: remarksText || undefined,
             tsgRemarks: remarksText || undefined,
             itsRemarks: remarksText || undefined,
-            asset_records: mappedRecords,
-            asset_transfers: mappedTransfers,
-            asset_reports: mappedReports,
-            asset_monetary: monetary ? {
-                asset_monetary_id: monetary.asset_monetary_id,
-                asset_id: monetary.asset_id,
-                acquisition_value: Number(monetary.acquisition_value),
-                funding_source: monetary.funding_source
-            } : {
-                acquisition_value: 0,
-                funding_source: "Unspecified"
-            }
+            asset_reports: reports,
+            asset_monetary: { acquisition_value: acquisitionValue ?? 0, funding_source: asset.funding_sources?.name || "Unspecified" },
         };
     });
-
-    return formatted;
 }
 
 /**
- * Who has held an asset, oldest first: one entry per asset record, with its custodian.
- * The tag is tried as an asset id when no asset has it, as the inspection route does.
- * A Custodian gets the name only of their own entries; another holder's entry has no name and is marked
- * `custodianHidden` (answer 6 of the 13c questions).
- * Only a Lab Head gets the custodian's email, the one role whose screen shows it (the full Custodian History view). (01C 4.2)
+ * One asset's history, oldest first: its loans, inspections, maintenance tickets, and retirements, step by step, and
+ * its activity log rows (registered, edited, missing, found). The tag is tried as an asset id when no asset has it.
+ * A Researcher sees only their own name; everyone else is `{ hidden: true }`. (D2)
  *
  * @param assetTag the asset's tag, or its numeric id
  * @param viewer the session user
- * @returns the asset's tag and name and the entries, numbered from 1
+ * @returns the asset's tag and name and its events
  * @throws AppError 404 if neither the tag nor the id matches an asset
  */
-export async function custodianHistory(assetTag: string, viewer: SessionIdentity): Promise<CustodianHistory> {
-    let asset = await assetsRepository.findByTag(assetTag);
-
+export async function assetHistory(assetTag: string, viewer: SessionIdentity): Promise<AssetHistory> {
+    let asset: assets | null = await assetsRepository.findByTag(assetTag);
     if (!asset && !isNaN(Number(assetTag))) {
         asset = await assetsRepository.findById(Number(assetTag));
     }
-
     if (!asset) {
         throw new AppError(404, "Asset not found in database.");
     }
 
-    const records = await assetsRepository.findRecordsWithCustodian(asset.asset_id);
-
-    const history: any[] = [];
-    const showsEmail = viewer.role === "LabHead";
-
-    for (let i = 0; i < records.length; i++) {
-        const r = records[i];
-        // An entry held by the placeholder ("nobody holds it") names no one: no name and no email.
-        // No entry carries the holder's id number: no screen shows it (answer 6 of the 13c questions).
-        const holder = r.current_custodian === POOL_CUSTODIAN_ID ? null : r.users;
-        const hidden = !!holder && viewer.role === "Custodian" && holder.user_id !== viewer.userId;
-        const custodianName = hidden ? undefined : holder ? `${holder.first_name} ${holder.last_name}` : (r.users ? undefined : "Unknown Custodian");
-        const custodianEmail = hidden || !showsEmail ? undefined : holder ? holder.email : (r.users ? undefined : "");
-
-        history.push({
-            sequence: i + 1,
-            recordId: r.asset_record_id,
-            custodianName,
-            custodianEmail,
-            custodianHidden: hidden ? (true as const) : undefined,
-            status: r.status,
-            location: r.location,
-            currentLocation: r.current_location || undefined,
-            condition: r.asset_condition,
-            remarks: r.Asset_Remarks || (i === 0 ? "Initial Asset Registration Intake Record" : "Custody Update Record"),
-            dateLogged: r.date_logged.toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit"
-            }),
-            isCurrent: i === records.length - 1
-        });
-    }
-
-    if (history.length === 0) {
-        // TODO(H-09): an asset with no records gets an invented entry (a placeholder custodian and email, at "DLSU Campus"). Remove it, or say there is no history.
-        history.push({
-            sequence: 1,
-            custodianName: "Equipment Custodian",
-            custodianEmail: showsEmail ? "custodian@dlsu.edu.ph" : undefined,
-            status: "ACTIVE",
-            location: "DLSU Campus",
-            condition: "PERFECT",
-            remarks: "Initial Asset Registration Intake Record",
-            dateLogged: asset.procurement_date ? asset.procurement_date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-            isCurrent: true
-        });
-    }
-
-    return {
-        assetTag: asset.asset_tag,
-        assetName: asset.name,
-        historyCount: history.length,
-        custodianHistory: history // Sorted from oldest to newest (1..N)
+    const [loans, inspections, tickets, retirements, activity] = await assetsRepository.findHistoryRows(asset.asset_id);
+    const events: AssetHistoryEvent[] = [];
+    const add = (at: Date | null, kind: string, label: string, actor: NamedPerson | null, details: string | null, ids: Partial<AssetHistoryEvent> = {}) => {
+        if (at) events.push({ at: at.toISOString(), kind, label, actor: personFor(viewer, actor), details, ...ids });
     };
+
+    for (const l of loans) {
+        const ids = { loanId: l.loan_id };
+        add(l.requested_at, "LOAN_REQUESTED", "Loan requested", l.users, null, ids);
+        if (l.decided_at) {
+            const declined = l.status === "DECLINED";
+            add(l.decided_at, declined ? "LOAN_DECLINED" : "LOAN_APPROVED", declined ? "Loan declined" : "Loan approved", l.decided_by, l.decision_remarks, ids);
+        }
+        add(l.released_at, "LOAN_RELEASED", "Released to the borrower", l.released_by, null, ids);
+        add(l.return_requested_at, "LOAN_RETURN_REQUESTED", "Return requested", l.users, null, ids);
+        add(l.closed_at, "LOAN_CLOSED", `Loan closed: ${LOAN_STATUS_LABELS[l.status]}`, l.received_by, l.remarks, ids);
+    }
+    for (const i of inspections) {
+        add(i.inspected_at, "INSPECTION", `${INSPECTION_TYPE_LABELS[i.type]} inspection: ${ASSET_CONDITION_LABELS[i.condition]}`, i.users, i.remarks, { inspectionId: i.inspection_id });
+    }
+    for (const t of tickets) {
+        const ids = { maintenanceId: t.maintenance_id };
+        add(t.reported_at, "MAINTENANCE_REPORTED", "Issue reported", t.users, t.issue_description, ids);
+        add(t.received_at, "MAINTENANCE_RECEIVED", "Received by TSG", t.received_by, null, ids);
+        add(t.completed_at, "MAINTENANCE_COMPLETED", `Maintenance closed: ${MAINTENANCE_STATUS_LABELS[t.status]}`, t.completed_by, t.resolution_remarks, ids);
+    }
+    for (const r of retirements) {
+        const ids = { retirementId: r.retirement_id };
+        add(r.requested_at, "RETIREMENT_REQUESTED", "Retirement requested", r.users, null, ids);
+        add(r.decided_at, "RETIREMENT_DECIDED", `Retirement decided: ${RETIREMENT_STATUS_LABELS[r.status]}`, r.decided_by, r.decision_remarks, ids);
+        add(r.completed_at, "RETIREMENT_COMPLETED", "Retired", r.completed_by, r.disposition_reference, ids);
+    }
+    for (const a of activity) {
+        add(a.created_at, a.event_type, ACTIVITY_EVENT_LABELS[a.event_type], a.actor, a.details);
+    }
+
+    // Oldest first. The sort keeps the order above for steps saved in the same second.
+    events.sort((x, y) => x.at.localeCompare(y.at));
+    return { assetTag: asset.asset_tag, assetName: asset.name, events };
 }
 
 /** The stored category for any spelling ("Dev Kit" becomes DEV_KIT), or DEV_KIT when it is missing or not a category. */
@@ -330,15 +253,34 @@ function sanitizeCategory(cat: any): any {
 }
 
 /**
- * Registers a new asset: its assets row, its monetary row, and its first record (ACTIVE, PERFECT, at its home lab).
- * The tag is the lab code and the next free number for that lab, for example "CeLT-0005".
+ * The funding_sources row a form's funding text names, by name. Empty and "Unspecified" mean none.
+ *
+ * @param funding the funding text the form sent, or undefined
+ * @returns the funding source id, null for none, or undefined when the text was not sent
+ * @throws AppError 400 if the text names no funding source
+ */
+async function fundingSourceIdFor(funding: string | undefined): Promise<number | null | undefined> {
+    if (funding === undefined) return undefined;
+    const name = String(funding).trim();
+    if (!name || name === "Unspecified") return null;
+    const row = await assetsRepository.findFundingSourceByName(name);
+    if (!row) {
+        throw new AppError(400, "Pick a funding source from the list.");
+    }
+    return row.funding_source_id;
+}
+
+/**
+ * Registers a new asset: its assets row, at its home lab, with the funding source and acquisition value sent.
+ * Its status starts Available. The tag is the lab code and the next free number for that lab, for example "CeLT-0005".
  *
  * @param data the checked body
  * @returns the created assets row and its tag
  * @throws AppError 400 if the picture is text but not an image
  * @throws AppError 400 if the lab is not a known research center: the asset's home lab is stored on it
+ * @throws AppError 400 if the funding text names no funding source
  */
-// TODO(H-11): the next number is read before the transaction, so two registrations in the same lab at once can pick the same tag; the second then fails with a 500. Move it into the transaction, its own commit (issue #75).
+// TODO(H-11): the next number is read before the insert, so two registrations in the same lab at once can pick the same tag; the second then fails with a 500. Batch 1 commit 8 locks the lab row (issue #75).
 export async function registerAsset(data: AssetCreateInput): Promise<{ asset: assets; assetTag: string }> {
     const imageVal = data.image || data.image_url || data.imageUrl || null;
     checkAssetImage(imageVal);
@@ -353,6 +295,8 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
     if (!lab) {
         throw new AppError(400, "Pick a lab from the list.");
     }
+    const fundingSourceId = await fundingSourceIdFor(data.funding);
+
     // The lab's own short code, so the tag prefix always matches its lab letter for letter.
     const labPrefix = lab.short_code;
     const existingLabAssets = await assetsRepository.findTagsWithPrefix(labPrefix);
@@ -370,40 +314,25 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
     const nextSeq = maxSeq + 1;
     const assetTag = `${labPrefix}-${String(nextSeq).padStart(4, "0")}`;
 
-    const asset = await assetsRepository.createWithRecords(
-        {
-            asset_tag: assetTag,
-            center_id: lab.center_id,
-            name: data.name,
-            category: sanitizeCategory(data.category),
-            serial_number: data.serial || null,
-            manufacturer: data.manufacturer || null,
-            image_url: imageVal || null,
-            procurement_date: data.procured ? new Date(data.procured) : null,
-            warranty_expiry: data.warranty ? new Date(data.warranty) : null,
-        },
-        {
-            funding_source: data.funding || "Unspecified",
-            acquisition_value: data.acquisitionValue ?? 0,
-        },
-        {
-            status: "ACTIVE",
-            asset_condition: "PERFECT",
-            // assets has no lab column, so the home campus and lab are stored together on the record.
-            location: [data.location, data.lab].filter(Boolean).join(" — ") || "Unassigned",
-            // A new asset is at its home lab. Only loans, transfers, and repairs move it away.
-            current_location: [data.location, data.lab].filter(Boolean).join(" — ") || "Unassigned",
-            // The custodian id the body sends, else the placeholder: a new asset is held by nobody until a loan or transfer.
-            current_custodian: data.custodianId ?? POOL_CUSTODIAN_ID,
-            Asset_Remarks: data.remarks || data.description || data.tsgRemarks || data.itsRemarks || null,
-        },
-    );
+    const asset = await assetsRepository.createAsset({
+        asset_tag: assetTag,
+        center_id: lab.center_id,
+        name: data.name,
+        category: sanitizeCategory(data.category),
+        serial_number: data.serial || null,
+        manufacturer: data.manufacturer || null,
+        image_url: imageVal || null,
+        procurement_date: data.procured ? new Date(data.procured) : null,
+        warranty_expiry: data.warranty ? new Date(data.warranty) : null,
+        funding_source_id: fundingSourceId ?? null,
+        acquisition_value: data.acquisitionValue === undefined || data.acquisitionValue === "" ? null : data.acquisitionValue,
+    });
 
     return { asset, assetTag };
 }
 
 /**
- * Saves an edit: the assets fields that were sent and the monetary row; a new record when the edit changes the asset's
+ * Saves an edit: the assets fields that were sent (funding and value included); a new record when the edit changes the asset's
  * status, location, custodian, condition, or remarks; and, when the edit carries a condition or remarks, a new
  * inspection report, whose condition the new record takes. An existing record is never changed (issue #74), so the
  * custodian history keeps every earlier state.
@@ -414,7 +343,8 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
  * @returns the assets row, updated or as it was
  * @throws AppError 404 if no asset has this tag
  * @throws AppError 400 if custodianId is not a Custodian account; if the edit sends a status or custodian and would
- *   leave the asset available with a person; or if the picture is text but not an image. Nothing is saved.
+ *   leave the asset available with a person; if the picture is text but not an image; or if the funding text names no
+ *   funding source. Nothing is saved.
  */
 export async function updateAsset(assetTag: string, data: AssetUpdateInput, editorId: number): Promise<assets> {
     const existing = await assetsRepository.findByTag(assetTag);
@@ -456,22 +386,12 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
     if (data.procured !== undefined) assetUpdateData.procurement_date = data.procured ? new Date(data.procured) : null;
     if (data.warranty !== undefined) assetUpdateData.warranty_expiry = data.warranty ? new Date(data.warranty) : null;
 
-    // An existing monetary row gets only the fields sent, so a value alone keeps the funding source. (M-16, issue #74)
-    const monetaryUpdate: { funding_source?: string; acquisition_value?: number | string } = {};
-    if (data.funding !== undefined) monetaryUpdate.funding_source = data.funding || "Unspecified";
-    if (data.acquisitionValue !== undefined) monetaryUpdate.acquisition_value = data.acquisitionValue;
-    const monetary = (data.funding !== undefined || data.acquisitionValue !== undefined)
-        ? {
-            update: monetaryUpdate,
-            create: {
-                asset_id: existing.asset_id,
-                funding_source: data.funding || "Unspecified",
-                acquisition_value: data.acquisitionValue ?? 0,
-            },
-        }
-        : null;
+    // Only the fields sent are written, so a value alone keeps the funding source. (M-16, issue #74)
+    const fundingSourceId = await fundingSourceIdFor(data.funding);
+    if (fundingSourceId !== undefined) assetUpdateData.funding_source_id = fundingSourceId;
+    if (data.acquisitionValue !== undefined) assetUpdateData.acquisition_value = data.acquisitionValue === "" ? null : data.acquisitionValue;
 
-    return assetsRepository.saveEdit(existing, assetUpdateData, monetary, (latestRecord: asset_records | null) => {
+    return assetsRepository.saveEdit(existing, assetUpdateData, (latestRecord: asset_records | null) => {
         const remarksProvided = data.remarks !== undefined || data.description !== undefined || data.tsgRemarks !== undefined || data.itsRemarks !== undefined;
         const rawRemarks = data.remarks ?? data.description ?? data.tsgRemarks ?? data.itsRemarks;
         const remarksVal = remarksProvided ? (rawRemarks || null) : (latestRecord?.Asset_Remarks ?? null);

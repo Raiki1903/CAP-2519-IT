@@ -82,6 +82,8 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       manufacturer: "Test Manufacturer",
       procurement_date: new Date("2025-06-01"),
       warranty_expiry: new Date("2027-06-01"),
+      funding_source_id: LOOKUPS.fundingSources[0].fundingSourceId,
+      acquisition_value: a.acquisitionValue,
     })),
   });
   await prisma.asset_monetary.createMany({
@@ -144,6 +146,9 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
         requested_at: AT.loanApproved,
         return_by: new Date(Date.now() + 30 * DAY_MS),
         status: "ON_LOAN",
+        destination_center_id: LAB.centerId,
+        decided_by_id: USERS.labHead.userId,
+        decided_at: AT.loanApproved,
       },
       {
         loan_id: SEEDED_ROWS.pendingLoanId,
@@ -153,6 +158,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
         requested_at: AT.pendingLoanFiled,
         return_by: new Date(Date.now() + 14 * DAY_MS),
         status: "PENDING_APPROVAL",
+        destination_center_id: LAB.centerId,
       },
     ],
   });
@@ -166,6 +172,8 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       is_immediate: false,
       status: "INSPECTING",
       reported_at: AT.repairReported,
+      received_by_id: USERS.staffTsg.userId,
+      received_at: AT.intoMaintenance,
     },
   });
 
@@ -177,6 +185,11 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       reason: "Disposal Pathway: Test pathway\n\nBreakdown Justification:\nTest breakdown: the board is burnt",
       requested_at: AT.disposalFiled,
       status: "COMPLETED",
+      previous_status: "AVAILABLE",
+      decided_by_id: USERS.director.userId,
+      decided_at: AT.disposed,
+      completed_by_id: USERS.director.userId,
+      completed_at: AT.disposed,
     },
   });
 

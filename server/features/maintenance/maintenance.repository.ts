@@ -1,10 +1,14 @@
 /**
  * Repair row access: every database read and write the repair endpoints make.
- * Layer: repository. Called by maintenance.service.ts. Calls server/config/prisma.ts.
+ * Layer: repository. Called by maintenance.service.ts. Calls server/config/prisma.ts, shared/services/assetStatus.ts,
+ * and shared/services/rowLocks.ts.
  * Used by: Custodian repair request, Staff repair queue and progress updates, and the screens that list repairs.
  */
-import type { Prisma, asset_maintenance_status, asset_records } from '@prisma/client';
+import { asset_inspections_type, asset_loans_status, type Prisma, type asset_condition, type asset_maintenance, type asset_maintenance_status } from '@prisma/client';
+import { HELD_LOAN_STATUSES } from '@shared/constants/loanStatuses';
 import { prisma } from '../../config/prisma';
+import { setAssetStatus } from '../../shared/services/assetStatus';
+import { lockAsset } from '../../shared/services/rowLocks';
 
 /** Inserts an asset_maintenance row and returns it. */
 export function create(data: Prisma.asset_maintenanceUncheckedCreateInput) {
@@ -31,77 +35,89 @@ export function findById(repairId: number) {
     return prisma.asset_maintenance.findUnique({ where: { maintenance_id: repairId } });
 }
 
-/** What a "Fixed & Completed" update appends: the record that restores the asset, and an inspection report. */
-export interface CompletionRows {
-    record: Prisma.asset_recordsUncheckedCreateInput;
-    report: Prisma.asset_inspectionsUncheckedCreateInput;
-}
-
 /** A ticket's new status, and who has the asset when an outside service has it. */
 export interface TicketProgress {
     status: asset_maintenance_status;
     provider?: string;
 }
 
+/** The ticket fields a progress change writes. */
+function progressData(progress: TicketProgress) {
+    return { status: progress.status, ...(progress.provider ? { provider: progress.provider } : {}) };
+}
+
 /**
- * Sets a ticket's status and moves the asset to match, in one transaction.
- * The asset's records are read inside the transaction, after the ticket update, and handed to
- * the service's builder; at most one of the two builders is given.
+ * Receives the asset for its ticket, in one transaction: the ticket's status with who received it and when, a held
+ * loan of the asset ended as Ended by Maintenance, and the asset set to Maintenance. The asset row is locked first.
  *
- * @param repairId the ticket to update
- * @param progress the new status, and the provider for an outside service
- * @param assetId the ticket's asset
- * @param buildCompletion for "Fixed & Completed": builds the restoring record and the report from the
- *   asset's newest record before maintenance and its newest record overall; null otherwise
- * @param buildMaintenanceRecord for a maintenance status: builds the MAINTENANCE record from the newest
- *   record, or returns null to write none; null otherwise
+ * @param ticket the ticket
+ * @param progress the received status it moves to
+ * @param staffId the session user who receives the asset
  * @returns the updated asset_maintenance row
  */
-export function saveProgress(
-    repairId: number,
-    progress: TicketProgress,
-    assetId: number,
-    buildCompletion: ((preMaintenanceRecord: asset_records | null, latestRecord: asset_records | null) => CompletionRows) | null,
-    buildMaintenanceRecord: ((latestRecord: asset_records | null) => Prisma.asset_recordsUncheckedCreateInput | null) | null,
-) {
-    // The ticket (asset_maintenance) and the asset's status (asset_records) are written together,
-    // so a failure on either leaves neither.
+export function saveReceipt(ticket: asset_maintenance, progress: TicketProgress, staffId: number) {
     return prisma.$transaction(async (tx) => {
+        await lockAsset(tx, ticket.asset_id);
+        const now = new Date();
         const repair = await tx.asset_maintenance.update({
-            where: { maintenance_id: repairId },
-            data: { status: progress.status, ...(progress.provider ? { provider: progress.provider } : {}) },
+            where: { maintenance_id: ticket.maintenance_id },
+            data: { ...progressData(progress), received_by_id: ticket.received_by_id ?? staffId, received_at: ticket.received_at ?? now },
         });
+        await tx.asset_loans.updateMany({
+            where: { asset_id: ticket.asset_id, status: { in: [...HELD_LOAN_STATUSES] } },
+            data: { status: asset_loans_status.ENDED_BY_MAINTENANCE, closed_at: now },
+        });
+        await setAssetStatus(tx, ticket.asset_id, "MAINTENANCE");
+        return repair;
+    });
+}
 
-        if (buildCompletion) {
-            // TODO(M-09): this read and the two below order by date_logged only, with no tie-break on asset_record_id, so two records logged in the same second can be read in the wrong order. Phase 3, with the shared asset state rule.
-            const preMaintenanceRecord = await tx.asset_records.findFirst({
-                where: { asset_id: assetId, status: { not: "MAINTENANCE" } },
-                orderBy: { date_logged: "desc" },
-            });
-
-            const latestRecord = await tx.asset_records.findFirst({
-                where: { asset_id: assetId },
-                orderBy: { date_logged: "desc" },
-            });
-
-            const { record, report } = buildCompletion(preMaintenanceRecord, latestRecord);
-
-            await tx.asset_records.create({ data: record });
-
-            // The completed repair also appears in the asset's inspection history.
-            await tx.asset_inspections.create({ data: report });
-        } else if (buildMaintenanceRecord) {
-            const latestRecord = await tx.asset_records.findFirst({
-                where: { asset_id: assetId },
-                orderBy: { date_logged: "desc" },
-            });
-
-            const record = buildMaintenanceRecord(latestRecord);
-            if (record) {
-                await tx.asset_records.create({ data: record });
-            }
+/**
+ * Completes a ticket as Resolved, in one transaction: a Maintenance inspection under the Staff member, the ticket
+ * closed with who completed it, when, the remarks, and the inspection, and an asset that was in Maintenance set back to
+ * Available. The asset row is locked first.
+ *
+ * @param ticket the ticket
+ * @param progress the Resolved status
+ * @param staffId the session user who completes it
+ * @param condition the condition after the repair
+ * @param remarks the completion remarks, cut to the inspection's 255 characters there
+ * @param wasInMaintenance whether the asset is in Maintenance, so goes back to Available
+ * @returns the updated asset_maintenance row
+ */
+export function saveCompletion(
+    ticket: asset_maintenance,
+    progress: TicketProgress,
+    staffId: number,
+    condition: asset_condition,
+    remarks: string,
+    wasInMaintenance: boolean,
+) {
+    return prisma.$transaction(async (tx) => {
+        await lockAsset(tx, ticket.asset_id);
+        // The completed repair also appears in the asset's inspection history, and sets its condition now.
+        const inspection = await tx.asset_inspections.create({
+            data: {
+                asset_id: ticket.asset_id,
+                inspected_by_id: staffId,
+                type: asset_inspections_type.MAINTENANCE,
+                condition,
+                remarks: remarks.slice(0, 255),
+            },
+        });
+        const repair = await tx.asset_maintenance.update({
+            where: { maintenance_id: ticket.maintenance_id },
+            data: {
+                ...progressData(progress),
+                completed_by_id: staffId,
+                completed_at: new Date(),
+                resolution_remarks: remarks,
+                completion_inspection_id: inspection.inspection_id,
+            },
+        });
+        if (wasInMaintenance) {
+            await setAssetStatus(tx, ticket.asset_id, "AVAILABLE");
         }
-
         return repair;
     });
 }
@@ -115,6 +131,6 @@ export function saveProgress(
 export function updateProgressStatus(repairId: number, progress: TicketProgress) {
     return prisma.asset_maintenance.update({
         where: { maintenance_id: repairId },
-        data: { status: progress.status, ...(progress.provider ? { provider: progress.provider } : {}) },
+        data: progressData(progress),
     });
 }

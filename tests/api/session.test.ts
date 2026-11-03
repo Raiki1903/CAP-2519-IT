@@ -47,7 +47,7 @@ const ROUTES: [number, string, string, Role[]][] = [
   [6, "GET", "/api/auth/me", ANY],
   [7, "PUT", "/api/auth/account", ANY],
   [9,"GET", "/api/assets", ANY],
-  [10, "GET", "/api/assets/NOPE-9999/custodian-history", ANY],
+  [10, "GET", "/api/assets/NOPE-9999/history", ANY],
   [11, "POST", "/api/assets", [S]],
   [12, "PUT", "/api/assets/NOPE-9999", [S]],
   [13, "DELETE", "/api/assets/NOPE-9999", [S]],

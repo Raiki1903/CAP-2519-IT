@@ -50,7 +50,8 @@ export function InventoryPage() {
     id: eq.id, name: eq.name, serial: eq.serial, manufacturer: eq.manufacturer,
     category: eq.category, funding: eq.funding, procured: eq.procured,
     warranty: eq.warranty, location: eq.location, currentLocation: eq.currentLocation, lab: eq.lab,
-    status: eq.status, condition: eq.condition, assetCondition: eq.assetCondition, custodian: eq.custodian,
+    status: eq.status, statusLabel: eq.statusLabel, condition: eq.condition, healthScore: eq.healthScore, isOverdue: eq.isOverdue,
+    assetCondition: eq.assetCondition, custodian: eq.custodian,
     description: eq.description || eq.remarks || "No additional Staff remarks recorded.",
     image: eq.image || eq.image_url,
     disposalId: eq.disposalId,
@@ -64,8 +65,8 @@ export function InventoryPage() {
 
     // Decommissioned subtab filtering
     const matchSubTab = inventorySubTab === "disposed"
-      ? eq.status === "Disposed"
-      : eq.status !== "Disposed";
+      ? eq.status === "RETIRED"
+      : eq.status !== "RETIRED";
 
     return matchSearch && matchFunding && matchLoc && matchSubTab;
   });
@@ -75,7 +76,7 @@ export function InventoryPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-foreground mb-1">Asset Inventory</h1>
-          <p className="text-muted-foreground text-sm">{displayedAssets.filter(a => a.status !== "Disposed").length} assets in service across 2 campuses</p>
+          <p className="text-muted-foreground text-sm">{displayedAssets.filter(a => a.status !== "RETIRED").length} assets in service across 2 campuses</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg overflow-hidden border border-border">
@@ -91,13 +92,13 @@ export function InventoryPage() {
           onClick={() => setInventorySubTab("active")}
           className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "active" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
         >
-          In Service ({displayedAssets.filter(a => a.status !== "Disposed").length})
+          In Service ({displayedAssets.filter(a => a.status !== "RETIRED").length})
         </button>
         <button
           onClick={() => setInventorySubTab("disposed")}
           className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "disposed" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
         >
-          Disposed ({displayedAssets.filter(a => a.status === "Disposed").length})
+          Disposed ({displayedAssets.filter(a => a.status === "RETIRED").length})
         </button>
       </div>
 
@@ -168,7 +169,7 @@ export function InventoryPage() {
               </TableHeader>
               <TableBody>
                 {sortedAssets.map(eq => (
-                  <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "Disposed" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset(openAsset(eq))}>
+                  <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "RETIRED" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset(openAsset(eq))}>
                     <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image || eq.image_url} /></div></TableCell>
                     <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                     <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>

@@ -96,7 +96,7 @@ describe("the server's own output", () => {
 });
 
 describe("the list screens", () => {
-  const custodianHistory = `/api/assets/${ASSETS.onLoan.tag}/custodian-history`;
+  const custodianHistory = `/api/assets/${ASSETS.onLoan.tag}/history`;
 
   it.each<[string, TestUser, string]>([
     ["Staff", USERS.staffTsg, "/api/assets"],

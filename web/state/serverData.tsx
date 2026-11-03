@@ -68,7 +68,7 @@ export function holderLabel(name: string | undefined, hidden?: boolean): string 
 }
 
 /** One asset as `GET /api/assets` returns it for display. */
-// TODO(H-13): the server also sends fields that are not declared here (asset_transfers, asset_reports, asset_monetary). The real shape belongs in shared/types. Step 12.
+// TODO(H-13): the server also sends fields that are not declared here (asset_reports, asset_monetary, and the contract fields). The real shape is AssetListItem in shared/types/assets.ts.
 export interface Asset {
   /** The asset tag, for example "CITe4D-0004". Not the numeric database id. */
   id: string;
@@ -83,10 +83,19 @@ export interface Asset {
   warranty: string;
   location: string;
   lab: string;
-  /** Display status, for example "Active", "On Loan", "Maintenance", "Overdue", or "Disposed". */
+  /** One of the six asset statuses, for example "ON_LOAN". */
   status: string;
-  /** Health score from 0 to 100. */
-  condition: number;
+  /** The status's label, for example "On Loan". */
+  statusLabel: string;
+  /** The newest TSG inspection's condition, or null when TSG never inspected it. */
+  condition: string | null;
+  /** The newest TSG inspection's health score, 0 to 100, or null. */
+  healthScore: number | null;
+  /** True when the asset is on loan past its return-by date. */
+  isOverdue: boolean;
+  /** "<lab short code>, <room>", "<lab short code>", or "TSG Office"; null when Missing or Retired. */
+  currentLocation: string | null;
+  assetCondition?: string;
   descriptiveCondition?: string;
   custodian?: string;
   /** The holder's user id, sent with `custodian`. Screens match people by it. (issue #32) */
@@ -236,7 +245,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
           setAssets(jsonAssets.assets);
           setAssetsVersion(v => v + 1);
           doneAssetTags = jsonAssets.assets
-            .filter((a: Asset) => a.status === "Active" || a.status === "Disposed")
+            .filter((a: Asset) => a.status === "AVAILABLE" || a.status === "RETIRED")
             .map((a: Asset) => a.id);
           // First guess at transfers and reports from the rows inside each asset.
           // The two dedicated requests below replace them when they succeed.

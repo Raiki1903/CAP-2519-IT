@@ -27,11 +27,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 
 const MINT = "#10B981";
 
+/** The average health score of the assets TSG has scored, as "NN", or "None yet" when none has a score. */
+function averageHealthScore(list: { healthScore?: number | null }[]): string {
+  const scores = list.map(a => a.healthScore).filter((s): s is number => typeof s === "number");
+  return scores.length === 0 ? "None yet" : String(Math.round(scores.reduce((acc, s) => acc + s, 0) / scores.length));
+}
+
 const statusClass: Record<string, string> = {
-  Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  "On Loan": "bg-blue-50   text-blue-700   border-blue-200",
-  Maintenance: "bg-amber-50  text-amber-700  border-amber-200",
-  Disposed: "bg-red-50    text-red-700    border-red-200",
+  AVAILABLE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  ON_LOAN: "bg-blue-50   text-blue-700   border-blue-200",
+  MAINTENANCE: "bg-amber-50  text-amber-700  border-amber-200",
+  PENDING_RETIREMENT: "bg-orange-50 text-orange-700 border-orange-200",
+  RETIRED: "bg-red-50    text-red-700    border-red-200",
+  MISSING: "bg-slate-100 text-slate-700  border-slate-300",
 };
 
 const txnBadgeClass: Record<string, string> = {
@@ -209,7 +217,10 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     currentLocation: eq.currentLocation,
     lab: eq.lab,
     status: eq.status,
+    statusLabel: eq.statusLabel,
     condition: eq.condition,
+    healthScore: eq.healthScore,
+    isOverdue: eq.isOverdue,
     assetCondition: eq.assetCondition,
     custodian: eq.custodian,
     image: eq.image || eq.image_url,
@@ -456,8 +467,8 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     return labMatches(currentUser?.labAffiliation, lab);
   };
 
-  const branchInventory = displayedAssets.filter(a => matchesBranch(a.lab) && a.status !== "Disposed");
-  const decommissionedAssets = displayedAssets.filter(a => matchesBranch(a.lab) && a.status === "Disposed");
+  const branchInventory = displayedAssets.filter(a => matchesBranch(a.lab) && a.status !== "RETIRED");
+  const decommissionedAssets = displayedAssets.filter(a => matchesBranch(a.lab) && a.status === "RETIRED");
 
   const branchLoanRequests: LoanRequest[] = dbLoans.filter(l => matchesBranch(l.lab));
   const branchDbTransfers = dbTransfers.filter(t => matchesBranch(t.lab));
@@ -763,10 +774,10 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
       {viewMode === "gallery" && (
         <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))" }}>
           {filtered.map(eq => (
-            <Card key={eq.id} className={cn("overflow-hidden p-0 gap-0 transition-all cursor-pointer", eq.status === "Disposed" ? "opacity-60 grayscale bg-muted/20 border-dashed border-muted-foreground/30 shadow-none hover:opacity-75" : "hover:shadow-md")} onClick={() => setSelectedAsset(openAsset(eq))}>
+            <Card key={eq.id} className={cn("overflow-hidden p-0 gap-0 transition-all cursor-pointer", eq.status === "RETIRED" ? "opacity-60 grayscale bg-muted/20 border-dashed border-muted-foreground/30 shadow-none hover:opacity-75" : "hover:shadow-md")} onClick={() => setSelectedAsset(openAsset(eq))}>
               <div className="relative">
                 <AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image || (eq as any).image_url} />
-                <Badge className={cn("absolute top-2 right-2 text-[9px]", statusClass[eq.status] ?? statusClass["Active"])}>{assetStatusLabel(eq.status)}</Badge>
+                <Badge className={cn("absolute top-2 right-2 text-[9px]", statusClass[eq.status] ?? statusClass["AVAILABLE"])}>{assetStatusLabel(eq.status)}</Badge>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-border">
                   <div className={cn("h-full w-full", CONDITION_DOT_CLASS[eq.assetCondition] ?? "bg-emerald-400")} />
                 </div>
@@ -795,12 +806,12 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
             </TableHeader>
             <TableBody>
               {filtered.map(eq => (
-                <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "Disposed" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset(openAsset(eq))}>
+                <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "RETIRED" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset(openAsset(eq))}>
                   <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image || (eq as any).image_url} /></div></TableCell>
                   <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                   <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{eq.category}</TableCell>
-                  <TableCell><Badge className={cn("text-[10px]", statusClass[eq.status] ?? statusClass["Active"])}>{assetStatusLabel(eq.status)}</Badge></TableCell>
+                  <TableCell><Badge className={cn("text-[10px]", statusClass[eq.status] ?? statusClass["AVAILABLE"])}>{assetStatusLabel(eq.status)}</Badge></TableCell>
                   <TableCell className="text-xs text-muted-foreground">{eq.custodian || "None"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{eq.currentLocation || eq.location}</TableCell>
                   <TableCell><ConditionState value={eq.assetCondition} /></TableCell>
@@ -843,7 +854,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                 { label: "Assets in Service", val: branchInventory.length },
                 { label: "Pending Transfers", val: branchDbTransfers.filter(t => t.status === "Pending").length },
                 { label: "Repair Tickets", val: branchRepairs.length },
-                { label: "Average Condition Score", val: `${Math.round(branchInventory.reduce((acc, a) => acc + a.condition, 0) / (branchInventory.length || 1))}%` }
+                { label: "Average Health Score", val: averageHealthScore(branchInventory) }
               ].map(({ label, val }) => (
                 <div key={label} className="text-center">
                   <p className="text-lg font-bold text-emerald-950 font-sans">{val}</p>

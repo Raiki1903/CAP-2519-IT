@@ -1,10 +1,13 @@
 /**
  * Loan row access: every database read and write the loan endpoints make.
- * Layer: repository. Called by loans.service.ts and shared/services/custodyRequestGuard.ts (the pending loan). Calls server/config/prisma.ts.
+ * Layer: repository. Called by loans.service.ts and shared/services/custodyRequestGuard.ts (the pending loan, for
+ * transfers). Calls server/config/prisma.ts, shared/services/assetStatus.ts, and shared/services/rowLocks.ts.
  * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
  */
-import { asset_loans_status, type Prisma, type asset_loans, type asset_records } from '@prisma/client';
+import { asset_loans_status, type Prisma, type asset_loans } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { setAssetStatus } from '../../shared/services/assetStatus';
+import { lockAsset } from '../../shared/services/rowLocks';
 
 /** Every asset_loans row, newest request first. */
 export function findAllNewestFirst() {
@@ -29,7 +32,7 @@ export function findListLookups() {
     ]);
 }
 
-/** The asset's pending loan (its id only), or null. Read by the custody request guard. (H-05) */
+/** The asset's pending loan (its id only), or null. Read by the custody request guard, for transfers. (H-05) */
 export function findPendingLoanId(assetId: number) {
     return prisma.asset_loans.findFirst({ where: { asset_id: assetId, status: asset_loans_status.PENDING_APPROVAL }, select: { loan_id: true } });
 }
@@ -45,40 +48,31 @@ export function findById(loanId: number) {
 }
 
 /**
- * Sets a loan's decided status and, for an approval, appends the custody record, in one transaction.
- * The asset's latest record is read inside the transaction, after the status update,
- * and handed to the service to build the new record from.
+ * Saves a decision in one transaction: the loan's status, who decided and when, and, for an approval, the asset's
+ * status. A decline also closes the loan. The asset row is locked first, so a decision and another step on the same
+ * asset run one after the other.
  *
- * @param loan the pending loan being decided
+ * @param loan the loan in Pending Approval
  * @param newStatus ON_LOAN or DECLINED
- * @param buildHandoverRecord builds the new asset_records row from the latest one; null for a decline
+ * @param deciderId the session user who decides
  * @returns the updated asset_loans row
  */
-export function saveDecision(
-    loan: asset_loans,
-    newStatus: asset_loans_status,
-    buildHandoverRecord: ((latestRecord: asset_records | null) => Prisma.asset_recordsUncheckedCreateInput) | null,
-) {
-    // The loan status and the custody record are written together, so a failure on either
-    // leaves neither: an approved loan always has its ON_LOAN record.
+export function saveDecision(loan: asset_loans, newStatus: asset_loans_status, deciderId: number) {
     return prisma.$transaction(async (tx) => {
+        await lockAsset(tx, loan.asset_id);
+        const now = new Date();
         const updated = await tx.asset_loans.update({
             where: { loan_id: loan.loan_id },
-            data: { status: newStatus },
+            data: {
+                status: newStatus,
+                decided_by_id: deciderId,
+                decided_at: now,
+                ...(newStatus === asset_loans_status.DECLINED ? { closed_at: now } : {}),
+            },
         });
-
-        if (buildHandoverRecord) {
-            // TODO(M-09): no tie-break on asset_record_id, so two records logged in the same second can be read in the wrong order. Step 12 or Phase 3, with the shared asset state rule.
-            const latestRecord = await tx.asset_records.findFirst({
-                where: { asset_id: loan.asset_id },
-                orderBy: { date_logged: "desc" },
-            });
-
-            await tx.asset_records.create({
-                data: buildHandoverRecord(latestRecord),
-            });
+        if (newStatus === asset_loans_status.ON_LOAN) {
+            await setAssetStatus(tx, loan.asset_id, "ON_LOAN");
         }
-
         return updated;
     });
 }

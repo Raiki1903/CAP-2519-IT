@@ -55,7 +55,7 @@ export async function decideDisposal(req: Request<{ disposalId: string }>, res: 
     console.log(`🚀 Server received disposal decision for #${disposalId}:`, decision);
 
     checkDisposalDecision(disposalId, decision);
-    const updatedDisposal = await retirementsService.decideDisposal(disposalId, decision);
+    const updatedDisposal = await retirementsService.decideDisposal(disposalId, decision, sessionUserOf(req).userId);
 
     console.log(`✅ Disposal #${disposalId} ${decision}d successfully.`);
     res.json({ success: true, disposal: updatedDisposal });

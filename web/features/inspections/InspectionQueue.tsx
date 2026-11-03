@@ -79,7 +79,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
         };
 
         // A disposed asset has left the registry, and the server refuses a report for it (409).
-        const queueAssets = displayedAssets.filter(a => a.status !== "Disposed");
+        const queueAssets = displayedAssets.filter(a => a.status !== "RETIRED");
 
         const getGroupAssets = (groupId: string, labs: string[]) => {
           return queueAssets.filter(a => {
@@ -94,7 +94,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
 
         const dynamicGroups = labGroups.map(g => {
           const gAssets = getGroupAssets(g.id, g.labs);
-          const due = gAssets.filter(a => a.status === "Maintenance" || a.status === "Overdue" || (a.condition !== undefined && a.condition < 80)).length;
+          const due = gAssets.filter(a => a.status === "MAINTENANCE" || a.isOverdue || (a.healthScore != null && a.healthScore < 80)).length;
           return { ...g, assets: gAssets.length, due };
         });
 
@@ -115,8 +115,8 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
               const queueItems = groupAssets.map(a => {
                 const isInspected = itemInspectedState[a.id] === true;
                 const status = isInspected ? "Inspected" : "For Inspection";
-                // `condition` is the server's 0 to 100 score derived from the condition enum.
-                const urgency = a.status === "Maintenance" || a.status === "Overdue" ? "Critical" : (a.condition !== undefined && a.condition < 80 ? "High" : "Normal");
+                // `healthScore` is the newest TSG inspection's 0 to 100 score, null when it has none.
+                const urgency = a.status === "MAINTENANCE" || a.isOverdue ? "Critical" : (a.healthScore != null && a.healthScore < 80 ? "High" : "Normal");
 
                 return {
                   id: `MNT-${String(a.id)}`,

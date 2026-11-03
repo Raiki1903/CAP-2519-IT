@@ -403,10 +403,10 @@ export const LocationStatusWidget: React.FC<{
 
   const statusData = (selectedLab !== "All Labs" || selectedCategory !== "All Categories")
     ? [
-        { name: "Available", value: filteredContextAssets.filter(a => a.status === "Active" || a.status === "Available").length },
-        { name: "On Loan", value: filteredContextAssets.filter(a => a.status === "On Loan" || a.status === "Loaned").length },
-        { name: "Under Repair", value: filteredContextAssets.filter(a => a.status === "Maintenance" || a.status === "Repair").length },
-        { name: "Disposed", value: filteredContextAssets.filter(a => a.status === "Disposed").length }
+        { name: "Available", value: filteredContextAssets.filter(a => a.status === "AVAILABLE" || a.status === "Available").length },
+        { name: "On Loan", value: filteredContextAssets.filter(a => a.status === "ON_LOAN" || a.status === "Loaned").length },
+        { name: "Under Repair", value: filteredContextAssets.filter(a => a.status === "MAINTENANCE" || a.status === "Repair").length },
+        { name: "Disposed", value: filteredContextAssets.filter(a => a.status === "RETIRED").length }
       ]
     : rawStatusData;
 

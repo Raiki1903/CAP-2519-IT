@@ -900,7 +900,7 @@ export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selecte
     return filteredAssets.slice(0, 10).map((a, idx) => {
       const loanCount = (dbLoans || []).filter(l => l.asset_id === a.id || l.assetId === a.id || l.asset_tag === a.id || l.asset_tag === a.asset_tag).length;
       const transferCount = (dbTransfers || []).filter(t => t.asset_id === a.id || t.assetId === a.id || t.asset_tag === a.id).length;
-      const calculatedBorrowCount = loanCount + transferCount + (a.status === "On Loan" || a.status === "ON_LOAN" ? 1 : 0);
+      const calculatedBorrowCount = loanCount + transferCount + (a.status === "ON_LOAN" || a.status === "ON_LOAN" ? 1 : 0);
       const borrowCount = Math.max(1, calculatedBorrowCount);
       return {
         assetId: a.id,

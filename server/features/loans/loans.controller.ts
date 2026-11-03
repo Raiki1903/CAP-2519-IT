@@ -50,7 +50,7 @@ export async function decideLoan(req: Request<{ loanId: string }>, res: Response
     console.log(`🚀 Server received loan decision for #${loanId}:`, decision);
 
     checkLoanDecision(loanId, decision);
-    const updatedLoan = await loansService.decideLoan(loanId, decision);
+    const updatedLoan = await loansService.decideLoan(loanId, decision, sessionUserOf(req).userId);
 
     console.log(`✅ Loan #${loanId} ${decision}d successfully.`);
     res.json({ success: true, loan: updatedLoan });
