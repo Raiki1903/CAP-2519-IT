@@ -294,3 +294,27 @@ Written for Raiki, to run by hand. The agent did not run them. Every check uses 
 - As the IT Admin, click Reject on its row and paste into the remarks box. Expect the count "256 / 255" in red, the sentence "Remarks must be at most 255 characters.", and Confirm disabled. The text is not cut.
 - Delete one character. Expect "255 / 255", no red, and Confirm enabled. Click Confirm: the row leaves the list.
 - Database (SELECT): `SELECT LENGTH(details) FROM activity_log WHERE target_user_id=<id> AND event_type='SIGNUP_REJECTED'` shows 255.
+
+## Batch 2b hand checks: results
+
+Run by Raiki on 2026-11-04, on `adric_uat_check` (local) only, started through `start-local-uat.ps1`. Nothing was run against CCS Cloud. All checks passed.
+
+| Check | Result | Seen |
+|---|---|---|
+| 2b-H1 | Passed | New Student sign-up with two labs |
+| 2b-H2 | Passed | The 409 sentence and the 400 sentences, with no raw text |
+| 2b-H3 | Passed | Login of the Pending account refused with its message |
+| 2b-H4 | Passed | IT Admin on Approvals; the sign-up approved and its row left the list |
+| 2b-H5 | Passed | The approved account logged in to the Researcher view |
+| 2b-H6 | Passed | Reject with a remark; login refused with its message |
+| 2b-H7 | Passed | `/lab-head/approvals` shows Not Found; a TSG account on another role's page shows No Access (expected difference) |
+| 2b-H8 | Passed | The 6th failed login refused; another account unaffected |
+| 2b-H9 | Passed | Staff Inventory and Repairs load; a Researcher loan request (loan 18) worked |
+| 2b-H10 | Passed | The server terminal showed only plain lines with user ids |
+| 2b-H11 | Passed | 256 characters refused (red count, Confirm disabled); 255 accepted and the row left the list |
+| Extra: ID and labs | Passed | ID `01234567` and `1234567` refused with the ID sentence; no labs refused with the lab sentence |
+| Extra: repeat sign-up | Passed | Re-sign-up with the rejected email got the 409 sentence |
+| Extra: Approvals page | Passed | No "Requested on" column and no bell; Approve enabled for TSG Staff with or without labs, disabled for Researcher with no lab; the IT Admin's Account page has no Lab line |
+| Extra: database | Passed | User 13 ACTIVE with one lab (Bio); user 14 REJECTED with no labs. Activity rows: LOGIN_FAILURE "Account pending", SIGNUP_APPROVED "Role: RESEARCHER; labs: Bio", SIGNUP_REJECTED with the remark, LOGIN_FAILURE "Account rejected", LOGIN_SUCCESS with actor 13. No email in any `details` |
+
+Users 13 and 14 and their activity rows stay in `adric_uat_check` until the next `uat-reset.sql` load.
