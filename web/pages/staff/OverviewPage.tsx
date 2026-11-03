@@ -2,7 +2,7 @@
  * Staff Overview: asset, repair, and return counts, quick links to the other tabs, campus totals, alerts, and recent registrations.
  * Layer: page. Called by app/routes.tsx at /staff/overview.
  * Calls: features/assets/useStaffAssets.ts, features/repairs/useRepairTickets.ts, state/browserOnly.tsx (pending returns),
- * state/serverData.tsx (the asset list), features/returns/openReturnRequests.ts, state/session.tsx.
+ * state/serverData.tsx (the asset list), features/returns/openReturnRequests.ts, features/assets/campusCounts.ts, state/session.tsx.
  * Used by: Staff.
  */
 import { useNavigate } from "react-router";
@@ -11,6 +11,7 @@ import { useBrowserOnly } from "@web/state/browserOnly";
 import { useServerData } from "@web/state/serverData";
 import { openReturnRequests } from "@web/features/returns/openReturnRequests";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
+import { countAssetsByCampus } from "@web/features/assets/campusCounts";
 import { useRepairTickets } from "@web/features/repairs/useRepairTickets";
 import { Button } from "@web/components/ui/button";
 import { Badge } from "@web/components/ui/badge";
@@ -32,18 +33,13 @@ export function OverviewPage() {
 
   const overviewSlug = roleToSlug.Staff;
 
-  // TODO(M-03): campus is guessed from location and lab text, and anything not clearly Laguna counts as Manila. Phase 3 (research_centers.location).
-  const manilaAssetsCount = displayedAssets.filter(a => {
-    const loc = (a.location || "").toLowerCase();
-    const labName = (a.lab || "").toLowerCase();
-    return loc.includes("manila") || loc.includes("taft") || labName.includes("cite4d") || labName.includes("car") || (!loc.includes("laguna") && !loc.includes("canlubang"));
-  }).length;
-
-  const lagunaAssetsCount = displayedAssets.filter(a => {
-    const loc = (a.location || "").toLowerCase();
-    const labName = (a.lab || "").toLowerCase();
-    return loc.includes("laguna") || loc.includes("canlubang") || labName.includes("civi") || labName.includes("bio");
-  }).length;
+  // Assets in service per campus, from each asset's home lab: the same count as the Director Overview.
+  const campusCounts = countAssetsByCampus(displayedAssets.filter(a => a.status !== "RETIRED"));
+  const CAMPUS_BADGE_CLASSES = [
+    "bg-emerald-50 text-emerald-700 border-emerald-200",
+    "bg-blue-50 text-blue-700 border-blue-200",
+    "bg-sky-50 text-sky-700 border-sky-200",
+  ];
 
   const nowMs = Date.now();
   const expiring30Days = displayedAssets.filter(a => {
@@ -131,18 +127,14 @@ export function OverviewPage() {
         <Card className="border border-border bg-card shadow-sm rounded-xl">
           <CardHeader><CardTitle className="text-sm font-bold text-foreground">Assets by Campus</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-foreground">Manila (Taft) Campus</span>
-              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-mono font-bold">
-                {manilaAssetsCount} assets
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-foreground">Laguna (Canlubang) Campus</span>
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-mono font-bold">
-                {lagunaAssetsCount} assets
-              </Badge>
-            </div>
+            {campusCounts.map((c, i) => (
+              <div key={c.campus} className="flex items-center justify-between">
+                <span className="text-xs font-bold text-foreground">{c.label} Campus</span>
+                <Badge variant="outline" className={cn("font-mono font-bold", CAMPUS_BADGE_CLASSES[i])}>
+                  {c.count} assets
+                </Badge>
+              </div>
+            ))}
             <Separator />
             <div className="p-3 bg-muted/30 rounded-xl border border-border">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Campus Registry</p>

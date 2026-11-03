@@ -18,6 +18,7 @@ import type { ApiResult } from "../api/client";
 import { useBrowserOnly } from "./browserOnly";
 import { useSession } from "./session";
 import type { Role } from "@shared/enums/role";
+import type { AssetLabRef } from "@shared/types/assets";
 
 // The lists only some roles may read (the 13b role table). Asking with another role answers 403,
 // so those lists are not requested for it. The other lists are open to every signed-in role.
@@ -82,6 +83,8 @@ export interface Asset {
   warranty: string;
   location: string;
   lab: string;
+  /** The asset's home lab, with its campus (research_centers.location). */
+  homeLab: AssetLabRef;
   /** One of the six asset statuses, for example "ON_LOAN". */
   status: string;
   /** The status's label, for example "On Loan". */

@@ -11,6 +11,7 @@ import { useServerData } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import * as maintenanceApi from "@web/api/maintenance.api";
 import * as analyticsApi from "@web/api/analytics.api";
+import { ASSET_STATUSES, ASSET_STATUS_LABELS } from "@shared/enums/assetStatus";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { Badge } from "@web/components/ui/badge";
@@ -52,7 +53,8 @@ const cardAnimation = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } }
 };
 
-const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#EF4444"];
+// One colour per asset status, in the order of ASSET_STATUSES.
+const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#8B5CF6", "#64748B", "#EF4444"];
 
 // Maintenance & Lifecycle View (Task 3: Repairs Kanban Board, Condition Heatmap with Traffic Light Indicators, 90-day Warranty Expiry Timeline)
 /**
@@ -337,8 +339,8 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
 
 // 1. Real-Time Tracking & Location Analytics (Stacked Bar & Doughnut)
 /**
- * Where assets are and in what state. Calls analyticsApi.getLocationStatusRaw(). If that fails it shows
- * estimates instead: fixed shares (60% available, 30% on loan, and so on) of the shared asset count.
+ * Where assets are and in what state. Calls analyticsApi.getLocationStatusRaw(). While the server has not answered it
+ * shows a loading line, and if it fails a message: it never shows an estimate in place of the counts.
  *
  * @param selectedLab lab to scope to, or "All Labs"
  * @param selectedCategory category to scope to, or "All Categories"
@@ -349,39 +351,14 @@ export const LocationStatusWidget: React.FC<{
 }> = ({ selectedLab, selectedCategory }) => {
   const { assets: contextAssets } = useServerData();
 
-  const { data } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["tsg-location-status"],
     queryFn: async () => {
-      try {
-        const res = await analyticsApi.getLocationStatusRaw();
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success) return json.data;
-        }
-      } catch (e) {}
-
-      // TODO(H-09): these are invented shares of the asset count, shown as if they were real figures. Step 12 (analytics).
-      const locMap: Record<string, number> = {};
-      contextAssets.forEach(a => {
-        const loc = a.lab || "Unknown location";
-        locMap[loc] = (locMap[loc] || 0) + 1;
-      });
-
-      const locationDistribution = Object.keys(locMap).map(loc => ({
-        location: loc,
-        available: Math.floor(locMap[loc] * 0.6),
-        onLoan: Math.floor(locMap[loc] * 0.3),
-        underRepair: Math.floor(locMap[loc] * 0.1)
-      }));
-
-      const statusCounts = [
-        { name: "Available", value: Math.floor(contextAssets.length * 0.6) },
-        { name: "On Loan", value: Math.floor(contextAssets.length * 0.3) },
-        { name: "Under Repair", value: Math.floor(contextAssets.length * 0.08) },
-        { name: "Disposed", value: Math.floor(contextAssets.length * 0.02) }
-      ];
-
-      return { locationDistribution, statusCounts };
+      const res = await analyticsApi.getLocationStatusRaw();
+      if (!res.ok) throw new Error(`Location status answered ${res.status}`);
+      const json = await res.json();
+      if (!json.success) throw new Error("Location status answered without success");
+      return json.data;
     }
   });
 
@@ -402,12 +379,7 @@ export const LocationStatusWidget: React.FC<{
   });
 
   const statusData = (selectedLab !== "All Labs" || selectedCategory !== "All Categories")
-    ? [
-        { name: "Available", value: filteredContextAssets.filter(a => a.status === "AVAILABLE" || a.status === "Available").length },
-        { name: "On Loan", value: filteredContextAssets.filter(a => a.status === "ON_LOAN" || a.status === "Loaned").length },
-        { name: "Under Repair", value: filteredContextAssets.filter(a => a.status === "MAINTENANCE" || a.status === "Repair").length },
-        { name: "Disposed", value: filteredContextAssets.filter(a => a.status === "RETIRED").length }
-      ]
+    ? ASSET_STATUSES.map(status => ({ name: ASSET_STATUS_LABELS[status], value: filteredContextAssets.filter(a => a.status === status).length }))
     : rawStatusData;
 
   const totalAssetCount = statusData.reduce((acc: number, item: any) => acc + (item.value || 0), 0);
@@ -425,6 +397,8 @@ export const LocationStatusWidget: React.FC<{
           <CardDescription className="text-muted-foreground text-xs">
             Equipment count per physical research laboratory & warehouse facility stacked by operational state.
           </CardDescription>
+          {isLoading && <p className="text-xs text-muted-foreground mt-1">Loading the asset counts...</p>}
+          {isError && <p className="text-xs font-semibold text-red-600 mt-1">Could not load the asset counts. Reload the page.</p>}
         </CardHeader>
         <CardContent>
           <div className="h-64">

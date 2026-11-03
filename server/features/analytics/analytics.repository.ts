@@ -103,13 +103,19 @@ export function groupValueByFundingSource() {
 }
 
 /**
- * The assets the Director's location counts are built from, with their home lab.
+ * The assets the Director's location counts are built from, with their home lab. With a date range, only assets
+ * procured inside it (an asset with no procurement date is left out); a date that does not parse is left out of the range.
  *
- * @param labCode the home lab's short code, or null for every lab
+ * @param startDate earliest procurement date, or null
+ * @param endDate latest procurement date, or null
  */
-export function findAssetsForDirector(labCode: string | null) {
+export function findAssetsForDirector(startDate: Date | null, endDate: Date | null) {
+    const procured: Prisma.DateTimeNullableFilter = {};
+    if (startDate && !isNaN(startDate.getTime())) procured.gte = startDate;
+    if (endDate && !isNaN(endDate.getTime())) procured.lte = endDate;
+
     return prisma.assets.findMany({
-        where: labCode ? { research_centers: { short_code: labCode } } : undefined,
+        where: Object.keys(procured).length > 0 ? { procurement_date: procured } : undefined,
         include: WITH_LAB,
     });
 }

@@ -13,6 +13,7 @@
  */
 import type { asset_loans_status } from "@prisma/client";
 import { describe, expect, it } from "vitest";
+import { ASSET_STATUSES } from "../../shared/enums/assetStatus";
 import { addExtraAsset, removeExtraAssets } from "../setup/extraAssets";
 import { ASSETS, FUNDING_SOURCE, LAB, LOOKUPS, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
@@ -32,22 +33,26 @@ const dateInDays = (days: number) => new Date(`${isoDateInDays(days)}T00:00:00Z`
 
 const SEEDED_PORTFOLIO_VALUE = Object.values(ASSETS).reduce((sum, a) => sum + a.acquisitionValue, 0);
 
-/** The Director's location counts for the seed: every seeded record is in Manila, one asset per non-active state. */
-const SEEDED_LOCATION_STATUS = [
-  { location: "MANILA", ACTIVE: 3, ON_LOAN: 1, MAINTENANCE: 1, DISPOSED: 1, total: 6 },
-  { location: "LAGUNA", ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0, total: 0 },
-];
+type StatusKey = (typeof ASSET_STATUSES)[number];
 
-/** What the Director endpoint answers when no report falls in the range. (H-09) */
-const DEMO_AUDIT_SERIES = [
-  { month: "Jan 26", count: 4 },
-  { month: "Feb 26", count: 8 },
-  { month: "Mar 26", count: 15 },
-  { month: "Apr 26", count: 12 },
-  { month: "May 26", count: 20 },
-  { month: "Jun 26", count: 18 },
-  { month: "Jul 26", count: 25 },
-];
+/** A count for each of the six asset statuses: zero, except the ones given. */
+const statusCounts = (counts: Partial<Record<StatusKey, number>> = {}) => ({
+  ...Object.fromEntries(ASSET_STATUSES.map((status) => [status, 0])),
+  ...counts,
+});
+
+/** One campus entry of the Director's location counts. */
+const campusCounts = (location: string, counts: Partial<Record<StatusKey, number>> = {}) => ({
+  location,
+  ...statusCounts(counts),
+  total: Object.values(counts).reduce((sum, n) => sum + n, 0),
+});
+
+/** The seeded assets' statuses: three Available, one On Loan, one in Maintenance, one Retired. All are at the Manila lab TEST. */
+const SEEDED_STATUS_COUNTS = { AVAILABLE: 3, ON_LOAN: 1, MAINTENANCE: 1, RETIRED: 1 } as const;
+
+/** The Director's location counts for the seed: all three campuses, every seeded asset in Manila. */
+const SEEDED_LOCATION_STATUS = [campusCounts("MANILA", SEEDED_STATUS_COUNTS), campusCounts("LAGUNA"), campusCounts("MCKINLEY")];
 
 /**
  * Runs a check with a second and a third research center (Laguna and McKinley) that hold one asset each, and removes
@@ -199,41 +204,77 @@ describe("GET /api/analytics/director", () => {
     const res = await asDirector.get("/api/analytics/director?lab=CAR");
 
     expect(res.status).toBe(200);
-    expect(res.body.data.locationStatusData).toEqual([
-      { location: "MANILA", ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0, total: 0 },
-      { location: "LAGUNA", ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0, total: 0 },
-    ]);
+    expect(res.body.data.locationStatusData).toEqual([campusCounts("MANILA"), campusCounts("LAGUNA"), campusCounts("MCKINLEY")]);
     expect(res.body.data.totalPortfolioValue).toBe(SEEDED_PORTFOLIO_VALUE);
     expect(res.body.data.fundingData).toEqual([{ name: FUNDING_SOURCE, value: SEEDED_PORTFOLIO_VALUE, count: 6 }]);
   });
 
-  it("with a date range, still counts every asset by its status, and with no report in it answers a fixed demo series (known defect H-09)", async () => {
+  it("with no report in the range, answers an empty reports series, not a demo one (H-09)", async () => {
     const res = await asDirector.get("/api/analytics/director?startDate=2026-01-01&endDate=2026-01-31");
 
     expect(res.status).toBe(200);
-    expect(res.body.data.locationStatusData).toEqual(SEEDED_LOCATION_STATUS);
-    expect(res.body.data.auditComplianceData).toEqual(DEMO_AUDIT_SERIES);
+    expect(res.body.data.auditComplianceData).toEqual([]);
     expect(res.body.data.totalPortfolioValue).toBe(SEEDED_PORTFOLIO_VALUE);
   });
 
-  it("counts an asset of a Laguna lab under Laguna, and for now a McKinley lab's too (TODO #96)", async () => {
+  it("counts a McKinley lab under McKinley and a Laguna lab under Laguna, three campuses in a fixed order (#96)", async () => {
     await withOtherCampusLabs(async () => {
       const res = await asDirector.get("/api/analytics/director");
 
       expect(res.body.data.locationStatusData).toEqual([
-        { location: "MANILA", ACTIVE: 3, ON_LOAN: 1, MAINTENANCE: 1, DISPOSED: 1, total: 6 },
-        { location: "LAGUNA", ACTIVE: 2, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0, total: 2 },
+        campusCounts("MANILA", SEEDED_STATUS_COUNTS),
+        campusCounts("LAGUNA", { AVAILABLE: 1 }),
+        campusCounts("MCKINLEY", { AVAILABLE: 1 }),
       ]);
       const laguna = await asDirector.get("/api/analytics/director?lab=Laguna");
-      expect(laguna.body.data.locationStatusData[1]).toMatchObject({ ACTIVE: 1, total: 1 });
+      expect(laguna.body.data.locationStatusData).toEqual([campusCounts("MANILA"), campusCounts("LAGUNA", { AVAILABLE: 1 }), campusCounts("MCKINLEY")]);
+      const mckinley = await asDirector.get("/api/analytics/director?lab=TESTM");
+      expect(mckinley.body.data.locationStatusData).toEqual([campusCounts("MANILA"), campusCounts("LAGUNA"), campusCounts("MCKINLEY", { AVAILABLE: 1 })]);
     });
+  });
+
+  it("counts Pending Retirement and Missing assets under their own statuses (#96)", async () => {
+    const extras = [
+      await addExtraAsset(db, { tag: "TEST-0702", assetStatus: "PENDING_RETIREMENT" }),
+      await addExtraAsset(db, { tag: "TEST-0703", assetStatus: "MISSING" }),
+    ];
+    try {
+      const res = await asDirector.get("/api/analytics/director");
+
+      expect(res.body.data.locationStatusData[0]).toEqual(campusCounts("MANILA", { ...SEEDED_STATUS_COUNTS, PENDING_RETIREMENT: 1, MISSING: 1 }));
+    } finally {
+      await removeExtraAssets(db, extras.map((a) => a.assetId));
+    }
+  });
+
+  it("with a date range, counts only the assets procured inside it, and leaves out an asset with no procurement date (#96)", async () => {
+    const noDate = await db.assets.create({
+      data: { asset_tag: "TEST-0704", name: "Test Asset No Procurement Date", category: "MONITOR", center_id: LAB.centerId, status: "ON_LOAN" },
+    });
+    try {
+      const noneCounted = [campusCounts("MANILA"), campusCounts("LAGUNA"), campusCounts("MCKINLEY")];
+      // The seeded assets were procured on 2025-06-01.
+      const inside = await asDirector.get("/api/analytics/director?startDate=2025-06-01&endDate=2025-06-30");
+      expect(inside.body.data.locationStatusData).toEqual(SEEDED_LOCATION_STATUS);
+
+      const after = await asDirector.get("/api/analytics/director?startDate=2026-01-01");
+      expect(after.body.data.locationStatusData).toEqual(noneCounted);
+
+      const before = await asDirector.get("/api/analytics/director?endDate=2025-05-31");
+      expect(before.body.data.locationStatusData).toEqual(noneCounted);
+
+      const noRange = await asDirector.get("/api/analytics/director");
+      expect(noRange.body.data.locationStatusData[0]).toEqual(campusCounts("MANILA", { ...SEEDED_STATUS_COUNTS, ON_LOAN: 2 }));
+    } finally {
+      await removeExtraAssets(db, [noDate.asset_id]);
+    }
   });
 });
 
 describe("GET /api/analytics/lab-head", () => {
   const EMPTY_LAB = {
     loans: [],
-    utilization: { assignedCount: 0, unassignedCount: 0, totalAssetsCount: 0, utilizationPercentage: 0 },
+    utilization: { onLoanCount: 0, notOnLoanCount: 0, totalAssetsCount: 0, utilizationPercentage: 0 },
     categoryData: [],
     projectAllocation: [],
     delinquencies: [],
@@ -304,10 +345,10 @@ describe("GET /api/analytics/lab-head", () => {
     ]);
   });
 
-  it("answers the lab's utilization and categories, and no projects or delinquencies for the seed", async () => {
+  it("answers the lab's utilization (assets On Loan) and categories, and no projects or delinquencies for the seed", async () => {
     const res = await labHead(TEST_LAB_QUERY);
 
-    expect(res.body.data.utilization).toEqual({ assignedCount: 0, unassignedCount: 6, totalAssetsCount: 6, utilizationPercentage: 0 });
+    expect(res.body.data.utilization).toEqual({ onLoanCount: 1, notOnLoanCount: 5, totalAssetsCount: 6, utilizationPercentage: 17 });
     const categories = [...res.body.data.categoryData].sort((a, b) => a.category.localeCompare(b.category));
     expect(categories).toEqual(
       ["CAMERA", "DEV KIT", "MONITOR", "PROJECTOR", "ROUTER", "TABLET"].map((category) => ({ category, count: 1 })),
@@ -336,28 +377,42 @@ describe("GET /api/analytics/lab-head", () => {
     expect(res.body.data.utilization.totalAssetsCount).toBe(6);
   });
 
-  it("counts an asset whose newest record names a project as assigned, and lists the project in the allocation", async () => {
+  it("counts only assets On Loan as utilized, not assets that belong to a project (#96)", async () => {
     const project = await addProject();
-    const asset = await addExtraAsset(db, { tag: "TEST-0711", projectId: project.project_id });
+    const inProject = await addExtraAsset(db, { tag: "TEST-0711", projectId: project.project_id });
+    const loaned = await addExtraAsset(db, { tag: "TEST-0712", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
     try {
       const res = await labHead(TEST_LAB_QUERY);
 
-      expect(res.body.data.utilization).toEqual({ assignedCount: 1, unassignedCount: 6, totalAssetsCount: 7, utilizationPercentage: 14 });
+      expect(res.body.data.utilization).toEqual({ onLoanCount: 2, notOnLoanCount: 6, totalAssetsCount: 8, utilizationPercentage: 25 });
+    } finally {
+      await removeExtraAssets(db, [inProject.assetId, loaned.assetId]);
+      await db.projects.delete({ where: { project_id: project.project_id } });
+    }
+  });
+
+  it("lists a project in the allocation with the sum of its assets' acquisition values, not a guessed value (#96, H-09)", async () => {
+    const project = await addProject();
+    const first = await addExtraAsset(db, { tag: "TEST-0713", projectId: project.project_id, acquisitionValue: 1200 });
+    const second = await addExtraAsset(db, { tag: "TEST-0714", projectId: project.project_id, acquisitionValue: 300 });
+    try {
+      const res = await labHead(TEST_LAB_QUERY);
+
       expect(res.body.data.projectAllocation).toEqual([
         {
           projectId: "TEST-PRJ-1",
           name: "Test Project",
           leader: "Test Project Leader",
           center: LAB.name,
-          count: 1,
-          size: 1,
-          pct: "14.3%",
-          value: 250000,
+          count: 2,
+          size: 2,
+          pct: "25.0%",
+          value: 1500,
           color: "#005A36",
         },
       ]);
     } finally {
-      await removeExtraAssets(db, [asset.assetId]);
+      await removeExtraAssets(db, [first.assetId, second.assetId]);
       await db.projects.delete({ where: { project_id: project.project_id } });
     }
   });
@@ -471,28 +526,32 @@ describe("GET /api/analytics/tsg", () => {
       },
     ]);
     const { conditionItems, ...counts } = res.body.data.conditionSummary;
-    expect(counts).toEqual({ goodCount: 6, degradedCount: 0, criticalCount: 0, totalCount: 6 });
-    expect(conditionItems).toHaveLength(6);
-    expect(conditionItems).toEqual(
-      expect.arrayContaining([
-        { assetTag: ASSETS.available.tag, name: ASSETS.available.name, category: "DEV KIT", condition: "PERFECT", trafficLight: "GREEN", location: LAB.shortCode },
-        { assetTag: ASSETS.inspected.tag, name: ASSETS.inspected.name, category: "PROJECTOR", condition: "OPERATIONAL", trafficLight: "GREEN", location: LAB.shortCode },
-      ]),
-    );
+    // Only the projector has a TSG inspection in the seed; the other five are counted apart, not as good (#96).
+    expect(counts).toEqual({ goodCount: 1, degradedCount: 0, criticalCount: 0, notInspectedCount: 5, totalCount: 6 });
+    expect(conditionItems).toEqual([
+      { assetTag: ASSETS.inspected.tag, name: ASSETS.inspected.name, category: "PROJECTOR", condition: "OPERATIONAL", trafficLight: "GREEN", location: LAB.shortCode },
+    ]);
   });
 
   it("gives each asset its home lab, not where it is now (the asset in repair shows its lab, not the TSG Office)", async () => {
-    const res = await asStaff.get("/api/analytics/tsg");
-
-    const inRepair = res.body.data.conditionSummary.conditionItems.find((i: { assetTag: string }) => i.assetTag === ASSETS.inRepair.tag);
-    expect(inRepair).toEqual({
-      assetTag: ASSETS.inRepair.tag,
-      name: ASSETS.inRepair.name,
-      category: "CAMERA",
-      condition: "PERFECT",
-      trafficLight: "GREEN",
-      location: LAB.shortCode,
+    const inspection = await db.asset_inspections.create({
+      data: { asset_id: ASSETS.inRepair.assetId, inspected_by_id: USERS.staffTsg.userId, type: "ROUTINE", condition: "PERFECT", inspected_at: new Date("2026-04-01T09:00:00Z") },
     });
+    try {
+      const res = await asStaff.get("/api/analytics/tsg");
+
+      const inRepair = res.body.data.conditionSummary.conditionItems.find((i: { assetTag: string }) => i.assetTag === ASSETS.inRepair.tag);
+      expect(inRepair).toEqual({
+        assetTag: ASSETS.inRepair.tag,
+        name: ASSETS.inRepair.name,
+        category: "CAMERA",
+        condition: "PERFECT",
+        trafficLight: "GREEN",
+        location: LAB.shortCode,
+      });
+    } finally {
+      await db.asset_inspections.delete({ where: { inspection_id: inspection.inspection_id } });
+    }
   });
 
   it("counts MINOR_DRIFT and DEGRADED as degraded (yellow) and CRITICAL_DEFECT as critical (red)", async () => {
@@ -505,7 +564,7 @@ describe("GET /api/analytics/tsg", () => {
       const res = await asStaff.get("/api/analytics/tsg");
 
       const { conditionItems, ...counts } = res.body.data.conditionSummary;
-      expect(counts).toEqual({ goodCount: 6, degradedCount: 2, criticalCount: 1, totalCount: 9 });
+      expect(counts).toEqual({ goodCount: 1, degradedCount: 2, criticalCount: 1, notInspectedCount: 5, totalCount: 9 });
       const lights = Object.fromEntries(
         conditionItems.filter((i: { assetTag: string }) => i.assetTag.startsWith("TEST-073")).map((i: { assetTag: string; condition: string; trafficLight: string }) => [i.assetTag, [i.condition, i.trafficLight]]),
       );
@@ -519,20 +578,14 @@ describe("GET /api/analytics/tsg", () => {
     }
   });
 
-  it("shows an asset TSG never inspected as PERFECT at its home lab, and counts it as good (H-09 family)", async () => {
+  it("counts an asset TSG never inspected apart, and does not call it good or list a condition for it (#96, H-09 family)", async () => {
     const bare = await db.assets.create({ data: { asset_tag: "TEST-0734", name: "Test Asset Without Records", category: "MONITOR", center_id: LAB.centerId } });
     try {
       const res = await asStaff.get("/api/analytics/tsg");
 
-      expect(res.body.data.conditionSummary).toMatchObject({ goodCount: 7, totalCount: 7 });
-      expect(res.body.data.conditionSummary.conditionItems).toContainEqual({
-        assetTag: "TEST-0734",
-        name: "Test Asset Without Records",
-        category: "MONITOR",
-        condition: "PERFECT",
-        trafficLight: "GREEN",
-        location: LAB.shortCode,
-      });
+      expect(res.body.data.conditionSummary).toMatchObject({ goodCount: 1, notInspectedCount: 6, totalCount: 7 });
+      expect(res.body.data.conditionSummary.conditionItems).toHaveLength(1);
+      expect(res.body.data.conditionSummary.conditionItems.map((i: { assetTag: string }) => i.assetTag)).not.toContain("TEST-0734");
     } finally {
       await removeExtraAssets(db, [bare.asset_id]);
     }
@@ -588,28 +641,26 @@ describe("GET /api/analytics/tsg", () => {
 });
 
 describe("GET /api/analytics/location-status", () => {
+  const SEEDED_LABELS = [
+    { name: "Available", value: 3 },
+    { name: "On Loan", value: 1 },
+    { name: "Maintenance", value: 1 },
+    { name: "Pending Retirement", value: 0 },
+    { name: "Retired", value: 1 },
+    { name: "Missing", value: 0 },
+  ];
   const SEEDED = {
     byLocation: [
-      { location: "Manila Campus", ACTIVE: 3, ON_LOAN: 1, MAINTENANCE: 1, DISPOSED: 1 },
-      { location: "Laguna Campus", ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 },
-      { location: "McKinley Campus", ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 },
+      { location: "Manila Campus", ...statusCounts(SEEDED_STATUS_COUNTS) },
+      { location: "Laguna Campus", ...statusCounts() },
+      { location: "McKinley Campus", ...statusCounts() },
     ],
-    byStatus: [
-      { name: "ACTIVE", value: 3 },
-      { name: "ON LOAN", value: 1 },
-      { name: "MAINTENANCE", value: 1 },
-      { name: "DISPOSED", value: 1 },
-    ],
+    byStatus: SEEDED_LABELS,
     locationDistribution: [{ location: LAB.shortCode, available: 3, onLoan: 1, underRepair: 1 }],
-    statusCounts: [
-      { name: "Available", value: 3 },
-      { name: "On Loan", value: 1 },
-      { name: "Under Repair", value: 1 },
-      { name: "Disposed", value: 1 },
-    ],
+    statusCounts: SEEDED_LABELS,
   };
 
-  it("counts the seed by campus, status, and home lab", async () => {
+  it("counts the seed by campus, status, and home lab, with all six statuses", async () => {
     const res = await asStaff.get("/api/analytics/location-status");
 
     expect(res.status).toBe(200);
@@ -622,10 +673,10 @@ describe("GET /api/analytics/location-status", () => {
 
     const noMatch = await asStaff.get("/api/analytics/location-status?lab=CAR");
     expect(noMatch.body.data).toEqual({
-      byLocation: SEEDED.byLocation.map(c => ({ ...c, ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 })),
-      byStatus: SEEDED.byStatus.map(s => ({ ...s, value: 0 })),
+      byLocation: SEEDED.byLocation.map((c) => ({ ...c, ...statusCounts() })),
+      byStatus: SEEDED_LABELS.map((s) => ({ ...s, value: 0 })),
       locationDistribution: [],
-      statusCounts: SEEDED.statusCounts.map(s => ({ ...s, value: 0 })),
+      statusCounts: SEEDED_LABELS.map((s) => ({ ...s, value: 0 })),
     });
   });
 
@@ -634,9 +685,9 @@ describe("GET /api/analytics/location-status", () => {
       const res = await asStaff.get("/api/analytics/location-status");
 
       expect(res.body.data.byLocation).toEqual([
-        { location: "Manila Campus", ACTIVE: 3, ON_LOAN: 1, MAINTENANCE: 1, DISPOSED: 1 },
-        { location: "Laguna Campus", ACTIVE: 1, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 },
-        { location: "McKinley Campus", ACTIVE: 1, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 },
+        { location: "Manila Campus", ...statusCounts(SEEDED_STATUS_COUNTS) },
+        { location: "Laguna Campus", ...statusCounts({ AVAILABLE: 1 }) },
+        { location: "McKinley Campus", ...statusCounts({ AVAILABLE: 1 }) },
       ]);
       expect(res.body.data.locationDistribution).toEqual([
         { location: LAB.shortCode, available: 3, onLoan: 1, underRepair: 1 },
@@ -644,6 +695,22 @@ describe("GET /api/analytics/location-status", () => {
         { location: "TESTM", available: 1, onLoan: 0, underRepair: 0 },
       ]);
     });
+  });
+
+  it("counts Pending Retirement and Missing assets in the status counts, and still lists their lab (#96)", async () => {
+    const extras = [
+      await addExtraAsset(db, { tag: "TEST-0751", assetStatus: "PENDING_RETIREMENT" }),
+      await addExtraAsset(db, { tag: "TEST-0752", assetStatus: "MISSING" }),
+    ];
+    try {
+      const res = await asStaff.get("/api/analytics/location-status");
+
+      const expected = SEEDED_LABELS.map((s) => (s.name === "Pending Retirement" || s.name === "Missing" ? { ...s, value: 1 } : s));
+      expect(res.body.data.statusCounts).toEqual(expected);
+      expect(res.body.data.locationDistribution).toEqual([{ location: LAB.shortCode, available: 3, onLoan: 1, underRepair: 1 }]);
+    } finally {
+      await removeExtraAssets(db, extras.map((a) => a.assetId));
+    }
   });
 });
 
