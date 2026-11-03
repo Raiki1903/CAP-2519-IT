@@ -56,7 +56,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
 
     if (isBodyReadError(err)) {
         // Only the type: the parser's message can quote the body, which can hold a password.
-        console.error(`⚠️ ${req.method} ${req.originalUrl}: request body could not be read (${(err as any).type})`);
+        console.error(`${req.method} ${req.originalUrl}: request body could not be read (${(err as any).type})`);
         res.status(statusOf(err)!).json({ success: false, error: BAD_REQUEST_MESSAGE, code: 'BAD_REQUEST' });
         return;
     }
@@ -67,6 +67,6 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
         return;
     }
 
-    console.error(`❌ ${req.method} ${req.originalUrl} failed:`, hidePasswordHashes(inspect(err)));
+    console.error(`${req.method} ${req.originalUrl} failed:`, hidePasswordHashes(inspect(err)));
     res.status(500).json({ success: false, error: SERVER_ERROR_MESSAGE, code: 'SERVER_ERROR' });
 }

@@ -1,9 +1,9 @@
 /**
  * Auth API: login, logout, the current user's profile, and sign-up requests.
- * Layer: api. Called by Login, Register, AccountDetailsPage, state/session.tsx, and state/serverData.tsx. Calls client.ts; types from @shared/types/auth.
- * Used by: login for every role, self-registration, approval of sign-ups, account page.
+ * Layer: api. Called by Login, Register, AccountDetailsPage, and state/session.tsx. Calls client.ts; types from @shared/types/auth.
+ * Used by: login for every role, self-registration, account page.
  */
-import type { AccountUpdateInput, ApproveRegistrationInput, RegistrationRequestInput } from "@shared/types/auth";
+import type { AccountUpdateInput, RegistrationRequestInput } from "@shared/types/auth";
 import { apiGet, apiGetRaw, apiPost, apiPostRaw, apiPut, type ApiResult } from "./client";
 
 /**
@@ -57,43 +57,12 @@ export function updateAccount(input: AccountUpdateInput): Promise<ApiResult> {
 }
 
 /**
- * Files a sign-up request. Returns the untouched Response because Register
- * checks the content type and status itself.
+ * Files a sign-up, which the server stores as a Pending account for the IT Admin. Returns the untouched Response so
+ * Register can read it with readResult, which keeps the server's sentence and hides any raw page.
  *
  * @param registration the registration form values
  * @returns the raw Response
  */
-// TODO(H-17): the server keeps pending sign-ups, with the password's hash, in a JSON file. Phase 3 makes it a table.
 export function requestRegistrationRaw(registration: RegistrationRequestInput): Promise<Response> {
   return apiPostRaw("/api/auth/register-request", registration);
-}
-
-/**
- * Lists sign-up requests waiting for approval.
- *
- * @returns `success` and `pendingRegistrations`, without passwords
- */
-export function listPendingRegistrations(): Promise<ApiResult> {
-  return apiGet("/api/auth/pending-registrations");
-}
-
-/**
- * Approves a sign-up request, which creates the user.
- *
- * @param registration `requestId`, the id the server gave the request; the account comes from the stored request
- * @returns `success`, or `error` when the id matches no request or the user could not be created
- */
-export function approveRegistration(registration: ApproveRegistrationInput): Promise<ApiResult> {
-  return apiPost("/api/auth/approve-registration", registration);
-}
-
-/**
- * Rejects a sign-up request. Returns the untouched Response because the
- * caller never reads the answer.
- *
- * @param requestId the registration's id
- * @returns the raw Response
- */
-export function rejectRegistrationRaw(requestId: string): Promise<Response> {
-  return apiPostRaw("/api/auth/reject-registration", { requestId });
 }

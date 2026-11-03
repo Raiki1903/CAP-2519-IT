@@ -161,8 +161,8 @@ export function RootLayout() {
         </div>
       </main>
 
-      {/* Unified floating Notification Center widget */}
-      <NotificationCenter />
+      {/* The bell lists asset events, and the IT Admin has no asset screens. */}
+      {role !== "ITAdmin" && <NotificationCenter />}
     </div>
   );
 }

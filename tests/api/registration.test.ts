@@ -1,374 +1,174 @@
 /**
- * Registration API: sign-up requests, and the Lab Head's pending list and decisions.
- * Covers POST /api/auth/register-request, GET /api/auth/pending-registrations, POST /api/auth/approve-registration,
- * POST /api/auth/reject-registration, and that POST /api/auth/register is gone. Workflow: account sign-up and approval.
- * Fixtures: the seeded accounts (for duplicate checks), the roles (ROLE_IDS), and the TEST lab (LAB). New applicants
- * are invented here. The pending list lives in the server's memory and in pending_registrations.json in its
- * temporary working folder (H-17), so this file has its own server and starts with an empty list.
+ * Registration API: sign-ups stored as Pending accounts.
+ * Covers POST /api/auth/register-request, and that POST /api/auth/register and the Lab Head's old sign-up routes are
+ * gone. Workflow: account sign-up.
+ * Fixtures: the seeded accounts (for duplicate checks) and the TEST lab (LAB). A second lab and the applicants are
+ * invented here.
  */
-import fs from "node:fs";
-import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { ID_NUMBER_MESSAGE, SIGN_UP_EMAIL_MESSAGE } from "../../shared/constants/signUp";
 import { isPasswordHash, verifyPassword } from "../../server/shared/services/passwords";
-import { LAB, USERS, type RoleName } from "../setup/fixtures";
+import { LAB, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, db, server, as } = useApiHarness();
+const { api, db, as } = useApiHarness();
 const DEFAULT_PASSWORD = "test-password-applicant";
 const asLabHead = as(USERS.labHead);
+const SENT = { success: true, message: "Your sign-up was sent. The IT Admin will review it. You can log in once it is approved." };
+const TAKEN = "An account with this email or ID number already exists. Ask the IT Admin.";
+const SECOND_LAB = { centerId: 2, name: "Test Second Lab", shortCode: "TEST2" };
+
+beforeAll(async () => {
+  await db.research_centers.create({
+    data: { center_id: SECOND_LAB.centerId, name: SECOND_LAB.name, short_code: SECOND_LAB.shortCode, location: "LAGUNA" },
+  });
+});
 
 let applicantCount = 0;
 
-/** A new, unique applicant. Id numbers start at 91000001, clear of the seeded accounts. */
+/** A new, unique applicant with a DLSU email and one lab. Id numbers start at 91000001, clear of the seeded accounts. */
 function applicant(extra: Record<string, unknown> = {}) {
   applicantCount += 1;
   return {
     firstName: "Test",
     lastName: `Applicant ${applicantCount}`,
-    email: `applicant.${applicantCount}@example.test`,
+    email: `test.applicant.${applicantCount}@dlsu.edu.ph`,
     idNumber: 91000000 + applicantCount,
+    userType: "STUDENT",
     password: DEFAULT_PASSWORD,
+    centerIds: [LAB.centerId],
     ...extra,
   };
 }
 
-async function requestSignUp(extra: Record<string, unknown> = {}) {
-  const body = applicant(extra);
-  const res = await api.post("/api/auth/register-request", body);
-  expect(res.status, JSON.stringify(res.body)).toBe(200);
-  return { body, registration: res.body.registration };
-}
-
-const pendingIds = async (): Promise<string[]> =>
-  (await asLabHead.get("/api/auth/pending-registrations")).body.pendingRegistrations.map((r: { id: string }) => r.id);
-
-const pendingFile = (): { id: string; status: string; email: string; requestedRole: string; password?: string }[] =>
-  JSON.parse(fs.readFileSync(path.join(server().workDir, "pending_registrations.json"), "utf-8"));
-
-const roleNamesOf = async (userId: number): Promise<string[]> =>
-  (await db.user_roles.findMany({ where: { user_id: userId }, include: { roles: true } })).map((ur) => ur.roles.role_name);
+const accountsWithEmail = (email: string) => db.users.count({ where: { email } });
 
 describe("POST /api/auth/register-request", () => {
-  it("answers 200 with a PENDING registration, the default role and user type, and no lab when none is sent", async () => {
-    const body = applicant();
+  it("answers 201 and stores a Pending account with no role, linked to the labs asked for, with the email in lower case", async () => {
+    const body = applicant({ email: "Test.Mixed.Case@DLSU.edu.ph", userType: "FACULTY", centerIds: [LAB.centerId, SECOND_LAB.centerId] });
+
     const res = await api.post("/api/auth/register-request", body);
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.registration).toMatchObject({
-      firstName: body.firstName,
-      lastName: body.lastName,
-      email: body.email,
-      idNumber: body.idNumber,
-      userType: "STUDENT",
-      requestedRole: "Custodian",
-      labAffiliation: "",
-      status: "PENDING",
-    });
-    expect(res.body.registration.id).toMatch(/^REG-\d{6}$/);
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual(SENT);
+    const row = await db.users.findUniqueOrThrow({ where: { email: "test.mixed.case@dlsu.edu.ph" }, include: { user_roles: true, user_centers: true } });
+    expect(row).toMatchObject({ first_name: body.firstName, last_name: body.lastName, id_number: body.idNumber, user_type: "FACULTY", account_status: "PENDING" });
+    expect(row.email).toBe("test.mixed.case@dlsu.edu.ph");
+    expect(row.user_roles).toEqual([]);
+    expect(row.user_centers.map((uc) => uc.center_id).sort()).toEqual([LAB.centerId, SECOND_LAB.centerId]);
   });
 
-  it("writes the request to pending_registrations.json in the server's working folder, not the database (known defect H-17)", async () => {
-    const { body, registration } = await requestSignUp();
+  it("stores only the password's hash, and answers neither the password nor a hash (C-03, C-04)", async () => {
+    const plain = "test-password-in-the-row";
+    const body = applicant({ password: plain });
 
-    const saved = pendingFile().find((r) => r.id === registration.id);
-    expect(saved).toMatchObject({ email: body.email, status: "PENDING" });
-    expect(await db.users.count({ where: { email: body.email } })).toBe(0);
+    const res = await api.post("/api/auth/register-request", body);
+
+    expect(JSON.stringify(res.body)).not.toContain(plain);
+    expect(JSON.stringify(res.body)).not.toContain("scrypt$");
+    const { password } = await db.users.findUniqueOrThrow({ where: { email: body.email } });
+    expect(isPasswordHash(password)).toBe(true);
+    expect(await verifyPassword(plain, password)).toBe(true);
   });
 
-  it("answers a sign-up without its password, with the server's REG- id (C-04 fixed)", async () => {
-    const { registration } = await requestSignUp({ password: "test-password-not-echoed" });
+  it("accepts an ID number sent as text, and the same lab twice as one link", async () => {
+    const body = applicant({ centerIds: [LAB.centerId, LAB.centerId] });
 
-    expect(registration).not.toHaveProperty("password");
-    expect(registration.id).toMatch(/^REG-\d{6}$/);
+    const res = await api.post("/api/auth/register-request", { ...body, idNumber: String(body.idNumber) });
+
+    expect(res.status).toBe(201);
+    const row = await db.users.findUniqueOrThrow({ where: { email: body.email }, include: { user_centers: true } });
+    expect(row.id_number).toBe(body.idNumber);
+    expect(row.user_centers).toHaveLength(1);
   });
 
-  it("stores Custodian as the requested role whatever role the sign-up asks for (C-05 family)", async () => {
-    const { registration } = await requestSignUp({ requestedRole: "Admin" });
+  it("does not read a role from the body: the account stays without one", async () => {
+    const body = applicant({ role: "IT_ADMIN", requestedRole: "Admin" });
 
-    expect(registration.requestedRole).toBe("Custodian");
-    expect(pendingFile().find((r) => r.id === registration.id)).toMatchObject({ requestedRole: "Custodian" });
+    expect((await api.post("/api/auth/register-request", body)).status).toBe(201);
+
+    const row = await db.users.findUniqueOrThrow({ where: { email: body.email }, include: { user_roles: true } });
+    expect(row.user_roles).toEqual([]);
   });
 
-  it("stores only the password's hash in the file (C-03 fixed)", async () => {
-    const plain = "test-password-in-the-file";
-    const { registration } = await requestSignUp({ password: plain });
-
-    const stored = pendingFile().find((r) => r.id === registration.id)?.password;
-    expect(stored).toMatch(/^scrypt\$/);
-    expect(await verifyPassword(plain, stored)).toBe(true);
-    expect(fs.readFileSync(path.join(server().workDir, "pending_registrations.json"), "utf-8")).not.toContain(plain);
-  });
-
-  it("answers 400 for no password, and stores nothing and no default (C-03 fixed)", async () => {
-    const { password, ...body } = applicant();
+  it.each([
+    ["an email outside DLSU", { email: "test.applicant@example.test" }, SIGN_UP_EMAIL_MESSAGE],
+    ["an email that is only the domain", { email: "@dlsu.edu.ph" }, SIGN_UP_EMAIL_MESSAGE],
+    ["an ID number of 7 digits", { idNumber: 9100001 }, ID_NUMBER_MESSAGE],
+    ["an ID number of 9 digits", { idNumber: 910000001 }, ID_NUMBER_MESSAGE],
+    ["an ID number starting with 0", { idNumber: "01234567" }, ID_NUMBER_MESSAGE],
+    ["an ID number with letters", { idNumber: "1234567A" }, ID_NUMBER_MESSAGE],
+    ["an unknown user type", { userType: "ADMIN" }, "Choose Student, Faculty, or Staff as your user type."],
+    ["no user type", { userType: undefined }, "Choose Student, Faculty, or Staff as your user type."],
+    ["no labs", { centerIds: [] }, "Choose at least one lab."],
+    ["no lab list", { centerIds: undefined }, "Choose at least one lab."],
+    ["a lab id as text", { centerIds: ["1"] }, "Choose at least one lab."],
+    ["an unknown lab", { centerIds: [LAB.centerId, 999999] }, "One of the labs you chose is not a known lab."],
+    ["no password", { password: undefined }, "Password must be at least 8 characters long."],
+    ["a password of 7 characters", { password: "x".repeat(7) }, "Password must be at least 8 characters long."],
+    ["a password of 129 characters", { password: "x".repeat(129) }, "Password must be at most 128 characters long."],
+    ["a password that is not a string", { password: 12345678 }, "Password must be at least 8 characters long."],
+    ["no first name", { firstName: undefined }, "Missing required registration fields."],
+    ["a last name of spaces", { lastName: "   " }, "Missing required registration fields."],
+    ["no email", { email: undefined }, "Missing required registration fields."],
+    ["no ID number", { idNumber: undefined }, "Missing required registration fields."],
+  ])("answers 400 for %s, and stores nothing", async (_label, change, message) => {
+    const body = applicant(change);
 
     const res = await api.post("/api/auth/register-request", body);
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Password must be at least 8 characters long.");
-    expect(pendingFile().map((r) => r.email)).not.toContain(body.email);
+    expect(res.body).toEqual({ success: false, error: message });
+    expect(await db.users.count({ where: { last_name: body.lastName } })).toBe(0);
   });
 
-  it("answers 400 for 7 characters and 200 for 8", async () => {
-    const tooShort = await api.post("/api/auth/register-request", applicant({ password: "x".repeat(7) }));
+  it("answers 201 for a password of 8 and of 128 characters", async () => {
     const shortest = await api.post("/api/auth/register-request", applicant({ password: "x".repeat(8) }));
-
-    expect(tooShort.status).toBe(400);
-    expect(tooShort.body.error).toBe("Password must be at least 8 characters long.");
-    expect(shortest.status).toBe(200);
-  });
-
-  it("answers 400 for 129 characters and 200 for 128", async () => {
-    const tooLong = await api.post("/api/auth/register-request", applicant({ password: "x".repeat(129) }));
     const longest = await api.post("/api/auth/register-request", applicant({ password: "x".repeat(128) }));
 
-    expect(tooLong.status).toBe(400);
-    expect(tooLong.body.error).toBe("Password must be at most 128 characters long.");
-    expect(longest.status).toBe(200);
+    expect([shortest.status, longest.status]).toEqual([201, 201]);
   });
 
-  it("answers 400 for a password that is not a string", async () => {
-    for (const password of [12345678, { length: 8 }, ["a-long-enough-password"], true]) {
-      const res = await api.post("/api/auth/register-request", applicant({ password }));
+  it("answers 409 for an email an account has, in any letter case, and keeps one account (issue #14)", async () => {
+    const first = applicant();
+    expect((await api.post("/api/auth/register-request", first)).status).toBe(201);
 
-      expect(res.status, JSON.stringify(password)).toBe(400);
-    }
+    const again = await api.post("/api/auth/register-request", applicant({ email: ` ${first.email.toUpperCase()} ` }));
+
+    expect(again.status).toBe(409);
+    expect(again.body).toEqual({ success: false, error: TAKEN });
+    expect(await accountsWithEmail(first.email)).toBe(1);
   });
 
-  it("files one request when the same sign-up is sent twice at once, though hashing takes time (issues #14, #81)", async () => {
+  it("answers 409 for an ID number an account has (issue #81)", async () => {
+    const res = await api.post("/api/auth/register-request", applicant({ idNumber: USERS.custodianA.idNumber }));
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: TAKEN });
+  });
+
+  it("stores one account when the same sign-up is sent twice at once (issues #14, #81)", async () => {
     const body = applicant();
 
     const answers = await Promise.all([api.post("/api/auth/register-request", body), api.post("/api/auth/register-request", body)]);
 
-    expect(answers.map((a) => a.status).sort()).toEqual([200, 409]);
-    expect(pendingFile().filter((r) => r.email === body.email)).toHaveLength(1);
-  });
-
-  it("answers 400 when the first name, last name, email, or id number is missing", async () => {
-    for (const missing of ["firstName", "lastName", "email", "idNumber"] as const) {
-      const body: Record<string, unknown> = applicant();
-      delete body[missing];
-      const res = await api.post("/api/auth/register-request", body);
-      expect(res.status, missing).toBe(400);
-    }
-  });
-
-  it("answers 409 for an email or an id number that already belongs to an account, with the text UAT EV-05 expects", async () => {
-    const sameEmail = await api.post("/api/auth/register-request", applicant({ email: USERS.custodianA.email }));
-    const sameIdNumber = await api.post("/api/auth/register-request", applicant({ idNumber: USERS.custodianA.idNumber }));
-
-    expect(sameEmail.status).toBe(409);
-    expect(sameEmail.body.error).toBe("A registered user with this email already exists.");
-    expect(sameIdNumber.status).toBe(409);
-    expect(sameIdNumber.body.error).toBe("A registered user with this ID number already exists.");
-  });
-
-  it("answers 409 for an email a pending request has, in any letter case, and keeps one request (issue #14)", async () => {
-    const { body } = await requestSignUp();
-
-    const again = await api.post("/api/auth/register-request", applicant({ email: ` ${body.email.toUpperCase()} ` }));
-
-    expect(again.status).toBe(409);
-    expect(again.body.error).toBe("A sign-up request with this email is already waiting for approval.");
-    expect(pendingFile().filter((r) => r.email.toLowerCase() === body.email)).toHaveLength(1);
-  });
-
-  it("answers 409 for an id number a pending request has (issue #81)", async () => {
-    const { body } = await requestSignUp();
-
-    const again = await api.post("/api/auth/register-request", applicant({ idNumber: body.idNumber }));
-
-    expect(again.status).toBe(409);
-    expect(again.body.error).toBe("A sign-up request with this ID number is already waiting for approval.");
-  });
-
-  it("accepts an email again once its request was declined", async () => {
-    const { body, registration } = await requestSignUp();
-    await asLabHead.post("/api/auth/reject-registration", { requestId: registration.id });
-
-    const again = await api.post("/api/auth/register-request", { ...body });
-
-    expect(again.status).toBe(200);
+    expect(answers.map((a) => a.status).sort()).toEqual([201, 409]);
+    expect(await accountsWithEmail(body.email)).toBe(1);
   });
 });
 
-describe("GET /api/auth/pending-registrations", () => {
-  it("lists pending requests newest first", async () => {
-    const older = await requestSignUp();
-    const newer = await requestSignUp();
+describe("the Lab Head's sign-up routes (removed in Batch 2b)", () => {
+  it.each([
+    ["GET", "/api/auth/pending-registrations"],
+    ["POST", "/api/auth/approve-registration"],
+    ["POST", "/api/auth/reject-registration"],
+  ])("answer 404 to %s %s, even for a Lab Head, and create no account", async (method, path) => {
+    const body = applicant({ requestId: "REG-000000" });
 
-    const res = await asLabHead.get("/api/auth/pending-registrations");
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    const ids: string[] = res.body.pendingRegistrations.map((r: { id: string }) => r.id);
-    expect(ids.indexOf(newer.registration.id)).toBeLessThan(ids.indexOf(older.registration.id));
-    expect(res.body.pendingRegistrations.every((r: { status: string }) => r.status === "PENDING")).toBe(true);
-  });
-
-  it("lists each request without its password, with the fields the card shows (C-04 fixed)", async () => {
-    const avatarUrl = "data:image/png;base64,iVBORw0KGgo=";
-    const { body, registration } = await requestSignUp({ password: "test-password-hidden", labAffiliation: LAB.shortCode, avatarUrl });
-
-    const res = await asLabHead.get("/api/auth/pending-registrations");
-
-    expect(res.body.pendingRegistrations.some((r: object) => "password" in r)).toBe(false);
-    const listed = res.body.pendingRegistrations.find((r: { id: string }) => r.id === registration.id);
-    expect(listed).toMatchObject({
-      firstName: body.firstName,
-      lastName: body.lastName,
-      email: body.email,
-      idNumber: body.idNumber,
-      userType: "STUDENT",
-      requestedRole: "Custodian",
-      labAffiliation: LAB.shortCode,
-      avatarUrl,
-    });
-    expect(listed.submittedAt).toEqual(expect.any(String));
-  });
-});
-
-describe("POST /api/auth/approve-registration", () => {
-  it("creates the account with its role and lab link, and removes the request from the list and the file", async () => {
-    const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode, userType: "FACULTY", password: "test-password-approved" });
-
-    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(created).toMatchObject({ first_name: body.firstName, last_name: body.lastName, id_number: body.idNumber, user_type: "FACULTY" });
-    expect(await roleNamesOf(created.user_id)).toEqual(["RESEARCHER"]);
-    const links = await db.user_centers.findMany({ where: { user_id: created.user_id } });
-    expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
-    expect(await pendingIds()).not.toContain(registration.id);
-    expect(pendingFile().map((r) => r.id)).not.toContain(registration.id);
-  });
-
-  it("answers the new account's id, names, and email only (01C 4.1 fixed)", async () => {
-    const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode, password: "test-password-echoed" });
-
-    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
-
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(res.body.user).toEqual({ userId: created.user_id, firstName: body.firstName, lastName: body.lastName, email: body.email });
-  });
-
-  it("copies the stored hash into the account, which logs in with the original password (C-03 fixed)", async () => {
-    const plain = "test-password-new-account";
-    const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode, password: plain });
-    const storedHash = pendingFile().find((r) => r.id === registration.id)?.password;
-
-    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
-
-    expect(res.status).toBe(200);
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(isPasswordHash(created.password)).toBe(true);
-    expect(created.password).toBe(storedHash);
-    expect((await api.post("/api/auth/login", { email: body.email, password: plain })).status).toBe(200);
-    expect((await api.post("/api/auth/login", { email: body.email, password: plain.toUpperCase() })).status).toBe(401);
-  });
-
-  it.each(["Custodian", "Lab Head", "TSG", "ITS", "Admin"])("approves a request that asks for role %s as a Custodian (C-05 family)", async (requestedRole) => {
-    const expectedRole: RoleName = "RESEARCHER";
-    const { body, registration } = await requestSignUp({ requestedRole, labAffiliation: LAB.shortCode });
-
-    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
-
-    expect(res.status).toBe(200);
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(await roleNamesOf(created.user_id)).toEqual([expectedRole]);
-  });
-
-  it("answers 400 for a lab it does not know, and creates no research center and no account, keeping the request (M-03)", async () => {
-    const { body, registration } = await requestSignUp({ labAffiliation: "Test Unknown Lab (TESTX)" });
-
-    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe("The lab on this request, Test Unknown Lab (TESTX), is not a known lab. Decline it and ask the applicant to sign up again.");
-    expect(await db.research_centers.count({ where: { short_code: "TESTX" } })).toBe(0);
-    expect(await db.users.count({ where: { email: body.email } })).toBe(0);
-    expect(await pendingIds()).toContain(registration.id);
-  });
-
-  it("finds the lab by its full name, as the sign-up form sends it", async () => {
-    const { body, registration } = await requestSignUp({ labAffiliation: LAB.name });
-
-    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
-
-    expect(res.status).toBe(200);
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    const links = await db.user_centers.findMany({ where: { user_id: created.user_id } });
-    expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
-  });
-
-  it("answers 404 for an unknown request id with no applicant details", async () => {
-    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: "REG-000000" });
+    const res = method === "GET" ? await asLabHead.get(path) : await asLabHead.post(path, body);
 
     expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
-  });
-
-  it("answers 404 for an unknown request id even with applicant details, and creates no account (C-05 fixed)", async () => {
-    const body = applicant({ requestId: "REG-000000", requestedRole: "ITS", labAffiliation: LAB.shortCode, password: "test-password-body" });
-
-    const res = await asLabHead.post("/api/auth/approve-registration", body);
-
-    expect(res.status).toBe(404);
-    expect(res.body).toEqual({ success: false, error: "Pending registration request details not found." });
-    expect(await db.users.count({ where: { email: body.email as string } })).toBe(0);
-  });
-
-  it("approves from the stored request and ignores other fields in the body", async () => {
-    const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode });
-    const other = applicant({ requestedRole: "ITS" });
-
-    const res = await asLabHead.post("/api/auth/approve-registration", { ...other, requestId: registration.id });
-
-    expect(res.status).toBe(200);
-    const created = await db.users.findUniqueOrThrow({ where: { email: body.email } });
-    expect(await roleNamesOf(created.user_id)).toEqual(["RESEARCHER"]);
-    expect(await db.users.count({ where: { email: other.email } })).toBe(0);
-  });
-
-  it("answers 409, not 500, when an account took the request's email before approval, and keeps the request (issue #14)", async () => {
-    const { body, registration } = await requestSignUp({ labAffiliation: LAB.shortCode });
-    const taker = await db.users.create({
-      data: { first_name: "Test", last_name: "Email Taker", email: body.email, password: "test-password-taker", id_number: 92000001, user_type: "STUDENT" },
-    });
-    try {
-      const res = await asLabHead.post("/api/auth/approve-registration", { requestId: registration.id });
-
-      expect(res.status).toBe(409);
-      expect(res.body.error).toBe("A registered user with this email already exists.");
-      expect(await db.users.count({ where: { email: body.email } })).toBe(1);
-      expect(await pendingIds()).toContain(registration.id);
-    } finally {
-      await db.users.delete({ where: { user_id: taker.user_id } });
-    }
-  });
-});
-
-describe("POST /api/auth/reject-registration", () => {
-  it("removes the request from the list and the file, and creates no account", async () => {
-    const { body, registration } = await requestSignUp();
-
-    const res = await asLabHead.post("/api/auth/reject-registration", { requestId: registration.id });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(await pendingIds()).not.toContain(registration.id);
-    expect(pendingFile().map((r) => r.id)).not.toContain(registration.id);
-    expect(await db.users.count({ where: { email: body.email } })).toBe(0);
-  });
-
-  it("answers 200 for an unknown request id as well", async () => {
-    const res = await asLabHead.post("/api/auth/reject-registration", { requestId: "REG-000000" });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(await accountsWithEmail(body.email)).toBe(0);
   });
 });
 
@@ -379,6 +179,6 @@ describe("POST /api/auth/register (deleted, issue #70)", () => {
     const res = await asLabHead.post("/api/auth/register", body);
 
     expect(res.status).toBe(404);
-    expect(await db.users.count({ where: { email: body.email } })).toBe(0);
+    expect(await accountsWithEmail(body.email)).toBe(0);
   });
 });

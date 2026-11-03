@@ -3,72 +3,46 @@
  * Layer: shared. Imported by server/features/auth/, server/shared/middleware/ (requireAuth and the permission checks),
  * the loans, transfers, and assets services (SessionIdentity, to hide names from a Custodian), and web/api/auth.api.ts.
  * Imports shared/enums/role.ts and shared/constants/accountStatuses.ts.
- * Used by: login, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
+ * Used by: login, the session reload, the account page, and self-registration.
  */
 import type { DatabaseRole, Role, StaffUnit } from '../enums/role';
 import type { AccountStatus } from '../constants/accountStatuses';
+import type { UserType } from '../constants/signUp';
 
 /**
- * The body of POST /api/auth/register-request, as Register sends it (Register also sends fields the server ignores,
- * such as `requestedRole`: every request is for a Custodian, C-05 family).
+ * The body of POST /api/auth/register-request, as the server reads it after its checks: the email trimmed and in
+ * lower case, the ID number as a number, and each lab once.
+ */
+export interface SignUpRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  idNumber: number;
+  userType: UserType;
+  /** The password as typed. The server stores only its hash. (C-03) */
+  password: string;
+  /** The labs the applicant asks to join, at least one. The IT Admin confirms or changes them on approval. */
+  centerIds: number[];
+  /** The picture as a data URL; becomes users.user_img. */
+  avatarUrl?: string;
+}
+
+/**
+ * The form values web/pages/auth/Register.tsx sends. The server reads the body into a SignUpRequest and answers 400
+ * for anything missing or wrong. The ID number goes as typed, so a leading 0 is refused instead of lost.
  */
 export interface RegistrationRequestInput {
   firstName: string;
   lastName: string;
   email: string;
-  idNumber: number | string;
-  /** STUDENT when not sent. */
-  userType?: "STUDENT" | "FACULTY" | "STAFF";
-  /** A lab name or code; no lab when not sent. */
-  labAffiliation?: string;
+  idNumber: string;
+  userType: UserType;
   /** The password as typed. The server stores only its hash. (C-03) */
   password: string;
-  /** The picture as a data URL; becomes users.user_img on approval. */
+  /** The labs the applicant asks to join, at least one. */
+  centerIds: number[];
+  /** The picture as a data URL; becomes users.user_img. */
   avatarUrl?: string;
-}
-
-/** One sign-up request, as kept in pending_registrations.json and listed by GET /api/auth/pending-registrations. (H-17) */
-export interface PendingRegistration {
-  /** "REG-" and six random digits. */
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  idNumber: number;
-  userType: "STUDENT" | "FACULTY" | "STAFF";
-  /** "Custodian" for every new request; approval always creates a Custodian, whatever an older request says. (C-05 family) */
-  requestedRole: string;
-  labAffiliation: string;
-  /**
-   * The password's hash, never sent: the answers use PendingRegistrationView. (C-04) A request filed before passwords
-   * were hashed can still hold plain text or nothing; approval refuses it. (C-03)
-   */
-  password?: string;
-  avatarUrl?: string;
-  /** A display date such as "Oct 11, 2026", not a timestamp. */
-  submittedAt: string;
-  /** Always PENDING in the list: approval and rejection remove the request. */
-  status: "PENDING" | "APPROVED" | "REJECTED";
-}
-
-/**
- * A sign-up request as GET /api/auth/pending-registrations and POST /api/auth/register-request send it: the stored
- * request without its password, which no screen shows. (C-04)
- */
-export type PendingRegistrationView = Omit<PendingRegistration, "password">;
-
-/** The `user` of a POST /api/auth/approve-registration answer: the new account's id, names, and email only. (01C 4.1) */
-export interface ApprovedUser {
-  userId: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-}
-
-/** The body of POST /api/auth/approve-registration. Any other field is ignored: the account comes from the stored request. (C-05) */
-export interface ApproveRegistrationInput {
-  /** The REG- id the server gave the request. */
-  requestId: string;
 }
 
 /** The body of POST /api/auth/login. */
@@ -120,7 +94,7 @@ export interface LoginUser {
 
 /** The `user` of a GET /api/auth/me answer: the login profile with the app role and its label inside it. */
 export interface ProfileUser extends LoginUser {
-  /** An app Role: "Staff", "LabHead", "Custodian", or "AdRICDirector". */
+  /** An app Role: "Staff", "LabHead", "Custodian", "AdRICDirector", or "ITAdmin". */
   role: string;
   /** The role's label: a Custodian shows "Researcher". */
   roleLabel: string;

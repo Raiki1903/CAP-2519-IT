@@ -19,12 +19,11 @@ import { sessionUserOf } from '../../shared/middleware/requireAuth';
 export async function finalizeReturn(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = req.body;
-    // Printed before the checks, so a refused request still shows in the server terminal.
-    console.log(`🚀 Server received return finalization for ${assetTag}:`, data);
 
     checkReturnInput(data);
-    const loan = await returnsService.finalizeReturn(assetTag, data, sessionUserOf(req).userId);
+    const receiverId = sessionUserOf(req).userId;
+    const loan = await returnsService.finalizeReturn(assetTag, data, receiverId);
 
-    console.log("✅ Return finalized in MySQL successfully:", loan.loan_id, assetTag);
+    console.log(`Loan ${loan.loan_id} on ${assetTag} returned, received by user ${receiverId}`);
     res.json({ success: true, loan, referenceNumber: `LOAN-${loan.loan_id}` });
 }

@@ -1,23 +1,27 @@
 /**
- * Sign-up screen: a new Custodian asks for an account, which a Lab Head approves or rejects.
+ * Sign-up screen: a new person asks for an account, which the IT Admin approves or rejects.
  * Layer: page. Called by app/routes.tsx at /register.
- * Calls: api/auth.api.ts requestRegistrationRaw(), state/serverData.tsx addPendingRegistration(), features/lookups/useLookups.ts (the labs).
- * Used by: new users (Custodian account request), Lab Head approval.
+ * Calls: api/auth.api.ts requestRegistrationRaw(), api/client.ts readResult(), features/lookups/useLookups.ts (the labs),
+ * features/labs/LabMultiSelect.tsx.
+ * Used by: new users (account request), the IT Admin's approval.
  */
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Eye, EyeOff, Shield, Lock, User, Upload, Camera, CheckCircle, ArrowLeft, Building2, CreditCard, Mail } from "lucide-react";
+import { Eye, EyeOff, Shield, User, Upload, Camera, CheckCircle, ArrowLeft, Building2, CreditCard, Mail } from "lucide-react";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import { useFormLookups } from "@web/features/lookups/useLookups";
-import { useServerData } from "@web/state/serverData";
+import { LabMultiSelect } from "@web/features/labs/LabMultiSelect";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@shared/constants/passwords";
+import {
+  ID_NUMBER_MESSAGE, ID_NUMBER_PATTERN, NO_LAB_MESSAGE, SIGN_UP_EMAIL_DOMAIN, SIGN_UP_EMAIL_MESSAGE,
+  USER_TYPES, USER_TYPE_LABELS, type UserType,
+} from "@shared/constants/signUp";
+import type { RegistrationRequestInput } from "@shared/types/auth";
 import * as authApi from "@web/api/auth.api";
-
-/** The lab value for a request with no lab. Approval finds no research center for it, so the account gets no lab link. */
-const NO_AFFILIATION = "No affiliation";
+import { readResult } from "@web/api/client";
 
 const AVATAR_PRESETS = [
   "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150",
@@ -29,34 +33,24 @@ const AVATAR_PRESETS = [
 ];
 
 /**
- * Collects name, email, ID number, user type, lab, password, and picture; checks them in the
- * browser (a @dlsu.edu.ph email, an 8-digit ID, matching passwords of an allowed length);
- * and sends the request through authApi.requestRegistrationRaw(). Every request asks for the
- * Custodian role. On success the request the server answers with (its stored copy, with the
- * server's id) is also added to this tab's in-memory pending list, until the next server reload
- * replaces that list. Takes no props.
+ * Collects name, email, ID number, user type, labs, password, and picture; checks them in the browser (a
+ * @dlsu.edu.ph email, an 8-digit ID number not starting with 0, at least one lab, matching passwords of an allowed
+ * length) with the same sentences the server uses; and sends the request through authApi.requestRegistrationRaw().
+ * The server stores a Pending account, and the IT Admin gives it a role. Whatever the server answers is shown as it
+ * is, through readResult. Takes no props.
  */
-// TODO(H-17): the server keeps this request, with the password's hash, in pending_registrations.json. Phase 3 makes it a table.
 export function Register() {
   const navigate = useNavigate();
-  const { addPendingRegistration } = useServerData();
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [idNumber, setIdNumber] = useState("");
-  const [userType, setUserType] = useState<"STUDENT" | "FACULTY">("STUDENT");
-  const requestedRole = "Custodian";
-  // The lab's short code, which approval and the Lab Head's list match exactly (issue #12, answer 7).
-  const [labAffiliation, setLabAffiliation] = useState<string>("CITe4D");
+  const [userType, setUserType] = useState<UserType>("STUDENT");
+  const [centerIds, setCenterIds] = useState<number[]>([]);
   const { lookups, failed: lookupsFailed } = useFormLookups();
   const labs = lookups?.labs ?? [];
-  const labName = labs.find(l => l.code === labAffiliation)?.name ?? labAffiliation;
-  // Starts on CITe4D when the research centers have it, else on the first one, or on No affiliation when there are none.
-  useEffect(() => {
-    if (!lookups || labAffiliation === NO_AFFILIATION || labs.some(l => l.code === labAffiliation)) return;
-    setLabAffiliation(labs[0]?.code ?? NO_AFFILIATION);
-  }, [lookups]);
+  const chosenLabCodes = labs.filter(l => centerIds.includes(l.centerId)).map(l => l.code).join(", ");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -64,7 +58,8 @@ export function Register() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [submittedSuccess, setSubmittedSuccess] = useState(false);
+  // The server's own sentence, shown once the sign-up was sent.
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -88,12 +83,16 @@ export function Register() {
       setError("Please enter your full first and last name.");
       return;
     }
-    if (!email.trim() || !email.toLowerCase().endsWith("@dlsu.edu.ph")) {
-      setError("Please enter a valid institutional @dlsu.edu.ph email address.");
+    if (!email.trim().toLowerCase().endsWith(SIGN_UP_EMAIL_DOMAIN) || email.trim().length === SIGN_UP_EMAIL_DOMAIN.length) {
+      setError(SIGN_UP_EMAIL_MESSAGE);
       return;
     }
-    if (!idNumber.trim() || !/^\d{8}$/.test(idNumber.trim())) {
-      setError("Please enter a valid 8-digit DLSU ID number.");
+    if (!ID_NUMBER_PATTERN.test(idNumber.trim())) {
+      setError(ID_NUMBER_MESSAGE);
+      return;
+    }
+    if (centerIds.length === 0) {
+      setError(NO_LAB_MESSAGE);
       return;
     }
     if (!password || password.length < MIN_PASSWORD_LENGTH) {
@@ -112,54 +111,39 @@ export function Register() {
     setLoading(true);
 
     try {
-      const regData = {
+      const regData: RegistrationRequestInput = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim().toLowerCase(),
-        idNumber: parseInt(idNumber.trim(), 10),
+        // As typed: a number would lose a leading 0 before the server could refuse it.
+        idNumber: idNumber.trim(),
         userType,
-        requestedRole,
-        labAffiliation,
         password,
+        centerIds,
         avatarUrl: avatar,
       };
 
-      // Send to server endpoint
       let res: Response;
       try {
         res = await authApi.requestRegistrationRaw(regData);
-      } catch (networkErr: any) {
-        throw new Error("Unable to connect to registration server. Please check if the Express backend is running on port 4000.");
+      } catch {
+        throw new Error("Can't reach the server right now. Try again in a moment.");
       }
 
-      const contentType = res.headers.get("content-type") || "";
-      let data: any = {};
-      if (contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        throw new Error(`Server returned HTML response instead of JSON (Status ${res.status}). Error: ${text.slice(0, 100)}`);
+      const data = await readResult(res, "Could not send your sign-up. Try again.");
+      if (!data.success) {
+        throw new Error(data.error);
       }
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to submit registration request.");
-      }
-
-      // The server's copy, with the id it stored, so an approval or a decline in this tab finds the request. (issue #68)
-      if (addPendingRegistration && data.registration) {
-        addPendingRegistration(data.registration);
-      }
-
-      setSubmittedSuccess(true);
+      setSuccessMessage(String(data.message ?? ""));
     } catch (err: any) {
-      console.error("Registration request error:", err);
       setError(err.message || "An error occurred during registration.");
     } finally {
       setLoading(false);
     }
   };
 
-  if (submittedSuccess) {
+  if (successMessage !== null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4" style={{ fontFamily: "'Montserrat', sans-serif" }}>
         <div className="w-full max-w-[500px] bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
@@ -169,9 +153,9 @@ export function Register() {
               <CheckCircle size={36} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-800">Registration Submitted for Approval</h1>
+              <h1 className="text-xl font-bold text-slate-800">Sign-up Sent</h1>
               <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                Your account registration request for <strong className="text-[#005A36]">{email}</strong> has been received!
+                Your account request for <strong className="text-[#005A36]">{email.trim().toLowerCase()}</strong> has been received.
               </p>
             </div>
 
@@ -185,20 +169,18 @@ export function Register() {
                 <span className="font-mono font-bold">{idNumber}</span>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-1.5">
-                <span className="font-semibold text-slate-500">Requested Role:</span>
-                <span className="font-bold text-[#005A36]">{requestedRole}</span>
+                <span className="font-semibold text-slate-500">User Type:</span>
+                <span className="font-bold text-[#005A36]">{USER_TYPE_LABELS[userType]}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-semibold text-slate-500">Lab Affiliation:</span>
-                <span className="font-bold">{labName}</span>
+                <span className="font-semibold text-slate-500">Requested Labs:</span>
+                <span className="font-bold">{chosenLabCodes}</span>
               </div>
             </div>
 
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 text-xs text-amber-900 text-left flex items-start gap-2.5">
               <Shield size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
-              <p className="leading-relaxed">
-                <strong>Approval Flow Required:</strong> Per DLSU AdRIC security policies, your designated Lab Head must approve your registration request before your account is activated and written to the database.
-              </p>
+              <p className="leading-relaxed">{successMessage}</p>
             </div>
 
             <Button
@@ -342,52 +324,27 @@ export function Register() {
               </div>
             </div>
 
-            {/* User Type & Requested Role */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">User Classification</Label>
-                <Select value={userType} onValueChange={(val: any) => setUserType(val)}>
-                  <SelectTrigger className="h-9 text-xs border-slate-200">
-                    <SelectValue placeholder="Select User Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="STUDENT" className="text-xs">Student Researcher</SelectItem>
-                    <SelectItem value="FACULTY" className="text-xs">Faculty Member</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">Requested System Role</Label>
-                <div className="relative">
-                  <Input
-                    value="Equipment Custodian"
-                    disabled
-                    className="h-9 text-xs bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed pr-8"
-                  />
-                  <Lock size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                </div>
-              </div>
-            </div>
-
-            {/* Lab Affiliation Dropdown */}
+            {/* User Type. The IT Admin chooses the role when approving. */}
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-bold tracking-widest text-slate-500 uppercase flex items-center gap-1">
-                <Building2 size={12} className="text-[#005A36]" /> Institutional Lab Affiliation
-              </Label>
-              <Select value={labAffiliation} onValueChange={setLabAffiliation}>
-                <SelectTrigger className="h-9 text-xs border-slate-200 focus:ring-[#005A36] focus:border-[#005A36]">
-                  <SelectValue placeholder="Select Lab Affiliation" />
+              <Label className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">User Classification</Label>
+              <Select value={userType} onValueChange={(val) => setUserType(val as UserType)}>
+                <SelectTrigger className="h-9 text-xs border-slate-200">
+                  <SelectValue placeholder="Select User Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {labs.map((lab) => (
-                    <SelectItem key={lab.code} value={lab.code} className="text-xs">
-                      {lab.name}
-                    </SelectItem>
+                  {USER_TYPES.map((type) => (
+                    <SelectItem key={type} value={type} className="text-xs">{USER_TYPE_LABELS[type]}</SelectItem>
                   ))}
-                  <SelectItem value={NO_AFFILIATION} className="text-xs">{NO_AFFILIATION}</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Labs: one or more. The IT Admin confirms or changes them when approving. */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-bold tracking-widest text-slate-500 uppercase flex items-center gap-1">
+                <Building2 size={12} className="text-[#005A36]" /> Institutional Labs (choose at least one)
+              </Label>
+              <LabMultiSelect labs={labs} value={centerIds} onChange={setCenterIds} idPrefix="register" disabled={loading} />
               {lookupsFailed && <p className="text-[10px] text-red-600">Could not load the labs. Reload the page.</p>}
             </div>
 

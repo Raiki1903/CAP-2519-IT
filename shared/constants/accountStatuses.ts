@@ -10,8 +10,14 @@ export const ACCOUNT_STATUSES = ["PENDING", "ACTIVE", "INACTIVE", "REJECTED"] as
 /** One value of users.account_status. */
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
-/** The 403 message, at login and on every step, for an account that is Pending, Inactive, or Rejected. */
+/** The 403 message on every step for an account that is Pending, Inactive, or Rejected, and at login for an Inactive one. */
 export const ACCOUNT_NOT_ACTIVE_MESSAGE = "This account is not active. Contact the IT Admin.";
+
+/** The 403 message at login for a Pending sign-up, shown only once the password matched. */
+export const ACCOUNT_PENDING_MESSAGE = "Your sign-up is waiting for IT Admin approval.";
+
+/** The 403 message at login for a Rejected sign-up, shown only once the password matched. */
+export const ACCOUNT_REJECTED_MESSAGE = "Your sign-up was not approved. Contact the IT Admin.";
 
 /** The label every screen shows for each account status. */
 export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {

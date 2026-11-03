@@ -84,7 +84,7 @@ In order:
 2. **The tables are built from the migrations.** Every table in the test database is dropped, then `prisma migrate deploy` applies every migration in `prisma/migrations/`, the same files that will one day be deployed to CCS Cloud. Then `prisma migrate diff` checks that the result matches `prisma/schema.prisma`; if the schema has a change that no migration contains, the run stops before any test. Only `TEST_DATABASE_URL` is used for this. (`tests/setup/globalSetup.ts`; how to write a migration: [../docs/guides/DATABASE-MIGRATIONS.md](../docs/guides/DATABASE-MIGRATIONS.md))
 3. **For each test file, one at a time:**
    - every table in the test database is emptied and the fake data is written in (`tests/setup/seed.ts`, values in `tests/setup/fixtures.ts`);
-   - the server (`server/main.ts`) is started as a separate process on a free port, connected to the test database only, with email and backups switched off, and with its working folder set to a temporary folder (so `pending_registrations.json` is written there, never in the repository);
+   - the server (`server/main.ts`) is started as a separate process on a free port, connected to the test database only, with email and backups switched off, and with its working folder set to a temporary folder (so nothing the server writes to its working folder lands in the repository);
    - the tests in that file run;
    - the server is stopped and its temporary folder deleted.
 
@@ -98,7 +98,7 @@ Defined in [setup/fixtures.ts](setup/fixtures.ts). Everything is invented. Never
 
 | Accounts (all `@example.test`, all Active) | Role |
 |---|---|
-| `admin` | IT_ADMIN |
+| `admin` | IT_ADMIN (the IT Admin view) |
 | `director` | ADRIC_DIRECTOR |
 | `staff.tsg`, `staff.its` | TSG_STAFF (`staff.its` was ITS_STAFF before Batch 1) |
 | `labhead` | RESEARCHER, and the Head of `TEST`, so the Lab Head view |
@@ -145,6 +145,7 @@ describe("loans", () => {
 - When a test changes an asset's state (a borrow, a return, a repair, an inspection, a retirement), give it an asset of its own: `addExtraAsset(db, { tag: "TEST-0101", status: "ON_LOAN", custodianId: USERS.custodianA.userId })` from [setup/extraAssets.ts](setup/extraAssets.ts) adds one in the state you ask for (a loan for a holder, an inspection for a condition). Use a tag no other test in the file uses.
 - When a test adds rows that a later test in the file would count (the analytics endpoints count every asset), remove them in a `finally` block: `removeExtraAssets(db, [asset.assetId])` from the same file deletes the assets and every row that points at them.
 - Each file gets the same fresh data, so a test file never relies on another file.
+- **The failed-login limit** is kept in the server's memory (per email and address), and the 6th failed login for one email within 15 minutes answers 429. Each test file has its own server, so the count starts at 0 in every file. Inside one file, a test that needs several failed logins uses an account no other test in that file fails more than a few times (see [api/auth.test.ts](api/auth.test.ts)); [api/loginLimit.test.ts](api/loginLimit.test.ts) tests the limit itself, and [unit/loginLimiter.test.ts](unit/loginLimiter.test.ts) tests the helper with a test clock.
 
 ---
 

@@ -6,6 +6,8 @@ Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges
 
 **Batch 1 built (2026-11-03):** the data model below (one migration adds it, a second drops `asset_records`, `asset_monetary`, `asset_returns`, `asset_transfers`, `asset_maintenance.is_immediate`, and `projects.funding_agency`); the lifecycle guard, the status setter, and the derive helpers on the server; the constants in `shared/`; the permission rules of section 6 on every live route; the session with every lab; and the live endpoints marked below. **Removed in Batch 1:** transfers (every route and screen), `GET /api/asset_returns`, `GET /api/lookups/users` (the custodian picker), and `GET /api/assets/:assetTag/custodian-history` (replaced by `/history`).
 
+**Batch 2b built (2026-11-04):** sign-ups are `users` rows with status Pending (no more `pending_registrations.json`); the IT Admin approves or rejects them on its own view (`/it-admin`, app role "ITAdmin"); login answers by account status, writes LOGIN_SUCCESS and LOGIN_FAILURE rows, and stops after 5 failed tries (429). The endpoints marked "live (Batch 2b)" in 7.1 and 7.7 exist. **Removed in Batch 2b:** `GET /api/auth/pending-registrations`, `POST /api/auth/approve-registration`, `POST /api/auth/reject-registration`, and the Lab Head's "Account Approvals" tab. Where Batch 2b's brief and an earlier line here differed, this file now says what Batch 2b built.
+
 ---
 
 ## 1. Data model
@@ -207,12 +209,15 @@ Pathways: `DONATE` (Donate), `RECYCLE` (Recycle), `RETURN_TO_FUNDER` (Return to 
 | From | To | Who |
 |---|---|---|
 | (new) | Pending | The applicant (sign-up) |
-| Pending | Active | The IT Admin (approve, with one role and one or more labs) |
+| Pending | Active | The IT Admin (approve, with one role and the person's labs: at least one for a Researcher, zero or more for the other roles) |
 | Pending | Rejected | The IT Admin (reject) |
 | Active | Inactive | The IT Admin (deactivate) |
 | Inactive | Active | The IT Admin (reactivate) |
 
-- Only an Active account can log in or act. A Pending or Inactive account gets **403** on every action.
+- Only an Active account can log in or act. A Pending, Rejected or Inactive account gets **403** on every action, with "This account is not active. Contact the IT Admin.".
+- At login the 403 message depends on the status, and is shown only once the password matched, so it tells a stranger nothing: Pending "Your sign-up is waiting for IT Admin approval."; Rejected "Your sign-up was not approved. Contact the IT Admin."; Inactive "This account is not active. Contact the IT Admin.".
+- A sign-up is an account from the start: its email and ID number are taken at once, whatever its status. A Rejected account keeps them, so the same person cannot sign up again (**409** "An account with this email or ID number already exists. Ask the IT Admin.") until the IT Admin anonymizes it (module 6).
+- Only the IT Admin makes the role and lab choice. There is no Lab Head role: heading a lab is set on the lab (module 6).
 - Anonymize (IT Admin), for an Inactive or Rejected account. Each field becomes:
 
   | Field | Becomes |
@@ -278,7 +283,8 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 - "Approved by" and "Declined by" show the office account, not the person behind it.
 - Known limit (for the manuscript): when a Head borrows an asset of their own lab with their personal account, the approval comes from the office account they also hold.
 - The app's internal role key for a Researcher is still `"Custodian"` (the screens under `/custodian`); the label shown is "Researcher".
-- In Batch 1 the IT Admin and the Secretary still land on the Staff view; their own views come later.
+- The IT Admin has its own view since Batch 2b: app role `"ITAdmin"` (label "IT Admin"), the screens under `/it-admin`, landing on Approvals. A Researcher, Staff, Director or Lab Head opening `/it-admin/*` sees No Access, and so does the IT Admin opening another view's URL. The Secretary still lands on the Staff view until Batch 6.
+- The read-only lists (`GET /api/assets`, `/history`, `/api/loans`, `/api/maintenance`) stay open to any Active account on the server, as in section 7.2. The IT Admin's screens do not load them, and the notification bell is hidden for the IT Admin.
 - A Researcher never sees another person's name or id on an asset or loan (`holder: { "hidden": true }`).
 
 ---
@@ -298,6 +304,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 - **403** the role, the account status (Pending, Inactive), or the lab does not allow it.
 - **404** no such asset, loan, ticket or person.
 - **409** the asset's status or the process's status does not allow this move, or another open request is in the way.
+- **429** login only: 5 failed logins for one email from one address within 15 minutes.
 
 **Common objects**
 
@@ -313,7 +320,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 
 `Retirement`: `{ retirementId, asset, status, statusLabel, reason, pathway, pathwayLabel, previousStatus, requestedBy, requestedAt, decidedBy, decidedAt, decisionRemarks, completedBy, completedAt, dispositionReference, assessmentInspection }`.
 
-`User`: `{ userId, firstName, lastName, email, idNumber, userType, role, roleLabel, accountStatus, labs: [{ centerId, code }], headOf: { centerId, code } or null }`. Sent only to the IT Admin and to the person themself.
+`User`: `{ userId, firstName, lastName, email, idNumber, userType, role, roleLabel, accountStatus, labs: [{ centerId, code }], headOf: { centerId, code } or null }`. Sent only to the IT Admin and to the person themself. `role` is a database role key, or null for a Pending sign-up; for a Pending sign-up, `labs` are the labs it asked for.
 
 `Ticket`: `{ ticketId, createdBy, type, typeLabel, title, description, status, statusLabel, resolutionRemarks, resolvedBy, resolvedAt, createdAt, updatedAt }`.
 
@@ -323,9 +330,11 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| Log in | `POST /api/auth/login` | anyone | `{ email, password }` | `{ role, user: SessionUser }` | 401 wrong email or password; 403 account Pending or Inactive | live (Batch 1) |
+| Log in | `POST /api/auth/login` | anyone | `{ email, password }` | `{ role, user: SessionUser }` | 401 wrong email or password; 403 account Pending, Rejected or Inactive (a message for each status, section 4); 429 "Too many failed logins. Try again in 15 minutes." | live (Batch 1); status messages, login log and 429 live (Batch 2b) |
 | Who am I | `GET /api/auth/me` | logged in | | `{ user: SessionUser }` | 404 account gone | live (Batch 1) |
 | Form option lists | `GET /api/lookups` | anyone | | `{ labs: [{ centerId, code, name, campus, campusLabel, headUserId }], categories: [{ key, label }], fundingSources: [{ fundingSourceId, name }], issueTypes: [{ issueTypeId, key, name, suggestedAction }], metricsByCategory: { "<CATEGORY>": [{ metricId, metricKey, name, unit, higherIsBetter }] }, projects: [{ projectId, code, name, centerId }] }`. A category with no metrics is left out of `metricsByCategory` | | live (Batch 1) |
+
+**The failed-login limit (Batch 2b).** The key is the lowercased email plus the client's address. A failed login (wrong password, or an email with no account) counts toward it, and the 5th within 15 minutes blocks the key for 15 minutes. The block is checked before the password is verified, so a blocked key costs no hashing, and the 429 is the same whether or not the email has an account. A successful login clears the key. A 403 for a status is not a failed login: it neither counts nor clears. The count is kept in the server's memory, so a restart clears it. Behind nginx the address is the forwarded one (the server trusts only a proxy on the same machine).
 
 `SessionUser`: `{ userId, firstName, lastName, email, idNumber, role, roleLabel, staffUnit, accountStatus, labs: [{ centerId, code, name, campus }], headOf: { centerId, code } or null, userImg }`. `labs` lists every lab the person belongs to; there is no "first" or default lab, and a person with no lab gets `[]`. `idNumber` is the person's own (never anyone else's), so the loan request form can prefill the name, ID number and labs.
 
@@ -397,11 +406,11 @@ Registration writes the Initial inspection and an ASSET_REGISTERED log row; an e
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| Sign up | `POST /api/auth/register-request` | anyone | `{ firstName, lastName, email, idNumber, userType, password, centerIds: [] }` | `{ message }` | 400; 409 email or ID number taken | planned (Batch 2b), stored in the database |
-| Pending sign-ups | `GET /api/users?status=PENDING` | IT Admin | | `{ users: User[] }` | 403 | planned (Batch 2b) |
-| Approve a sign-up | `PUT /api/users/:userId/approve` | IT Admin | `{ role, centerIds: [] }` (one or more labs) | `{ user: User }` | 400; 403; 404; 409 not Pending | planned (Batch 2b) |
-| Reject a sign-up | `PUT /api/users/:userId/reject` | IT Admin | `{ remarks? }` | `{ user: User }` | 403; 404; 409 not Pending | planned (Batch 2b) |
-| Users list | `GET /api/users` | IT Admin | `?status=&role=&centerId=&q=` | `{ users: User[] }` | 403 | planned (module 6) |
+| Sign up | `POST /api/auth/register-request` | anyone | `{ firstName, lastName, email, idNumber, userType, password, centerIds: [] }`: an `@dlsu.edu.ph` email (stored in lower case), an 8-digit ID number not starting with 0, `userType` STUDENT, FACULTY or STAFF, a password of 8 to 128 characters, and at least one lab that exists | 201 `{ message }`: a Pending account with no role, linked to the labs asked for | 400 a missing or wrong field, or an unknown lab; 409 email or ID number taken (by an account of any status) | live (Batch 2b) |
+| Pending sign-ups | `GET /api/users?status=PENDING` | IT Admin | | `{ users: User[] }`, oldest first (by user id: an account has no sign-up date yet), each with the labs it asked for | 400 any other query ("Only status=PENDING is available for now."); 403 | live (Batch 2b) |
+| Approve a sign-up | `PUT /api/users/:userId/approve` | IT Admin | `{ role, centerIds: [] }`: `role` is one of RESEARCHER, TSG_STAFF, ADRIC_DIRECTOR, ADRIC_SECRETARY, IT_ADMIN; **at least one lab for a Researcher, zero or more for the other roles** (the IT Admin, Director and Secretary usually have none) | `{ user: User }`, Active, with the one role and `centerIds` as its labs | 400 bad role, a Researcher with no lab, or an unknown lab; 403; 404; 409 not Pending | live (Batch 2b) |
+| Reject a sign-up | `PUT /api/users/:userId/reject` | IT Admin | `{ remarks? }`: trimmed, at most 255 characters | `{ user: User }`, Rejected, with no labs | 400 remarks too long; 403; 404; 409 not Pending | live (Batch 2b) |
+| Users list | `GET /api/users` | IT Admin | `?status=&role=&centerId=&q=` | `{ users: User[] }` | 403 | planned (module 6); until then only `?status=PENDING` answers |
 | Change role | `PUT /api/users/:userId/role` | IT Admin | `{ role }` | `{ user: User }` | 400; 403; 404 | planned (module 6) |
 | Change labs | `PUT /api/users/:userId/labs` | IT Admin | `{ centerIds: [] }` | `{ user: User }` | 400; 403; 404; 409 removes the lab they head | planned (module 6) |
 | Change a lab's Head | `PUT /api/research-centers/:centerId/head` | IT Admin | `{ userId }` or `{ userId: null }` | `{ lab: { centerId, code, headUserId } }` | 400 the person is not in that lab; 403; 404; 409 they already head another lab | planned (module 6) |
@@ -409,6 +418,8 @@ Registration writes the Initial inspection and an ASSET_REGISTERED log row; an e
 | Reactivate | `PUT /api/users/:userId/reactivate` | IT Admin | | `{ user: User }` | 403; 404; 409 not Inactive | planned (module 6) |
 | Anonymize | `PUT /api/users/:userId/anonymize` | IT Admin | | `{ user: User }` | 403; 404; 409 not Inactive or Rejected, or not cleared | planned (module 6) |
 | Activity log | `GET /api/activity-log` | IT Admin | `?eventType=&actorId=&targetUserId=&assetTag=&from=&to=&page=` | `{ entries: ActivityEntry[], page, pageCount }` | 403 | planned (module 6) |
+
+Approve and reject lock the account row, so two decisions at once give one 200 and one 409. Each writes one activity row, with the IT Admin as actor and the account as target: SIGNUP_APPROVED (details `Role: <key>; labs: <codes, or none>`) and SIGNUP_REJECTED (details: the remarks). Each login on an existing account writes one row too: LOGIN_SUCCESS (actor: the account), or LOGIN_FAILURE (no actor, the account as target, details one of "Wrong password", "Account pending", "Account rejected", "Account inactive"). A failed login for an email with no account writes nothing.
 
 Activity events: LOGIN_SUCCESS, LOGIN_FAILURE, SIGNUP_APPROVED, SIGNUP_REJECTED, ROLE_CHANGED, LABS_CHANGED, HEAD_CHANGED, USER_DEACTIVATED, USER_REACTIVATED, USER_ANONYMIZED, TICKET_STATUS_CHANGED, ASSET_REGISTERED, ASSET_EDITED (details list the changed field names), ASSET_DELETED, ASSET_MARKED_MISSING, ASSET_FOUND, CLEARANCE_RECORD_PRINTED. A log row never holds an email, a typed login name, or a password.
 

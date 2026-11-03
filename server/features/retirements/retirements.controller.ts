@@ -19,14 +19,12 @@ import { checkDisposalDecision, checkDisposalRequest } from './retirements.valid
 export async function requestDisposal(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = req.body;
-    // Printed before the checks, so a refused request still shows in the server terminal.
-    console.log(`🚀 Server received disposal request for ${assetTag}:`, data);
 
     checkDisposalRequest(data);
     const requesterId = sessionUserOf(req).userId;
     const { disposal, asset } = await retirementsService.requestDisposal(assetTag, data, requesterId);
 
-    console.log("✅ Disposal request logged in MySQL successfully:", disposal.retirement_id, assetTag);
+    console.log(`Retirement ${disposal.retirement_id} on ${assetTag} requested by user ${requesterId}`);
     res.json({ success: true, disposal });
 
     // Sent after the answer and not awaited, so a slow mail service never delays it. sendEmail catches its own send failures.
@@ -51,13 +49,12 @@ export async function listDisposals(req: Request, res: Response): Promise<void> 
 export async function decideDisposal(req: Request<{ disposalId: string }>, res: Response): Promise<void> {
     const disposalId = parseInt(req.params.disposalId, 10);
     const { decision } = req.body as { decision?: string };
-    // Printed before the checks, so a refused decision still shows in the server terminal.
-    console.log(`🚀 Server received disposal decision for #${disposalId}:`, decision);
 
     checkDisposalDecision(disposalId, decision);
-    const updatedDisposal = await retirementsService.decideDisposal(disposalId, decision, sessionUserOf(req).userId);
+    const deciderId = sessionUserOf(req).userId;
+    const updatedDisposal = await retirementsService.decideDisposal(disposalId, decision, deciderId);
 
-    console.log(`✅ Disposal #${disposalId} ${decision}d successfully.`);
+    console.log(`Retirement ${disposalId} ${decision === 'approve' ? 'approved' : 'rejected'} by user ${deciderId}`);
     res.json({ success: true, disposal: updatedDisposal });
 
     // Sent after the answer and not awaited, as for the request above.

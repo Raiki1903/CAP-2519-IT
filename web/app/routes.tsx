@@ -19,6 +19,7 @@ import { HealthPage } from "@web/pages/staff/HealthPage";
 import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";
+import { ApprovalsPage } from "@web/pages/it-admin/ApprovalsPage";
 import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
 import { NotFound } from "@web/pages/NotFound";
 
@@ -35,8 +36,9 @@ function OldStaffUrlRedirect() {
 
 /**
  * The app's router. Login and sign-up sit outside RootLayout because they need no session.
- * Staff (ITS and TSG accounts alike) have one tree, `/staff/*`, with one page per tab. The Lab Head, Custodian, and Director dashboards
- * are still one component each, and the URL's last segment picks the tab through `activeTab`.
+ * Staff (TSG and Secretary accounts alike) have one tree, `/staff/*`, with one page per tab. The IT Admin has its own,
+ * `/it-admin/*`. The Lab Head, Custodian, and Director dashboards are still one component each, and the URL's last
+ * segment picks the tab through `activeTab`.
  * Which role may open which tree is decided in RootLayout, not here.
  */
 export const router = createBrowserRouter([
@@ -81,7 +83,6 @@ export const router = createBrowserRouter([
           { path: "custody",     element: <LabHeadDashboard activeTab="custody" /> },
           { path: "inventory",   element: <LabHeadDashboard activeTab="inventory" /> },
           { path: "health",      element: <LabHeadDashboard activeTab="health" /> },
-          { path: "approvals",   element: <LabHeadDashboard activeTab="approvals" /> },
           { path: "account",     element: <AccountDetailsPage /> },
         ],
       },
@@ -110,6 +111,16 @@ export const router = createBrowserRouter([
           { path: "clearance-disposal", element: <AdRICDirectorDashboard activeTab="clearance-disposal" /> },
           { path: "reports",            element: <AdRICDirectorDashboard activeTab="reports" /> },
           { path: "account",            element: <AccountDetailsPage /> },
+        ],
+      },
+
+      // IT Admin routes. Module 6 adds Users, Activity Log, and Tickets pages here.
+      {
+        path: "it-admin",
+        children: [
+          { index: true, element: <Navigate to="approvals" replace /> },
+          { path: "approvals", element: <ApprovalsPage /> },
+          { path: "account",   element: <AccountDetailsPage /> },
         ],
       },
     ],

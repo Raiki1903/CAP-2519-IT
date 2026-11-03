@@ -1,12 +1,9 @@
 /**
  * Tests that the error logs hold neither a password nor a hash, by spying on console.error. (C-03, issue #10)
- * Covers server/shared/middleware/errorHandler.ts, the pending file's load in server/features/auth/auth.repository.ts,
- * the error text of prisma/seed.ts, and hidePasswordHashes in server/shared/services/passwords.ts. No server, no database.
- * Fixtures: made-up passwords, a made-up hash, and a damaged pending file in a temporary folder. The real file is never read.
+ * Covers server/shared/middleware/errorHandler.ts, the error text of prisma/seed.ts, and hidePasswordHashes in
+ * server/shared/services/passwords.ts. No server, no database.
+ * Fixtures: made-up passwords and a made-up hash.
  */
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { inspect } from "node:util";
 import type { NextFunction, Request, Response } from "express";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -89,25 +86,6 @@ describe("errorHandler", () => {
     expectNoSecret(logged());
     expect(logged()).toContain("POST /api/auth/login failed");
     expect(logged()).toContain("Invalid value for user_type");
-  });
-});
-
-describe("the pending file's load error", () => {
-  it.each([
-    ["a password", `{"password": ${PLAIN}}`],
-    ["a hash", `{"password": scrypt$1$2}`],
-  ])("logs only the error's name when the damaged file quotes %s", async (_, damaged) => {
-    const folder = fs.mkdtempSync(path.join(os.tmpdir(), "adric-pending-log-"));
-    fs.writeFileSync(path.join(folder, "pending_registrations.json"), damaged, "utf-8");
-    vi.spyOn(process, "cwd").mockReturnValue(folder);
-    try {
-      await import("../../server/features/auth/auth.repository");
-
-      expectNoSecret(logged());
-      expect(logged()).toContain("SyntaxError");
-    } finally {
-      fs.rmSync(folder, { recursive: true, force: true });
-    }
   });
 });
 

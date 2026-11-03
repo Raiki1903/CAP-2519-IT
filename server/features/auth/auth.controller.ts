@@ -2,14 +2,14 @@
  * Auth controller: unpacks login, profile, account, and sign-up requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by auth.routes.ts. Calls auth.validation.ts, auth.service.ts, and shared/middleware/requireAuth.ts
  * (sessionUserOf: who is acting).
- * Used by: login and logout for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
+ * Used by: login and logout for every role, the session reload, the account page, and self-registration.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as authService from './auth.service';
 import { clearedSessionCookieHeader, readCookie, SESSION_COOKIE_NAME, sessionCookieHeader } from '../../shared/services/session';
-import { checkAccountUpdate, checkLogin, checkRegistrationRequest } from './auth.validation';
+import { checkAccountUpdate, checkLogin, readSignUpRequest } from './auth.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 // Each handler reads req.body in one destructuring statement. A request with no JSON body (Express 5 leaves
@@ -17,59 +17,30 @@ import { sessionUserOf } from '../../shared/middleware/requireAuth';
 // TODO: a missing body should answer 400, not 500. A body check, its own small fix (not part of step 13a).
 
 /**
- * Handles GET /api/auth/pending-registrations: `{ success, pendingRegistrations }`, newest first, without passwords (C-04).
- * It has no error handling of its own, as before: it reads only the in-memory list.
- */
-export async function listPendingRegistrations(req: Request, res: Response): Promise<void> {
-    res.json({ success: true, pendingRegistrations: authService.listPendingRegistrations() });
-}
-
-/**
- * Handles POST /api/auth/register-request: files a sign-up request for a Lab Head to approve. A `requestedRole` in the
- * body is not read: every request is for a Custodian (C-05 family).
- * Answers `{ success, registration }` with the stored request without its password (C-04),
- * or the AppError's status and message (400 missing field or a password of the wrong length; 409 email or id number
- * taken by an account or by a request still waiting), or 500.
+ * Handles POST /api/auth/register-request: stores a sign-up as a Pending account with its requested labs, for the IT
+ * Admin to approve. A role in the body is not read: the IT Admin picks it on approval.
+ * Answers 201 `{ success, message }`, or the AppError's status and message (400 a missing or wrong field, or a lab that
+ * does not exist; 409 email or ID number taken), or 500.
  */
 export async function requestRegistration(req: Request, res: Response): Promise<void> {
-    const { firstName, lastName, email, idNumber, userType, labAffiliation, password, avatarUrl } = req.body;
-    const data = { firstName, lastName, email, idNumber, userType, labAffiliation, password, avatarUrl };
+    const data = readSignUpRequest(req.body);
+    const userId = await authService.requestRegistration(data);
 
-    checkRegistrationRequest(data);
-    const newReq = await authService.requestRegistration(data);
-
-    console.log(`📝 Registration request created for ${email} (Pending Lab Head Approval). ID: ${newReq.id}`);
-
-    res.json({ success: true, registration: newReq });
-}
-
-/**
- * Handles POST /api/auth/approve-registration: creates the account a sign-up request asked for.
- * Only `requestId` is read: the account comes from the stored request, never from the body. (C-05)
- * Answers `{ success, user, message }` with the new account's id, names, and email only (01C 4.1),
- * 404 when the request id matches no pending request, 409 when an account has its email or id number by now or the
- * request was filed before passwords were hashed, or 500.
- */
-export async function approveRegistration(req: Request, res: Response): Promise<void> {
-    const { requestId } = req.body;
-
-    const createdUser = await authService.approveRegistration({ requestId });
-
-    console.log(`✅ Lab Head Approved User Registration! Created user in MySQL DB: ID ${createdUser.userId}`);
-    res.json({ success: true, user: createdUser, message: `Account approved and created in database for ${createdUser.email}.` });
+    console.log(`Sign-up filed: user ${userId} is pending`);
+    res.status(201).json({ success: true, message: authService.SIGN_UP_SENT_MESSAGE });
 }
 
 /**
  * Handles POST /api/auth/login: checks an email and password, and starts a session.
  * Answers `{ success, role, user }` with the app role and the profile, plus a Set-Cookie header with the signed
  * adric_session cookie (8 hours, HttpOnly); or the AppError's status and message (400 missing email or password,
- * 401 no match, no cookie), or 500.
+ * 401 no match, 403 an account that is not Active, 429 too many failed logins; no cookie), or 500.
  */
 export async function login(req: Request, res: Response): Promise<void> {
     const { email, password } = req.body;
 
     checkLogin({ email, password });
-    const { role, user } = await authService.login(email, password);
+    const { role, user } = await authService.login(email, password, req.ip);
 
     res.setHeader('Set-Cookie', sessionCookieHeader(authService.startSession(user.userId)));
     res.json({
@@ -87,16 +58,6 @@ export async function logout(req: Request, res: Response): Promise<void> {
     authService.endSession(readCookie(req.headers.cookie, SESSION_COOKIE_NAME));
     res.setHeader('Set-Cookie', clearedSessionCookieHeader());
     res.json({ success: true });
-}
-
-/**
- * Handles POST /api/auth/reject-registration: drops a sign-up request.
- * Answers 200 even for an id no request has, or errorHandler's generic 500. Prints no line of its own.
- */
-export async function rejectRegistration(req: Request, res: Response): Promise<void> {
-    const { requestId } = req.body;
-    authService.rejectRegistration(requestId);
-    res.json({ success: true, message: "Registration request rejected." });
 }
 
 /**
@@ -127,7 +88,7 @@ export async function updateAccount(req: Request, res: Response): Promise<void> 
     checkAccountUpdate(data);
     const { updatedUser, user } = await authService.updateAccount(sessionUserOf(req).userId, data);
 
-    console.log(`👤 Updated user credentials in MySQL DB: ${updatedUser.email} -> ${firstName} ${lastName} [img length: ${updatedUser.user_img ? updatedUser.user_img.length : 0}]`);
+    console.log(`Account ${updatedUser.user_id} updated its profile`);
     res.json({
         success: true,
         user

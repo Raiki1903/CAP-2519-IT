@@ -1,7 +1,8 @@
 /**
  * Side navigation: the role's tab list, collapse toggle, logout, and the settings panel (theme, inspection cycle, session details).
  * Layer: shared (app shell). Called by layouts/RootLayout.tsx.
- * Calls: state/session.tsx (role, preferences, cookies), state/serverData.tsx (unacknowledged repair count). No api calls.
+ * Calls: state/session.tsx (role, preferences, cookies), state/serverData.tsx (unacknowledged repair count),
+ * state/pendingSignUps.tsx (the IT Admin's count of sign-ups waiting). No api calls.
  * Used by: every role.
  */
 import { useState, useEffect } from "react";
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { useSession, roleToSlug, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
+import { usePendingSignUps } from "@web/state/pendingSignUps";
 import type { Role } from "@shared/enums/role";
 import { Button } from "@web/components/ui/button";
 import { Separator } from "@web/components/ui/separator";
@@ -48,7 +50,6 @@ const roleConfig: Record<Role, {
       { id: "custody",     label: "Requests",            icon: Users         },
       { id: "inventory",   label: "Lab Inventory",       icon: ClipboardList },
       { id: "health",      label: "Analytics",             icon: BarChart3     },
-      { id: "approvals",   label: "Account Approvals",   icon: ShieldCheck   },
     ],
   },
   Custodian: {
@@ -67,11 +68,17 @@ const roleConfig: Record<Role, {
       { id: "reports",            label: "Inventory Report",    icon: ClipboardList },
     ],
   },
+  ITAdmin: {
+    nav: [
+      { id: "approvals", label: "Approvals", icon: ShieldCheck },
+    ],
+  },
 };
 
 /**
  * Shows the signed-in role's navigation. Each entry links to `/<role slug>/<tab id>`;
- * the Repair Manager entry carries the count of unacknowledged repair tickets.
+ * the Repair Manager entry carries the count of unacknowledged repair tickets, and the IT Admin's Approvals entry the
+ * count of sign-ups waiting.
  *
  * @param onLogout called by the logout button; RootLayout clears the role
  * @param isMobileOpen whether the drawer is open on a narrow screen
@@ -80,6 +87,7 @@ const roleConfig: Record<Role, {
 export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: () => void; isMobileOpen?: boolean; onCloseMobile?: () => void }) {
   const { role, sidebarCollapsed, setSidebarCollapsed, cycleMode, setCycleMode, theme, setTheme, currentUser } = useSession();
   const { unacknowledgedCount } = useServerData();
+  const { users: pendingSignUps } = usePendingSignUps();
   const [showSettings, setShowSettings] = useState(false);
   const navigate   = useNavigate();
   const location   = useLocation();
@@ -275,7 +283,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
 
           {cfg.nav.map(({ id, label, icon: Icon }) => {
             const active = activeTab === id;
-            const alertCount = id === "repairs" ? unacknowledgedCount : 0;
+            const alertCount = id === "repairs" ? unacknowledgedCount : id === "approvals" && role === "ITAdmin" ? pendingSignUps.length : 0;
             const hasAlert   = alertCount > 0;
 
             const navBtn = (

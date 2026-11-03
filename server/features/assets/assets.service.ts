@@ -323,9 +323,6 @@ async function listedAsset(viewer: SessionIdentity, assetId: number): Promise<As
 export async function registerAsset(data: AssetCreateInput, registrar: SessionIdentity): Promise<AssetListItem> {
     await checkReferences(data);
     const lab = (await assetsRepository.findLabById(data.centerId))!;
-    if (data.imageUrl) {
-        console.log(`📸 Saving image payload for new asset (${data.imageUrl.slice(0, 30)}... [length: ${data.imageUrl.length}])`);
-    }
 
     const { initialInspection, ...master } = data;
     const assetId = await assetsRepository.register(

@@ -92,7 +92,7 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput, 
     const dedupeKey = `${assetTag}::${data.description}`;
     const lastSeen = recentRepairSubmissions.get(dedupeKey);
     if (lastSeen && Date.now() - lastSeen < DUPLICATE_WINDOW_MS) {
-        console.warn(`🛑 Duplicate repair request blocked for ${assetTag} (same description within ${DUPLICATE_WINDOW_MS / 1000}s)`);
+        console.warn(`Duplicate maintenance request for ${assetTag} refused (same description within ${DUPLICATE_WINDOW_MS / 1000}s)`);
         throw new AppError(409, "This exact repair request was just submitted — please wait a few seconds before retrying.");
     }
     recentRepairSubmissions.set(dedupeKey, Date.now());

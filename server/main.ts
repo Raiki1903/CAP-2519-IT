@@ -9,10 +9,7 @@ import { app } from './app';
 
 const PORT = env.port;
 const server = app.listen(PORT, () => {
-    console.log(`\n==================================================`);
-    console.log(`✅ Mini-Backend API is actively listening!`);
-    console.log(`🚀 Route Ready: http://localhost:${PORT}/api/assets`);
-    console.log(`==================================================\n`);
+    console.log(`API listening on http://localhost:${PORT}`);
     // Which database the server is on, so a teammate can tell a local copy from CCS Cloud. Never the password.
     console.log(`Database: ${env.database.name} on ${env.database.host}`);
 });

@@ -1,8 +1,9 @@
 /**
  * No answer holds a password or a hash: the sign-up path, the session answers, and every list screen. (C-03, issue #10)
- * Covers POST /api/auth/register-request, /approve-registration, and /login, GET /api/auth/me and /pending-registrations,
- * PUT /api/auth/account, and the GET routes of every feature.
- * Fixtures: the seeded accounts and assets, and one invented applicant, approved and logged in during the first test.
+ * Covers POST /api/auth/register-request and /login, GET /api/users?status=PENDING, PUT /api/users/:userId/approve,
+ * GET /api/auth/me, PUT /api/auth/account, and the GET routes of every feature.
+ * Fixtures: the seeded accounts and assets, and one invented applicant, approved by the IT Admin and logged in during
+ * the first test.
  */
 import { describe, expect, it } from "vitest";
 import { ASSETS, LAB, USERS, type TestUser } from "../setup/fixtures";
@@ -22,17 +23,18 @@ function expectNoSecret(label: string, body: unknown): void {
 
 describe("the sign-up path and the session answers", () => {
   it("hold neither the password nor a hash", async () => {
-    const applicant = { firstName: "Test", lastName: "Leak Check", email: "leak.check@example.test", idNumber: 94000001, labAffiliation: LAB.shortCode, password: PLAIN };
+    const applicant = { firstName: "Test", lastName: "Leak Check", email: "test.leak.check@dlsu.edu.ph", idNumber: 94000001, userType: "STUDENT", centerIds: [LAB.centerId], password: PLAIN };
 
     const signUp = await api.post("/api/auth/register-request", applicant);
-    expect(signUp.status).toBe(200);
+    expect(signUp.status).toBe(201);
     expectNoSecret("sign-up", signUp.body);
 
-    const pending = await as(USERS.labHead).get("/api/auth/pending-registrations");
+    const pending = await as(USERS.admin).get("/api/users?status=PENDING");
     expect(pending.status).toBe(200);
     expectNoSecret("pending list", pending.body);
 
-    const approval = await as(USERS.labHead).post("/api/auth/approve-registration", { requestId: signUp.body.registration.id });
+    const { userId } = pending.body.users.find((u: { email: string }) => u.email === applicant.email);
+    const approval = await as(USERS.admin).put(`/api/users/${userId}/approve`, { role: "RESEARCHER", centerIds: [LAB.centerId] });
     expect(approval.status).toBe(200);
     expectNoSecret("approval", approval.body);
 
@@ -71,27 +73,6 @@ describe("the server's own output", () => {
 
     const output = await outputOnceItHas("request body could not be read");
     expect(output).not.toContain(PLAIN.slice(0, 8));
-  });
-
-  it("holds no hash when creating the account fails on approval, though the database error quotes its values", async () => {
-    const signUp = await api.post("/api/auth/register-request", {
-      firstName: "Test",
-      lastName: "Bad Type",
-      email: "bad.type@example.test",
-      idNumber: 94000002,
-      userType: "NOT_A_TYPE",
-      labAffiliation: LAB.shortCode,
-      password: PLAIN,
-    });
-    expect(signUp.status).toBe(200);
-
-    const approval = await as(USERS.labHead).post("/api/auth/approve-registration", { requestId: signUp.body.registration.id });
-    expect(approval.status).toBe(500);
-    expectNoSecret("approval", approval.body);
-
-    const output = await outputOnceItHas("/api/auth/approve-registration failed");
-    expect(output).not.toContain("scrypt$");
-    expect(output).not.toContain(PLAIN);
   });
 });
 

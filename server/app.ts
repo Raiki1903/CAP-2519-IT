@@ -1,7 +1,7 @@
 /**
  * Builds the Express app: the middleware, in order, then the routes, then the error handler.
  * Layer: server app. Called by main.ts. Calls the routes files of features/loans, returns, retirements, maintenance,
- * inspections, auth, assets, analytics, and lookups, shared/middleware/errorHandler.ts, and config/env.ts (the web origin for CORS).
+ * inspections, auth, users, assets, analytics, and lookups, shared/middleware/errorHandler.ts, and config/env.ts (the web origin for CORS).
  * Used by: every request to the API.
  */
 import express from 'express';
@@ -12,6 +12,7 @@ import { retirementsRouter } from './features/retirements/retirements.routes';
 import { maintenanceRouter } from './features/maintenance/maintenance.routes';
 import { inspectionsRouter } from './features/inspections/inspections.routes';
 import { authRouter } from './features/auth/auth.routes';
+import { usersRouter } from './features/users/users.routes';
 import { assetsRouter } from './features/assets/assets.routes';
 import { analyticsRouter } from './features/analytics/analytics.routes';
 import { lookupsRouter } from './features/lookups/lookups.routes';
@@ -25,6 +26,11 @@ import { env } from './config/env';
  * answers every error a router or body parser passes on.
  */
 export const app = express();
+
+// The deployed site runs behind nginx on the same machine, which sends X-Forwarded-For. With 'loopback', req.ip is
+// the forwarded address only for a request that came from this machine, so a direct request cannot fake it. The login
+// limit counts failures per address (shared/services/loginLimiter.ts). Locally nothing changes.
+app.set('trust proxy', 'loopback');
 
 // A list, not a plain string: with a list, cors sends Access-Control-Allow-Origin only when the request's
 // origin is on it, so another site's page gets no CORS headers at all. credentials lets the browser send
@@ -40,6 +46,7 @@ app.use(retirementsRouter);
 app.use(maintenanceRouter);
 app.use(inspectionsRouter);
 app.use(authRouter);
+app.use(usersRouter);
 app.use(assetsRouter);
 app.use(analyticsRouter);
 app.use(lookupsRouter);
