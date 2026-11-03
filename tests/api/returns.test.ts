@@ -1,6 +1,6 @@
 /**
  * Returns API: finalizing a return and the list of returns.
- * Covers POST /api/assets/:tag/return, GET /api/asset_returns.
+ * Covers POST /api/assets/:tag/return, and that GET /api/asset_returns is gone.
  * Workflow: returning a borrowed asset (TSG records the condition, the loan closes, the asset is Available again).
  * Fixtures: the seeded approved loan LOAN-1 on TEST-0002, the accounts (USERS). The list tests run first and remove
  * the rows they add. The write tests return TEST-0002 (its loan LOAN-1 closes, H-04) and otherwise use their own extra assets
@@ -28,49 +28,10 @@ async function listedAsset(tag: string) {
 }
 
 describe("GET /api/asset_returns", () => {
-  it("answers an empty list when nothing has been returned", async () => {
+  it("is gone with its table: 404", async () => {
     const res = await asStaff.get("/api/asset_returns");
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, returns: [] });
-  });
-
-  it("lists returns newest first, with the asset and the person who returned it", async () => {
-    const older = await db.asset_returns.create({
-      data: {
-        asset_id: ASSETS.inspected.assetId,
-        returned_by_id: USERS.custodianA.userId,
-        condition: "OPERATIONAL",
-        reference_number: "TEST-RET-OLDER",
-        returned_on: new Date("2026-05-01T09:00:00Z"),
-      },
-    });
-    const newer = await db.asset_returns.create({
-      data: {
-        asset_id: ASSETS.onLoan.assetId,
-        returned_by_id: USERS.custodianB.userId,
-        condition: "DEGRADED",
-        reference_number: "TEST-RET-NEWER",
-        returned_on: new Date("2026-06-01T09:00:00Z"),
-      },
-    });
-    try {
-      const res = await asStaff.get("/api/asset_returns");
-
-      expect(res.status).toBe(200);
-      expect(res.body.returns.map((r: { id: string }) => r.id)).toEqual([`RET-${newer.return_id}`, `RET-${older.return_id}`]);
-      expect(res.body.returns[0]).toMatchObject({
-        returnId: newer.return_id,
-        assetId: ASSETS.onLoan.tag,
-        asset: ASSETS.onLoan.name,
-        returnedBy: USERS.custodianB.fullName,
-        condition: "DEGRADED",
-        referenceNumber: "TEST-RET-NEWER",
-      });
-      expect(typeof res.body.returns[0].returnedOn).toBe("string");
-    } finally {
-      await db.asset_returns.deleteMany({ where: { return_id: { in: [older.return_id, newer.return_id] } } });
-    }
+    expect(res.status).toBe(404);
   });
 });
 
@@ -82,14 +43,8 @@ describe("POST /api/assets/:tag/return", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.return).toMatchObject({
-      asset_id: asset.assetId,
-      returned_by_id: USERS.custodianA.userId,
-      condition: "OPERATIONAL",
-      comments: "Test return comment",
-    });
-    expect(res.body.return.reference_number).toMatch(/^CLR-/);
-    expect(await db.asset_returns.count({ where: { asset_id: asset.assetId } })).toBe(1);
+    expect(res.body.loan).toMatchObject({ loan_id: asset.loanId, asset_id: asset.assetId, borrower_id: USERS.custodianA.userId, status: "RETURNED" });
+    expect(res.body.referenceNumber).toBe(`LOAN-${asset.loanId}`);
 
     const loan = await db.asset_loans.findUniqueOrThrow({ where: { loan_id: asset.loanId! } });
     expect(loan).toMatchObject({ status: "RETURNED", received_by_id: USERS.staffTsg.userId, remarks: "Test return comment" });
@@ -165,7 +120,7 @@ describe("POST /api/assets/:tag/return", () => {
       const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody({ condition }));
 
       expect(res.status).toBe(200);
-      expect(res.body.return.condition).toBe(condition);
+      expect(res.body.loan.status).toBe("RETURNED");
       expect((await listedAsset(asset.tag)).condition).toBe(condition);
     },
   );
@@ -176,7 +131,7 @@ describe("POST /api/assets/:tag/return", () => {
     const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody({ comments: undefined }));
 
     expect(res.status).toBe(200);
-    expect(res.body.return.comments).toBeNull();
+    expect(res.body.loan.remarks).toBeNull();
     const loan = await db.asset_loans.findUniqueOrThrow({ where: { loan_id: asset.loanId! } });
     expect(loan.remarks).toBeNull();
     expect((await db.asset_inspections.findUniqueOrThrow({ where: { inspection_id: loan.return_inspection_id! } })).remarks).toBe("Return inspection.");
@@ -187,7 +142,7 @@ describe("POST /api/assets/:tag/return", () => {
 
     const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody({ comments: undefined, inspection: "Test inspection note" }));
 
-    expect(res.body.return.comments).toBe("Test inspection note");
+    expect(res.body.loan.remarks).toBe("Test inspection note");
     expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: asset.loanId! } })).remarks).toBe("Test inspection note");
   });
 
@@ -200,7 +155,7 @@ describe("POST /api/assets/:tag/return", () => {
     const res = await asStaff.post(`/api/assets/${asset.tag}/return`, returnBody({ returnedBy }));
 
     expect(res.status).toBe(200);
-    expect(res.body.return.returned_by_id).toBe(USERS.custodianB.userId);
+    expect(res.body.loan.borrower_id).toBe(USERS.custodianB.userId);
   });
 
   it.each([
@@ -214,7 +169,7 @@ describe("POST /api/assets/:tag/return", () => {
 
     expect(res.status).toBe(409);
     expect(res.body).toEqual({ success: false, error: message });
-    expect(await db.asset_returns.count({ where: { asset_id: asset.assetId } })).toBe(0);
+    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId, status: "RETURNED" } })).toBe(0);
     expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(0);
   });
 
@@ -225,7 +180,7 @@ describe("POST /api/assets/:tag/return", () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("TEST-0244 has no loan to close, so there is nothing to return.");
-    expect(await db.asset_returns.count({ where: { asset_id: asset.assetId } })).toBe(0);
+    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId, status: "RETURNED" } })).toBe(0);
   });
 
   it("answers 409 to a second return of the same asset, and writes nothing more (a stale request, issue #51)", async () => {
@@ -237,7 +192,7 @@ describe("POST /api/assets/:tag/return", () => {
     expect(first.status).toBe(200);
     expect(second.status).toBe(409);
     expect(second.body.error).toBe("TEST-0245 is Available, so there is nothing to return.");
-    expect(await db.asset_returns.count({ where: { asset_id: asset.assetId } })).toBe(1);
+    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId, status: "RETURNED" } })).toBe(1);
     expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(1);
   });
 
@@ -247,14 +202,14 @@ describe("POST /api/assets/:tag/return", () => {
     { condition: "operational", case: "a condition in lower case" },
     { condition: "MINOR DRIFT", case: "the stored spelling with a space" },
   ])("answers 400 for $case, and writes nothing", async ({ condition }) => {
-    const returnsBefore = await db.asset_returns.count();
+    const returnsBefore = await db.asset_loans.count({ where: { status: "RETURNED" } });
     const inspectionsBefore = await db.asset_inspections.count();
 
     const res = await asStaff.post(`/api/assets/${ASSETS.onLoan.tag}/return`, returnBody({ condition }));
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
-    expect(await db.asset_returns.count()).toBe(returnsBefore);
+    expect(await db.asset_loans.count({ where: { status: "RETURNED" } })).toBe(returnsBefore);
     expect(await db.asset_inspections.count()).toBe(inspectionsBefore);
   });
 

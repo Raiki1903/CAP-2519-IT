@@ -217,8 +217,8 @@ export async function countHistory(assetId: number) {
 }
 
 /**
- * Deletes a fresh registration in one transaction, the asset row locked first: its Initial inspection, its old record,
- * monetary, transfer, and return rows, and the asset; its activity log rows are kept without the asset, and an
+ * Deletes a fresh registration in one transaction, the asset row locked first: its Initial inspection and the asset;
+ * its activity log rows are kept without the asset, and an
  * ASSET_DELETED row names the tag. The caller has checked it has no other history.
  *
  * @param assetId the asset
@@ -233,10 +233,6 @@ export function deleteRegistration(assetId: number, assetTag: string, actorId: n
         await tx.activity_log.updateMany({ where, data: { asset_id: null } });
         await tx.asset_inspection_metrics.deleteMany({ where: { asset_inspections: { asset_id: assetId } } });
         await tx.asset_inspections.deleteMany({ where });
-        await tx.asset_records.deleteMany({ where });
-        await tx.asset_monetary.deleteMany({ where });
-        await tx.asset_transfers.deleteMany({ where });
-        await tx.asset_returns.deleteMany({ where });
         await tx.assets.delete({ where });
         await logActivity(tx, { eventType: "ASSET_DELETED", actorId, details: assetTag });
     });

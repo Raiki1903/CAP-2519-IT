@@ -127,7 +127,6 @@ export function RepairForm({ asset, onBack, onClose }: Props) {
     try {
       const data = await maintenanceApi.requestRepair(asset.id, {
         description: justification,
-        isImmediate: false,
       });
       if (!data.success) {
         setSubmitError(data.error || "Failed to log repair request to the database.");

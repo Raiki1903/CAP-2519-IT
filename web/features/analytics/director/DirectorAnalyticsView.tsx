@@ -136,7 +136,7 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
       return apiData.totalPortfolioValue;
     }
     return filteredAssets.reduce((sum, asset) => {
-      const val = Number(asset.asset_monetary?.acquisition_value || asset.cost || asset.acquisition_value || 0);
+      const val = Number(asset.cost || asset.acquisition_value || 0);
       return sum + val;
     }, 0);
   }, [apiData, filteredAssets]);
@@ -370,12 +370,12 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
     });
   }, [dbAssetsList, selectedLabFilter]);
 
-  // Task 1: Group assets by asset.asset_monetary?.funding_source and sum monetary values
+  // Task 1: Group assets by funding source and sum their values
   const outer = useMemo(() => {
     const map: Record<string, number> = {};
     filteredAssets.forEach(a => {
-      const fund = a.asset_monetary?.funding_source || a.funding || "DLSU University";
-      const val = Number(a.asset_monetary?.acquisition_value || a.cost || a.acquisition_value || 0);
+      const fund = a.funding || "DLSU University";
+      const val = Number(a.cost || a.acquisition_value || 0);
       map[fund] = (map[fund] || 0) + val;
     });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
@@ -385,7 +385,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
     const map: Record<string, number> = {};
     filteredAssets.forEach(a => {
       const cat = a.category || "General Equipment";
-      const val = Number(a.asset_monetary?.acquisition_value || a.cost || a.acquisition_value || 0);
+      const val = Number(a.cost || a.acquisition_value || 0);
       map[cat] = (map[cat] || 0) + val;
     });
     return Object.entries(map).map(([name, value]) => ({ name, value }));

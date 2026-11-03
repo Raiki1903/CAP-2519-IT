@@ -54,9 +54,9 @@ function readProgressText(progressText: string): { status: asset_maintenance_sta
  * @param ticket the ticket's status, urgency, and provider
  * @returns the text, for example "Inspection Phase"
  */
-export function progressTextOf(ticket: Pick<asset_maintenance, 'status' | 'is_immediate' | 'provider'>): string {
+export function progressTextOf(ticket: Pick<asset_maintenance, 'status' | 'provider'>): string {
     switch (ticket.status) {
-        case asset_maintenance_status.PENDING_RECEIPT: return ticket.is_immediate ? "Awaiting Immediate Dispatch" : "Pending TSG Review";
+        case asset_maintenance_status.PENDING_RECEIPT: return "Pending TSG Review";
         case asset_maintenance_status.INSPECTING: return "Inspection Phase";
         case asset_maintenance_status.REPAIRING: return "Waiting for Parts";
         case asset_maintenance_status.EXTERNAL_SERVICE: return ticket.provider === "Warranty holder" ? "Warranty Holder Possession" : "Third-Party Repairer Possession";
@@ -80,7 +80,7 @@ const DUPLICATE_WINDOW_MS = 8000;
  * The lifecycle guard takes a ticket only on an asset that is Available or On Loan.
  *
  * @param assetTag the asset's tag, from the URL
- * @param data the checked body: description and optional urgency
+ * @param data the checked body: the description
  * @param reporterId the session user, who reports the fault; any reporter name in the body is ignored (issue #32)
  * @returns the created asset_maintenance row
  * @throws AppError 409 if the same tag and description arrived less than 8 seconds ago (M-07)
@@ -107,7 +107,6 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput, 
         asset_id: existing.asset_id,
         reported_by_id: reporterId,
         issue_description: data.description,
-        is_immediate: !!data.isImmediate,
         status: asset_maintenance_status.PENDING_RECEIPT,
     });
 }
@@ -141,8 +140,8 @@ export async function listRepairs(): Promise<RepairListItem[]> {
             description: repair.issue_description,
             statusLabel: progressTextOf(repair),
             progressStatus: progressTextOf(repair),
-            isImmediate: repair.is_immediate,
-            priority: repair.is_immediate ? "Critical" : "Medium",
+            // TODO(H-07): every ticket shows the same priority. Batch 5 shows the issue type instead.
+            priority: "Medium",
             // There is no "acknowledged" column, so any status but the starting one counts as acknowledged.
             acknowledged: repair.status !== asset_maintenance_status.PENDING_RECEIPT,
             submittedAt,

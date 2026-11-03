@@ -109,7 +109,6 @@ export interface StaffAnalyticsData {
     assetName: string;
     reportedBy: string;
     issueDescription: string;
-    isImmediate: boolean;
     progressStatus: string;
     createdAt: string;
   }[];
@@ -171,7 +170,7 @@ export interface IdleFrequencyItem {
 
 /** One row of GET /api/analytics/advanced/loan-recommender: one per ACTIVE record, history included. */
 export interface LoanRecommendationItem {
-  /** The asset_records id. */
+  /** The asset's id. */
   recommendationId: number;
   targetLab: string;
   idleAssetName: string;

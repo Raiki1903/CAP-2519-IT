@@ -95,7 +95,6 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
         try {
           const data = await maintenanceApi.requestRepair(asset.id, {
             description: inspection || "Flagged for repair assessment during asset return.",
-            isImmediate: false,
           });
           if (!data.success) {
             setSubmitError(data.error || "Failed to log repair request to the database.");
@@ -105,9 +104,8 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
         }
       }
     } else {
-      // The database write: the server adds the asset_returns row and an ACTIVE record under the
-      // placeholder custodian (nobody holds it), and closes the asset's approved loans. The custodian's
-      // request stays in the browser only, because asset_returns has no pending state to hold it. (H-02)
+      // The database write: the server closes the asset's loan as Returned with a Return inspection, and the
+      // asset is Available again. The custodian's request stays in the browser only until Batch 3. (H-02)
       let notRecorded: string | null = null;
       try {
         const data = await returnsApi.finalizeReturn(asset.id, {
@@ -115,7 +113,7 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
           comments: inspection,
         });
         if (data.success) {
-          setDbReferenceNumber(data.return.reference_number);
+          setDbReferenceNumber(data.referenceNumber);
         } else {
           notRecorded = data.error ? `The return was not recorded: ${data.error}` : "The return was not recorded. Please try again.";
         }

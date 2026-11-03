@@ -8,8 +8,6 @@
 export interface RepairRequestInput {
   /** Required, and not only spaces. With the tag, it is also the key of the 8-second duplicate guard. (M-07) */
   description: string;
-  /** True when the fault needs immediate attention: the ticket opens as "Awaiting Immediate Dispatch". */
-  isImmediate?: boolean;
 }
 
 /** The body of PUT /api/maintenance/:repairId. Only `progressStatus` is required. */
@@ -50,8 +48,7 @@ export interface RepairListItem {
   /** Same as progressStatus. */
   statusLabel: string;
   progressStatus: string;
-  isImmediate: boolean;
-  /** "Critical" for an immediate ticket, else "Medium". */
+  /** Always "Medium" until Batch 5 shows the issue type. */
   priority: "Critical" | "Medium";
   /** False only while the status is one of the two starting values. */
   acknowledged: boolean;

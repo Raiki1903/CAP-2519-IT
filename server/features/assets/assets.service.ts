@@ -178,7 +178,6 @@ export async function listAssets(viewer: SessionIdentity, filters: AssetListFilt
             tsgRemarks: remarksText || undefined,
             itsRemarks: remarksText || undefined,
             asset_reports: reports,
-            asset_monetary: { acquisition_value: acquisitionValue ?? 0, funding_source: asset.funding_sources?.name || "Unspecified" },
         };
     });
 }
@@ -389,7 +388,7 @@ function sameValue(stored: unknown, sent: unknown): boolean {
 }
 
 /**
- * Deletes a mistaken registration: the asset, its Initial inspection, and its old rows, and writes an ASSET_DELETED
+ * Deletes a mistaken registration: the asset and its Initial inspection, and writes an ASSET_DELETED
  * row with the tag. Its earlier activity log rows are kept, without the asset.
  * An asset with any loan, maintenance ticket, retirement, or inspection besides its initial one is refused: that is
  * history, and taking the asset out of use is a retirement. (H-03, issue #69)

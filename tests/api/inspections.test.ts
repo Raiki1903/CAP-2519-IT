@@ -159,7 +159,6 @@ describe("POST /api/assets/:tag/inspection", () => {
     const routine = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportCondition: "DEGRADED" }));
     expect(routine.body.report.type).toBe("ROUTINE");
     expect(await conditionNow(asset.tag)).toBe("DEGRADED");
-    expect(await db.asset_records.count({ where: { asset_id: asset.assetId } })).toBe(1);
   });
 
   it("ignores reportedById: the report is the session user's (issue #32 fixed)", async () => {
@@ -271,13 +270,12 @@ describe("POST /api/assets/:tag/inspection", () => {
     expect(res.body.report.asset_id).toBe(asset.assetId);
   });
 
-  it("writes no asset record, also for an asset that has none", async () => {
+  it("sets the condition of an asset TSG never inspected", async () => {
     const asset = await db.assets.create({ data: { asset_tag: "TEST-0542", name: "Test Asset Without Records", category: "DEV_KIT", center_id: LAB.centerId } });
 
     const res = await asStaff.post(`/api/assets/${asset.asset_tag}/inspection`, inspectionBody());
 
     expect(res.status).toBe(200);
-    expect(await db.asset_records.count({ where: { asset_id: asset.asset_id } })).toBe(0);
     expect(await conditionNow(asset.asset_tag)).toBe("MINOR_DRIFT");
   });
 

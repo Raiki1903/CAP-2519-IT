@@ -52,7 +52,7 @@ export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
   // Shaped like RepairRequest for the priority table and RepairProgressDialog. _repairId is the
   // number the update endpoint needs; the shown id is "MNT-<number>".
   // Known gaps: forwardedTo is always undefined, so "Dispatched To" always shows a dash, and
-  // priority is only ever Critical or Medium, so the High styling never appears.
+  // priority is always Medium until Batch 5 shows the issue type, so the High styling never appears.
   const mappedDbRepairs = dbRepairs.map(r => ({
     id: r.id,
     _source: "db" as const,
@@ -63,7 +63,7 @@ export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
     statusLabel: r.progressStatus,
     description: r.description,
     submittedAt: new Date(r.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-    priority: r.isImmediate ? "Critical" : "Medium",
+    priority: r.priority,
     acknowledged: !DB_PENDING_STATUSES.includes(r.progressStatus),
     forwardedTo: undefined as string | undefined,
   }));

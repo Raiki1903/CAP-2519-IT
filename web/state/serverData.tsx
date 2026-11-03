@@ -67,7 +67,7 @@ export function holderLabel(name: string | undefined, hidden?: boolean): string 
 }
 
 /** One asset as `GET /api/assets` returns it for display. */
-// TODO(H-13): the server also sends fields that are not declared here (asset_reports, asset_monetary, and the contract fields). The real shape is AssetListItem in shared/types/assets.ts.
+// TODO(H-13): the server also sends fields that are not declared here (asset_reports and the contract fields). The real shape is AssetListItem in shared/types/assets.ts.
 export interface Asset {
   /** The asset tag, for example "CITe4D-0004". Not the numeric database id. */
   id: string;
@@ -317,7 +317,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     try {
       await maintenanceApi.requestRepairRaw(req.assetId, {
         description: req.description,
-        isImmediate: req.priority === "Critical" || req.statusLabel === "Disposal Recommendation",
       });
     } catch (e) {
       console.error("Failed to post repair request to DB API:", e);

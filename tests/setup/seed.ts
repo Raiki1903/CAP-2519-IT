@@ -5,13 +5,12 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../../server/shared/services/passwords";
-import { ASSET_STATUS_OF_RECORD, ASSETS, FUNDING_SOURCE, LAB, LOOKUPS, ROLE_IDS, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "./fixtures";
+import { ASSETS, LAB, LOOKUPS, ROLE_IDS, SEEDED_ROWS, USERS } from "./fixtures";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Fixed past timestamps, a day or more apart, so "newest record" ordering never ties. (M-09) */
 const AT = {
-  intake: new Date("2026-01-05T09:00:00Z"),
   loanApproved: new Date("2026-02-01T09:00:00Z"),
   repairReported: new Date("2026-02-09T09:00:00Z"),
   intoMaintenance: new Date("2026-02-10T09:00:00Z"),
@@ -77,7 +76,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       asset_tag: a.tag,
       name: a.name,
       category: a.category,
-      status: ASSET_STATUS_OF_RECORD[a.recordStatus],
+      status: a.listStatus,
       center_id: LAB.centerId,
       serial_number: `TEST-SN-${a.assetId}`,
       manufacturer: "Test Manufacturer",
@@ -87,55 +86,6 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       acquisition_value: a.acquisitionValue,
     })),
   });
-  await prisma.asset_monetary.createMany({
-    data: assets.map((a) => ({ asset_id: a.assetId, funding_source: FUNDING_SOURCE, acquisition_value: a.acquisitionValue })),
-  });
-
-  const intakeRecord = (assetId: number, custodianId: number) => ({
-    asset_id: assetId,
-    status: "ACTIVE" as const,
-    asset_condition: "PERFECT" as const,
-    location: LAB.homeLocation,
-    current_location: LAB.homeLocation,
-    current_custodian: custodianId,
-    date_logged: AT.intake,
-  });
-
-  // Inserted one at a time, oldest first, so record ids follow date order too.
-  const records = [
-    intakeRecord(ASSETS.available.assetId, USERS.admin.userId),
-    intakeRecord(ASSETS.onLoan.assetId, USERS.admin.userId),
-    intakeRecord(ASSETS.inRepair.assetId, USERS.custodianA.userId),
-    intakeRecord(ASSETS.disposed.assetId, USERS.admin.userId),
-    intakeRecord(ASSETS.pendingLoan.assetId, USERS.admin.userId),
-    {
-      ...intakeRecord(ASSETS.inspected.assetId, USERS.custodianA.userId),
-      asset_condition: "OPERATIONAL" as const,
-      Asset_Remarks: "Test inspection: minor scuffs on the casing",
-    },
-    {
-      ...intakeRecord(ASSETS.onLoan.assetId, USERS.custodianA.userId),
-      status: "ON_LOAN" as const,
-      date_logged: AT.loanApproved,
-    },
-    {
-      ...intakeRecord(ASSETS.inRepair.assetId, USERS.custodianA.userId),
-      status: "MAINTENANCE" as const,
-      current_location: TSG_OFFICE_LOCATION,
-      date_logged: AT.intoMaintenance,
-    },
-    {
-      ...intakeRecord(ASSETS.disposed.assetId, USERS.admin.userId),
-      status: "DISPOSED" as const,
-      current_location: null,
-      retirement_id: SEEDED_ROWS.disposalId,
-      Asset_Remarks: `Decommissioned via Disposal #DISP-${SEEDED_ROWS.disposalId}`,
-      date_logged: AT.disposed,
-    },
-  ];
-  for (const record of records) {
-    await prisma.asset_records.create({ data: record });
-  }
 
   await prisma.asset_loans.createMany({
     data: [
@@ -170,7 +120,6 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       asset_id: ASSETS.inRepair.assetId,
       reported_by_id: USERS.custodianA.userId,
       issue_description: "Test repair: the lens does not focus",
-      is_immediate: false,
       status: "INSPECTING",
       reported_at: AT.repairReported,
       received_by_id: USERS.staffTsg.userId,

@@ -56,7 +56,7 @@ const severityClass: Record<string, string> = {
   Critical: "bg-red-900   text-red-200    border-red-700",
 };
 
-// Keys are the Prisma enum member names of `asset_records.asset_condition` (underscore
+// Keys are the Prisma enum member names of `asset_inspections.condition` (underscore
 // form), not the space-separated strings stored in the database; see the @map values
 // in schema.prisma.
 const CONDITION_TEXT_CLASS: Record<string, string> = {
@@ -177,7 +177,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
   const [showAuditModal, setShowAuditModal] = useState(false);
 
-  // ── Live registry data (asset_records-backed, via /api/assets) ─────────────
+  // ── Live registry data (via /api/assets) ─────────────
   // Fetched again whenever a tab opens, so it shows changes made since the shared list
   // last reloaded. The shared list is used until the first answer arrives.
   const [dbAssets, setDbAssets] = useState<any[]>([]);

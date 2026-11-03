@@ -4,24 +4,13 @@
  * Used by: every API test file.
  */
 
-/**
- * The separator the server writes between campus and lab in asset_records locations, and splits on
- * when it lists assets. It is an em dash with a space on each side; the data has to match it exactly.
- */
-export const LOCATION_SEPARATOR = " — ";
-
 /** The one research center. Its short code is also the asset tag prefix, which is how the server scopes labs today. */
 export const LAB = {
   centerId: 1,
   name: "Test Research Lab",
   shortCode: "TEST",
   location: "MANILA",
-  /** How asset_records.location and the asset list write the home lab. */
-  homeLocation: `Manila${LOCATION_SEPARATOR}TEST`,
 } as const;
-
-/** Where the server says an asset under maintenance is (its TSG_OFFICE_LOCATION). */
-export const TSG_OFFICE_LOCATION = `Manila${LOCATION_SEPARATOR}TSG Office`;
 
 /**
  * Role rows, one per database role name. Ids 5 and 6 were ITS_STAFF and LAB_HEAD, which the migrations removed:
@@ -68,10 +57,7 @@ function user(userId: number, lastName: string, emailName: string, userType: Tes
   };
 }
 
-/**
- * Seeded accounts. IT_ADMIN must be user 1: the server records an asset nobody holds under user 1
- * (POOL_CUSTODIAN_ID, the placeholder custodian) and checks it exists on startup.
- */
+/** Seeded accounts, all Active. */
 export const USERS = {
   admin: user(1, "Admin", "admin", "STAFF", "IT_ADMIN", false),
   director: user(2, "Director", "director", "FACULTY", "ADRIC_DIRECTOR", false),
@@ -90,20 +76,17 @@ export interface TestAsset {
   tag: string;
   name: string;
   category: "DEV_KIT" | "MONITOR" | "CAMERA" | "ROUTER" | "TABLET" | "PROJECTOR";
-  /** The latest asset_records status after seeding. Nothing reads the records; the table goes in Batch 1 commit 9b. */
-  recordStatus: "ACTIVE" | "ON_LOAN" | "MAINTENANCE" | "DISPOSED";
   /** assets.status, which GET /api/assets sends as `status`. */
   listStatus: "AVAILABLE" | "ON_LOAN" | "MAINTENANCE" | "RETIRED";
   acquisitionValue: number;
 }
 
-function asset(assetId: number, name: string, category: TestAsset["category"], recordStatus: TestAsset["recordStatus"], listStatus: TestAsset["listStatus"]): TestAsset {
+function asset(assetId: number, name: string, category: TestAsset["category"], listStatus: TestAsset["listStatus"]): TestAsset {
   return {
     assetId,
     tag: `${LAB.shortCode}-${String(assetId).padStart(4, "0")}`,
     name,
     category,
-    recordStatus,
     listStatus,
     acquisitionValue: assetId * 1000,
   };
@@ -112,26 +95,18 @@ function asset(assetId: number, name: string, category: TestAsset["category"], r
 /** Seeded assets, one per state the workflows care about. Comments say what else is attached. */
 export const ASSETS = {
   /** Available, nothing pending. Free to borrow. */
-  available: asset(1, "Test Dev Kit Available", "DEV_KIT", "ACTIVE", "AVAILABLE"),
+  available: asset(1, "Test Dev Kit Available", "DEV_KIT", "AVAILABLE"),
   /** On loan to Custodian A through a loan On Loan, due in 30 days. */
-  onLoan: asset(2, "Test Monitor On Loan", "MONITOR", "ON_LOAN", "ON_LOAN"),
+  onLoan: asset(2, "Test Monitor On Loan", "MONITOR", "ON_LOAN"),
   /** In maintenance, with a ticket in Inspecting that Custodian A reported and Staff TSG received. */
-  inRepair: asset(3, "Test Camera In Repair", "CAMERA", "MAINTENANCE", "MAINTENANCE"),
+  inRepair: asset(3, "Test Camera In Repair", "CAMERA", "MAINTENANCE"),
   /** Retired through a completed disposal requested by Staff TSG and decided by the Director. */
-  disposed: asset(4, "Test Router Disposed", "ROUTER", "DISPOSED", "RETIRED"),
+  disposed: asset(4, "Test Router Disposed", "ROUTER", "RETIRED"),
   /** Available, with a loan request in Pending Approval from Custodian B. */
-  pendingLoan: asset(5, "Test Tablet Pending Loan", "TABLET", "ACTIVE", "AVAILABLE"),
-  /** Available, OPERATIONAL from one Routine inspection by Staff TSG. Its old record names Custodian A, but no loan does. */
-  inspected: asset(6, "Test Projector Inspected", "PROJECTOR", "ACTIVE", "AVAILABLE"),
+  pendingLoan: asset(5, "Test Tablet Pending Loan", "TABLET", "AVAILABLE"),
+  /** Available, OPERATIONAL from one Routine inspection by Staff TSG. Nobody holds it. */
+  inspected: asset(6, "Test Projector Inspected", "PROJECTOR", "AVAILABLE"),
 } as const satisfies Record<string, TestAsset>;
-
-/** The assets.status that goes with each asset_records status, as the foundation migration maps it. */
-export const ASSET_STATUS_OF_RECORD = {
-  ACTIVE: "AVAILABLE",
-  ON_LOAN: "ON_LOAN",
-  MAINTENANCE: "MAINTENANCE",
-  DISPOSED: "RETIRED",
-} as const;
 
 /** Ids of the seeded workflow rows, for tests that act on them. */
 export const SEEDED_ROWS = {

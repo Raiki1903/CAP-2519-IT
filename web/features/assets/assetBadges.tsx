@@ -32,7 +32,7 @@ export function assetStatusLabel(status: string | undefined | null): string {
   return ASSET_STATUS_LABELS[status as AssetStatus] ?? status;
 }
 
-// Keys are the Prisma enum member names of `asset_records.asset_condition` (underscore
+// Keys are the Prisma enum member names of `asset_inspections.condition` (underscore
 // form), not the space-separated strings stored in the database; see the @map values
 // in schema.prisma.
 

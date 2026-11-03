@@ -2,12 +2,11 @@
  * The demo seed (npm run seed): fills an empty local database, built by prisma/migrations, with roles, labs, demo accounts,
  * demo assets in every status, and any missing lookup rows.
  * Layer: database tooling, not part of the server. Run by npm run seed. Calls seedTarget.ts, seedData.ts, Prisma with the MariaDB adapter,
- * the server's password helper, and its POOL_CUSTODIAN_ID constant.
+ * and the server's password helper.
  * Used by: a teammate setting up a local copy of the app (docs/guides/DATABASE-MIGRATIONS.md). Never CCS Cloud, never the tests.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient, roles_role_name } from "@prisma/client";
-import { POOL_CUSTODIAN_ID } from "../server/shared/constants/poolCustodian";
 import { hashPassword, hidePasswordHashes } from "../server/shared/services/passwords";
 import {
   DEMO_ACCOUNTS,
@@ -22,21 +21,15 @@ import {
 } from "./seedData";
 import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, type SeedTarget } from "./seedTarget";
 
-// The server finds an asset's campus and lab by splitting its record's location on space, em dash, space
-// (server/features/assets/assets.service.ts). Written as an escape so this file holds no literal em dash.
-const LOCATION_SEPARATOR = " \u2014 ";
-
 /** Every table the migrations create. The seed needs all of them, and fills only empty ones. */
 const REQUIRED_TABLES = [
-  "activity_log", "asset_inspection_metrics", "asset_inspections", "asset_loans", "asset_maintenance", "asset_monetary",
-  "asset_records", "asset_retirements", "asset_returns", "asset_transfers", "assets", "category_metrics", "funding_sources",
+  "activity_log", "asset_inspection_metrics", "asset_inspections", "asset_loans", "asset_maintenance",
+  "asset_retirements", "assets", "category_metrics", "funding_sources",
   "issue_types", "metric_definitions", "projects", "research_centers", "roles", "user_centers", "user_roles", "user_tickets", "users",
 ];
 
 /** Tables that must be empty: the seed never merges into data that is already there, and never deletes. */
 const MUST_BE_EMPTY = ["users", "roles", "research_centers", "assets"] as const;
-
-const CAMPUS_TEXT = { MANILA: "Manila", LAGUNA: "Laguna", MCKINLEY: "McKinley" } as const;
 
 /** The health score each condition suggests at registration. */
 const HEALTH_SCORE = { PERFECT: 100, OPERATIONAL: 80, MINOR_DRIFT: 60, DEGRADED: 40, CRITICAL_DEFECT: 20 } as const;
@@ -83,16 +76,6 @@ async function checkDatabase(prisma: PrismaClient, target: SeedTarget): Promise<
     }
   }
 }
-
-/** The status the old asset_records rows give each asset status, for the screens that still read the records. */
-const RECORD_STATUS = {
-  AVAILABLE: "ACTIVE",
-  ON_LOAN: "ON_LOAN",
-  MAINTENANCE: "MAINTENANCE",
-  PENDING_RETIREMENT: "ACTIVE",
-  RETIRED: "DISPOSED",
-  MISSING: "ACTIVE",
-} as const;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -180,9 +163,6 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
           accessories: a.accessories ?? null,
         })),
       });
-      await tx.asset_monetary.createMany({
-        data: assets.map((a) => ({ asset_id: a.assetId, funding_source: a.funding, acquisition_value: a.value })),
-      });
       // Every asset was registered with a TSG inspection, a month before its status changed.
       await tx.asset_inspections.createMany({
         data: assets.map((a) => ({
@@ -265,21 +245,6 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
         data: { actor_id: DEMO_TSG_ID, event_type: "ASSET_MARKED_MISSING", asset_id: missing.assetId, details: "Demo: not found at the routine count." },
       });
 
-      // The records the screens still read until Batch 1 moves them to assets.status, one per asset.
-      await tx.asset_records.createMany({
-        data: assets.map((a) => {
-          const home = `${CAMPUS_TEXT[a.lab.location]}${LOCATION_SEPARATOR}${a.lab.shortCode}`;
-          const where = a.status === "MAINTENANCE" ? `Manila${LOCATION_SEPARATOR}TSG Office` : a.status === "RETIRED" ? null : home;
-          return {
-            asset_id: a.assetId,
-            status: RECORD_STATUS[a.status],
-            asset_condition: a.condition,
-            location: home,
-            current_location: where,
-            current_custodian: a.status === "ON_LOAN" ? DEMO_BORROWER_ID : POOL_CUSTODIAN_ID,
-          };
-        }),
-      });
     },
     { timeout: 60_000 },
   );

@@ -86,7 +86,7 @@ export function getLatestRecordConditionScore(asset: any): number {
     return asset.condition;
   }
   const condStr = String(asset.assetCondition || asset.asset_condition || asset.descriptiveCondition || asset.condition || "");
-  if (!condStr || condStr === "undefined") return 100; // Default if ZERO entries in asset_records
+  if (!condStr || condStr === "undefined") return 100; // Default when TSG never inspected the asset
   if (CONDITION_SCORE_MAP[condStr] !== undefined) {
     return CONDITION_SCORE_MAP[condStr];
   }
@@ -144,9 +144,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     csvContent += `Asset Name,"${(asset.name || "").replace(/"/g, '""')}"\n`;
     csvContent += `Serial Number,"${asset.serial || asset.serial_number || ""}"\n`;
     csvContent += `Manufacturer,"${(asset.manufacturer || "").replace(/"/g, '""')}"\n`;
-    csvContent += `Funding Source,"${(asset.asset_monetary?.funding_source || asset.funding || "").replace(/"/g, '""')}"\n`;
+    csvContent += `Funding Source,"${(asset.funding || "").replace(/"/g, '""')}"\n`;
     csvContent += `Acquisition Date,"${asset.procurement_date || asset.procured || ""}"\n`;
-    csvContent += `Purchase Valuation,"PHP ${(asset.asset_monetary?.acquisition_value || asset.cost || 0).toLocaleString()}"\n`;
+    csvContent += `Purchase Valuation,"PHP ${(asset.cost || 0).toLocaleString()}"\n`;
     csvContent += `ITS Property Tag,"${asset.itsPropertyTag || "None"}"\n`;
     csvContent += `TSG Property Tag,"${asset.tsgPropertyTag || "None"}"\n`;
     csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n`;
@@ -265,7 +265,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const maintenanceCount = activeAssets.filter(a => a.status === "MAINTENANCE" || a.status === "In Repair").length;
 
   const totalValuation = activeAssetList.reduce((sum, a) => {
-    const val = Number(a.asset_monetary?.acquisition_value || a.cost || a.acquisition_value || a.acquisitionValue || 0);
+    const val = Number(a.cost || a.acquisition_value || a.acquisitionValue || 0);
     return sum + val;
   }, 0);
 
@@ -555,7 +555,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
     const filteredAssets = assetSourceList.filter(a => {
       const query = searchQuery.toLowerCase().trim();
-      const fundingVal = a.asset_monetary?.funding_source || a.funding || "";
+      const fundingVal = a.funding || "";
       const matchQuery =
         (a.id || "").toLowerCase().includes(query) ||
         (a.name || "").toLowerCase().includes(query) ||
@@ -599,9 +599,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         a.serial || a.serial_number || "",
         a.manufacturer || "",
         a.category || "",
-        a.asset_monetary?.funding_source || a.funding || "Unspecified",
+        a.funding || "Unspecified",
         a.procurement_date || a.procured || "",
-        a.asset_monetary?.acquisition_value || a.cost || 0,
+        a.cost || 0,
         assetStatusLabel(a.status),
         a.custodian || "None",
         a.lab || "CITe4D"
@@ -736,8 +736,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   ) : (
                     filteredAssets.map(item => {
                       const isDisposed = item.status === "RETIRED";
-                      const itemValuation = Number(item.asset_monetary?.acquisition_value || item.cost || item.acquisition_value || 0);
-                      const itemFunding = item.asset_monetary?.funding_source || item.funding || "Unspecified";
+                      const itemValuation = Number(item.cost || item.acquisition_value || 0);
+                      const itemFunding = item.funding || "Unspecified";
                       const itemProcured = item.procurement_date || item.procured || "N/A";
 
                       return (

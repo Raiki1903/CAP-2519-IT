@@ -152,7 +152,8 @@ describe("GET /api/assets", () => {
       reporterRole: "Routine",
       condition: "OPERATIONAL",
     });
-    expect(listed.asset_monetary).toMatchObject({ acquisition_value: ASSETS.inspected.acquisitionValue, funding_source: FUNDING_SOURCE });
+    expect(listed).toMatchObject({ cost: ASSETS.inspected.acquisitionValue, funding: FUNDING_SOURCE });
+    expect(listed).not.toHaveProperty("asset_monetary");
   });
 
   it("ignores a newer Self Report for the condition", async () => {
@@ -319,7 +320,6 @@ describe("POST /api/assets", () => {
     expect(await db.activity_log.findMany({ where: { asset_id: assetId }, select: { event_type: true, actor_id: true, details: true } })).toEqual([
       { event_type: "ASSET_REGISTERED", actor_id: USERS.staffTsg.userId, details: "TEST-0007" },
     ]);
-    expect(await db.asset_records.count({ where: { asset_id: assetId } })).toBe(0);
   });
 
   it("stores no funding source when none is sent, and answers 400 for a lab, project, or funding source that does not exist", async () => {
@@ -469,7 +469,7 @@ describe("PUT /api/assets/:tag", () => {
   it("moves the home lab, funding, project, value, and dates; an empty value clears the field", async () => {
     const laguna = await db.research_centers.create({ data: { name: "Test Laguna Lab", short_code: "TESTL", location: "LAGUNA" } });
     const project = await db.projects.create({
-      data: { project_code: "TEST-PRJ-9", project_name: "Test Project", project_leader: "Test Leader", center_id: LAB.centerId, funding_agency: "Test", start_date: new Date("2026-01-01") },
+      data: { project_code: "TEST-PRJ-9", project_name: "Test Project", project_leader: "Test Leader", center_id: LAB.centerId, start_date: new Date("2026-01-01") },
     });
     const asset = await addExtraAsset(db, { tag: "TEST-0911", homeRoom: "Test Room 2" });
 

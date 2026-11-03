@@ -35,43 +35,11 @@ model asset_retirements {
   @@index([assessment_inspection_id])
 }
 
-model asset_monetary {
-  asset_monetary_id Int     @id @default(autoincrement())
-  asset_id          Int     @unique
-  funding_source    String  @db.VarChar(255)
-  acquisition_value Decimal @db.Decimal(10, 2)
-  assets            assets  @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_monetary_asset")
-}
-
-model asset_records {
-  asset_record_id   Int                  @id @default(autoincrement())
-  asset_id          Int
-  status            asset_records_status
-  location          String               @db.VarChar(255)
-  current_location  String?              @db.VarChar(255)
-  date_logged       DateTime             @default(now()) @db.DateTime(0)
-  current_custodian Int
-  asset_condition   asset_condition      @default(PERFECT)
-  Asset_Remarks     String?              @db.Text
-  project_id        Int?
-  transfer_id       Int?
-  retirement_id     Int?
-  maintenance_id    Int?
-  projects          projects?            @relation(fields: [project_id], references: [project_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_assets_project")
-  assets            assets               @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_records_asset")
-  users             users                @relation(fields: [current_custodian], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_records_custodian")
-
-  @@index([asset_id])
-  @@index([current_custodian])
-  @@index([project_id], map: "fk_records_project")
-}
-
 model asset_maintenance {
   maintenance_id           Int                      @id @default(autoincrement())
   asset_id                 Int
   reported_by_id           Int
   issue_description        String                   @db.Text
-  is_immediate             Boolean                  @default(false)
   status                   asset_maintenance_status @default(PENDING_RECEIPT)
   reported_at              DateTime                 @default(now()) @db.DateTime(0)
   type                     asset_maintenance_type   @default(BORROWER_REPORT)
@@ -127,12 +95,8 @@ model assets {
   funding_sources   funding_sources?    @relation(fields: [funding_source_id], references: [funding_source_id], onDelete: NoAction, onUpdate: NoAction)
   asset_retirements asset_retirements[]
   asset_loans       asset_loans[]
-  asset_monetary    asset_monetary?
-  asset_records     asset_records[]
   asset_maintenance asset_maintenance[]
   asset_inspections asset_inspections[]
-  asset_returns     asset_returns[]
-  asset_transfers   asset_transfers[]
   activity_log      activity_log[]
 
   @@index([status])
@@ -276,12 +240,10 @@ model users {
   loans_decided         asset_loans[]        @relation("loan_decided_by")
   loans_released        asset_loans[]        @relation("loan_released_by")
   loans_received        asset_loans[]        @relation("loan_received_by")
-  asset_records         asset_records[]
   asset_maintenance     asset_maintenance[]  @relation("maintenance_reported_by")
   maintenance_received  asset_maintenance[]  @relation("maintenance_received_by")
   maintenance_completed asset_maintenance[]  @relation("maintenance_completed_by")
   asset_inspections     asset_inspections[]
-  asset_returns         asset_returns[]
   user_centers          user_centers[]
   user_roles            user_roles[]
   headed_center         research_centers?
@@ -337,45 +299,15 @@ model asset_loans {
   @@index([return_inspection_id])
 }
 
-model asset_returns {
-  return_id        Int                      @id @default(autoincrement())
-  asset_id         Int
-  returned_by_id   Int
-  reference_number String                   @unique @db.VarChar(100)
-  returned_on      DateTime                 @default(now()) @db.DateTime(0)
-  comments         String?                  @db.VarChar(255)
-  condition        asset_returns_condition?
-  assets           assets                   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_returns_asset")
-  users            users                    @relation(fields: [returned_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_returns_processor")
-
-  @@index([asset_id])
-  @@index([returned_by_id])
-}
-
-model asset_transfers {
-  transfer_id       Int      @id @default(autoincrement())
-  asset_id          Int
-  from_custodian_id Int
-  to_custodian_id   Int
-  justification     String   @db.Text
-  status            String   @default("pending") @db.VarChar(50)
-  requested_on      DateTime @default(now()) @db.DateTime(0)
-  assets            assets   @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_transfers_asset")
-
-  @@index([asset_id])
-}
-
 model projects {
   project_id        Int              @id @default(autoincrement())
   project_code      String           @unique @db.VarChar(255)
   project_name      String           @db.VarChar(255)
   project_leader    String           @db.VarChar(255)
   center_id         Int
-  funding_agency    String           @db.VarChar(255)
   funding_source_id Int?
   start_date        DateTime         @db.Date
   end_date          DateTime?        @db.Date
-  asset_records     asset_records[]
   assets            assets[]
   asset_loans       asset_loans[]
   research_centers  research_centers @relation(fields: [center_id], references: [center_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_projects_center")
@@ -421,13 +353,6 @@ model activity_log {
   @@index([target_user_id])
   @@index([asset_id])
   @@index([event_type, created_at])
-}
-
-enum asset_records_status {
-  ACTIVE
-  ON_LOAN
-  MAINTENANCE
-  DISPOSED
 }
 
 enum assets_status {
@@ -586,10 +511,3 @@ enum asset_condition {
   CRITICAL_DEFECT @map("CRITICAL DEFECT")
 }
 
-enum asset_returns_condition {
-  PERFECT
-  OPERATIONAL
-  MINOR_DRIFT
-  DEGRADED
-  CRITICAL_DEFECT
-}

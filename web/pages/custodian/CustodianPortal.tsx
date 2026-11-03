@@ -39,7 +39,7 @@ const statusBadgeClass: Record<string, string> = {
   "Overdue": "bg-red-50    text-red-700    border-red-200",
 };
 
-// Keys are the Prisma enum member names of `asset_records.asset_condition` (underscore
+// Keys are the Prisma enum member names of `asset_inspections.condition` (underscore
 // form), not the space-separated strings stored in the database; see the @map values
 // in schema.prisma.
 const CONDITION_TEXT_CLASS: Record<string, string> = {

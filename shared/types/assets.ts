@@ -170,7 +170,6 @@ export interface AssetListItem {
   tsgRemarks?: string;
   itsRemarks?: string;
   asset_reports: AssetListReport[];
-  asset_monetary: { acquisition_value: number; funding_source: string };
 }
 
 /** The filters GET /api/assets reads from its query string. Each is optional. */

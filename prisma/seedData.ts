@@ -1,7 +1,7 @@
 /**
  * The demo seed's data: the 10 research centers, 11 demo accounts, 12 demo assets (one per status), and the lookup rows.
  * All invented or about institutions; nothing about real people.
- * Layer: database tooling. Read by prisma/seed.ts. Imports the server's POOL_CUSTODIAN_ID constant and Prisma's enum types.
+ * Layer: database tooling. Read by prisma/seed.ts. Imports Prisma's enum types.
  * Used by: npm run seed.
  */
 import type {
@@ -13,7 +13,6 @@ import type {
   users_account_status,
   users_user_type,
 } from "@prisma/client";
-import { POOL_CUSTODIAN_ID } from "../server/shared/constants/poolCustodian";
 
 /** One research center. Its short code is also the prefix of its asset tags. */
 export interface DemoLab {
@@ -53,12 +52,10 @@ export interface DemoAccount {
 
 /**
  * The demo accounts. The Lab Heads are the labs' office accounts (Researcher role, set as the lab's Head).
- * The IT Admin must be user POOL_CUSTODIAN_ID: the server still reads that user as "nobody holds it" and checks at
- * startup that it exists.
  * Addresses are @dlsu.edu.ph because the login page accepts no other domain.
  */
 export const DEMO_ACCOUNTS: DemoAccount[] = [
-  { userId: POOL_CUSTODIAN_ID, lastName: "IT Admin", email: "demo.admin@dlsu.edu.ph", role: "IT_ADMIN", userType: "STAFF", status: "ACTIVE", labs: [], heads: null },
+  { userId: 1, lastName: "IT Admin", email: "demo.admin@dlsu.edu.ph", role: "IT_ADMIN", userType: "STAFF", status: "ACTIVE", labs: [], heads: null },
   { userId: 2, lastName: "Director", email: "demo.director@dlsu.edu.ph", role: "ADRIC_DIRECTOR", userType: "FACULTY", status: "ACTIVE", labs: [], heads: null },
   { userId: 3, lastName: "Secretary", email: "demo.secretary@dlsu.edu.ph", role: "ADRIC_SECRETARY", userType: "STAFF", status: "ACTIVE", labs: [], heads: null },
   { userId: 4, lastName: "TSG Staff A", email: "demo.tsg@dlsu.edu.ph", role: "TSG_STAFF", userType: "STAFF", status: "ACTIVE", labs: [], heads: null },

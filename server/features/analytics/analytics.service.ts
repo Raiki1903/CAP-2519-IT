@@ -558,7 +558,6 @@ export async function staffDashboard(): Promise<StaffAnalyticsData> {
         assetName: r.assets?.name || "Equipment",
         reportedBy: r.users ? `${r.users.first_name} ${r.users.last_name}` : "Staff",
         issueDescription: r.issue_description,
-        isImmediate: r.is_immediate,
         progressStatus: progressTextOf(r),
         createdAt: r.reported_at.toISOString().split('T')[0]
     }));

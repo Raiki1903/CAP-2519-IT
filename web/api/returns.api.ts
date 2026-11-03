@@ -11,7 +11,7 @@ import { apiPost, type ApiResult } from "./client";
  *
  * @param assetTag the asset's tag, sent as is (not URL-encoded)
  * @param input who returned it, its condition, and the inspection notes
- * @returns `success` and `return` (with `reference_number`), or `error`
+ * @returns `success`, the closed `loan`, and its `referenceNumber` ("LOAN-<id>"), or `error`
  */
 export function finalizeReturn(assetTag: string, input: ReturnInput): Promise<ApiResult> {
   return apiPost(`/api/assets/${assetTag}/return`, input);

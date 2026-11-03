@@ -103,7 +103,6 @@ describe("the list screens", () => {
     ["Staff", USERS.staffTsg, custodianHistory],
     ["Staff", USERS.staffTsg, "/api/loans"],
     ["Staff", USERS.staffTsg, "/api/maintenance"],
-    ["Staff", USERS.staffTsg, "/api/asset_returns"],
     ["Staff", USERS.staffTsg, "/api/retirements"],
     ["Staff", USERS.staffTsg, "/api/inspections"],
     ["Staff", USERS.staffTsg, "/api/inspections/log"],

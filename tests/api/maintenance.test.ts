@@ -16,11 +16,10 @@ const { db, as } = useApiHarness();
 const asCustodian = as(USERS.custodianA);
 const asStaff = as(USERS.staffTsg);
 
-/** What RepairForm sends: the reporter's typed name (not read since 13c: the reporter is the session user), the fault, and whether it is urgent. */
+/** What RepairForm sends: the reporter's typed name (not read since 13c: the reporter is the session user) and the fault. */
 const repairBody = (description: string, extra: Record<string, unknown> = {}) => ({
   reportedBy: USERS.custodianB.fullName,
   description,
-  isImmediate: false,
   ...extra,
 });
 
@@ -71,7 +70,6 @@ describe("GET /api/maintenance", () => {
       description: "Test repair: the lens does not focus",
       progressStatus: "Inspection Phase",
       statusLabel: "Inspection Phase",
-      isImmediate: false,
       priority: "Medium",
       acknowledged: true,
     });
@@ -79,13 +77,12 @@ describe("GET /api/maintenance", () => {
     expect(typeof res.body.repairs[0].createdAt).toBe("string");
   });
 
-  it("lists tickets newest first, marks the two starting statuses as not acknowledged, and an immediate ticket as Critical", async () => {
+  it("lists tickets newest first, and marks a ticket not yet received as not acknowledged, with priority Medium", async () => {
     const pending = await db.asset_maintenance.create({
       data: {
         asset_id: ASSETS.inspected.assetId,
         reported_by_id: USERS.staffTsg.userId,
         issue_description: "Test fault: pending review",
-        is_immediate: false,
         status: "PENDING_RECEIPT",
         reported_at: new Date("2026-06-01T09:00:00Z"),
       },
@@ -95,7 +92,6 @@ describe("GET /api/maintenance", () => {
         asset_id: ASSETS.available.assetId,
         reported_by_id: USERS.labHead.userId,
         issue_description: "Test fault: immediate",
-        is_immediate: true,
         status: "PENDING_RECEIPT",
         reported_at: new Date("2026-06-02T09:00:00Z"),
       },
@@ -111,11 +107,12 @@ describe("GET /api/maintenance", () => {
       expect(res.body.repairs[0]).toMatchObject({
         assetId: ASSETS.available.tag,
         reportedBy: USERS.labHead.fullName,
-        isImmediate: true,
-        priority: "Critical",
+        priority: "Medium",
         acknowledged: false,
+        progressStatus: "Pending TSG Review",
       });
-      expect(res.body.repairs[1]).toMatchObject({ isImmediate: false, priority: "Medium", acknowledged: false });
+      expect(res.body.repairs[0]).not.toHaveProperty("isImmediate");
+      expect(res.body.repairs[1]).toMatchObject({ priority: "Medium", acknowledged: false });
     } finally {
       await db.asset_maintenance.deleteMany({ where: { maintenance_id: { in: [pending.maintenance_id, immediate.maintenance_id] } } });
     }
@@ -134,22 +131,22 @@ describe("POST /api/assets/:tag/maintenance", () => {
       asset_id: asset.assetId,
       reported_by_id: USERS.custodianB.userId,
       issue_description: "Test fault: the fan is loud",
-      is_immediate: false,
       status: "PENDING_RECEIPT",
     });
     expect(await db.asset_maintenance.count({ where: { asset_id: asset.assetId } })).toBe(1);
     expect((await listedAsset(asset.tag)).status).toBe("AVAILABLE");
   });
 
-  it("opens an immediate ticket in 'Awaiting Immediate Dispatch'", async () => {
+  it("ignores isImmediate: the column is gone, and every new ticket is 'Pending TSG Review'", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0402" });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, repairBody("Test fault: smoke", { isImmediate: true }));
 
     expect(res.status).toBe(200);
-    expect(res.body.repair).toMatchObject({ is_immediate: true, status: "PENDING_RECEIPT" });
+    expect(res.body.repair).toMatchObject({ status: "PENDING_RECEIPT" });
+    expect(res.body.repair).not.toHaveProperty("is_immediate");
     expect((await asStaff.get("/api/maintenance")).body.repairs.find((r: { repairId: number }) => r.repairId === res.body.repair.maintenance_id))
-      .toMatchObject({ progressStatus: "Awaiting Immediate Dispatch" });
+      .toMatchObject({ progressStatus: "Pending TSG Review" });
   });
 
   it("ignores a reporter name that names someone else: the ticket is still the session user's (issue #32 fixed)", async () => {
