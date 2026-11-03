@@ -88,7 +88,8 @@ export function notifyDirector(asset: assets, assetTag: string, data: DisposalRe
                 <p>Please review this request in the Clearance & Disposal tab of your dashboard.</p>
             `)
     )).catch(error => {
-        console.error(`Failed to send disposal request notification email for asset ${assetTag}:`, error);
+        // Only the error's name: a mail error can quote the recipient's address.
+        console.error(`Failed to send disposal request notification email for asset ${assetTag}:`, error?.name || 'Error');
     });
 }
 
@@ -179,6 +180,6 @@ export function notifyDecision(disposalId: number, disposedById: number, decisio
                 `)
         );
     }).catch(error => {
-        console.error(`Failed to send disposal #${disposalId} decision notification email:`, error);
+        console.error(`Failed to send disposal #${disposalId} decision notification email:`, error?.name || 'Error');
     });
 }
