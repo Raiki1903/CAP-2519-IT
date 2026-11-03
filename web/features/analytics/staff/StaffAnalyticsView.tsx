@@ -11,6 +11,7 @@ import { useServerData } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import * as maintenanceApi from "@web/api/maintenance.api";
 import * as analyticsApi from "@web/api/analytics.api";
+import { ASSET_STATUSES, ASSET_STATUS_LABELS } from "@shared/enums/assetStatus";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { Badge } from "@web/components/ui/badge";
@@ -52,7 +53,8 @@ const cardAnimation = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } }
 };
 
-const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#EF4444"];
+// One colour per asset status, in the order of ASSET_STATUSES.
+const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#8B5CF6", "#64748B", "#EF4444"];
 
 // Maintenance & Lifecycle View (Task 3: Repairs Kanban Board, Condition Heatmap with Traffic Light Indicators, 90-day Warranty Expiry Timeline)
 /**
@@ -402,12 +404,7 @@ export const LocationStatusWidget: React.FC<{
   });
 
   const statusData = (selectedLab !== "All Labs" || selectedCategory !== "All Categories")
-    ? [
-        { name: "Available", value: filteredContextAssets.filter(a => a.status === "AVAILABLE" || a.status === "Available").length },
-        { name: "On Loan", value: filteredContextAssets.filter(a => a.status === "ON_LOAN" || a.status === "Loaned").length },
-        { name: "Under Repair", value: filteredContextAssets.filter(a => a.status === "MAINTENANCE" || a.status === "Repair").length },
-        { name: "Disposed", value: filteredContextAssets.filter(a => a.status === "RETIRED").length }
-      ]
+    ? ASSET_STATUSES.map(status => ({ name: ASSET_STATUS_LABELS[status], value: filteredContextAssets.filter(a => a.status === status).length }))
     : rawStatusData;
 
   const totalAssetCount = statusData.reduce((acc: number, item: any) => acc + (item.value || 0), 0);

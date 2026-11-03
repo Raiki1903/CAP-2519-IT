@@ -1,9 +1,15 @@
 /**
  * Response shapes of the eight live analytics endpoints: the `data` each one sends inside `{ success: true, data }`.
- * Layer: shared. Imported by server/features/analytics/analytics.service.ts. Imports nothing.
+ * Layer: shared. Imported by server/features/analytics/analytics.service.ts. Imports the campus and asset status constants.
  * Used by: the Director, Lab Head, and Staff analytics views. The web side does not use these types yet: it builds
  * each query string at its call site and reads the answers loosely (H-13).
  */
+
+import type { Campus } from "../constants/campuses";
+import type { AssetStatus } from "../enums/assetStatus";
+
+/** A count for each of the six asset statuses. */
+export type StatusCounts = Record<AssetStatus, number>;
 
 /** The `data` of GET /api/analytics/director. */
 export interface DirectorAnalyticsData {
@@ -13,16 +19,13 @@ export interface DirectorAnalyticsData {
   pendingDisposalsCount: number;
   /** Value and asset count per funding source ("Unspecified" when empty). Not narrowed by the lab filter. */
   fundingData: { name: string; value: number; count: number }[];
-  /** Assets by campus and status, from each asset's newest record. The only figure the lab filter narrows. */
-  locationStatusData: {
-    location: "MANILA" | "LAGUNA";
-    ACTIVE: number;
-    ON_LOAN: number;
-    MAINTENANCE: number;
-    DISPOSED: number;
-    total: number;
-  }[];
-  /** Inspection reports per month ("Oct 26"), oldest first. A fixed demo series when there is none in range. (H-09) */
+  /**
+   * Assets by campus (always all three, in the order of CAMPUSES) and by status, from each asset's home lab and its
+   * status now. With a date range, only assets procured inside it count (an asset with no procurement date is left
+   * out). The only figure the lab filter narrows.
+   */
+  locationStatusData: ({ location: Campus; total: number } & StatusCounts)[];
+  /** Inspection reports per month ("Oct 26"), oldest first. Empty when there is none in range. */
   auditComplianceData: { month: string; count: number }[];
 }
 
@@ -67,9 +70,10 @@ export interface LabHeadDelinquencyItem {
 /** The `data` of GET /api/analytics/lab-head. */
 export interface LabHeadAnalyticsData {
   loans: LabHeadLoanItem[];
+  /** The lab's assets On Loan against all its assets. */
   utilization: {
-    assignedCount: number;
-    unassignedCount: number;
+    onLoanCount: number;
+    notOnLoanCount: number;
     totalAssetsCount: number;
     utilizationPercentage: number;
   };
@@ -82,6 +86,7 @@ export interface LabHeadAnalyticsData {
     count: number;
     size: number;
     pct: string;
+    /** The sum of the project's assets' acquisition values in this lab. */
     value: number;
     color: string;
   }[];
@@ -100,7 +105,8 @@ export interface LabHeadAnalyticsData {
 /**
  * The `data` of GET /api/analytics/tsg (the Staff dashboard). The Staff view's dates are not applied here.
  * `repairs[].progressStatus` is "Reported" when the stored status is empty; a condition item's `location` is the
- * record's home location; `warrantyExpiringSoon` holds warranties expired or within 90 days, soonest first.
+ * asset's home lab and room; `warrantyExpiringSoon` holds warranties expired or within 90 days, soonest first. An asset
+ * TSG never inspected is in no condition count and has no condition item; `notInspectedCount` says how many.
  */
 export interface StaffAnalyticsData {
   repairs: {
@@ -116,6 +122,8 @@ export interface StaffAnalyticsData {
     goodCount: number;
     degradedCount: number;
     criticalCount: number;
+    /** Assets with no TSG inspection. */
+    notInspectedCount: number;
     totalCount: number;
     conditionItems: {
       assetTag: string;
@@ -138,12 +146,13 @@ export interface StaffAnalyticsData {
 
 /** The `data` of GET /api/analytics/location-status. */
 export interface LocationStatusData {
-  /** Per campus, a count per status. Read by no live screen (its readers are in legacy/analytics-v1/). */
-  byLocation: { location: string; [status: string]: string | number }[];
-  /** A count per status. Read by no live screen either. */
+  /** Per campus (all three), a count per status. Read by no live screen (its readers are in legacy/analytics-v1/). */
+  byLocation: ({ location: string } & StatusCounts)[];
+  /** A count per status, with the status label as the name. Read by no live screen either. */
   byStatus: { name: string; value: number }[];
-  /** Per lab of a fixed list of seven codes; disposed assets are not counted here. (M-03) */
+  /** Per home lab, the assets Available, On Loan and in Maintenance (the three bars of the Staff chart). The other statuses count in `statusCounts`. */
   locationDistribution: { location: string; available: number; onLoan: number; underRepair: number }[];
+  /** One entry per asset status, in the order of ASSET_STATUSES, with its label as the name. */
   statusCounts: { name: string; value: number }[];
 }
 

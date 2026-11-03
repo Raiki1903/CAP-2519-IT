@@ -117,7 +117,7 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = ""
   }
 
   const loans = data?.loans || [];
-  const utilization = data?.utilization || { utilizationPercentage: 0, assignedCount: 0, unassignedCount: 0, totalAssetsCount: 0 };
+  const utilization = data?.utilization || { utilizationPercentage: 0, onLoanCount: 0, notOnLoanCount: 0, totalAssetsCount: 0 };
   const categoryData = data?.categoryData || [];
 
   return (
@@ -146,21 +146,21 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = ""
           <div>
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Zap className="w-5 h-5 text-[#005A36]" /> Assets Assigned to Projects
+                <Zap className="w-5 h-5 text-[#005A36]" /> Assets On Loan
               </h3>
               <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-extrabold text-xs">
-                {utilization.utilizationPercentage}% Assigned
+                {utilization.utilizationPercentage}% On Loan
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Share of your lab's assets that belong to a project.
+              Share of your lab's assets that are on loan now.
             </p>
           </div>
 
           <div className="my-4 space-y-3">
             <div className="flex items-center justify-between text-xs font-bold">
-              <span>Assigned to Active Project: {utilization.assignedCount} units</span>
-              <span className="text-muted-foreground">Unassigned (null): {utilization.unassignedCount} units</span>
+              <span>On Loan: {utilization.onLoanCount} units</span>
+              <span className="text-muted-foreground">Not on loan: {utilization.notOnLoanCount} units</span>
             </div>
 
             <div className="w-full h-6 bg-muted rounded-full overflow-hidden p-1 border border-border flex">
@@ -174,12 +174,12 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = ""
 
             <div className="grid grid-cols-2 gap-3 pt-2 text-center text-xs">
               <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-200">
-                <span className="text-[10px] text-muted-foreground block font-semibold">Project Assigned</span>
-                <span className="font-extrabold text-[#005A36] text-sm font-mono">{utilization.assignedCount} Assets</span>
+                <span className="text-[10px] text-muted-foreground block font-semibold">On Loan</span>
+                <span className="font-extrabold text-[#005A36] text-sm font-mono">{utilization.onLoanCount} Assets</span>
               </div>
               <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-muted-foreground block font-semibold">Unassigned Pool</span>
-                <span className="font-extrabold text-slate-700 dark:text-slate-200 text-sm font-mono">{utilization.unassignedCount} Assets</span>
+                <span className="text-[10px] text-muted-foreground block font-semibold">Not on loan</span>
+                <span className="font-extrabold text-slate-700 dark:text-slate-200 text-sm font-mono">{utilization.notOnLoanCount} Assets</span>
               </div>
             </div>
           </div>

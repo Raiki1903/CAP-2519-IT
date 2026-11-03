@@ -2,9 +2,8 @@
  * Analytics service: turns the rows the repository reads into the figures each analytics view draws.
  * Layer: service. Called by analytics.controller.ts. Calls analytics.repository.ts.
  * Used by: the Director, Lab Head, and Staff analytics views (the idle and loan recommender figures have no live caller).
- * An asset's status is assets.status and its lab and campus its home lab (assets.center_id). Several figures are still
- * invented when the data is missing (H-09), and the response shapes keep four of the six statuses; both are kept as
- * they are, with a TODO at each place, for the #96 rework (Batch 1 commits 12 and 13).
+ * An asset's status is assets.status and its lab and campus its home lab (assets.center_id). Every status count uses all
+ * six statuses, named by the shared constants. A figure with no data behind it is empty or left out, never invented.
  */
 import type {
     DirectorAnalyticsData,
@@ -15,9 +14,11 @@ import type {
     LoanRecommendationItem,
     LocationStatusData,
     StaffAnalyticsData,
+    StatusCounts,
 } from '@shared/types/analytics';
-import { asset_loans_status, type assets_status } from '@prisma/client';
-import { CAMPUS_LABELS, type Campus } from '@shared/constants/campuses';
+import { asset_loans_status } from '@prisma/client';
+import { CAMPUSES, CAMPUS_LABELS } from '@shared/constants/campuses';
+import { ASSET_STATUSES, ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
 import * as analyticsRepository from './analytics.repository';
 import { progressTextOf } from '../maintenance/maintenance.service';
 import { legacyLoanStatusLabel } from '../loans/loans.service';
@@ -25,17 +26,10 @@ import type { DirectorFilters, LabHeadFilters } from './analytics.validation';
 import type { SessionIdentity } from '@shared/types/auth';
 import { AppError } from '../../shared/errors/AppError';
 
-/**
- * The old four status keys the response shapes still use, for each stored status. Pending Retirement and Missing have
- * none, so they count only in totals.
- */
-// TODO(#96): the dashboards show four statuses. Batch 1 commits 12 and 13 move them to the six.
-const OLD_STATUS_KEY: Partial<Record<assets_status, "ACTIVE" | "ON_LOAN" | "MAINTENANCE" | "DISPOSED">> = {
-    AVAILABLE: "ACTIVE",
-    ON_LOAN: "ON_LOAN",
-    MAINTENANCE: "MAINTENANCE",
-    RETIRED: "DISPOSED",
-};
+/** A count of zero for each of the six asset statuses. */
+function emptyStatusCounts(): StatusCounts {
+    return Object.fromEntries(ASSET_STATUSES.map(status => [status, 0])) as StatusCounts;
+}
 
 /** Whether the lab query names this asset's home lab, by short code in any letter case. No lab means every asset. */
 function inLab(lab: string | undefined, shortCode: string): boolean {
@@ -157,21 +151,18 @@ export async function loanRecommendations(targetCategory: string | undefined): P
 // ===========================================================================
 
 /**
- * Counts the assets by status, per campus, overall, and per lab, each from the asset's home lab.
+ * Counts the assets by status, per campus, overall, and per lab, each from the asset's home lab and its status now.
  * The Staff view reads `locationDistribution` and `statusCounts`; `byLocation` and `byStatus` were read by the
- * screens now in legacy/analytics-v1/ and are still sent.
+ * screens now in legacy/analytics-v1/ and are still sent. Every campus and every status is listed, with 0 when empty.
+ * The per-lab bars show Available, On Loan, and Maintenance; the other statuses count in the campus and status totals.
  *
  * @param lab the home lab's short code (any letter case), or undefined for every asset
  */
-// TODO(#96): Pending Retirement and Missing assets count in no status here, and Retired ones are not in the per-lab bars. Batch 1 commit 12.
 export async function locationStatus(lab: string | undefined): Promise<LocationStatusData> {
     const assets = await analyticsRepository.findAssetsWithLab();
 
-    const campusMap: Record<string, Record<string, number>> = {};
-    for (const campus of Object.keys(CAMPUS_LABELS) as Campus[]) {
-        campusMap[`${CAMPUS_LABELS[campus]} Campus`] = { ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 };
-    }
-    const statusMap: Record<string, number> = { ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 };
+    const campusMap = new Map(CAMPUSES.map(campus => [campus, emptyStatusCounts()]));
+    const statusMap = emptyStatusCounts();
     const labMap = new Map<string, { available: number; onLoan: number; underRepair: number }>();
 
     assets.forEach((asset) => {
@@ -179,40 +170,30 @@ export async function locationStatus(lab: string | undefined): Promise<LocationS
         if (!inLab(lab, center.short_code)) return;
         if (!labMap.has(center.short_code)) labMap.set(center.short_code, { available: 0, onLoan: 0, underRepair: 0 });
 
-        const st = OLD_STATUS_KEY[asset.status];
-        if (!st) return;
-        campusMap[`${CAMPUS_LABELS[center.location]} Campus`][st]++;
-        statusMap[st]++;
+        campusMap.get(center.location)![asset.status]++;
+        statusMap[asset.status]++;
 
-        // Retired assets count in the campus and status totals, but not in the per-lab bars.
         const bars = labMap.get(center.short_code)!;
-        if (st === "ACTIVE") bars.available++;
-        else if (st === "ON_LOAN") bars.onLoan++;
-        else if (st === "MAINTENANCE") bars.underRepair++;
+        if (asset.status === 'AVAILABLE') bars.available++;
+        else if (asset.status === 'ON_LOAN') bars.onLoan++;
+        else if (asset.status === 'MAINTENANCE') bars.underRepair++;
     });
 
-    const byLocation = Object.keys(campusMap).map((campus) => ({
-        location: campus,
-        ...campusMap[campus]
+    const byLocation = CAMPUSES.map(campus => ({
+        location: `${CAMPUS_LABELS[campus]} Campus`,
+        ...campusMap.get(campus)!
     }));
 
-    const byStatus = Object.keys(statusMap).map((st) => ({
-        name: st.replace('_', ' '),
-        value: statusMap[st]
+    const statusCounts = ASSET_STATUSES.map(status => ({
+        name: ASSET_STATUS_LABELS[status],
+        value: statusMap[status]
     }));
 
     const locationDistribution = [...labMap.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([lName, bars]) => ({ location: lName, ...bars }));
 
-    const statusCounts = [
-        { name: "Available", value: statusMap.ACTIVE },
-        { name: "On Loan", value: statusMap.ON_LOAN },
-        { name: "Under Repair", value: statusMap.MAINTENANCE },
-        { name: "Disposed", value: statusMap.DISPOSED }
-    ];
-
-    return { byLocation, byStatus, locationDistribution, statusCounts };
+    return { byLocation, byStatus: statusCounts, locationDistribution, statusCounts };
 }
 
 /**
@@ -246,7 +227,8 @@ export async function inspectionProgress(): Promise<InspectionProgressItem[]> {
 /**
  * Builds the Director dashboard: portfolio value, pending disposals, value per funding source,
  * asset counts by campus and status, and inspection reports per month.
- * The location counts take each asset's newest record (inside the date range, when one is given).
+ * The location counts use each asset's home lab and its status now. With a date range, they count only the assets
+ * procured inside it (an asset's status has no date of its own).
  */
 // Known defect, kept: the lab filter narrows only the location counts; the portfolio value, the funding breakdown, and the
 // pending disposals stay the totals of every lab, so the lab dropdown changes one chart and not the figures beside it.
@@ -269,49 +251,20 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
 
     // The lab filter names a lab by short code, or a campus by its label (the dropdown offers both).
     const filterText = isSpecificLab ? labFilter.trim().toLowerCase() : null;
-    const allAssets = await analyticsRepository.findAssetsForDirector(null);
+    const allAssets = await analyticsRepository.findAssetsForDirector(startDate, endDate);
     const counted = filterText
         ? allAssets.filter(a => a.research_centers.short_code.toLowerCase() === filterText || CAMPUS_LABELS[a.research_centers.location].toLowerCase() === filterText)
         : allAssets;
 
-    // TODO(#96): the date range no longer narrows the location counts (an asset's status has no date), and McKinley assets count under Laguna. Batch 1 commit 12 gives each campus its own counts.
-    let manilaActive = 0, manilaOnLoan = 0, manilaMaintenance = 0, manilaDisposed = 0;
-    let lagunaActive = 0, lagunaOnLoan = 0, lagunaMaintenance = 0, lagunaDisposed = 0;
-
+    const campusCounts = new Map(CAMPUSES.map(campus => [campus, emptyStatusCounts()]));
     for (const asset of counted) {
-        const isLaguna = asset.research_centers.location !== "MANILA";
-        const st = OLD_STATUS_KEY[asset.status];
-        if (isLaguna) {
-            if (st === "ACTIVE") lagunaActive++;
-            else if (st === "ON_LOAN") lagunaOnLoan++;
-            else if (st === "MAINTENANCE") lagunaMaintenance++;
-            else if (st === "DISPOSED") lagunaDisposed++;
-        } else {
-            if (st === "ACTIVE") manilaActive++;
-            else if (st === "ON_LOAN") manilaOnLoan++;
-            else if (st === "MAINTENANCE") manilaMaintenance++;
-            else if (st === "DISPOSED") manilaDisposed++;
-        }
+        campusCounts.get(asset.research_centers.location)![asset.status]++;
     }
 
-    const locationStatusData: DirectorAnalyticsData['locationStatusData'] = [
-        {
-            location: "MANILA",
-            ACTIVE: manilaActive,
-            ON_LOAN: manilaOnLoan,
-            MAINTENANCE: manilaMaintenance,
-            DISPOSED: manilaDisposed,
-            total: manilaActive + manilaOnLoan + manilaMaintenance + manilaDisposed
-        },
-        {
-            location: "LAGUNA",
-            ACTIVE: lagunaActive,
-            ON_LOAN: lagunaOnLoan,
-            MAINTENANCE: lagunaMaintenance,
-            DISPOSED: lagunaDisposed,
-            total: lagunaActive + lagunaOnLoan + lagunaMaintenance + lagunaDisposed
-        }
-    ];
+    const locationStatusData: DirectorAnalyticsData['locationStatusData'] = CAMPUSES.map(campus => {
+        const counts = campusCounts.get(campus)!;
+        return { location: campus, ...counts, total: ASSET_STATUSES.reduce((sum, status) => sum + counts[status], 0) };
+    });
 
     const reports = await analyticsRepository.findReportsForDirector(startDate, endDate);
 
@@ -323,23 +276,10 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
         reportsByMonthMap.set(monthLabel, (reportsByMonthMap.get(monthLabel) || 0) + 1);
     }
 
-    let auditComplianceData = Array.from(reportsByMonthMap.entries()).map(([month, count]) => ({
+    const auditComplianceData = Array.from(reportsByMonthMap.entries()).map(([month, count]) => ({
         month,
         count
     }));
-
-    // TODO(H-09): with no report in range, the chart shows this fixed demo series as if it were data. Show an empty chart instead; proposed as its own commit.
-    if (auditComplianceData.length === 0) {
-        auditComplianceData = [
-            { month: "Jan 26", count: 4 },
-            { month: "Feb 26", count: 8 },
-            { month: "Mar 26", count: 15 },
-            { month: "Apr 26", count: 12 },
-            { month: "May 26", count: 20 },
-            { month: "Jun 26", count: 18 },
-            { month: "Jul 26", count: 25 }
-        ];
-    }
 
     return {
         totalPortfolioValue,
@@ -351,8 +291,8 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
 }
 
 /**
- * Builds the Lab Head dashboard for the lab the viewer heads: loan requests, utilization, categories,
- * project allocation, overdue loans, and the scatter and heatmap built from them.
+ * Builds the Lab Head dashboard for the lab the viewer heads: loan requests, utilization (assets On Loan), categories,
+ * project allocation (with the real acquisition values), overdue loans, and the scatter and heatmap built from them.
  * The date range limits the loans only.
  *
  * @param filters the date range
@@ -391,19 +331,11 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
 
     const labAssets = await analyticsRepository.findLabAssets(prefixFilter);
 
-    // An asset is "assigned" when it has an owning project.
-    // TODO(#96): utilization should count assets On Loan, not assets with a project. Batch 1 commit 12.
-    let assignedCount = 0;
-    let unassignedCount = 0;
-    for (const a of labAssets) {
-        if (a.project_id !== null) {
-            assignedCount++;
-        } else {
-            unassignedCount++;
-        }
-    }
+    // Utilization is the share of the lab's assets that are On Loan now.
+    const onLoanCount = labAssets.filter(a => a.status === 'ON_LOAN').length;
     const totalAssetsCount = labAssets.length;
-    const utilizationPercentage = totalAssetsCount > 0 ? Math.round((assignedCount / totalAssetsCount) * 100) : 0;
+    const notOnLoanCount = totalAssetsCount - onLoanCount;
+    const utilizationPercentage = totalAssetsCount > 0 ? Math.round((onLoanCount / totalAssetsCount) * 100) : 0;
 
     const categoryCounts = await analyticsRepository.countLabAssetsByCategory(prefixFilter);
 
@@ -414,10 +346,14 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
 
     const allProjects = await analyticsRepository.findProjectsWithCenter();
 
-    const projectCountsMap = new Map<number, number>();
+    // Per project, the lab's assets it owns and their acquisition values added up (an asset with no value adds 0).
+    const projectTotalsMap = new Map<number, { count: number; value: number }>();
     for (const a of labAssets) {
         if (a.project_id) {
-            projectCountsMap.set(a.project_id, (projectCountsMap.get(a.project_id) || 0) + 1);
+            const totals = projectTotalsMap.get(a.project_id) ?? { count: 0, value: 0 };
+            totals.count++;
+            totals.value += Number(a.acquisition_value ?? 0);
+            projectTotalsMap.set(a.project_id, totals);
         }
     }
 
@@ -425,7 +361,7 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
     const projectAllocation: any[] = [];
     let colorIdx = 0;
     for (const p of allProjects) {
-        const count = projectCountsMap.get(p.project_id) || 0;
+        const { count, value } = projectTotalsMap.get(p.project_id) ?? { count: 0, value: 0 };
         if (count > 0) {
             projectAllocation.push({
                 projectId: p.project_code,
@@ -435,8 +371,7 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
                 count,
                 size: count,
                 pct: `${totalAssetsCount > 0 ? ((count / totalAssetsCount) * 100).toFixed(1) : 0}%`,
-                // TODO(H-09): an invented value of 250,000 per asset, not the assets' acquisition value. Proposed as its own commit.
-                value: count * 250000,
+                value,
                 color: colors[colorIdx % colors.length]
             });
             colorIdx++;
@@ -532,8 +467,8 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
     return {
         loans,
         utilization: {
-            assignedCount,
-            unassignedCount,
+            onLoanCount,
+            notOnLoanCount,
             totalAssetsCount,
             utilizationPercentage
         },
@@ -546,7 +481,8 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
 }
 
 /**
- * Builds the Staff dashboard: every repair ticket, a condition summary from each asset's newest record,
+ * Builds the Staff dashboard: every repair ticket, a condition summary from each asset's newest TSG inspection
+ * (an asset TSG never inspected is counted apart, not as good),
  * and the warranties expired or expiring within 90 days (counted from now).
  */
 export async function staffDashboard(): Promise<StaffAnalyticsData> {
@@ -567,13 +503,17 @@ export async function staffDashboard(): Promise<StaffAnalyticsData> {
     let goodCount = 0;
     let degradedCount = 0;
     let criticalCount = 0;
+    let notInspectedCount = 0;
 
     const conditionItems: any[] = [];
     const allAssets = await analyticsRepository.findAllAssets();
 
     for (const a of allAssets) {
-        // TODO(H-09): an asset TSG never inspected shows as PERFECT. Batch 1 commit 12 leaves it out of the counts.
-        const cond = conditions.get(a.asset_id)?.condition || "PERFECT";
+        const cond = conditions.get(a.asset_id)?.condition;
+        if (!cond) {
+            notInspectedCount++;
+            continue;
+        }
         let trafficLight: "GREEN" | "YELLOW" | "RED" = "GREEN";
 
         if (cond === "PERFECT" || cond === "OPERATIONAL") {
@@ -627,6 +567,7 @@ export async function staffDashboard(): Promise<StaffAnalyticsData> {
             goodCount,
             degradedCount,
             criticalCount,
+            notInspectedCount,
             totalCount: allAssets.length,
             conditionItems
         },

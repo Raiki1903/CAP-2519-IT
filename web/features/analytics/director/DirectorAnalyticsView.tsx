@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useServerData } from "@web/state/serverData";
 import * as analyticsApi from "@web/api/analytics.api";
+import { CAMPUS_LABELS } from "@shared/constants/campuses";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { Badge } from "@web/components/ui/badge";
@@ -158,8 +159,8 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
   const locationStatusData = useMemo(() => {
     if (apiData?.locationStatusData && Array.isArray(apiData.locationStatusData) && apiData.locationStatusData.length > 0) {
       return apiData.locationStatusData.map((d: any) => ({
-        location: d.location === "MANILA" ? "Manila Campus" : d.location === "LAGUNA" ? "Laguna Campus" : d.location,
-        ACTIVE: d.ACTIVE || 0,
+        location: `${CAMPUS_LABELS[d.location as keyof typeof CAMPUS_LABELS] ?? d.location} Campus`,
+        AVAILABLE: d.AVAILABLE || 0,
         ON_LOAN: d.ON_LOAN || 0,
         MAINTENANCE: d.MAINTENANCE || 0,
       }));
@@ -197,7 +198,7 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
         }
       });
 
-      return { ACTIVE: active, ON_LOAN: onLoan, MAINTENANCE: maintenance };
+      return { AVAILABLE: active, ON_LOAN: onLoan, MAINTENANCE: maintenance };
     };
 
     return [
@@ -314,7 +315,7 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
                 <YAxis stroke="#64748B" fontSize={11} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="ACTIVE" stackId="statusStack" fill="#10B981" name="Available" />
+                <Bar dataKey="AVAILABLE" stackId="statusStack" fill="#10B981" name="Available" />
                 <Bar dataKey="ON_LOAN" stackId="statusStack" fill="#F59E0B" name="On Loan" />
                 <Bar dataKey="MAINTENANCE" stackId="statusStack" fill="#EF4444" name="Maintenance" />
               </BarChart>
