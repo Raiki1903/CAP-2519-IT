@@ -1,28 +1,67 @@
 /**
  * Auth request checks: is each sign-up, login, profile, and account request shaped correctly, before any database work.
- * Layer: validation. Called by auth.controller.ts. Calls shared/errors/AppError.ts and shared/constants/passwords.ts.
+ * Layer: validation. Called by auth.controller.ts. Calls shared/errors/AppError.ts, shared/constants/passwords.ts, and
+ * shared/constants/signUp.ts.
  * Used by: login, self-registration, the session reload, and the account page.
  */
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '@shared/constants/passwords';
-import type { AccountUpdateInput, LoginInput, RegistrationRequestInput } from '@shared/types/auth';
+import { ID_NUMBER_MESSAGE, ID_NUMBER_PATTERN, SIGN_UP_EMAIL_DOMAIN, SIGN_UP_EMAIL_MESSAGE, USER_TYPES, type UserType } from '@shared/constants/signUp';
+import type { AccountUpdateInput, LoginInput, SignUpRequest } from '@shared/types/auth';
 import { AppError } from '../../shared/errors/AppError';
 
+/** The 400 message for a sign-up with no lab, or a lab id that is not a whole number. */
+export const NO_LAB_MESSAGE = "Choose at least one lab.";
+
 /**
- * Checks that a sign-up request has names, email, id number, and a password of an allowed length. (C-03)
+ * Reads a sign-up body: names, a DLSU email, an 8-digit ID number, a user type, a password of an allowed length, and
+ * at least one lab. Whether each lab exists is checked by the service, which needs the database.
  *
- * @param data the fields read from the body
- * @throws AppError 400 if any of the four is missing or empty, or if the password is not a string of an allowed length
+ * @param body the request body
+ * @returns the sign-up with the names trimmed, the email trimmed and in lower case, the ID number as a number, and each lab once
+ * @throws AppError 400 with a plain message for the first field that is missing or wrong
  */
-export function checkRegistrationRequest(data: any): asserts data is RegistrationRequestInput {
-    if (!data.firstName || !data.lastName || !data.email || !data.idNumber) {
+export function readSignUpRequest(body: any): SignUpRequest {
+    const { firstName, lastName, email, idNumber, userType, password, centerIds, avatarUrl } = body ?? {};
+
+    if (!isFilled(firstName) || !isFilled(lastName) || !isFilled(email) || (typeof idNumber !== 'number' && !isFilled(idNumber))) {
         throw new AppError(400, "Missing required registration fields.");
     }
-    if (typeof data.password !== 'string' || data.password.length < MIN_PASSWORD_LENGTH) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail.endsWith(SIGN_UP_EMAIL_DOMAIN) || normalizedEmail.length === SIGN_UP_EMAIL_DOMAIN.length) {
+        throw new AppError(400, SIGN_UP_EMAIL_MESSAGE);
+    }
+    const idText = String(idNumber).trim();
+    if (!ID_NUMBER_PATTERN.test(idText)) {
+        throw new AppError(400, ID_NUMBER_MESSAGE);
+    }
+    if (!USER_TYPES.includes(userType)) {
+        throw new AppError(400, "Choose Student, Faculty, or Staff as your user type.");
+    }
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
         throw new AppError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
     }
-    if (data.password.length > MAX_PASSWORD_LENGTH) {
+    if (password.length > MAX_PASSWORD_LENGTH) {
         throw new AppError(400, `Password must be at most ${MAX_PASSWORD_LENGTH} characters long.`);
     }
+    if (!Array.isArray(centerIds) || centerIds.length === 0 || !centerIds.every(id => Number.isInteger(id) && id > 0)) {
+        throw new AppError(400, NO_LAB_MESSAGE);
+    }
+
+    return {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: normalizedEmail,
+        idNumber: Number(idText),
+        userType: userType as UserType,
+        password,
+        centerIds: [...new Set<number>(centerIds)],
+        avatarUrl: typeof avatarUrl === 'string' && avatarUrl ? avatarUrl : undefined,
+    };
+}
+
+/** Whether a value is a string with something besides spaces in it. */
+function isFilled(value: unknown): value is string {
+    return typeof value === 'string' && value.trim() !== '';
 }
 
 /**

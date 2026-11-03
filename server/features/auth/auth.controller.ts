@@ -9,7 +9,7 @@
 import type { Request, Response } from 'express';
 import * as authService from './auth.service';
 import { clearedSessionCookieHeader, readCookie, SESSION_COOKIE_NAME, sessionCookieHeader } from '../../shared/services/session';
-import { checkAccountUpdate, checkLogin, checkRegistrationRequest } from './auth.validation';
+import { checkAccountUpdate, checkLogin, readSignUpRequest } from './auth.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 // Each handler reads req.body in one destructuring statement. A request with no JSON body (Express 5 leaves
@@ -25,22 +25,17 @@ export async function listPendingRegistrations(req: Request, res: Response): Pro
 }
 
 /**
- * Handles POST /api/auth/register-request: files a sign-up request for a Lab Head to approve. A `requestedRole` in the
- * body is not read: every request is for a Custodian (C-05 family).
- * Answers `{ success, registration }` with the stored request without its password (C-04),
- * or the AppError's status and message (400 missing field or a password of the wrong length; 409 email or id number
- * taken by an account or by a request still waiting), or 500.
+ * Handles POST /api/auth/register-request: stores a sign-up as a Pending account with its requested labs, for the IT
+ * Admin to approve. A role in the body is not read: the IT Admin picks it on approval.
+ * Answers 201 `{ success, message }`, or the AppError's status and message (400 a missing or wrong field, or a lab that
+ * does not exist; 409 email or ID number taken), or 500.
  */
 export async function requestRegistration(req: Request, res: Response): Promise<void> {
-    const { firstName, lastName, email, idNumber, userType, labAffiliation, password, avatarUrl } = req.body;
-    const data = { firstName, lastName, email, idNumber, userType, labAffiliation, password, avatarUrl };
+    const data = readSignUpRequest(req.body);
+    const userId = await authService.requestRegistration(data);
 
-    checkRegistrationRequest(data);
-    const newReq = await authService.requestRegistration(data);
-
-    console.log(`Sign-up request ${newReq.id} filed`);
-
-    res.json({ success: true, registration: newReq });
+    console.log(`Sign-up filed: user ${userId} is pending`);
+    res.status(201).json({ success: true, message: authService.SIGN_UP_SENT_MESSAGE });
 }
 
 /**

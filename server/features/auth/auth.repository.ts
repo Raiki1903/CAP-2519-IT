@@ -9,7 +9,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { PendingRegistration } from '@shared/types/auth';
 import { prisma } from '../../config/prisma';
 
@@ -98,6 +98,32 @@ export function createUser(data: Prisma.usersUncheckedCreateInput, roleId: numbe
 
         return newUser;
     });
+}
+
+/**
+ * Creates a Pending account with no role and links it to its labs, in one transaction, so a failed link leaves no
+ * account behind.
+ *
+ * @param data the users row; its account_status is set to PENDING here
+ * @param centerIds the labs the sign-up asks for, each once
+ * @returns the new user id, or null when the email or the ID number already belongs to an account (a unique key)
+ */
+export async function createPendingUser(data: Omit<Prisma.usersUncheckedCreateInput, 'account_status'>, centerIds: number[]): Promise<number | null> {
+    try {
+        return await prisma.$transaction(async (tx) => {
+            const user = await tx.users.create({ data: { ...data, account_status: 'PENDING' } });
+            await tx.user_centers.createMany({ data: centerIds.map(centerId => ({ user_id: user.user_id, center_id: centerId })) });
+            return user.user_id;
+        });
+    } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') return null;
+        throw e;
+    }
+}
+
+/** How many of these research centers exist. */
+export function countLabs(centerIds: number[]) {
+    return prisma.research_centers.count({ where: { center_id: { in: centerIds } } });
 }
 
 /** What a profile read includes: the roles, every lab link (by lab code), and the lab the user heads. */

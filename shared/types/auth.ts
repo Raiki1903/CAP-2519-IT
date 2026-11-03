@@ -7,10 +7,29 @@
  */
 import type { DatabaseRole, Role, StaffUnit } from '../enums/role';
 import type { AccountStatus } from '../constants/accountStatuses';
+import type { UserType } from '../constants/signUp';
 
 /**
- * The body of POST /api/auth/register-request, as Register sends it (Register also sends fields the server ignores,
- * such as `requestedRole`: every request is for a Custodian, C-05 family).
+ * The body of POST /api/auth/register-request, as the server reads it after its checks: the email trimmed and in
+ * lower case, the ID number as a number, and each lab once.
+ */
+export interface SignUpRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  idNumber: number;
+  userType: UserType;
+  /** The password as typed. The server stores only its hash. (C-03) */
+  password: string;
+  /** The labs the applicant asks to join, at least one. The IT Admin confirms or changes them on approval. */
+  centerIds: number[];
+  /** The picture as a data URL; becomes users.user_img. */
+  avatarUrl?: string;
+}
+
+/**
+ * The form values web/pages/auth/Register.tsx sends. The server reads the body as a SignUpRequest and refuses one
+ * without `centerIds` (400).
  */
 export interface RegistrationRequestInput {
   firstName: string;

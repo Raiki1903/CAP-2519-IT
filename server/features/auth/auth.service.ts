@@ -17,9 +17,9 @@ import type {
     PendingRegistration,
     PendingRegistrationView,
     ProfileUser,
-    RegistrationRequestInput,
     SessionIdentity,
     SessionLab,
+    SignUpRequest,
 } from '@shared/types/auth';
 import * as authRepository from './auth.repository';
 import type { UserProfileRow } from './auth.repository';
@@ -60,52 +60,43 @@ export function listPendingRegistrations(): PendingRegistrationView[] {
     return authRepository.listPendingRegistrations().filter(r => r.status === "PENDING").map(withoutPassword);
 }
 
+/** What a sign-up answers with. */
+export const SIGN_UP_SENT_MESSAGE = "Your sign-up was sent. The IT Admin will review it. You can log in once it is approved.";
+
 /**
- * Files a sign-up request for a Lab Head to approve. Nothing is written to the database:
- * the request is kept in memory and in pending_registrations.json until it is approved or rejected. (H-17)
+ * Stores a sign-up as a Pending account with no role, linked to the labs it asks for. The IT Admin approves it with a
+ * role (features/users). A Pending account cannot log in.
  *
- * Every request asks for the Custodian role: a role in the body is ignored, since this route is public. (C-05 family)
+ * Only the database decides whether the email or the ID number is taken (their unique keys), so two identical
+ * sign-ups at the same moment give one account and one 409. (issues #14, #81)
  *
- * @param data the checked body: names, email, id number, password, and the optional user type, lab, and picture
- * @returns the stored request, with its REG- id, without its password hash (C-04)
- * @throws AppError 409 if the email or the id number already belongs to an account, or to a request still waiting (issues #14, #81)
+ * @param data the checked body
+ * @returns the new account's user id
+ * @throws AppError 400 if a requested lab does not exist
+ * @throws AppError 409 if an account, of any status, already has the email or the ID number
  */
-export async function requestRegistration(data: RegistrationRequestInput): Promise<PendingRegistrationView> {
-    const { firstName, lastName, email, idNumber, userType, labAffiliation, password, avatarUrl } = data;
-
-    await refuseTakenByAccount(email, Number(idNumber));
-
-    // Hashed before the waiting checks: they and the add must run with no await between them, or a double submit
-    // could pass both checks and file two requests (issues #14, #81).
-    const passwordHash = await hashPassword(password);
-
-    const sameEmail = (r: PendingRegistrationView) => String(r.email).trim().toLowerCase() === String(email).trim().toLowerCase();
-    const waiting = listPendingRegistrations();
-    if (waiting.some(sameEmail)) {
-        throw new AppError(409, "A sign-up request with this email is already waiting for approval.");
-    }
-    if (waiting.some(r => r.idNumber === Number(idNumber))) {
-        throw new AppError(409, "A sign-up request with this ID number is already waiting for approval.");
+export async function requestRegistration(data: SignUpRequest): Promise<number> {
+    if (await authRepository.countLabs(data.centerIds) !== data.centerIds.length) {
+        throw new AppError(400, "One of the labs you chose is not a known lab.");
     }
 
-    const newReq: PendingRegistration = {
-        // A random six-digit number: two requests can draw the same id, and approving or rejecting one then drops both.
-        id: `REG-${Math.floor(100000 + Math.random() * 900000)}`,
-        firstName,
-        lastName,
-        email,
-        idNumber: Number(idNumber),
-        userType: userType || "STUDENT",
-        requestedRole: "Custodian",
-        labAffiliation: labAffiliation || "",
-        password: passwordHash,
-        avatarUrl,
-        submittedAt: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
-        status: "PENDING"
-    };
-
-    authRepository.addPendingRegistration(newReq);
-    return withoutPassword(newReq);
+    const passwordHash = await hashPassword(data.password);
+    const userId = await authRepository.createPendingUser(
+        {
+            first_name: data.firstName,
+            last_name: data.lastName,
+            email: data.email,
+            password: passwordHash,
+            id_number: data.idNumber,
+            user_type: data.userType,
+            user_img: data.avatarUrl ?? null,
+        },
+        data.centerIds,
+    );
+    if (userId === null) {
+        throw new AppError(409, "An account with this email or ID number already exists. Ask the IT Admin.");
+    }
+    return userId;
 }
 
 /**
