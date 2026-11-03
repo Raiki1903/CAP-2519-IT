@@ -1,8 +1,7 @@
 /**
- * Registration API: sign-ups stored as Pending accounts, and the old Lab Head routes that are left.
- * Covers POST /api/auth/register-request, the 404s of POST /api/auth/approve-registration and the 200 of
- * POST /api/auth/reject-registration for an unknown request, and that POST /api/auth/register is gone.
- * Workflow: account sign-up.
+ * Registration API: sign-ups stored as Pending accounts.
+ * Covers POST /api/auth/register-request, and that POST /api/auth/register and the Lab Head's old sign-up routes are
+ * gone. Workflow: account sign-up.
  * Fixtures: the seeded accounts (for duplicate checks) and the TEST lab (LAB). A second lab and the applicants are
  * invented here.
  */
@@ -158,31 +157,18 @@ describe("POST /api/auth/register-request", () => {
   });
 });
 
-describe("POST /api/auth/approve-registration", () => {
-  it("answers 404 for an unknown request id with no applicant details", async () => {
-    const res = await asLabHead.post("/api/auth/approve-registration", { requestId: "REG-000000" });
+describe("the Lab Head's sign-up routes (removed in Batch 2b)", () => {
+  it.each([
+    ["GET", "/api/auth/pending-registrations"],
+    ["POST", "/api/auth/approve-registration"],
+    ["POST", "/api/auth/reject-registration"],
+  ])("answer 404 to %s %s, even for a Lab Head, and create no account", async (method, path) => {
+    const body = applicant({ requestId: "REG-000000" });
+
+    const res = method === "GET" ? await asLabHead.get(path) : await asLabHead.post(path, body);
 
     expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
-  });
-
-  it("answers 404 for an unknown request id even with applicant details, and creates no account (C-05 fixed)", async () => {
-    const body = applicant({ requestId: "REG-000000", requestedRole: "ITS", password: "test-password-body" });
-
-    const res = await asLabHead.post("/api/auth/approve-registration", body);
-
-    expect(res.status).toBe(404);
-    expect(res.body).toEqual({ success: false, error: "Pending registration request details not found." });
-    expect(await accountsWithEmail(body.email as string)).toBe(0);
-  });
-});
-
-describe("POST /api/auth/reject-registration", () => {
-  it("answers 200 for an unknown request id", async () => {
-    const res = await asLabHead.post("/api/auth/reject-registration", { requestId: "REG-000000" });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(await accountsWithEmail(body.email)).toBe(0);
   });
 });
 

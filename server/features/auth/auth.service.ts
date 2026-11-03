@@ -2,7 +2,7 @@
  * Auth service: the rules for logging in and out, the session's profile and app role, account updates, and sign-ups.
  * Layer: service. Called by auth.controller.ts and shared/middleware/requireAuth.ts. Calls auth.repository.ts,
  * shared/services/session.ts, shared/services/passwords.ts, shared/services/loginLimiter.ts, and config/env.ts (the session secret).
- * Used by: login for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
+ * Used by: login for every role, the session reload, the account page, and self-registration.
  */
 import type { roles, user_roles, users } from '@prisma/client';
 import { MAX_PASSWORD_LENGTH } from '@shared/constants/passwords';
@@ -11,11 +11,7 @@ import { APP_ROLE_LABELS, type DatabaseRole, type Role, type StaffUnit } from '@
 import type {
     AccountUpdateInput,
     AccountUser,
-    ApproveRegistrationInput,
-    ApprovedUser,
     LoginUser,
-    PendingRegistration,
-    PendingRegistrationView,
     ProfileUser,
     SessionIdentity,
     SessionLab,
@@ -29,37 +25,6 @@ import { clearLoginFailures, isLoginBlocked, loginKey, recordLoginFailure, TOO_M
 import { DUMMY_PASSWORD_HASH, hashPassword, isPasswordHash, verifyPassword } from '../../shared/services/passwords';
 import { createSessionToken, isLoggedOut, markLoggedOut, verifySessionToken } from '../../shared/services/session';
 import { forgetIdentity, recallIdentity, rememberIdentity } from '../../shared/services/sessionCache';
-
-/**
- * Refuses an email or an id number that already belongs to an account. (issue #14)
- *
- * @param email the email to check; the database compares it in any letter case
- * @param idNumber the id number to check
- * @throws AppError 409 with the text the sign-up page shows (UAT EV-05)
- */
-async function refuseTakenByAccount(email: string, idNumber: number): Promise<void> {
-    if (await authRepository.findUserByEmail(email)) {
-        throw new AppError(409, "A registered user with this email already exists.");
-    }
-    if (await authRepository.findUserByIdNumber(idNumber)) {
-        throw new AppError(409, "A registered user with this ID number already exists.");
-    }
-}
-
-/** A stored sign-up request without its password hash, for an answer. (C-04) */
-function withoutPassword(request: PendingRegistration): PendingRegistrationView {
-    const { password, ...view } = request;
-    return view;
-}
-
-/**
- * The sign-up requests still waiting for a decision, newest first.
- *
- * @returns the PENDING requests, without their passwords (C-04)
- */
-export function listPendingRegistrations(): PendingRegistrationView[] {
-    return authRepository.listPendingRegistrations().filter(r => r.status === "PENDING").map(withoutPassword);
-}
 
 /** What a sign-up answers with. */
 export const SIGN_UP_SENT_MESSAGE = "Your sign-up was sent. The IT Admin will review it. You can log in once it is approved.";
@@ -98,85 +63,6 @@ export async function requestRegistration(data: SignUpRequest): Promise<number> 
         throw new AppError(409, "An account with this email or ID number already exists. Ask the IT Admin.");
     }
     return userId;
-}
-
-/**
- * Approves a sign-up request: creates a Custodian account with its lab, then drops the request.
- * The account is built from the stored request only (C-05), and is always a Custodian, whatever role the request
- * names: the sign-up page only asks for Custodian, and the sign-up route is public. (C-05 family)
- * The lab is matched by name or short code; "No affiliation" and "Not Affiliated" link no lab.
- *
- * @param data `requestId`, the REG- id the server gave the request
- * @returns the new account's id, names, and email (no password or id number: 01C 4.1)
- * @throws AppError 400 if the request's lab matches no research center; nothing is created and the request is kept (issue #73)
- * @throws AppError 404 if the id matches no pending request
- * @throws AppError 409 if the request was filed before passwords were hashed, so it has no hash to copy; the request is kept (C-03)
- * @throws AppError 409 if an account has the request's email or id number by now; the request is kept (issue #14)
- */
-export async function approveRegistration(data: ApproveRegistrationInput): Promise<ApprovedUser> {
-    const { requestId } = data;
-    const targetReq = authRepository.findPendingRegistration(requestId);
-
-    if (!targetReq) {
-        throw new AppError(404, "Pending registration request details not found.");
-    }
-
-    if (!isPasswordHash(targetReq.password)) {
-        throw new AppError(409, "This request was made before passwords were protected. Decline it and ask the applicant to sign up again.");
-    }
-
-    // Checked again here: a request filed before the duplicate checks, or an account created since, would otherwise
-    // fail inside the database with a 500.
-    await refuseTakenByAccount(targetReq.email, targetReq.idNumber);
-
-    // The request's requestedRole is never read: an older request in the file can still name another role.
-    const roleRecord = await authRepository.findRoleByName("RESEARCHER");
-
-    let centerRecord = null;
-    if (targetReq.labAffiliation && targetReq.labAffiliation !== "Not Affiliated" && targetReq.labAffiliation !== "No affiliation") {
-        // The form sends a full lab name such as "Center for ... (CeLT)"; the code in brackets is tried as a short code.
-        const labName = targetReq.labAffiliation.trim();
-        const match = labName.match(/\(([^)]+)\)/);
-        const extractedCode = match ? match[1].trim() : labName;
-
-        centerRecord = await authRepository.findResearchCenterForLab(labName, extractedCode);
-
-        // A lab that matches nothing (a typo, or a lab with no research center) is refused, never created. The request
-        // stays in the list, so the Lab Head can decline it. (issue #73, M-03)
-        if (!centerRecord) {
-            throw new AppError(400, `The lab on this request, ${labName}, is not a known lab. Decline it and ask the applicant to sign up again.`);
-        }
-    }
-
-    const createdUser = await authRepository.createUser(
-        {
-            first_name: targetReq.firstName,
-            last_name: targetReq.lastName,
-            email: targetReq.email,
-            password: targetReq.password,
-            id_number: targetReq.idNumber,
-            user_type: targetReq.userType || "STUDENT",
-            user_img: targetReq.avatarUrl ? String(targetReq.avatarUrl) : null,
-            // An approved sign-up can log in at once; PENDING is for requests stored as accounts (Batch 2b).
-            account_status: "ACTIVE"
-        },
-        roleRecord ? roleRecord.role_id : null,
-        centerRecord ? centerRecord.center_id : null,
-    );
-
-    targetReq.status = "APPROVED";
-    authRepository.removePendingRegistration(requestId);
-
-    return { userId: createdUser.user_id, firstName: createdUser.first_name, lastName: createdUser.last_name, email: createdUser.email };
-}
-
-/**
- * Drops a sign-up request without creating an account. An unknown id changes nothing.
- *
- * @param requestId the REG- id
- */
-export function rejectRegistration(requestId: string): void {
-    authRepository.removePendingRegistration(requestId);
 }
 
 /**

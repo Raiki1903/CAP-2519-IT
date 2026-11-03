@@ -39,13 +39,11 @@ const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.
 /**
  * The approved 13b role table: [row, method, path, roles]. Paths use ids and tags no row has.
  * Row 8, POST /api/auth/register, was deleted with its route (issue #70). Rows 29 to 32 (transfers) and 41 (the custodian
- * list) were deleted with their routes in Batch 1. Rows 42 to 44 are the IT Admin's sign-up routes (Batch 2b).
+ * list) were deleted with their routes in Batch 1. Rows 3 to 5 (the Lab Head's sign-up routes) were deleted with their
+ * routes in Batch 2b; rows 42 to 44 are the IT Admin's sign-up routes that replace them.
  * The Staff account is TSG.
  */
 const ROUTES: [number, string, string, Role[]][] = [
-  [3, "GET", "/api/auth/pending-registrations", [L]],
-  [4, "POST", "/api/auth/approve-registration", [L]],
-  [5, "POST", "/api/auth/reject-registration", [L]],
   [6, "GET", "/api/auth/me", ANY],
   [7, "PUT", "/api/auth/account", ANY],
   [9,"GET", "/api/assets", ANY],
@@ -237,18 +235,18 @@ describe("requireAuth: who gets a 401", () => {
 describe("requireRole: the role is read from the database, at most once a minute per cookie", () => {
   it("keeps a cookie's view for up to 60 seconds after the account starts heading a lab, while a new login gets the Lab Head view at once", async () => {
     const cookie = await logIn(USERS.custodianB);
-    expect((await withCookie(cookie).get("/api/auth/pending-registrations")).status).toBe(403);
+    expect((await withCookie(cookie).get("/api/analytics/lab-head")).status).toBe(403);
 
     await db.research_centers.update({ where: { center_id: LAB.centerId }, data: { head_user_id: USERS.custodianB.userId } });
     try {
-      expect((await withCookie(cookie).get("/api/auth/pending-registrations")).status, "the old cookie, remembered").toBe(403);
+      expect((await withCookie(cookie).get("/api/analytics/lab-head")).status, "the old cookie, remembered").toBe(403);
       const fresh = await logIn(USERS.custodianB);
-      expect((await withCookie(fresh).get("/api/auth/pending-registrations")).status, "a new cookie, looked up").toBe(200);
+      expect((await withCookie(fresh).get("/api/analytics/lab-head")).status, "a new cookie, looked up").toBe(200);
     } finally {
       await db.research_centers.update({ where: { center_id: LAB.centerId }, data: { head_user_id: USERS.labHead.userId } });
     }
     const after = await logIn(USERS.custodianB);
-    expect((await withCookie(after).get("/api/auth/pending-registrations")).status).toBe(403);
+    expect((await withCookie(after).get("/api/analytics/lab-head")).status).toBe(403);
   });
 
   it("gives the IT Admin its own view: it passes no Staff check and takes no asset step", async () => {
@@ -270,7 +268,7 @@ describe("requireRole: the role is read from the database, at most once a minute
 
       expect((await client.post("/api/assets", {})).status).toBe(user.role === "TSG_STAFF" ? 400 : 403);
       expect((await client.get("/api/analytics/tsg")).status).toBe(200);
-      const labHeadOnly = await client.get("/api/auth/pending-registrations");
+      const labHeadOnly = await client.get("/api/analytics/lab-head");
       expect(labHeadOnly.status).toBe(403);
       expect(labHeadOnly.body).toEqual({ success: false, error: FORBIDDEN });
       expect((await client.get("/api/analytics/director")).status).toBe(403);

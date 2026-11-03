@@ -3,7 +3,7 @@
  * Layer: shared. Imported by server/features/auth/, server/shared/middleware/ (requireAuth and the permission checks),
  * the loans, transfers, and assets services (SessionIdentity, to hide names from a Custodian), and web/api/auth.api.ts.
  * Imports shared/enums/role.ts and shared/constants/accountStatuses.ts.
- * Used by: login, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
+ * Used by: login, the session reload, the account page, and self-registration.
  */
 import type { DatabaseRole, Role, StaffUnit } from '../enums/role';
 import type { AccountStatus } from '../constants/accountStatuses';
@@ -44,44 +44,6 @@ export interface RegistrationRequestInput {
   password: string;
   /** The picture as a data URL; becomes users.user_img on approval. */
   avatarUrl?: string;
-}
-
-/** One sign-up request, as kept in pending_registrations.json and listed by GET /api/auth/pending-registrations. (H-17) */
-export interface PendingRegistration {
-  /** "REG-" and six random digits. */
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  idNumber: number;
-  userType: "STUDENT" | "FACULTY" | "STAFF";
-  /** "Custodian" for every new request; approval always creates a Custodian, whatever an older request says. (C-05 family) */
-  requestedRole: string;
-  labAffiliation: string;
-  /**
-   * The password's hash, never sent: the answers use PendingRegistrationView. (C-04) A request filed before passwords
-   * were hashed can still hold plain text or nothing; approval refuses it. (C-03)
-   */
-  password?: string;
-  avatarUrl?: string;
-  /** A display date such as "Oct 11, 2026", not a timestamp. */
-  submittedAt: string;
-  /** Always PENDING in the list: approval and rejection remove the request. */
-  status: "PENDING" | "APPROVED" | "REJECTED";
-}
-
-/**
- * A sign-up request as GET /api/auth/pending-registrations and POST /api/auth/register-request send it: the stored
- * request without its password, which no screen shows. (C-04)
- */
-export type PendingRegistrationView = Omit<PendingRegistration, "password">;
-
-/** The `user` of a POST /api/auth/approve-registration answer: the new account's id, names, and email only. (01C 4.1) */
-export interface ApprovedUser {
-  userId: number;
-  firstName: string;
-  lastName: string;
-  email: string;
 }
 
 /** The body of POST /api/auth/approve-registration. Any other field is ignored: the account comes from the stored request. (C-05) */

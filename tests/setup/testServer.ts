@@ -25,7 +25,7 @@ export const TEST_WEB_ORIGIN = "http://localhost:5173";
 export interface RunningServer {
   /** For example http://127.0.0.1:53211, with no trailing slash. */
   baseUrl: string;
-  /** The temporary working directory, where pending_registrations.json is written. (H-17) */
+  /** The temporary working directory, so nothing the server writes lands in the repository. */
   workDir: string;
   /** Everything the server printed so far, for debugging a failed test. */
   output(): string;
@@ -108,21 +108,17 @@ async function waitUntilAnswering(baseUrl: string, child: ChildProcess, output: 
 
 /**
  * Starts server/main.ts on a free port with its working directory in a new temporary folder,
- * so the sign-up file it writes never lands in the repository. (H-17)
+ * so nothing it writes lands in the repository.
  * Run with `node --import <tsx loader>` rather than the tsx command, so there is one process to stop.
  *
  * @param config the guarded test database
  * @param envOverrides variables to set on top of buildServerEnv, or to remove with undefined
- * @param pendingRegistrations sign-up requests to put in the file before the server reads it at startup
  * @returns the running server, once it answers HTTP requests
  * @throws Error when the server exits or does not answer within a minute
  */
-export async function startTestServer(config: TestDatabaseConfig, envOverrides: Record<string, string | undefined> = {}, pendingRegistrations?: unknown[]): Promise<RunningServer> {
+export async function startTestServer(config: TestDatabaseConfig, envOverrides: Record<string, string | undefined> = {}): Promise<RunningServer> {
   const port = await findFreePort();
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "adric-api-test-"));
-  if (pendingRegistrations) {
-    fs.writeFileSync(path.join(workDir, "pending_registrations.json"), JSON.stringify(pendingRegistrations), "utf-8");
-  }
   const tsxLoader = pathToFileURL(createRequire(path.join(REPO_ROOT, "package.json")).resolve("tsx")).href;
 
   const child = spawn(process.execPath, ["--import", tsxLoader, path.join(REPO_ROOT, "server", "main.ts")], {
