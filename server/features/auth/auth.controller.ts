@@ -58,13 +58,13 @@ export async function approveRegistration(req: Request, res: Response): Promise<
  * Handles POST /api/auth/login: checks an email and password, and starts a session.
  * Answers `{ success, role, user }` with the app role and the profile, plus a Set-Cookie header with the signed
  * adric_session cookie (8 hours, HttpOnly); or the AppError's status and message (400 missing email or password,
- * 401 no match, no cookie), or 500.
+ * 401 no match, 403 an account that is not Active, 429 too many failed logins; no cookie), or 500.
  */
 export async function login(req: Request, res: Response): Promise<void> {
     const { email, password } = req.body;
 
     checkLogin({ email, password });
-    const { role, user } = await authService.login(email, password);
+    const { role, user } = await authService.login(email, password, req.ip);
 
     res.setHeader('Set-Cookie', sessionCookieHeader(authService.startSession(user.userId)));
     res.json({

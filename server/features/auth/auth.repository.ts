@@ -12,6 +12,7 @@ import path from 'path';
 import { Prisma } from '@prisma/client';
 import type { PendingRegistration } from '@shared/types/auth';
 import { prisma } from '../../config/prisma';
+import { logActivity, type ActivityEvent } from '../../shared/services/activityLog';
 
 /**
  * One user's email, for example the custodian who filed a transfer.
@@ -119,6 +120,15 @@ export async function createPendingUser(data: Omit<Prisma.usersUncheckedCreateIn
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') return null;
         throw e;
     }
+}
+
+/**
+ * Writes one LOGIN_SUCCESS or LOGIN_FAILURE row. A login is not a transaction, so the row is written on its own.
+ *
+ * @param event the event; never an email or a typed login name (contract 7.7)
+ */
+export function logLoginEvent(event: ActivityEvent & { eventType: 'LOGIN_SUCCESS' | 'LOGIN_FAILURE' }): Promise<void> {
+    return logActivity(prisma, event);
 }
 
 /** How many of these research centers exist. */

@@ -27,6 +27,11 @@ import { env } from './config/env';
  */
 export const app = express();
 
+// The deployed site runs behind nginx on the same machine, which sends X-Forwarded-For. With 'loopback', req.ip is
+// the forwarded address only for a request that came from this machine, so a direct request cannot fake it. The login
+// limit counts failures per address (shared/services/loginLimiter.ts). Locally nothing changes.
+app.set('trust proxy', 'loopback');
+
 // A list, not a plain string: with a list, cors sends Access-Control-Allow-Origin only when the request's
 // origin is on it, so another site's page gets no CORS headers at all. credentials lets the browser send
 // and store the session cookie on these cross-origin calls (web on port 5173, API on port 4000).

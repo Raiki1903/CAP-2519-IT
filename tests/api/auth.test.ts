@@ -2,7 +2,8 @@
  * Auth API: login, the profile lookup, and the account update.
  * Covers POST /api/auth/login, GET /api/auth/me, PUT /api/auth/account. Workflow: sign-in and the account page.
  * Fixtures: every seeded account (USERS), the TEST lab (LAB). The account tests rename Custodian B, the Lab Head,
- * and the Director, so they run after the login and profile tests.
+ * and the Director, so they run after the login and profile tests. The failed-login limit blocks an email after 5
+ * failures, so the wrong-credential tests fail Custodian A 3 times, Custodian B 4 times, and Staff ITS once.
  */
 import { describe, expect, it } from "vitest";
 import { MAX_PASSWORD_LENGTH } from "../../shared/constants/passwords";
@@ -77,13 +78,17 @@ describe("POST /api/auth/login", () => {
     }
   });
 
-  it.each(["PENDING", "INACTIVE", "REJECTED"] as const)("answers 403 for a %s account with the right password, and sets no cookie", async (status) => {
+  it.each([
+    ["PENDING", "Your sign-up is waiting for IT Admin approval."],
+    ["INACTIVE", "This account is not active. Contact the IT Admin."],
+    ["REJECTED", "Your sign-up was not approved. Contact the IT Admin."],
+  ] as const)("answers 403 for a %s account with the right password, with its message", async (status, message) => {
     await db.users.update({ where: { user_id: USERS.custodianB.userId }, data: { account_status: status } });
     try {
       const res = await api.post("/api/auth/login", { email: USERS.custodianB.email, password: USERS.custodianB.password });
 
       expect(res.status).toBe(403);
-      expect(res.body).toEqual({ success: false, error: "This account is not active. Contact the IT Admin." });
+      expect(res.body).toEqual({ success: false, error: message });
     } finally {
       await db.users.update({ where: { user_id: USERS.custodianB.userId }, data: { account_status: "ACTIVE" } });
     }
@@ -133,8 +138,8 @@ describe("POST /api/auth/login", () => {
     });
 
     it("answers the same 401 body for a password that is not a string", async () => {
-      for (const password of [12345678, { contains: "a" }, [USERS.custodianA.password], true]) {
-        const res = await api.post("/api/auth/login", { email: USERS.custodianA.email, password });
+      for (const password of [12345678, { contains: "a" }, [USERS.custodianB.password], true]) {
+        const res = await api.post("/api/auth/login", { email: USERS.custodianB.email, password });
 
         expect(res.status, JSON.stringify(password)).toBe(401);
         expect(res.body, JSON.stringify(password)).toEqual(LOGIN_REFUSED);
@@ -152,14 +157,15 @@ describe("POST /api/auth/login", () => {
         expect(res.status).toBe(401);
         expect(res.body).toEqual(LOGIN_REFUSED);
       } finally {
+        await db.activity_log.deleteMany({ where: { target_user_id: row.user_id } });
         await db.users.delete({ where: { user_id: row.user_id } });
       }
     });
 
     it("refuses the stored hash typed as the password", async () => {
-      const { password: storedHash } = await db.users.findUniqueOrThrow({ where: { user_id: USERS.custodianA.userId } });
+      const { password: storedHash } = await db.users.findUniqueOrThrow({ where: { user_id: USERS.staffIts.userId } });
 
-      const res = await api.post("/api/auth/login", { email: USERS.custodianA.email, password: storedHash });
+      const res = await api.post("/api/auth/login", { email: USERS.staffIts.email, password: storedHash });
 
       expect(res.status).toBe(401);
     });

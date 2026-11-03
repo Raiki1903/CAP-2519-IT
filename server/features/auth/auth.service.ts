@@ -1,12 +1,12 @@
 /**
  * Auth service: the rules for logging in and out, the session's profile and app role, account updates, and sign-ups.
  * Layer: service. Called by auth.controller.ts and shared/middleware/requireAuth.ts. Calls auth.repository.ts,
- * shared/services/session.ts, shared/services/passwords.ts, and config/env.ts (the session secret).
+ * shared/services/session.ts, shared/services/passwords.ts, shared/services/loginLimiter.ts, and config/env.ts (the session secret).
  * Used by: login for every role, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
  */
 import type { roles, user_roles, users } from '@prisma/client';
 import { MAX_PASSWORD_LENGTH } from '@shared/constants/passwords';
-import { ACCOUNT_NOT_ACTIVE_MESSAGE } from '@shared/constants/accountStatuses';
+import { ACCOUNT_NOT_ACTIVE_MESSAGE, ACCOUNT_PENDING_MESSAGE, ACCOUNT_REJECTED_MESSAGE, type AccountStatus } from '@shared/constants/accountStatuses';
 import { APP_ROLE_LABELS, type DatabaseRole, type Role, type StaffUnit } from '@shared/enums/role';
 import type {
     AccountUpdateInput,
@@ -25,6 +25,7 @@ import * as authRepository from './auth.repository';
 import type { UserProfileRow } from './auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { env } from '../../config/env';
+import { clearLoginFailures, isLoginBlocked, loginKey, recordLoginFailure, TOO_MANY_LOGINS_MESSAGE } from '../../shared/services/loginLimiter';
 import { DUMMY_PASSWORD_HASH, hashPassword, isPasswordHash, verifyPassword } from '../../shared/services/passwords';
 import { createSessionToken, isLoggedOut, markLoggedOut, verifySessionToken } from '../../shared/services/session';
 import { forgetIdentity, recallIdentity, rememberIdentity } from '../../shared/services/sessionCache';
@@ -247,38 +248,62 @@ function profileOf(user: UserProfileRow, staffUnit: StaffUnit | null): LoginUser
     };
 }
 
+/** The login refusal for each status that is not Active: its 403 message and the log row's reason. */
+const STATUS_REFUSALS: Record<Exclude<AccountStatus, "ACTIVE">, { message: string; reason: string }> = {
+    PENDING: { message: ACCOUNT_PENDING_MESSAGE, reason: "Account pending" },
+    REJECTED: { message: ACCOUNT_REJECTED_MESSAGE, reason: "Account rejected" },
+    INACTIVE: { message: ACCOUNT_NOT_ACTIVE_MESSAGE, reason: "Account inactive" },
+};
+
 /**
  * Logs a user in by email and password. Every refusal of the email or password runs one verify and gives the same
  * answer, so neither the answer nor its timing reveals which emails exist. An account whose password is still plain
  * text cannot log in: prisma/hashExistingPasswords.ts is the path for old accounts. Only once the password is right is
- * an account that is not Active refused, with 403.
+ * an account that is not Active refused, with 403 and a message for its status.
+ *
+ * The failed-login limit (issue #136) counts each refusal of the email or password per email and address, for unknown
+ * emails too, and is checked before any password is verified. A status refusal neither counts nor clears; a success
+ * clears. Each try on a known account writes LOGIN_SUCCESS or LOGIN_FAILURE (contract 7.7); an unknown email writes nothing.
  *
  * @param email the email as sent; the repository trims it
  * @param password the password as sent
+ * @param ip the client's address (req.ip), for the limit
  * @returns the app role and the profile the session keeps
  * @throws AppError 401 if no account has this email and password
  * @throws AppError 403 if the account is Pending, Inactive, or Rejected
+ * @throws AppError 429 if this email and address have failed too often lately
  */
-export async function login(email: string, password: string): Promise<{ role: string; user: LoginUser }> {
-    // Refused before the lookup, so the email plays no part. The check also stops a huge password being hashed.
-    if (typeof password !== 'string' || password.length > MAX_PASSWORD_LENGTH) {
-        await verifyPassword(UNUSABLE_PASSWORD_STAND_IN, DUMMY_PASSWORD_HASH);
-        throw new AppError(401, LOGIN_REFUSED_MESSAGE);
+export async function login(email: string, password: string, ip: string | undefined): Promise<{ role: string; user: LoginUser }> {
+    const limitKey = loginKey(email, ip);
+    if (isLoginBlocked(limitKey)) {
+        throw new AppError(429, TOO_MANY_LOGINS_MESSAGE);
     }
 
     const user = await authRepository.findUserForLogin(email);
 
-    // A plain-text row fails verifyPassword at once, which would reveal the account, so it takes the dummy path too.
-    const storedHash = user && isPasswordHash(user.password) ? user.password : DUMMY_PASSWORD_HASH;
-    const passwordMatches = await verifyPassword(password, storedHash);
+    // A non-string or huge password is never hashed: it verifies a short stand-in against the dummy hash, which cannot
+    // match. A plain-text row would fail verifyPassword at once and reveal the account, so it takes the dummy hash too.
+    const usablePassword = typeof password === 'string' && password.length <= MAX_PASSWORD_LENGTH;
+    const storedHash = usablePassword && user && isPasswordHash(user.password) ? user.password : DUMMY_PASSWORD_HASH;
+    const passwordMatches = await verifyPassword(usablePassword ? password : UNUSABLE_PASSWORD_STAND_IN, storedHash);
 
     if (!user || !passwordMatches) {
+        recordLoginFailure(limitKey);
+        // Only a known account gets a row (contract 7.7). The write makes its refusal a few milliseconds slower than an
+        // unknown email's; the limit above keeps that from being measured many times.
+        if (user) {
+            await authRepository.logLoginEvent({ eventType: "LOGIN_FAILURE", actorId: null, targetUserId: user.user_id, details: "Wrong password" });
+        }
         throw new AppError(401, LOGIN_REFUSED_MESSAGE);
     }
     if (user.account_status !== "ACTIVE") {
-        throw new AppError(403, ACCOUNT_NOT_ACTIVE_MESSAGE);
+        const refusal = STATUS_REFUSALS[user.account_status];
+        await authRepository.logLoginEvent({ eventType: "LOGIN_FAILURE", actorId: null, targetUserId: user.user_id, details: refusal.reason });
+        throw new AppError(403, refusal.message);
     }
 
+    clearLoginFailures(limitKey);
+    await authRepository.logLoginEvent({ eventType: "LOGIN_SUCCESS", actorId: user.user_id });
     const { role: determinedRole, staffUnit } = appRoleFor(user.user_roles || [], user.headed_center !== null);
     return { role: determinedRole, user: profileOf(user, staffUnit) };
 }

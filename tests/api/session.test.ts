@@ -220,12 +220,15 @@ describe("requireAuth: who gets a 401", () => {
       const cookie = await logIn(tempUser);
       expect((await withCookie(cookie).get("/api/assets")).status).toBe(200);
 
+      // Its LOGIN_SUCCESS row points at it, so the row goes first.
+      await db.activity_log.deleteMany({ where: { actor_id: temp.user_id } });
       await db.users.delete({ where: { user_id: temp.user_id } });
       expect((await withCookie(cookie).get("/api/assets")).status, "remembered for up to 60 seconds").toBe(200);
       const relogin = await rawLogin(tempUser);
       expect(relogin.status).toBe(401);
       expect(relogin.headers.getSetCookie()).toEqual([]);
     } finally {
+      await db.activity_log.deleteMany({ where: { actor_id: temp.user_id } });
       await db.users.deleteMany({ where: { user_id: temp.user_id } });
     }
   });

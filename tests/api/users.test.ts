@@ -242,14 +242,23 @@ describe("PUT /api/users/:userId/reject", () => {
     expect((await logRowsFor(userId))[0].details).toBeNull();
   });
 
-  it("refuses the rejected account at login with 403, though the password is right", async () => {
+  it("refuses the rejected account at login with 403 and its message, though the password is right", async () => {
     const { body, userId } = await signUp();
     await asItAdmin.put(`/api/users/${userId}/reject`, {});
 
     const login = await api.post("/api/auth/login", { email: body.email, password: PASSWORD });
 
     expect(login.status).toBe(403);
-    expect(login.body.success).toBe(false);
+    expect(login.body).toEqual({ success: false, error: "Your sign-up was not approved. Contact the IT Admin." });
+  });
+
+  it("refuses a sign-up still waiting at login with 403 and its message", async () => {
+    const { body } = await signUp();
+
+    const login = await api.post("/api/auth/login", { email: body.email, password: PASSWORD });
+
+    expect(login.status).toBe(403);
+    expect(login.body).toEqual({ success: false, error: "Your sign-up is waiting for IT Admin approval." });
   });
 
   it("takes remarks of 255 characters, and answers 400 for 256 or for remarks that are not text", async () => {
