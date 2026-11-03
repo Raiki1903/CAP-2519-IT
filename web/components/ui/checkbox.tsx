@@ -1,7 +1,7 @@
 /**
  * Checkbox: a styled Radix checkbox.
- * Layer: shared (UI primitive, shadcn). Imported by no file today. Calls ui/utils.ts and Radix Checkbox.
- * Used by: no screen today.
+ * Layer: shared (UI primitive, shadcn). Called by features/labs/LabMultiSelect.tsx. Calls ui/utils.ts and Radix Checkbox.
+ * Used by: sign-up, and the IT Admin's approval of a sign-up (the lab lists).
  */
 "use client";
 
