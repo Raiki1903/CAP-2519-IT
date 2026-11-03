@@ -1,7 +1,8 @@
 /**
  * The sign-up rules both sides check: the email domain, the ID number's form, and the user types with their labels.
- * Layer: shared. Imported by server/features/auth (auth.validation.ts) and web/pages/auth/Register.tsx. Imports nothing.
- * Used by: sign-up, and the IT Admin's Approvals page (the user type label).
+ * Layer: shared. Imported by server/features/auth (auth.validation.ts), server/features/users (the remarks limit), and
+ * web/ (the sign-up page and the Approvals page). Imports nothing.
+ * Used by: sign-up, and the IT Admin's Approvals page (the user type label and the reject remarks).
  */
 
 /** The only email domain a sign-up accepts, compared in lower case. */
@@ -31,3 +32,6 @@ export const USER_TYPE_LABELS: Record<UserType, string> = {
   FACULTY: "Faculty",
   STAFF: "Staff",
 };
+
+/** Longest remarks the IT Admin may give when rejecting a sign-up: the size of activity_log.details, where they are kept. */
+export const REJECT_REMARKS_MAX_LENGTH = 255;

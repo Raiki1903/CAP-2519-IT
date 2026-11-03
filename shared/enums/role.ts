@@ -8,10 +8,10 @@
  * An app role, as returned by the login and /me endpoints.
  * These are not the database role names (`roles_role_name`, such as RESEARCHER):
  * the server maps those to one of these at login.
- * ITS and TSG accounts are both `Staff`: they do the same job, so they share one
- * route tree (`/staff/*`) and the same screens. `StaffUnit` says which unit they are.
+ * TSG and Secretary accounts are both `Staff`: they share one route tree (`/staff/*`) and the same screens.
+ * `StaffUnit` says which unit they are. The IT Admin has its own view (`/it-admin/*`) and no asset screens.
  */
-export type Role = "Staff" | "LabHead" | "Custodian" | "AdRICDirector";
+export type Role = "Staff" | "LabHead" | "Custodian" | "AdRICDirector" | "ITAdmin";
 
 /**
  * The label shown for each app role. The key "Custodian" stays because the screens and routes are built on it
@@ -22,6 +22,7 @@ export const APP_ROLE_LABELS: Record<Role, string> = {
   LabHead: "Lab Head",
   Custodian: "Researcher",
   AdRICDirector: "AdRIC Director",
+  ITAdmin: "IT Admin",
 };
 
 /**
@@ -44,7 +45,7 @@ export const DATABASE_ROLE_LABELS: Record<DatabaseRole, string> = {
 
 /**
  * Which unit a Staff account belongs to. The database keeps the two roles apart
- * (ITS: `IT_ADMIN`, `ADRIC_SECRETARY`; TSG: `TSG_STAFF`), and the session
+ * (ITS: `ADRIC_SECRETARY`; TSG: `TSG_STAFF`), and the session
  * keeps the difference because issue #41 will give ITS and TSG different edit and
  * delete rights. Today it only fills in the unit on a Send to Maintenance ticket
  * (its text, and a forwarding field the server does not store yet) and labels the

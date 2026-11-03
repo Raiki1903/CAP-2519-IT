@@ -139,7 +139,7 @@ export interface LoginUser {
 
 /** The `user` of a GET /api/auth/me answer: the login profile with the app role and its label inside it. */
 export interface ProfileUser extends LoginUser {
-  /** An app Role: "Staff", "LabHead", "Custodian", or "AdRICDirector". */
+  /** An app Role: "Staff", "LabHead", "Custodian", "AdRICDirector", or "ITAdmin". */
   role: string;
   /** The role's label: a Custodian shows "Researcher". */
   roleLabel: string;

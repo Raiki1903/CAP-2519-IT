@@ -14,7 +14,7 @@ const asCustodian = as(USERS.custodianA);
 
 /** What login and /me answer for each seeded account today. */
 const EXPECTED_ROLES: { user: TestUser; role: string; staffUnit: string | null }[] = [
-  { user: USERS.admin, role: "Staff", staffUnit: "ITS" },
+  { user: USERS.admin, role: "ITAdmin", staffUnit: null },
   { user: USERS.secretary, role: "Staff", staffUnit: "ITS" },
   { user: USERS.staffIts, role: "Staff", staffUnit: "TSG" },
   { user: USERS.staffTsg, role: "Staff", staffUnit: "TSG" },

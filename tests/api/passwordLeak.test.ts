@@ -1,15 +1,15 @@
 /**
  * No answer holds a password or a hash: the sign-up path, the session answers, and every list screen. (C-03, issue #10)
- * Covers POST /api/auth/register-request and /login, GET /api/auth/me, PUT /api/auth/account, and the GET routes of
- * every feature.
- * Fixtures: the seeded accounts and assets, the roles, and one invented applicant, made Active and logged in during
+ * Covers POST /api/auth/register-request and /login, GET /api/users?status=PENDING, PUT /api/users/:userId/approve,
+ * GET /api/auth/me, PUT /api/auth/account, and the GET routes of every feature.
+ * Fixtures: the seeded accounts and assets, and one invented applicant, approved by the IT Admin and logged in during
  * the first test.
  */
 import { describe, expect, it } from "vitest";
-import { ASSETS, LAB, ROLE_IDS, USERS, type TestUser } from "../setup/fixtures";
+import { ASSETS, LAB, USERS, type TestUser } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { api, as, db, server } = useApiHarness();
+const { api, as, server } = useApiHarness();
 
 const PLAIN = "test-password-leak-check";
 const SEEDED_PASSWORDS = Object.values(USERS).map((u) => u.password);
@@ -29,8 +29,14 @@ describe("the sign-up path and the session answers", () => {
     expect(signUp.status).toBe(201);
     expectNoSecret("sign-up", signUp.body);
 
-    const { user_id: userId } = await db.users.update({ where: { email: applicant.email }, data: { account_status: "ACTIVE" } });
-    await db.user_roles.create({ data: { user_id: userId, role_id: ROLE_IDS.RESEARCHER } });
+    const pending = await as(USERS.admin).get("/api/users?status=PENDING");
+    expect(pending.status).toBe(200);
+    expectNoSecret("pending list", pending.body);
+
+    const { userId } = pending.body.users.find((u: { email: string }) => u.email === applicant.email);
+    const approval = await as(USERS.admin).put(`/api/users/${userId}/approve`, { role: "RESEARCHER", centerIds: [LAB.centerId] });
+    expect(approval.status).toBe(200);
+    expectNoSecret("approval", approval.body);
 
     const login = await api.post("/api/auth/login", { email: applicant.email, password: PLAIN });
     expect(login.status).toBe(200);

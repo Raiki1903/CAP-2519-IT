@@ -67,6 +67,11 @@ const roleConfig: Record<Role, {
       { id: "reports",            label: "Inventory Report",    icon: ClipboardList },
     ],
   },
+  ITAdmin: {
+    nav: [
+      { id: "approvals", label: "Approvals", icon: ShieldCheck },
+    ],
+  },
 };
 
 /**

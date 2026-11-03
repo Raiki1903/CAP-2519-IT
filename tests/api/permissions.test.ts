@@ -67,6 +67,7 @@ describe("the IT Admin has no asset steps", () => {
     ["POST", `/api/assets/${ASSETS.available.tag}/inspection`, { reportCondition: "PERFECT" }],
     ["POST", `/api/assets/${ASSETS.available.tag}/borrow`, { purpose: "Test", dueDate: "2030-01-01" }],
     ["PUT", "/api/loans/2/decision", { decision: "approve" }],
+    ["PUT", `/api/assets/${ASSETS.available.tag}`, { name: "Test name from the IT Admin" }],
   ])("answers 403 to %s %s, and writes nothing", async (method, path, body) => {
     const client = as(USERS.admin);
     const before = await Promise.all([db.asset_loans.count(), db.asset_maintenance.count(), db.asset_retirements.count(), db.asset_inspections.count()]);

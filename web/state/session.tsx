@@ -375,6 +375,7 @@ export const roleToSlug: Record<Role, string> = {
   LabHead: "lab-head",
   Custodian: "custodian",
   AdRICDirector: "adric-director",
+  ITAdmin: "it-admin",
 };
 
 /**
@@ -389,4 +390,5 @@ export const roleDefaultPath: Record<Role, string> = {
   LabHead: "/lab-head/custody",
   Custodian: "/custodian/myassets",
   AdRICDirector: "/adric-director/overview",
+  ITAdmin: "/it-admin/approvals",
 };

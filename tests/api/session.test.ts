@@ -31,15 +31,16 @@ const NOT_LOGGED_IN = "Please log in to continue.";
 const SESSION_ENDED = "Your session has ended. Please log in again.";
 const FORBIDDEN = "Your role is not allowed to do this.";
 
-type Role = "Staff" | "LabHead" | "Custodian" | "AdRICDirector";
-const S: Role = "Staff", L: Role = "LabHead", C: Role = "Custodian", D: Role = "AdRICDirector";
-const ANY: Role[] = [S, L, C, D];
-const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.labHead, Custodian: USERS.custodianA, AdRICDirector: USERS.director };
+type Role = "Staff" | "LabHead" | "Custodian" | "AdRICDirector" | "ITAdmin";
+const S: Role = "Staff", L: Role = "LabHead", C: Role = "Custodian", D: Role = "AdRICDirector", I: Role = "ITAdmin";
+const ANY: Role[] = [S, L, C, D, I];
+const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.labHead, Custodian: USERS.custodianA, AdRICDirector: USERS.director, ITAdmin: USERS.admin };
 
 /**
  * The approved 13b role table: [row, method, path, roles]. Paths use ids and tags no row has.
  * Row 8, POST /api/auth/register, was deleted with its route (issue #70). Rows 29 to 32 (transfers) and 41 (the custodian
- * list) were deleted with their routes in Batch 1. The Staff account is TSG.
+ * list) were deleted with their routes in Batch 1. Rows 42 to 44 are the IT Admin's sign-up routes (Batch 2b).
+ * The Staff account is TSG.
  */
 const ROUTES: [number, string, string, Role[]][] = [
   [3, "GET", "/api/auth/pending-registrations", [L]],
@@ -74,6 +75,9 @@ const ROUTES: [number, string, string, Role[]][] = [
   [38, "GET", "/api/analytics/advanced/idle-time", [L]],
   [39, "GET", "/api/analytics/advanced/idle-frequency", [L]],
   [40, "GET", "/api/analytics/advanced/loan-recommender", [L]],
+  [42, "GET", "/api/users?status=PENDING", [I]],
+  [43, "PUT", "/api/users/999999/approve", [I]],
+  [44, "PUT", "/api/users/999999/reject", [I]],
 ];
 
 function send(client: ApiClient, method: string, path: string) {
@@ -244,7 +248,19 @@ describe("requireRole: the role is read from the database, at most once a minute
     expect((await withCookie(after).get("/api/auth/pending-registrations")).status).toBe(403);
   });
 
-  it.each([USERS.admin, USERS.staffIts, USERS.secretary])(
+  it("gives the IT Admin its own view: it passes no Staff check and takes no asset step", async () => {
+    const client = as(USERS.admin);
+
+    expect((await client.get("/api/auth/me")).body.user).toMatchObject({ role: "ITAdmin", roleLabel: "IT Admin", staffUnit: null });
+    for (const path of ["/api/analytics/tsg", "/api/analytics/location-status", "/api/analytics/director"]) {
+      const res = await client.get(path);
+      expect(res.status, path).toBe(403);
+      expect(res.body).toEqual({ success: false, error: FORBIDDEN });
+    }
+    expect((await client.post("/api/assets", {})).status).toBe(403);
+  });
+
+  it.each([USERS.staffIts, USERS.secretary])(
     "treats the $role account as Staff: it passes a Staff check and nothing more, and only TSG registers an asset",
     async (user) => {
       const client = as(user);

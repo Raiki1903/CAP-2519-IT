@@ -183,17 +183,19 @@ export function rejectRegistration(requestId: string): void {
  * The checks run in a fixed order and the first match wins, so an account with several roles gets only one.
  *
  * There is no Lab Head role: an account that heads a lab (research_centers.head_user_id) gets the Lab Head view,
- * ahead of Researcher.
+ * ahead of Researcher. The IT Admin gets its own view, with no asset screens (contract section 6).
  *
  * @param roles the user's user_roles rows, each with its roles row
  * @param headsLab whether the account heads a lab
- * @returns the app role ("Staff", "AdRICDirector", "LabHead", or "Custodian") and, for Staff, the unit
+ * @returns the app role ("ITAdmin", "Staff", "AdRICDirector", "LabHead", or "Custodian") and, for Staff, the unit
  */
 // TODO(M-11): ADRIC_SECRETARY maps to Staff (ITS); the team decided it gets the Director view, on the ITS removal branch.
 function appRoleFor(roles: (user_roles & { roles: roles })[], headsLab: boolean): { role: string; staffUnit: StaffUnit | null } {
     let determinedRole = "Custodian";
     let staffUnit: StaffUnit | null = null;
-    if (roles.some(ur => ur.roles?.role_name === "IT_ADMIN" || ur.roles?.role_name === "ADRIC_SECRETARY")) {
+    if (roles.some(ur => ur.roles?.role_name === "IT_ADMIN")) {
+        determinedRole = "ITAdmin";
+    } else if (roles.some(ur => ur.roles?.role_name === "ADRIC_SECRETARY")) {
         determinedRole = "Staff";
         staffUnit = "ITS";
     } else if (roles.some(ur => ur.roles?.role_name === "ADRIC_DIRECTOR")) {

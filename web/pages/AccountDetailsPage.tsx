@@ -37,6 +37,8 @@ function labsText(labs: { code: string }[] | undefined): string {
 
 export function AccountDetailsPage() {
   const { currentUser, role, updateProfile } = useSession();
+  // The Director, Staff, and the IT Admin usually belong to no lab, so their page has no Lab line.
+  const showsLab = role !== "AdRICDirector" && role !== "Staff" && role !== "ITAdmin";
   const navigate = useNavigate();
 
   const [firstName, setFirstName] = useState(currentUser?.firstName || "");
@@ -268,7 +270,7 @@ export function AccountDetailsPage() {
                 </div>
               </div>
 
-              {role !== "AdRICDirector" && role !== "Staff" && (
+              {showsLab && (
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Lab</Label>
                   <div className="relative">
@@ -286,7 +288,7 @@ export function AccountDetailsPage() {
             <div className="rounded-lg bg-slate-100 border border-slate-200 p-3 text-slate-500 text-[10.5px] leading-relaxed flex items-start gap-2 mt-2">
               <Shield size={14} className="text-slate-500 flex-shrink-0 mt-0.5" />
               <p>
-                You cannot change your role, user type, or ID number{role !== "AdRICDirector" && role !== "Staff" ? ", or your lab" : ""} here. Ask the AdRIC Director if one of them is wrong.
+                You cannot change your role, user type, or ID number{showsLab ? ", or your lab" : ""} here. Ask the AdRIC Director if one of them is wrong.
               </p>
             </div>
           </CardContent>
