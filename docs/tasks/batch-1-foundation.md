@@ -408,6 +408,13 @@ In `docs/guides/DATABASE-MIGRATIONS.md`:
 - **U, the delete dialog:** its error line loses the emoji too, in its own commit (`70406ac2`).
 - **V, the sign-up page's raw error text** (`web/pages/auth/Register.tsx`, a non-JSON answer): left for 2b, which rewrites that page.
 
+**Stop 5 answers (Raiki, Nov 3):** Batch 1 merged (`b1bb26a7`); commits 12 and 13 are on `fix/96-real-dashboard-numbers`, from `main`.
+
+- **Q1:** the empty branch was deleted and recreated from the merged `main`.
+- **Q2, the date range:** the Director's campus counts include only assets whose procurement date is inside the range, with today's status. With a range set, an asset with no procurement date is left out. A one-line note under the chart says so.
+- **Q3:** the Director's reports chart gets an empty list when no report is in range, and says "No inspection reports in this range". The fixed demo series is gone.
+- **Q4:** `server/shared/utils/campus.ts` is deleted (nothing imported it; `CAMPUS_LABELS` maps a campus to its label).
+
 ## Stop 4 (2026-11-03): commits 5 to 11 built
 
 **Branch** `feat/batch-1-foundation`, commits `a03c4000` (5) to the commit 11 docs. Nothing pushed. Checks after commit 11: typecheck **32** (49 before commit 5), build passes, tests **506** passed (513 before; every commit message says how its count moved). The report is in chat; this section keeps what Raiki needs to run.
@@ -491,6 +498,65 @@ On the local copy **`adric_uat_check`** only, after Stop 4 step 2, started throu
 - A repair report: as UAT Custodian One, on the asset approved in B1-H7, Request Repair with a description: success; as UAT Staff One, Repairs: the ticket is listed "Pending TSG Review", priority Medium. Acknowledge (Inspection Phase): the asset goes to Maintenance at the TSG Office, and its loan ends (Ended by Maintenance). Update Progress to Fixed & Completed with condition Operational: the asset is Available again at its home lab.
 - A return: request a loan on another Available asset as UAT Custodian One, approve it as its lab's Head, then as UAT Staff One open the asset and Record Return with a condition: success with a "LOAN-<id>" reference; the asset is Available and its history shows "Return inspection: <condition>" and "Loan closed: Returned".
 - Database: `adric_uat_check`: one repair ticket, two loans, one return.
+
+### Stop 5 hand checks (commits 12 and 13, B1-H10 to B1-H15)
+
+Branch `fix/96-real-dashboard-numbers`, commits `ebc038fd` (12) and `8f6664c7` (13). Nothing pushed. Typecheck **25** (32 before commit 13: the removed estimate code carried 7 old errors, no new one), build passes, tests **524** passed (513 on `main`, 517 after commit 12, 524 after commit 13).
+
+| # | Commit | Typecheck | Tests |
+|---|---|---|---|
+| 12 | `ebc038fd` fix(analytics): campus and lab from the asset's home lab, no guessed numbers on the server (#96) | 32 | 517 |
+| 13 | `8f6664c7` fix(web): dashboards wait for real data and use one campus and lab-group source (#96) | 25 | 524 |
+
+**Setup.** Local copy **`adric_uat_check`** only, started through `C:\dev\uat-data\start-local-uat.ps1` (ports 4000 and 5173 free first), on the branch `fix/96-real-dashboard-numbers`. Log in with the UAT accounts (the same ones as the Batch 1 hand checks). Never CCS Cloud.
+
+Three SQL files are outside the repository, in the agent's session scratchpad (`C:\Users\user\AppData\Local\Temp\claude\c--dev-CAP-2519-IT\0d233eda-28e8-431c-a531-edb2c7c54a82\scratchpad`):
+- `b1-stop5-counts.sql`: read-only counts to compare with the screens (B1-H10 to B1-H12).
+- `b1-stop5-other-lab.sql` and `b1-stop5-other-lab-undo.sql`: add, then remove, a lab that is in no inspection group (B1-H13 only; they write to `adric_uat_check`).
+
+Run any of them from PowerShell (it asks for the MySQL root password without showing it): `mysql -u root -p adric_uat_check -e "source <the file's full path>"`. The agent could not run them (no database access), so if one fails, send the message.
+
+To see a loading state, open DevTools (F12), Network tab, set throttling to "Slow 3G", then reload the page with Ctrl+Shift+R. Set throttling back to "No throttling" afterwards.
+
+**B1-H10. Director Overview: skeletons, then three campuses from the database.** Log in as the UAT Director account. Overview (`/adric-director/overview`), with Slow 3G on, hard reload.
+- Expected while loading: the "Campus Distribution" card shows three grey pulsing bars, and the "Labs" table shows grey pulsing rows. No "0", "N/A", "No assets", or "Unassigned" appears before the data.
+- Expected after loading (set throttling back to normal): "Campus Distribution" lists **Manila Campus, Laguna Campus, and McKinley Campus**, each with a count and a percentage. The three counts equal result 1 of `b1-stop5-counts.sql` and add up to the "Assets in Service" card. In the "Labs" table, HXIL shows campus McKinley, TE3D and GAME show Laguna, and every other lab shows Manila (CAR, CeLT, and CIVI used to show Laguna, and GAME used to show Manila). The Assets and Utilization columns match result 2 (`in_service`, `utilization_pct`): Utilization is the share of the lab's assets that are On Loan.
+- Old bug gone: HXIL assets are no longer counted under Laguna, and there is a third campus row.
+- Database: `adric_uat_check`, reads only.
+
+**B1-H11. Director Analytics: nothing until the server answers, the date range counts, no demo series.** As the UAT Director, Analytics (`/adric-director/analytics`), with Slow 3G on, hard reload.
+- Expected while loading: "Total Portfolio Value" and "Pending Disposal Items" show grey bars (not "0"), and both charts show grey boxes ("Loading campus availability data...", "Loading inspection reports timeline..."). When the numbers appear they do not change a moment later.
+- Expected after loading: "Assets by Campus and Availability" has three campuses (Manila, Laguna, McKinley), each stacked Available, On Loan, Maintenance. The columns match result 3 of `b1-stop5-counts.sql` (the AVAILABLE, ON_LOAN, and MAINTENANCE rows). The Lab Filter lists the labs with their campus, the same ones as the Labs table (10 labs); pick HXIL: only the McKinley bar has assets.
+- Date range: set From and To to the two dates you put in result 4 (edit `@from` and `@to` at its top first; result 5 shows where the procurement dates fall). The cards and charts show grey boxes again, then the chart equals result 4, and a note under the chart says "With a date range, only assets procured in the range are counted. An asset with no procurement date is left out." Reset Date Filters: the note goes and the chart equals result 3 again.
+- Old bug gone: set From 2030-01-01 and To 2030-12-31. All campus bars are empty, and "Inspection Reports per Month" says "No inspection reports in this range" (it used to draw a made-up January to July series).
+- Failure shows no estimate: in DevTools, Network, right-click the `director?` request, "Block request URL", then reload. The cards and charts say "Could not load" (no numbers, no chart). Unblock it afterwards.
+- Database: `adric_uat_check`, reads only.
+
+**B1-H12. Staff System Overview: the same three campus counts as the Director.** Log in as UAT Staff One. System Overview (`/staff/overview`).
+- Expected: the "Assets by Campus" card has three rows, **Manila Campus, Laguna Campus, McKinley Campus**, with "N assets" each (no "(Taft)" or "(Canlubang)"). The three numbers equal the Director Overview's (B1-H10) and result 1 of `b1-stop5-counts.sql`. The line "Total Campus Registry" counts every asset including Retired ones, so it can be larger than the sum of the three rows.
+- Not part of this check: the "Pending Returns" card still lists returns saved in the browser (known, Batch 3).
+- Database: `adric_uat_check`, reads only.
+
+**B1-H13. Staff Inspections: groups come from the shared file, and a lab in no group shows under Other.** As UAT Staff One, Inspections (`/staff/inspections`).
+- Expected first: tabs Group A, Group B, Group C, Group D, and no "Other" tab (all ten labs are in a group). Group A lists CITe4D, CAR, CNIS; B lists CeHCI, CeLT, TE3D; C lists GAME, Bio; D lists CIVI, HXIL. Note the "Total Assets" number of Group A and the CITe4D row of the table.
+- Then run `b1-stop5-other-lab.sql` (it prints the asset it moved), and reload the page. Expected: a new tab **Other**; open it: "Labs" says ZZOTHER, "Total Assets" is 1, and the table lists the moved asset with Lab ZZOTHER. Group A's "Total Assets" is one fewer than before. Old bug gone: an asset of a lab in no group used to be hidden inside Group A.
+- Finally run `b1-stop5-other-lab-undo.sql` (it prints no rows from its first SELECT), reload: the Other tab is gone and Group A is back to its first number.
+- Database: `adric_uat_check`. The first two scripts write to it (one lab added, one asset moved), the undo reverses both.
+
+**B1-H14. Nearby still works: the Director's Inventory Report.** As the UAT Director, Inventory Report (`/adric-director/reports`).
+- Expected: the table loads with the asset count in its title, and the filters still narrow it. Export CSV downloads `AdRIC_Inventory_Report_<filter>_Funding.csv`; open it: one row per listed asset, and the last column (Lab) holds that asset's lab code on every row (none blank).
+- Database: `adric_uat_check`, reads only.
+
+**B1-H15. Extra (commit 12, not in section 14.6): the Lab Head and Staff analytics numbers are real.**
+- As UAT LabHead CITe4D One, Analytics: the first card is "Assets On Loan" with "N% On Loan"; "On Loan: N units" equals `on_loan` for CITe4D in result 2 of `b1-stop5-counts.sql`, and "Not on loan" is the rest of the lab's assets (Retired included). If the lab has projects, the project allocation's value is the sum of its assets' acquisition values, not a multiple of 250,000.
+- As UAT Staff One, Analytics: "Aggregate Operational Status" lists six statuses (Available, On Loan, Maintenance, Pending Retirement, Retired, Missing) and the centre number is the total of all assets. The condition heatmap lists only assets TSG has inspected.
+- Database: `adric_uat_check`, reads only.
+
+**Stop 5: not done.**
+- The Staff "Pending Returns" card still counts browser-saved returns (H-02, Batch 3).
+- An asset TSG never inspected is now counted apart (`notInspectedCount`) and is not in the Staff condition heatmap. If many UAT assets have no inspection row (the agent could not check the database), the heatmap lists only the inspected ones until TSG inspects the rest. This is the behavior section 14.2 asks for.
+- `AGENTS.md` still says typecheck 32 and 506 tests. It is not changed here (AGENTS.md, How we work, rule 4: only change what the issue needs). The counts are now 25 and 524; update them when this branch merges.
+- The migration of old CCS Cloud data and the sign-up page's raw error text are unchanged (answers S and V).
 
 ## Batch 1 hand checks: results
 
