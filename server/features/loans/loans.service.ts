@@ -9,36 +9,37 @@ import type { LoanDecision, LoanListItem, LoanRequestInput } from '@shared/types
 import type { SessionIdentity } from '@shared/types/auth';
 import * as loansRepository from './loans.repository';
 import * as assetsRepository from '../assets/assets.repository';
+import { LOAN_STATUS_LABELS } from '@shared/constants/loanStatuses';
+import { CAMPUS_LABELS } from '@shared/constants/campuses';
 import { AppError } from '../../shared/errors/AppError';
 import { campusForLab } from '../../shared/utils/campus';
 import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/services/custodyRequestGuard';
 
 /**
- * The word the screens show for each loan status, lower case. The list capitalizes it ("Pending", "Approved").
- * An open loan is still "approved" to them.
+ * The word the current loan screens compare against for each loan status ("Pending", "Approved"). An open loan is
+ * still "approved" to them. Every other text about a loan uses LOAN_STATUS_LABELS.
  */
-// TODO(H-07): the screens still read the old status words. The new statuses and their labels reach them from shared/constants (Batch 1, commit 5 onward).
-const LEGACY_LOAN_WORDS: Record<asset_loans_status, string> = {
-    PENDING_APPROVAL: "pending",
-    PENDING_RELEASE: "pending release",
-    DECLINED: "declined",
-    CANCELLED: "cancelled",
-    ON_LOAN: "approved",
-    RETURN_REQUESTED: "return requested",
-    RETURNED: "returned",
-    ENDED_BY_MAINTENANCE: "ended by maintenance",
-    ENDED_BY_LOSS: "ended by loss",
+// TODO(H-07): the Lab Head and Custodian loan screens still compare these words. Batch 3 sends the Loan shape (status and statusLabel) and removes this map.
+const SCREEN_LOAN_WORDS: Record<asset_loans_status, string> = {
+    PENDING_APPROVAL: "Pending",
+    PENDING_RELEASE: "Pending release",
+    DECLINED: "Declined",
+    CANCELLED: "Cancelled",
+    ON_LOAN: "Approved",
+    RETURN_REQUESTED: "Return requested",
+    RETURNED: "Returned",
+    ENDED_BY_MAINTENANCE: "Ended by maintenance",
+    ENDED_BY_LOSS: "Ended by loss",
 };
 
 /**
- * The status the loan screens show, capitalized from the old words: "Pending", "Approved", "Declined", "Returned".
+ * The word the current loan screens compare against: "Pending", "Approved", "Declined", "Returned".
  *
  * @param status the loan's status
  * @returns the word the screens compare against
  */
 export function legacyLoanStatusLabel(status: asset_loans_status): string {
-    const word = LEGACY_LOAN_WORDS[status];
-    return word.charAt(0).toUpperCase() + word.slice(1);
+    return SCREEN_LOAN_WORDS[status];
 }
 
 /**
@@ -90,7 +91,8 @@ export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]
             requestedOn: l.requested_at ? l.requested_at.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             dueDate: l.return_by ? l.return_by.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             status: legacyLoanStatusLabel(l.status),
-            location: center ? (center.location === "MANILA" ? "Manila" : "Laguna") : "Manila",
+            statusLabel: LOAN_STATUS_LABELS[l.status],
+            location: center ? CAMPUS_LABELS[center.location] : "Manila",
             lab,
             center_id: center?.center_id || 1
         };
@@ -176,7 +178,7 @@ export async function decideLoan(loanId: number, decision: LoanDecision): Promis
         throw new AppError(404, `No loan found with id ${loanId}.`);
     }
     if (loan.status !== asset_loans_status.PENDING_APPROVAL) {
-        throw new AppError(400, `Loan #${loanId} has already been ${LEGACY_LOAN_WORDS[loan.status]}.`);
+        throw new AppError(400, `Loan #${loanId} is ${LOAN_STATUS_LABELS[loan.status]}, so it can no longer be decided.`);
     }
     if (decision === "approve") {
         // The same allowed statuses as requestLoan.

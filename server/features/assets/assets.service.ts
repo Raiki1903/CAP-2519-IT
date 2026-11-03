@@ -4,7 +4,7 @@
  * assets.validation.ts, shared/constants/poolCustodian.ts, and @shared/enums.
  * Used by: every role's inventory view and the bell, the asset detail modal, Staff asset registration, editing, and deletion.
  */
-import { asset_inspections_type, asset_retirements_status, type asset_records, type asset_retirements_pathway, type assets } from '@prisma/client';
+import { asset_inspections_type, asset_retirements_status, type asset_records, type assets } from '@prisma/client';
 import type { AssetCreateInput, AssetListItem, AssetUpdateInput, CustodianHistory } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
@@ -12,19 +12,10 @@ import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import * as assetsRepository from './assets.repository';
 import type { EditRows } from './assets.repository';
 import * as authRepository from '../auth/auth.repository';
+import { RETIREMENT_PATHWAY_LABELS } from '@shared/constants/retirementStatuses';
 import { checkAssetImage, UNKNOWN_CUSTODIAN } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
-
-/** The pathway a retirement row holds in its own column, as the disposal details show it. */
-// TODO(H-07): plain words until the shared labels exist (Batch 1, commit 5).
-const RETIREMENT_PATHWAY_WORDS: Record<asset_retirements_pathway, string> = {
-    DONATE: "Donate",
-    RECYCLE: "Recycle",
-    RETURN_TO_FUNDER: "Return to Funder",
-    SELL: "Sell",
-    OTHER: "Other",
-};
 
 /**
  * Lists every asset with its current state, shaped for the screens.
@@ -117,7 +108,7 @@ export async function listAssets(viewer: SessionIdentity): Promise<AssetListItem
             const pathwayMatch = reasonText.match(/Disposal Pathway:\s*(.+)/i);
             const pathway = pathwayMatch ? pathwayMatch[1].trim() : "Decommission — Scrap / Recycle";
             // The migration moved a parsed pathway line out of the reason into its own column. (M-13)
-            const pathwayFromColumn = disposal.pathway ? RETIREMENT_PATHWAY_WORDS[disposal.pathway] : null;
+            const pathwayFromColumn = disposal.pathway ? RETIREMENT_PATHWAY_LABELS[disposal.pathway] : null;
             const justificationMatch = reasonText.match(/Breakdown Justification:\s*([\s\S]+)/i);
             const justification = justificationMatch ? justificationMatch[1].trim() : reasonText;
 

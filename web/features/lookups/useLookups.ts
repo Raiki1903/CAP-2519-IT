@@ -16,7 +16,10 @@ function loadFormLookups(): Promise<FormLookups | null> {
   if (!formLookupsLoad) {
     formLookupsLoad = lookupsApi.getFormLookups()
       .then(data => data.success
-        ? { labs: data.labs, categories: data.categories, fundingSources: data.fundingSources, statuses: data.statuses }
+        ? {
+          labs: data.labs, categories: data.categories, fundingSources: data.fundingSources, issueTypes: data.issueTypes,
+          metricsByCategory: data.metricsByCategory, projects: data.projects, statuses: data.statuses,
+        }
         : null)
       .catch(err => {
         console.error("❌ Failed to load the form options:", err);
@@ -28,7 +31,8 @@ function loadFormLookups(): Promise<FormLookups | null> {
 }
 
 /**
- * Loads the form option lists (GET /api/lookups): labs, categories, funding sources, and editable statuses.
+ * Loads the form option lists (GET /api/lookups): labs, categories, funding sources, issue types, metrics, projects,
+ * and editable statuses.
  *
  * @returns `lookups` (null until loaded, and when the load fails) and `failed`, true when the load failed
  */

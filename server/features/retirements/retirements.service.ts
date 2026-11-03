@@ -9,6 +9,7 @@ import type { DisposalDecision, DisposalListItem, DisposalRequestInput } from '@
 import * as retirementsRepository from './retirements.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
+import { RETIREMENT_STATUS_LABELS } from '@shared/constants/retirementStatuses';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/services/custodyRequestGuard';
@@ -125,15 +126,6 @@ export async function listDisposals(): Promise<DisposalListItem[]> {
     });
 }
 
-/** The word the old screens and messages use for each retirement status. */
-// TODO(H-07): the screens still read the old status words. The new statuses and their labels reach them from shared/constants (Batch 1, commit 5 onward).
-const LEGACY_DISPOSAL_WORDS: Record<asset_retirements_status, string> = {
-    PENDING: "pending",
-    APPROVED: "approved",
-    DENIED: "rejected",
-    COMPLETED: "approved",
-};
-
 /**
  * Approves or rejects a pending disposal request.
  * Approval decommissions the asset: the disposal becomes approved and a DISPOSED record is appended,
@@ -155,7 +147,7 @@ export async function decideDisposal(disposalId: number, decision: DisposalDecis
         throw new AppError(404, `No disposal request found with id ${disposalId}.`);
     }
     if (disposal.status !== asset_retirements_status.PENDING) {
-        throw new AppError(400, `Disposal #${disposalId} has already been ${LEGACY_DISPOSAL_WORDS[disposal.status]}.`);
+        throw new AppError(400, `Disposal #${disposalId} is ${RETIREMENT_STATUS_LABELS[disposal.status]}, so it can no longer be decided.`);
     }
     if (decision === "approve") {
         // The same allowed statuses as requestDisposal.

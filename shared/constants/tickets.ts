@@ -1,0 +1,33 @@
+/**
+ * The help ticket types and statuses (user_tickets.type and .status), and their labels.
+ * Layer: shared. Imported by the server and web/ once the ticket endpoints exist (module 6). Imports nothing.
+ * Used by: help tickets to the IT Admin.
+ */
+
+/** Every value of user_tickets.type. Must match the `user_tickets_type` enum in schema.prisma. */
+export const TICKET_TYPES = ["BUG", "ACCOUNT_ACCESS", "QUESTION", "OTHER"] as const;
+
+/** One value of user_tickets.type. */
+export type TicketType = (typeof TICKET_TYPES)[number];
+
+/** The label every screen shows for each ticket type. */
+export const TICKET_TYPE_LABELS: Record<TicketType, string> = {
+  BUG: "Bug",
+  ACCOUNT_ACCESS: "Account Access",
+  QUESTION: "Question",
+  OTHER: "Other",
+};
+
+/** Every value of user_tickets.status. Must match the `user_tickets_status` enum in schema.prisma. */
+export const TICKET_STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "REJECTED"] as const;
+
+/** One value of user_tickets.status. */
+export type TicketStatus = (typeof TICKET_STATUSES)[number];
+
+/** The label every screen shows for each ticket status. */
+export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
+  OPEN: "Open",
+  IN_PROGRESS: "In Progress",
+  RESOLVED: "Resolved",
+  REJECTED: "Rejected",
+};

@@ -144,3 +144,30 @@ export const SEEDED_ROWS = {
 
 /** Funding source written on every seeded asset. */
 export const FUNDING_SOURCE = "Test Grant";
+
+/**
+ * The lookup rows the seed writes. The reset empties every table, the migration's own lookup rows included, so the
+ * tests bring theirs. The metric keys are the real ones, because the flag rules in shared/constants are keyed by them.
+ */
+export const LOOKUPS = {
+  fundingSources: [
+    { fundingSourceId: 1, name: FUNDING_SOURCE },
+    { fundingSourceId: 2, name: "Test Second Fund" },
+  ],
+  issueTypes: [
+    { issueTypeId: 1, key: "TEST_NO_POWER", name: "Test: will not power on", suggestedAction: "Test: check the power cable." },
+    { issueTypeId: 2, key: "TEST_OTHER", name: "Test: other", suggestedAction: "Test: describe the problem." },
+  ],
+  metrics: [
+    { metricId: 1, metricKey: "CPU_LOAD_TEMP", name: "CPU load temperature", unit: "°C", higherIsBetter: false },
+    { metricId: 2, metricKey: "BAD_SECTORS", name: "Bad sectors", unit: "count", higherIsBetter: false },
+    { metricId: 3, metricKey: "BATTERY_CAPACITY", name: "Battery capacity", unit: "% of design", higherIsBetter: true },
+  ],
+  /** Which metrics each category measures. Any other category has none. */
+  categoryMetrics: [
+    { category: "CPU", metricId: 1 },
+    { category: "CPU", metricId: 2 },
+    { category: "CPU", metricId: 3 },
+    { category: "TABLET", metricId: 3 },
+  ],
+} as const;

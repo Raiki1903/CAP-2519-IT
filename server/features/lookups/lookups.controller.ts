@@ -8,7 +8,10 @@
 import type { Request, Response } from 'express';
 import * as lookupsService from './lookups.service';
 
-/** Handles GET /api/lookups: `{ success, labs, categories, fundingSources, statuses }`. Open with no session. */
+/**
+ * Handles GET /api/lookups: `{ success, labs, categories, fundingSources, issueTypes, metricsByCategory, projects, statuses }`.
+ * Open with no session.
+ */
 export async function getFormLookups(req: Request, res: Response): Promise<void> {
     const lookups = await lookupsService.formLookups();
     res.json({ success: true, ...lookups });

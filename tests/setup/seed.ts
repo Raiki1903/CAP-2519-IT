@@ -5,7 +5,7 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../../server/shared/services/passwords";
-import { ASSET_STATUS_OF_RECORD, ASSETS, FUNDING_SOURCE, LAB, ROLE_IDS, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "./fixtures";
+import { ASSET_STATUS_OF_RECORD, ASSETS, FUNDING_SOURCE, LAB, LOOKUPS, ROLE_IDS, SEEDED_ROWS, TSG_OFFICE_LOCATION, USERS } from "./fixtures";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -31,6 +31,19 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
 
   await prisma.research_centers.create({
     data: { center_id: LAB.centerId, name: LAB.name, short_code: LAB.shortCode, location: LAB.location },
+  });
+
+  await prisma.funding_sources.createMany({
+    data: LOOKUPS.fundingSources.map((f) => ({ funding_source_id: f.fundingSourceId, name: f.name })),
+  });
+  await prisma.issue_types.createMany({
+    data: LOOKUPS.issueTypes.map((t) => ({ issue_type_id: t.issueTypeId, key: t.key, name: t.name, suggested_action: t.suggestedAction })),
+  });
+  await prisma.metric_definitions.createMany({
+    data: LOOKUPS.metrics.map((m) => ({ metric_id: m.metricId, metric_key: m.metricKey, name: m.name, unit: m.unit, higher_is_better: m.higherIsBetter })),
+  });
+  await prisma.category_metrics.createMany({
+    data: LOOKUPS.categoryMetrics.map((c) => ({ category: c.category, metric_id: c.metricId })),
   });
 
   await prisma.roles.createMany({

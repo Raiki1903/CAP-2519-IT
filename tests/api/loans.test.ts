@@ -368,7 +368,7 @@ describe("PUT /api/loans/:id/decision", () => {
     const res = await asLabHead.put(`/api/loans/${SEEDED_ROWS.approvedLoanId}/decision`, { decision });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/already been approved/);
+    expect(res.body.error).toMatch(/is On Loan, so it can no longer be decided/);
     expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.approvedLoanId } })).status).toBe("ON_LOAN");
     expect(await recordCount(ASSETS.onLoan.assetId)).toBe(recordsBefore);
   });

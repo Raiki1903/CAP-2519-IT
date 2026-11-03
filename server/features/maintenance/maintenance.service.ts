@@ -10,6 +10,7 @@ import type { RepairListItem, RepairRequestInput } from '@shared/types/maintenan
 import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import * as maintenanceRepository from './maintenance.repository';
 import * as assetsRepository from '../assets/assets.repository';
+import { MAINTENANCE_STATUS_LABELS } from '@shared/constants/maintenanceStatuses';
 import { AppError } from '../../shared/errors/AppError';
 import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
 
@@ -47,7 +48,8 @@ function readProgressText(progressText: string): { status: asset_maintenance_sta
 }
 
 /**
- * The progress text the screens show for a ticket, the reverse of PROGRESS_TEXTS.
+ * The progress text the screens show for a ticket, the reverse of PROGRESS_TEXTS. A status the screens have no
+ * text of their own for shows its label.
  *
  * @param ticket the ticket's status, urgency, and provider
  * @returns the text, for example "Inspection Phase"
@@ -59,8 +61,9 @@ export function progressTextOf(ticket: Pick<asset_maintenance, 'status' | 'is_im
         case asset_maintenance_status.REPAIRING: return "Waiting for Parts";
         case asset_maintenance_status.EXTERNAL_SERVICE: return ticket.provider === "Warranty holder" ? "Warranty Holder Possession" : "Third-Party Repairer Possession";
         case asset_maintenance_status.RESOLVED: return "Fixed & Completed";
-        case asset_maintenance_status.BEYOND_REPAIR: return "Beyond Repair";
-        case asset_maintenance_status.CANCELLED: return "Cancelled";
+        case asset_maintenance_status.BEYOND_REPAIR:
+        case asset_maintenance_status.CANCELLED:
+            return MAINTENANCE_STATUS_LABELS[ticket.status];
     }
 }
 

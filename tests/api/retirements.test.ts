@@ -348,7 +348,7 @@ describe("PUT /api/retirements/:id/decision", () => {
     const res = await asDirector.put(`/api/retirements/${SEEDED_ROWS.disposalId}/decision`, { decision: "reject" });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/already been approved/);
+    expect(res.body.error).toMatch(/is Completed, so it can no longer be decided/);
     expect(await disposalStatus(SEEDED_ROWS.disposalId)).toBe("COMPLETED");
     expect(await recordCount(ASSETS.disposed.assetId)).toBe(recordsBefore);
   });

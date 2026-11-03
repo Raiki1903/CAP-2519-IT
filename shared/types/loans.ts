@@ -42,8 +42,10 @@ export interface LoanListItem {
   requestedOn: string;
   /** yyyy-mm-dd. */
   dueDate: string;
-  /** "Pending", "Approved", or "Declined". */
+  /** The word the current screens compare against: "Pending", "Approved", "Declined", or "Returned". */
   status: string;
+  /** The label of the stored status, for example "Pending Approval" or "On Loan". */
+  statusLabel: string;
   /** The borrower's campus, from their research center; "Manila" when they have none. */
   location: string;
   /** The asset tag's prefix, which the Lab Head screen uses to show only its own lab's requests. (M-02) */

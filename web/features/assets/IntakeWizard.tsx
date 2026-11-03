@@ -188,7 +188,7 @@ export function IntakeWizard() {
                 <Label className="text-xs font-bold text-foreground">Funding Source</Label>
                 <select value={form.funding} onChange={e => setForm({ ...form, funding: e.target.value })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  {withCurrentOption(lookups?.fundingSources ?? [], form.funding).map(f => <option key={f} value={f}>{f}</option>)}
+                  {withCurrentOption(lookups?.fundingSources.map(f => f.name) ?? [], form.funding).map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1.5">

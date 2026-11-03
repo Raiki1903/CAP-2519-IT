@@ -1,19 +1,20 @@
 /**
  * Staff Inventory: every asset, in gallery or table view, with search, filters, sorting, and the active and decommissioned sub-tabs.
  * Layer: page. Called by app/routes.tsx at /staff/inventory.
- * Calls: features/assets (useStaffAssets, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx, state/serverData.tsx syncFromDb().
+ * Calls: features/assets (useStaffAssets, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx,
+ * features/lookups/useLookups.ts (the funding filter), state/serverData.tsx syncFromDb().
  * Used by: Staff asset editing, deletion, and disposal requests.
  */
 import { useState } from "react";
 import { useServerData } from "@web/state/serverData";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
+import { useFormLookups } from "@web/features/lookups/useLookups";
 import { AssetGalleryCard } from "@web/features/assets/AssetGalleryCard";
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { EditAssetDialog } from "@web/features/assets/EditAssetDialog";
 import { DeleteAssetDialog } from "@web/features/assets/DeleteAssetDialog";
 import { statusBadgeClass, ConditionState, assetStatusLabel } from "@web/features/assets/assetBadges";
-import { FUNDING_SOURCES } from "@shared/constants/fundingSources";
 import { DisposalFormDialog } from "@web/features/disposals/DisposalFormDialog";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -30,6 +31,7 @@ import { Search, LayoutGrid, Table2, Pencil, Archive, Trash2 } from "lucide-reac
  */
 export function InventoryPage() {
   const { syncFromDb } = useServerData();
+  const { lookups } = useFormLookups();
   const { displayedAssets, fetchDbAssets } = useStaffAssets();
 
   const [search, setSearch] = useState("");
@@ -107,7 +109,7 @@ export function InventoryPage() {
         <select value={filterFunding} onChange={e => setFilterFunding(e.target.value)}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <option value="All">All Funding Sources</option>
-          {FUNDING_SOURCES.map(f => <option key={f} value={f}>{f}</option>)}
+          {(lookups?.fundingSources ?? []).map(f => <option key={f.fundingSourceId} value={f.name}>{f.name}</option>)}
         </select>
         <select value={filterLoc} onChange={e => setFilterLoc(e.target.value)}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

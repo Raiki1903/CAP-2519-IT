@@ -61,8 +61,8 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
 
   const { lookups, failed: lookupsFailed } = useFormLookups();
   // Each list from the server, plus the asset's own value when the list does not have it (older data).
-  const categoryOptions = withCurrentOption(lookups?.categories ?? [], start.category);
-  const fundingOptions = withCurrentOption(lookups?.fundingSources ?? [], start.funding);
+  const categoryOptions = withCurrentOption(lookups?.categories.map(c => c.key) ?? [], start.category);
+  const fundingOptions = withCurrentOption(lookups?.fundingSources.map(f => f.name) ?? [], start.funding);
   const labOptions = withCurrentOption(lookups?.labs.map(l => l.code) ?? [], start.lab);
   const statusOptions = withCurrentOption(lookups?.statuses ?? [], start.status);
 
