@@ -361,6 +361,23 @@ describe("POST /api/assets", () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
+
+  it("handles concurrent registrations for the same lab by assigning distinct tags (issue #75)", async () => {
+    const payloads = Array.from({ length: 5 }, (_, i) =>
+      intake({ name: `Concurrent Camera ${i + 1}`, serial: `TEST-SN-CONC-${i + 1}` })
+    );
+
+    const responses = await Promise.all(payloads.map(p => asStaff.post("/api/assets", p)));
+
+    for (const res of responses) {
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    }
+
+    const tags = responses.map(r => r.body.asset.asset_tag);
+    const uniqueTags = new Set(tags);
+    expect(uniqueTags.size).toBe(5);
+  });
 });
 
 describe("PUT /api/assets/:tag", () => {

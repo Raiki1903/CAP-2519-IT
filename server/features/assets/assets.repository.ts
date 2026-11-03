@@ -3,14 +3,15 @@
  * features need (an asset by tag or by id, and its state), and the newest record reads the transfer feature and the
  * custody request guard still make until commit 9 removes transfers.
  * Layer: repository. Called by assets.service.ts, the services of features/loans, returns, transfers, retirements,
- * maintenance, and inspections, and shared/services/custodyRequestGuard.ts. Calls config/prisma.ts and
- * shared/services/assetState.ts (with the shared client).
+ * maintenance, and inspections, and shared/services/custodyRequestGuard.ts. Calls config/prisma.ts,
+ * shared/services/assetState.ts (with the shared client), and shared/services/rowLocks.ts.
  * Used by: every role's inventory view, Staff registration, editing, and deletion, and every workflow that starts from an asset tag.
  */
 import { type Prisma, type asset_records, type assets } from '@prisma/client';
 import type { AssetListFilters } from '@shared/types/assets';
 import { prisma } from '../../config/prisma';
 import * as assetState from '../../shared/services/assetState';
+import { lockCenter } from '../../shared/services/rowLocks';
 
 /** What every asset read for a list or a detail includes: the home lab, the owning project, and the funding source. */
 const ASSET_DETAIL_INCLUDE = {
@@ -165,26 +166,32 @@ export function findLabByCode(shortCode: string) {
     return prisma.research_centers.findFirst({ where: { short_code: shortCode } });
 }
 
-/** The tags of every asset whose tag starts with "<labPrefix>-", for the next tag number. */
-export function findTagsWithPrefix(labPrefix: string) {
-    return prisma.assets.findMany({
-        where: {
-            asset_tag: {
-                startsWith: `${labPrefix}-`
-            }
-        },
-        select: { asset_tag: true }
-    });
-}
-
 /**
- * Registers an asset: its assets row. Its status starts as the column's default, AVAILABLE.
+ * Registers an asset under the next tag of its lab, in one transaction: the lab's row is locked first, then the lab's
+ * tags are read and the new tag is built from them, then the assets row is written. Two registrations in the same lab
+ * at once therefore number one after the other and never get the same tag. (H-11, issue #75) Its status starts as the
+ * column's default, AVAILABLE.
  *
- * @param assetData the assets row, tag included
+ * @param centerId the home lab, whose row is locked
+ * @param labPrefix the tag prefix, the lab's short code
+ * @param nextTag builds the new tag from the tags the lab already has
+ * @param assetData the assets row without its tag
  * @returns the created assets row
  */
-export function createAsset(assetData: Prisma.assetsUncheckedCreateInput) {
-    return prisma.assets.create({ data: assetData });
+export function createWithNextTag(
+    centerId: number,
+    labPrefix: string,
+    nextTag: (existingTags: string[]) => string,
+    assetData: Omit<Prisma.assetsUncheckedCreateInput, 'asset_tag'>,
+) {
+    return prisma.$transaction(async (tx) => {
+        await lockCenter(tx, centerId);
+        const existing = await tx.assets.findMany({
+            where: { asset_tag: { startsWith: `${labPrefix}-` } },
+            select: { asset_tag: true },
+        });
+        return tx.assets.create({ data: { ...assetData, asset_tag: nextTag(existing.map(a => a.asset_tag)) } });
+    });
 }
 
 /** What an edit adds once the newest record is known: a new record if any, and an inspection report if any. */

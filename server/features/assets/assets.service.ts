@@ -245,6 +245,26 @@ export async function assetHistory(assetTag: string, viewer: SessionIdentity): P
     return { assetTag: asset.asset_tag, assetName: asset.name, events };
 }
 
+/**
+ * The next tag of a lab: its prefix and one more than the highest number its tags have, four digits.
+ *
+ * @param labPrefix the lab's short code
+ * @param existingTags the tags the lab's assets have
+ * @returns for example "CeLT-0005" after "CeLT-0004"
+ */
+function nextTagOf(labPrefix: string, existingTags: string[]): string {
+    let maxSeq = 0;
+    const prefixPattern = new RegExp(`^${labPrefix}-(\\d+)$`, "i");
+    for (const tag of existingTags) {
+        const match = tag.match(prefixPattern);
+        if (match) {
+            const seq = parseInt(match[1], 10);
+            if (seq > maxSeq) maxSeq = seq;
+        }
+    }
+    return `${labPrefix}-${String(maxSeq + 1).padStart(4, "0")}`;
+}
+
 /** The stored category for any spelling ("Dev Kit" becomes DEV_KIT), or DEV_KIT when it is missing or not a category. */
 function sanitizeCategory(cat: any): any {
     if (!cat) return 'DEV_KIT';
@@ -272,7 +292,8 @@ async function fundingSourceIdFor(funding: string | undefined): Promise<number |
 
 /**
  * Registers a new asset: its assets row, at its home lab, with the funding source and acquisition value sent.
- * Its status starts Available. The tag is the lab code and the next free number for that lab, for example "CeLT-0005".
+ * Its status starts Available. The tag is the lab code and the next free number for that lab, for example "CeLT-0005",
+ * numbered with the lab's row locked so two registrations at once get different tags. (H-11, issue #75)
  *
  * @param data the checked body
  * @returns the created assets row and its tag
@@ -280,7 +301,6 @@ async function fundingSourceIdFor(funding: string | undefined): Promise<number |
  * @throws AppError 400 if the lab is not a known research center: the asset's home lab is stored on it
  * @throws AppError 400 if the funding text names no funding source
  */
-// TODO(H-11): the next number is read before the insert, so two registrations in the same lab at once can pick the same tag; the second then fails with a 500. Batch 1 commit 8 locks the lab row (issue #75).
 export async function registerAsset(data: AssetCreateInput): Promise<{ asset: assets; assetTag: string }> {
     const imageVal = data.image || data.image_url || data.imageUrl || null;
     checkAssetImage(imageVal);
@@ -300,23 +320,8 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
 
     // The lab's own short code, so the tag prefix always matches its lab letter for letter.
     const labPrefix = lab.short_code;
-    const existingLabAssets = await assetsRepository.findTagsWithPrefix(labPrefix);
 
-    let maxSeq = 0;
-    const prefixPattern = new RegExp(`^${labPrefix}-(\\d+)$`, "i");
-    for (const a of existingLabAssets) {
-        const match = a.asset_tag.match(prefixPattern);
-        if (match) {
-            const seq = parseInt(match[1], 10);
-            if (seq > maxSeq) maxSeq = seq;
-        }
-    }
-
-    const nextSeq = maxSeq + 1;
-    const assetTag = `${labPrefix}-${String(nextSeq).padStart(4, "0")}`;
-
-    const asset = await assetsRepository.createAsset({
-        asset_tag: assetTag,
+    const asset = await assetsRepository.createWithNextTag(lab.center_id, labPrefix, (existingTags) => nextTagOf(labPrefix, existingTags), {
         center_id: lab.center_id,
         name: data.name,
         category: sanitizeCategory(data.category),
@@ -328,6 +333,7 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
         funding_source_id: fundingSourceId ?? null,
         acquisition_value: data.acquisitionValue === undefined || data.acquisitionValue === "" ? null : data.acquisitionValue,
     });
+    const assetTag = asset.asset_tag;
 
     return { asset, assetTag };
 }
