@@ -591,3 +591,8 @@ Run by Raiki on Nov 3, on the local copies only. CCS Cloud was not touched.
 - **H-b** pass: as UAT Staff One, Edit Asset, Home Room changed: saves and closes as before.
 - **H-c** pass: as UAT Staff One, the trash icon on an asset with history, Confirm: the line starts with "<tag> cannot be deleted because it has history", no emoji.
 - **B1-H9 repair step, repeated** pass: a repair on the on-loan CITe4D asset, Acknowledge: the asset is in Maintenance, and a query for its loan with status ENDED_BY_MAINTENANCE returns 1 row.
+
+**Stop 5 hand checks** (`adric_uat_check`, branch `fix/96-real-dashboard-numbers`; run by Raiki on Nov 3, local copy only, CCS Cloud not touched):
+- **B1-H10** pass. **B1-H11** pass. **B1-H12** pass.
+- **B1-H13** pass: the Other tab showed the added lab with its one asset; the undo script was run and the tab was gone after.
+- **B1-H14** pass. **B1-H15** pass.
