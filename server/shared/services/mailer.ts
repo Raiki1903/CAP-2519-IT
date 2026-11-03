@@ -33,11 +33,11 @@ export async function sendEmail(to: string | string[], subject: string, html: st
     const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
 
     if (!mg || !MAILGUN_DOMAIN) {
-        console.warn(`✉️  Mailgun not configured — skipping email "${subject}" (would go to: ${recipients.join(', ') || 'nobody'})`);
+        console.warn(`Mailgun not configured, email "${subject}" skipped (${recipients.length} recipients)`);
         return;
     }
     if (recipients.length === 0) {
-        console.warn(`✉️  No recipient resolved for email "${subject}" — skipping`);
+        console.warn(`No recipient for email "${subject}", skipped`);
         return;
     }
 
@@ -48,9 +48,9 @@ export async function sendEmail(to: string | string[], subject: string, html: st
             subject,
             html,
         });
-        console.log(`✉️  Sent "${subject}" to ${recipients.join(', ')}`);
+        console.log(`Email "${subject}" sent to ${recipients.length} recipients`);
     } catch (err: any) {
-        console.error(`❌ Mailgun send failed for "${subject}" to ${recipients.join(', ')}:`, err?.message || err);
+        console.error(`Mailgun send failed for "${subject}" (${recipients.length} recipients):`, err?.name || 'Error');
     }
 }
 

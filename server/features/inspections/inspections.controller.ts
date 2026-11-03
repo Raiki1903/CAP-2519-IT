@@ -20,13 +20,12 @@ import { sessionUserOf } from '../../shared/middleware/requireAuth';
 export async function fileReport(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = req.body;
-    // Printed before the checks, so a refused report still shows in the server terminal.
-    console.log(`📋 Server received inspection report for ${assetTag}:`, data);
 
     checkInspectionReport(data);
-    const newReport = await inspectionsService.fileReport(assetTag, data, sessionUserOf(req));
+    const reporter = sessionUserOf(req);
+    const newReport = await inspectionsService.fileReport(assetTag, data, reporter);
 
-    console.log("✅ Inspection report saved under asset_inspections in DB:", newReport.inspection_id);
+    console.log(`Inspection ${newReport.inspection_id} on ${assetTag} filed by user ${reporter.userId}`);
     res.json({ success: true, report: newReport });
 }
 

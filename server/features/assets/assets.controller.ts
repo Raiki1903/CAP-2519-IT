@@ -39,9 +39,10 @@ export async function getAssetHistory(req: Request<{ assetTag: string }>, res: R
  */
 export async function registerAsset(req: Request, res: Response): Promise<void> {
     const data = readAssetCreate(req.body);
-    const asset = await assetsService.registerAsset(data, sessionUserOf(req));
+    const registrar = sessionUserOf(req);
+    const asset = await assetsService.registerAsset(data, registrar);
 
-    console.log("✅ Asset saved to MySQL successfully:", asset.assetId, asset.tag);
+    console.log(`Asset ${asset.assetId} (${asset.tag}) registered by user ${registrar.userId}`);
     res.json({ success: true, asset });
 }
 
@@ -54,9 +55,10 @@ export async function registerAsset(req: Request, res: Response): Promise<void> 
 export async function updateAsset(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = readAssetUpdate(req.body);
-    const updated = await assetsService.updateAsset(assetTag, data, sessionUserOf(req));
+    const editor = sessionUserOf(req);
+    const updated = await assetsService.updateAsset(assetTag, data, editor);
 
-    console.log("✅ Asset updated in MySQL successfully:", updated.assetId);
+    console.log(`Asset ${updated.assetId} edited by user ${editor.userId}`);
     res.json({ success: true, asset: updated });
 }
 
@@ -68,8 +70,9 @@ export async function updateAsset(req: Request<{ assetTag: string }>, res: Respo
 export async function deleteAsset(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
 
-    await assetsService.deleteAsset(assetTag, sessionUserOf(req).userId);
+    const deleterId = sessionUserOf(req).userId;
+    await assetsService.deleteAsset(assetTag, deleterId);
 
-    console.log("✅ Asset deleted from MySQL successfully:", assetTag);
+    console.log(`Asset ${assetTag} deleted by user ${deleterId}`);
     res.json({ success: true, deleted: assetTag });
 }

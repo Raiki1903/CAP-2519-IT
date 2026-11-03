@@ -19,13 +19,12 @@ import { sessionUserOf } from '../../shared/middleware/requireAuth';
 export async function requestRepair(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = req.body;
-    // Printed before the checks, so a refused request still shows in the server terminal.
-    console.log(`🚀 Server received repair request for ${assetTag}:`, data);
 
     checkRepairRequest(data);
-    const repair = await maintenanceService.requestRepair(assetTag, data, sessionUserOf(req).userId);
+    const reporterId = sessionUserOf(req).userId;
+    const repair = await maintenanceService.requestRepair(assetTag, data, reporterId);
 
-    console.log("✅ Repair request logged in MySQL successfully:", repair.maintenance_id, assetTag);
+    console.log(`Maintenance ${repair.maintenance_id} on ${assetTag} reported by user ${reporterId}`);
     res.json({ success: true, repair });
 }
 
@@ -46,13 +45,12 @@ export async function listRepairs(req: Request, res: Response): Promise<void> {
 export async function updateRepair(req: Request<{ repairId: string }>, res: Response): Promise<void> {
     const repairId = parseInt(req.params.repairId, 10);
     const { progressStatus, assetCondition, assetRemarks } = req.body as { progressStatus?: string; assetCondition?: string; assetRemarks?: string };
-    // Printed before the checks, so a refused update still shows in the server terminal.
-    console.log(`🚀 Server received repair status update for #${repairId}:`, { progressStatus, assetCondition, assetRemarks });
 
     checkRepairUpdate(repairId, progressStatus);
-    const repair = await maintenanceService.updateRepair(repairId, progressStatus, assetCondition, assetRemarks, sessionUserOf(req).userId);
+    const staffId = sessionUserOf(req).userId;
+    const repair = await maintenanceService.updateRepair(repairId, progressStatus, assetCondition, assetRemarks, staffId);
 
-    console.log(`✅ Repair #${repairId} progress updated to "${progressStatus}".`);
+    console.log(`Maintenance ${repairId} updated by user ${staffId}`);
     res.json({ success: true, repair });
 }
 
@@ -68,6 +66,6 @@ export async function updateRepairStatus(req: Request<{ repairId: string }>, res
     checkRepairStatus(progressStatus);
     const repair = await maintenanceService.updateRepairStatus(repairId, progressStatus);
 
-    console.log(`🔧 Updated asset_maintenance #${repairId} progress_status to MySQL: "${progressStatus}"`);
+    console.log(`Maintenance ${repairId} status changed by user ${sessionUserOf(req).userId}`);
     res.json({ success: true, repair });
 }

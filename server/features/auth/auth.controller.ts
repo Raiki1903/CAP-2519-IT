@@ -38,7 +38,7 @@ export async function requestRegistration(req: Request, res: Response): Promise<
     checkRegistrationRequest(data);
     const newReq = await authService.requestRegistration(data);
 
-    console.log(`📝 Registration request created for ${email} (Pending Lab Head Approval). ID: ${newReq.id}`);
+    console.log(`Sign-up request ${newReq.id} filed`);
 
     res.json({ success: true, registration: newReq });
 }
@@ -55,7 +55,7 @@ export async function approveRegistration(req: Request, res: Response): Promise<
 
     const createdUser = await authService.approveRegistration({ requestId });
 
-    console.log(`✅ Lab Head Approved User Registration! Created user in MySQL DB: ID ${createdUser.userId}`);
+    console.log(`Sign-up approved: user ${createdUser.userId} created by user ${sessionUserOf(req).userId}`);
     res.json({ success: true, user: createdUser, message: `Account approved and created in database for ${createdUser.email}.` });
 }
 
@@ -127,7 +127,7 @@ export async function updateAccount(req: Request, res: Response): Promise<void> 
     checkAccountUpdate(data);
     const { updatedUser, user } = await authService.updateAccount(sessionUserOf(req).userId, data);
 
-    console.log(`👤 Updated user credentials in MySQL DB: ${updatedUser.email} -> ${firstName} ${lastName} [img length: ${updatedUser.user_img ? updatedUser.user_img.length : 0}]`);
+    console.log(`Account ${updatedUser.user_id} updated its profile`);
     res.json({
         success: true,
         user

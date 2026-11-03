@@ -28,13 +28,12 @@ export async function listLoans(req: Request, res: Response): Promise<void> {
 export async function requestLoan(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const data = req.body;
-    // Printed before the checks, so a refused request still shows in the server terminal.
-    console.log(`🚀 Server received loan request for ${assetTag}:`, data);
 
     checkLoanRequest(data);
-    const loan = await loansService.requestLoan(assetTag, data, sessionUserOf(req).userId);
+    const borrowerId = sessionUserOf(req).userId;
+    const loan = await loansService.requestLoan(assetTag, data, borrowerId);
 
-    console.log("✅ Loan request logged in MySQL successfully:", loan.loan_id, assetTag);
+    console.log(`Loan ${loan.loan_id} on ${assetTag} requested by user ${borrowerId}`);
     res.json({ success: true, loan });
 }
 
@@ -46,12 +45,11 @@ export async function requestLoan(req: Request<{ assetTag: string }>, res: Respo
 export async function decideLoan(req: Request<{ loanId: string }>, res: Response): Promise<void> {
     const loanId = parseInt(req.params.loanId, 10);
     const { decision } = req.body as { decision?: string };
-    // Printed before the checks, so a refused decision still shows in the server terminal.
-    console.log(`🚀 Server received loan decision for #${loanId}:`, decision);
 
     checkLoanDecision(loanId, decision);
-    const updatedLoan = await loansService.decideLoan(loanId, decision, sessionUserOf(req).userId);
+    const deciderId = sessionUserOf(req).userId;
+    const updatedLoan = await loansService.decideLoan(loanId, decision, deciderId);
 
-    console.log(`✅ Loan #${loanId} ${decision}d successfully.`);
+    console.log(`Loan ${loanId} ${decision}d by user ${deciderId}`);
     res.json({ success: true, loan: updatedLoan });
 }
