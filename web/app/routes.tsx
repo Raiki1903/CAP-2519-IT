@@ -83,7 +83,6 @@ export const router = createBrowserRouter([
           { path: "custody",     element: <LabHeadDashboard activeTab="custody" /> },
           { path: "inventory",   element: <LabHeadDashboard activeTab="inventory" /> },
           { path: "health",      element: <LabHeadDashboard activeTab="health" /> },
-          { path: "approvals",   element: <LabHeadDashboard activeTab="approvals" /> },
           { path: "account",     element: <AccountDetailsPage /> },
         ],
       },

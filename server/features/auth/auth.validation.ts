@@ -5,12 +5,9 @@
  * Used by: login, self-registration, the session reload, and the account page.
  */
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '@shared/constants/passwords';
-import { ID_NUMBER_MESSAGE, ID_NUMBER_PATTERN, SIGN_UP_EMAIL_DOMAIN, SIGN_UP_EMAIL_MESSAGE, USER_TYPES, type UserType } from '@shared/constants/signUp';
+import { ID_NUMBER_MESSAGE, ID_NUMBER_PATTERN, NO_LAB_MESSAGE, SIGN_UP_EMAIL_DOMAIN, SIGN_UP_EMAIL_MESSAGE, USER_TYPES, type UserType } from '@shared/constants/signUp';
 import type { AccountUpdateInput, LoginInput, SignUpRequest } from '@shared/types/auth';
 import { AppError } from '../../shared/errors/AppError';
-
-/** The 400 message for a sign-up with no lab, or a lab id that is not a whole number. */
-export const NO_LAB_MESSAGE = "Choose at least one lab.";
 
 /**
  * Reads a sign-up body: names, a DLSU email, an 8-digit ID number, a user type, a password of an allowed length, and

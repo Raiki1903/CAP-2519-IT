@@ -2,7 +2,7 @@
  * Server data state: the lists that several screens share, loaded from the server and kept in memory.
  * Layer: shared (web state). Called by App.tsx (the provider) and by screens through useServerData().
  * Calls the web/api files, browserOnly.tsx, and session.tsx (the role). Never reads or writes localStorage itself.
- * Used by: every role (asset lists, the notification bell, repairs, loan and registration approvals).
+ * Used by: every role (asset lists, the notification bell, repairs, loan approvals).
  *
  * Temporary home. 01D gives each page its own data loading; these lists move out as the
  * dashboards are split in step 8 and the notification bell is rewritten.
@@ -13,7 +13,6 @@ import * as assetsApi from "../api/assets.api";
 import * as maintenanceApi from "../api/maintenance.api";
 import * as retirementsApi from "../api/retirements.api";
 import * as inspectionsApi from "../api/inspections.api";
-import * as authApi from "../api/auth.api";
 import type { ApiResult } from "../api/client";
 import { useBrowserOnly } from "./browserOnly";
 import { useSession } from "./session";
@@ -24,7 +23,6 @@ import type { AssetLabRef } from "@shared/types/assets";
 // so those lists are not requested for it. The other lists are open to every signed-in role.
 const REPORT_READERS: Role[] = ["Staff", "AdRICDirector"];
 const DISPOSAL_READERS: Role[] = ["Staff", "AdRICDirector", "LabHead"];
-const REGISTRATION_READERS: Role[] = ["LabHead"];
 
 // refreshSharedLists() skips a reload that started less than this long ago, or is still running.
 const RECENT_SYNC_MS = 5000;
@@ -139,23 +137,6 @@ export interface PendingDisposal {
   requestedAt: string;
 }
 
-/** A sign-up request waiting for a Lab Head. */
-// TODO(C-04): the server sends each applicant's password in this list (issue #72). Phase 3.
-export interface PendingRegistration {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  idNumber: number;
-  userType: "STUDENT" | "FACULTY" | "STAFF";
-  requestedRole: string;
-  labAffiliation: string;
-  password?: string;
-  avatarUrl?: string;
-  submittedAt: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
-}
-
 interface ServerDataContextType {
   assets: Asset[];
   assetsVersion: number;
@@ -165,10 +146,6 @@ interface ServerDataContextType {
   updateRepairStatus: (id: string, statusLabel: string) => void;
   unacknowledgedCount: number;
   pendingDisposals: PendingDisposal[];
-  pendingRegistrations: PendingRegistration[];
-  addPendingRegistration: (req: PendingRegistration) => void;
-  approveRegistration: (reqOrId: string | PendingRegistration) => Promise<ApiResult>;
-  rejectRegistration: (requestId: string) => Promise<void>;
   dbReports: any[];
   dbLoans: any[];
   isDbLoading: boolean;
@@ -194,7 +171,6 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  *   `authorizeLoan(loanId, decision)`: loansApi.decideLoan.
  * - `dbReports`: inspectionsApi.listReportSummaries.
  * - `pendingDisposals`: retirementsApi.listDisposals, pending ones only.
- * - `pendingRegistrations`, `approveRegistration`, `rejectRegistration`: authApi.
  * - `isDbLoading`: true while a reload is running. `syncFromDb()`: runs one.
  * - `refreshSharedLists()`: runs one too, unless one is running or started in the last few seconds.
  *   For a screen that opens, not for a save (a save needs the lists as they are after it).
@@ -355,7 +331,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
   const unacknowledgedCount = repairRequests.filter(r => !r.acknowledged).length;
 
-  const [pendingRegistrations, setPendingRegistrations] = useState<PendingRegistration[]>([]);
 
   // Every list needs a session, so nothing loads until someone is logged in (after login, or when a page load
   // restores the session). A logout empties the lists, so the next person in this tab never sees them.
@@ -367,60 +342,12 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       setDbReports([]);
       setDbLoans([]);
       setPendingDisposals([]);
-      setPendingRegistrations([]);
       setIsDbLoading(false);
       return;
     }
     syncFromDb();
-    if (REGISTRATION_READERS.includes(role)) {
-      authApi.listPendingRegistrations()
-        .then(data => {
-          if (data.success && Array.isArray(data.pendingRegistrations)) {
-            setPendingRegistrations(data.pendingRegistrations);
-          }
-        })
-        .catch(() => { });
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
-
-  // Adds to the in-memory list only. Register.tsx has already sent the request to the server.
-  const addPendingRegistration = (req: PendingRegistration) => {
-    setPendingRegistrations(prev => [req, ...prev]);
-  };
-
-  // Shows one alert and throws when the server refuses or cannot be reached, so the caller's own success message is skipped.
-  // Only the id is sent: the server builds the account from its stored request. (C-05)
-  const approveRegistration = async (reqOrId: string | PendingRegistration) => {
-    const id = typeof reqOrId === "string" ? reqOrId : reqOrId.id;
-
-    let data: ApiResult;
-    try {
-      data = await authApi.approveRegistration({ requestId: id });
-    } catch (err: any) {
-      console.error("Approve registration error:", err);
-      alert(`❌ Error connecting to server: ${err.message}`);
-      throw err;
-    }
-    if (!data.success) {
-      alert(`❌ Error approving registration: ${data.error || "Failed to create user in database"}`);
-      throw new Error(data.error || "Failed to approve registration");
-    }
-    setPendingRegistrations(prev => prev.filter(r => r.id !== id));
-    await syncFromDb();
-    return data;
-  };
-
-  // The request leaves the list even when the server call fails.
-  const rejectRegistration = async (requestId: string) => {
-    try {
-      await authApi.rejectRegistrationRaw(requestId);
-    } catch (err) {
-      console.error("Reject registration error:", err);
-    } finally {
-      setPendingRegistrations(prev => prev.filter(r => r.id !== requestId));
-    }
-  };
 
   // Updates the one loan in memory instead of reloading every list.
   const authorizeLoan = async (loanId: string, decision: "approve" | "decline" = "approve") => {
@@ -447,7 +374,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
         repairRequests, addRepairRequest, acknowledgeRepair, updateRepairStatus,
         unacknowledgedCount,
         pendingDisposals,
-        pendingRegistrations, addPendingRegistration, approveRegistration, rejectRegistration,
         dbReports, dbLoans,
         isDbLoading,
         syncFromDb, refreshSharedLists, reloadLoans, authorizeLoan

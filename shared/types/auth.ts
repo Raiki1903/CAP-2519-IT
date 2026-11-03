@@ -28,28 +28,21 @@ export interface SignUpRequest {
 }
 
 /**
- * The form values web/pages/auth/Register.tsx sends. The server reads the body as a SignUpRequest and refuses one
- * without `centerIds` (400).
+ * The form values web/pages/auth/Register.tsx sends. The server reads the body into a SignUpRequest and answers 400
+ * for anything missing or wrong. The ID number goes as typed, so a leading 0 is refused instead of lost.
  */
 export interface RegistrationRequestInput {
   firstName: string;
   lastName: string;
   email: string;
-  idNumber: number | string;
-  /** STUDENT when not sent. */
-  userType?: "STUDENT" | "FACULTY" | "STAFF";
-  /** A lab name or code; no lab when not sent. */
-  labAffiliation?: string;
+  idNumber: string;
+  userType: UserType;
   /** The password as typed. The server stores only its hash. (C-03) */
   password: string;
-  /** The picture as a data URL; becomes users.user_img on approval. */
+  /** The labs the applicant asks to join, at least one. */
+  centerIds: number[];
+  /** The picture as a data URL; becomes users.user_img. */
   avatarUrl?: string;
-}
-
-/** The body of POST /api/auth/approve-registration. Any other field is ignored: the account comes from the stored request. (C-05) */
-export interface ApproveRegistrationInput {
-  /** The REG- id the server gave the request. */
-  requestId: string;
 }
 
 /** The body of POST /api/auth/login. */

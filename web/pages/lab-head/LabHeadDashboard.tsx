@@ -1,14 +1,14 @@
 /**
- * Lab Head screen: Requests, Lab Inventory, Analytics, and Account Approvals, one tab at a time.
+ * Lab Head screen: Requests, Lab Inventory, and Analytics, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /lab-head/* (the tab comes from the URL).
  * Calls: api/assets.api.ts, api/loans.api.ts, features/assets/AssetDetailModal.tsx,
- * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (the loan list, repairs, sign-ups and their decisions).
- * Used by: Lab Head (loan decisions, sign-up approval, the lab inventory report).
+ * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (the loan list and repairs).
+ * Used by: Lab Head (loan decisions, the lab inventory report).
  */
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
-import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, Printer, Download, ShieldCheck, CheckCircle, XCircle } from "lucide-react";
+import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, Printer, Download, CheckCircle, XCircle } from "lucide-react";
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
@@ -19,7 +19,7 @@ import { labMatches } from "@web/features/labs/labMatches";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
+import { Card, CardContent } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { cn } from "@web/components/ui/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
@@ -165,13 +165,12 @@ interface LoanRequest {
  *   (the shared loan list, reloaded through reloadLoans, and loansApi.decideLoan).
  * - inventory: the branch's assets, decommissioned assets, repairs, custody trail, and a printable inventory report.
  * - health: the Lab Head analytics view for the branch.
- * - approvals: pending sign-ups for the branch, approved or rejected through useServerData().
  *
- * @param activeTab "custody", "inventory", "health", or "approvals"
+ * @param activeTab "custody", "inventory", or "health"
  */
 export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const { currentUser } = useSession();
-  const { assets, repairRequests, pendingRegistrations = [], approveRegistration, rejectRegistration, dbLoans, reloadLoans } = useServerData();
+  const { assets, repairRequests, dbLoans, reloadLoans } = useServerData();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "gallery">("gallery");
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
@@ -414,8 +413,6 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
   const branchLoanRequests: LoanRequest[] = dbLoans.filter(l => matchesBranch(l.lab));
 
-  const branchPendingRegistrations = pendingRegistrations.filter(r => matchesBranch(r.labAffiliation));
-
   const branchAssetIds = new Set(displayedAssets.filter(a => matchesBranch(a.lab)).map(a => a.id));
   const branchRepairs = repairRequests.filter(r => branchAssetIds.has(r.assetId));
 
@@ -503,106 +500,6 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
           </div>
         )}
 
-      </div>
-    );
-  }
-
-  // ── Account Approvals ───────────────────────────────────────────────────
-  if (activeTab === "approvals") {
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-[#005A36] flex items-center gap-2">
-              <ShieldCheck size={22} className="text-[#005A36]" />
-              Account Approvals
-            </h1>
-            <p className="text-xs text-muted-foreground mt-1">
-              Approve or decline sign-up requests for your lab.
-            </p>
-          </div>
-          <Badge className="bg-emerald-100 text-[#005A36] border-emerald-300 font-extrabold text-xs px-3 py-1.5 self-start md:self-auto">
-            {branchPendingRegistrations.length} pending sign-ups
-          </Badge>
-        </div>
-
-        {branchPendingRegistrations.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {branchPendingRegistrations.map((req) => (
-              <Card key={req.id} className="border border-slate-200 shadow-sm bg-white overflow-hidden transition-all hover:shadow-md">
-                <div className="h-1.5 bg-[#005A36]" />
-                <CardHeader className="pb-3 flex flex-row items-center gap-3">
-                  <div className="w-12 h-12 rounded-full border-2 border-[#005A36] overflow-hidden flex-shrink-0 bg-slate-100">
-                    <img src={req.avatarUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"} alt="" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-sm font-bold text-slate-800 truncate">
-                        {req.firstName} {req.lastName}
-                      </CardTitle>
-                      <Badge className="text-[9px] bg-amber-100 text-amber-800 border-amber-200 uppercase font-extrabold">
-                        {req.userType}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">{req.email}</p>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-3 pt-0">
-                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-xs space-y-1.5">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-semibold">ID number:</span>
-                      <span className="font-mono font-bold text-slate-700">{req.idNumber}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-semibold">Requested Role:</span>
-                      <span className="font-bold text-[#005A36]">{req.requestedRole}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-semibold">Lab Affiliation:</span>
-                      <span className="font-bold text-slate-700">{req.labAffiliation}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-semibold">Submitted On:</span>
-                      <span className="text-slate-600">{req.submittedAt}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <Button
-                      onClick={async () => {
-                        if (confirm(`Approve registration request for ${req.firstName} ${req.lastName}?\n\nThis creates their account.`)) {
-                          await approveRegistration(req);
-                          alert(`Account for ${req.firstName} ${req.lastName} approved.`);
-                        }
-                      }}
-                      className="flex-1 bg-[#005A36] hover:bg-[#004225] text-white font-bold text-xs h-8 gap-1.5 cursor-pointer"
-                    >
-                      <CheckCircle size={13} /> Approve Account
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        if (confirm(`Decline registration request for ${req.firstName} ${req.lastName}?`)) {
-                          await rejectRegistration(req.id);
-                        }
-                      }}
-                      className="border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs h-8 gap-1.5 cursor-pointer"
-                    >
-                      <XCircle size={13} /> Decline
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card className="border border-slate-200 p-8 text-center bg-slate-50/50">
-            <CheckCircle size={32} className="text-[#005A36] mx-auto mb-2 opacity-60" />
-            <h3 className="text-sm font-bold text-slate-800">No sign-up requests for {userLab}</h3>
-            <p className="text-xs text-muted-foreground mt-1">Nothing is waiting for your approval.</p>
-          </Card>
-        )}
       </div>
     );
   }

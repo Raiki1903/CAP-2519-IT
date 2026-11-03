@@ -20,6 +20,9 @@ export const ID_NUMBER_PATTERN = /^[1-9]\d{7}$/;
 /** The 400 message for an ID number that does not match ID_NUMBER_PATTERN. */
 export const ID_NUMBER_MESSAGE = "Enter your 8-digit DLSU ID number.";
 
+/** The 400 message for a sign-up with no lab. */
+export const NO_LAB_MESSAGE = "Choose at least one lab.";
+
 /** Every value of users.user_type. Must match the `users_user_type` enum in schema.prisma. */
 export const USER_TYPES = ["STUDENT", "FACULTY", "STAFF"] as const;
 
