@@ -398,6 +398,16 @@ In `docs/guides/DATABASE-MIGRATIONS.md`:
 - The six commit 4 decisions are confirmed: the maintenance text map (the board's texts mapped, any other text 400, the outside service kept as `provider`); `destination_center_id` filled from the purpose's "Destination Lab:" line; `asset_inspection_metrics` keyed by (`inspection_id`, `metric_id`); motor speed `higher_is_better` true; user 1 INACTIVE only when it has no role.
 - `projects.funding_agency` stays until commit 9b and is dropped there with the other replaced columns (section 3.4).
 
+**Stop 4 answers (Raiki, Nov 3):**
+
+- **G, the backup:** the dry run uses `C:\dev\uat-data\Dump20261021.sql`, a CCS Cloud copy from the evening of UAT day 1 (2026-10-21 23:32), taken before the UAT reset. It is fine for testing the migration. It is only read, never restored: nothing is restored from it on Nov 8.
+- **P, reading of rule 5:** no free-text status words. Typed Prisma enum keys (for example `"ON_LOAN"` checked by the compiler against the enum) are allowed, in the server and the web.
+- **Q, #96:** Raiki merges after Stop 4. Commits 12 and 13 go on a new branch `fix/96-real-dashboard-numbers` from `main` after the merge, as their own pull request (`Closes #96`, Joel as co-author).
+- **R, migration mapping tests:** skipped (see "Not done" under Stop 4).
+- **S, the Nov 8 deploy:** a fresh database only (the migrations plus the seed). The old CCS Cloud data is never upgraded.
+- **U, the delete dialog:** its error line loses the emoji too, in its own commit (`70406ac2`).
+- **V, the sign-up page's raw error text** (`web/pages/auth/Register.tsx`, a non-JSON answer): left for 2b, which rewrites that page.
+
 ## Stop 4 (2026-11-03): commits 5 to 11 built
 
 **Branch** `feat/batch-1-foundation`, commits `a03c4000` (5) to the commit 11 docs. Nothing pushed. Checks after commit 11: typecheck **32** (49 before commit 5), build passes, tests **506** passed (513 before; every commit message says how its count moved). The report is in chat; this section keeps what Raiki needs to run.
@@ -411,16 +421,30 @@ In `docs/guides/DATABASE-MIGRATIONS.md`:
 | 9 | `c07dc666` feat(assets): master-data-only edits, delete guard, transfers removed | 36 | 494 |
 | 9b | `b7bda343` db: drop the replaced tables and columns | 32 | 491 |
 | 10 | `036a8542` test: foundation rules | 32 | 506 |
-| 11 | docs: data model and lifecycle note, migration log, fix log, AGENTS.md counts and role names | 32 | 506 |
+| 11 | `71e4f4c2` docs: data model and lifecycle note, migration log, fix log, AGENTS.md counts and role names | 32 | 506 |
+| fix | `cc1f68bb` fix(assets): show the server's message, not the raw response (found in B1-H3) | 32 | 513 |
+| fix | `70406ac2` fix(assets): no emoji before the delete dialog's error (answer U) | 32 | 513 |
+| docs | docs: Stop 4 hand check results, Stop 4 answers, backup dry run note | 32 | 513 |
+
+The 7 new tests in `cc1f68bb` are `tests/unit/readResult.test.ts`.
 
 ### Stop 4 steps for Raiki (local only, never CCS Cloud)
 
 The script and its SQL files are outside the repository, in the agent's session scratchpad (the full paths are in the chat report): `b1-stop4.ps1`, `b1-counts-old.sql`, `b1-counts-new.sql`, `b1-scratch.sql`. The script refuses any database but `adric_uat_check` and `adric_b1_dryrun`, connects to localhost only, asks for the local MySQL root password once, and never prints it.
 
-1. **Answer G first:** `Dump20261021.sql` says "Dump completed on 2026-10-21 23:32:19" (MySQL 8.0.46 on an Ubuntu server). Confirm with Macy that this is the pre-UAT backup before step 3.
+1. **Answer G first:** `Dump20261021.sql` says "Dump completed on 2026-10-21 23:32:19" (MySQL 8.0.46 on an Ubuntu server). Answered: it was taken before the UAT reset (section 15, Stop 4 answers, G).
 2. **The UAT reset path on `adric_uat_check`** (section 10): stop anything on ports 4000 and 5173, then `powershell -ExecutionPolicy Bypass -File <scratchpad>\b1-stop4.ps1 -Mode Reset`. It drops and rebuilds the copy from `uat-reset.sql` (0_init, load, resolve, deploy), hashes the passwords, and runs `b1-scratch.sql` (users 10 and 11 become the IT Admin and the Secretary; CITe4D's Head is "UAT LabHead CITe4D One"). Send the agent the printed counts.
 3. **The backup dry run** (section 10): `... b1-stop4.ps1 -Mode DryRun -DumpFile <the confirmed file>`. It builds `adric_b1_dryrun`; the backup file is only read. Send the agent the counts, any tag prefix that matches no lab, and the migration output. Then start the app on `adric_b1_dryrun` (guide step 4 with `DATABASE_NAME=adric_b1_dryrun`) and say whether it loads.
 4. **The hand checks** below, on `adric_uat_check`, started through `C:\dev\uat-data\start-local-uat.ps1`.
+
+### Stop 4: not done
+
+- **Migration mapping tests** (section 8, "Backfill and mapping on fixture rows"): skipped (answer R). Covered by the Stop 3 scratch run on `adric_b1_scratch` and the Stop 4 dry run; the Nov 8 deploy is a fresh database (answer S).
+- **The backup dry run stopped** at the expand migration (error 1267, collations). No after counts and no app start on `adric_b1_dryrun`. A known limit of upgrading old CCS Cloud data, not a defect (answer S; `docs/guides/DATABASE-MIGRATIONS.md`, "Backup dry run").
+- **Staff "Pending Returns" card** still lists returns saved in the browser before the reset (for example CITe4D-0013, "No asset found"). Batch 3 moves return requests into the database (H-02).
+- **Maintenance priority:** every ticket shows priority Medium, because the urgent flag was dropped in 9b. Batch 5 replaces it with the issue type.
+- **Director location counts** ignore the date range and count McKinley under Laguna until #96 (answer Q, `fix/96-real-dashboard-numbers`).
+- **Sign-up page raw error text:** left for 2b (answer V).
 
 ## Batch 1 hand checks
 
@@ -470,4 +494,34 @@ On the local copy **`adric_uat_check`** only, after Stop 4 step 2, started throu
 
 ## Batch 1 hand checks: results
 
-Not run yet.
+Run by Raiki on Nov 3, on the local copies only. CCS Cloud was not touched.
+
+**UAT reset** (`b1-stop4.ps1 -Mode Reset` on `adric_uat_check`): passed.
+- Assets: AVAILABLE 114, ON_LOAN 9, MAINTENANCE 1, PENDING_RETIREMENT 2, RETIRED 1. Assets without a lab: 0.
+- Loans: PENDING_APPROVAL 3, DECLINED 1, ON_LOAN 9, RETURNED 1.
+- Roles 5; users 12 (11 ACTIVE, 1 INACTIVE); user_roles 11; user_centers 7; user_tickets 0.
+- Role holders before the scratch SQL: IT_ADMIN 0, ADRIC_DIRECTOR 2, ADRIC_SECRETARY 0, TSG_STAFF 2, RESEARCHER 7.
+- Campuses: GAME and TE3D LAGUNA, HXIL MCKINLEY, the rest MANILA.
+- All 4 migrations finished. Hash script: 12 hashed, 0 skipped.
+- Scratch SQL: user 10 IT_ADMIN, user 11 ADRIC_SECRETARY, CITe4D Head user 6, CAR Head user 8.
+
+**Backup dry run** (`b1-stop4.ps1 -Mode DryRun` on `adric_b1_dryrun`, from `Dump20261021-nodb.sql`): stopped at the expand migration, a known limit (answer S).
+- Before: assets 57, asset_records 186, asset_monetary 57, asset_loans 34, asset_returns 22, asset_transfers 24, asset_repairs 32, asset_disposals 7, asset_reports 31, projects 4, research_centers 10, roles 5, users 26, user_roles 17, user_centers 20.
+- Tags with no lab: EQ-2026-1564, EQ-2026-2479, EQ-2026-5897, EQ-2026-7063, EQ-2026-8652 (July test assets). `is_immediate` true: 2.
+- The rename migration applied. The expand migration stopped at query 13 (the `funding_sources` insert), error 1267, illegal mix of collations (CCS Cloud's `utf8mb4_0900_ai_ci` against our `utf8mb4_unicode_ci`).
+- No after counts and no app start, because the migration stopped. Raiki dropped `adric_b1_dryrun`. The stray local `adric_db` copy is kept.
+
+**Hand checks** (`adric_uat_check`):
+- **B1-H1** pass. **B1-H2** pass.
+- **B1-H3** pass, with one finding: registering as the Secretary showed the raw answer, "⚠️ Server returned error (403): {"success":false,"error":"Your role is not allowed to do this."}". Fixed in `cc1f68bb`; the delete dialog's emoji went in `70406ac2` (answer U).
+- **B1-H4** pass (a clear sentence). **B1-H5** pass. **B1-H6** pass.
+- **B1-H7** pass: as UAT LabHead CAR, `PUT /api/loans/17/decision` gave 403 "This asset belongs to another lab. Only that lab's Head can decide its loans."
+- **B1-H8** pass.
+- **B1-H9** pass: loan and approval, return finalized, repair acknowledged then Fixed & Completed, asset Available again.
+- Known, not a Batch 1 defect: the Staff "Pending Returns" card still lists browser-saved returns from before the reset (CITe4D-0013, "No asset found"). Batch 3 fixes it.
+
+**Checks after the fixes** (`adric_uat_check`):
+- **H-a** pass: as UAT Custodian Three (the Secretary), Register Equipment, Commit: the line shows only "Your role is not allowed to do this.", no emoji, no raw answer; no asset added.
+- **H-b** pass: as UAT Staff One, Edit Asset, Home Room changed: saves and closes as before.
+- **H-c** pass: as UAT Staff One, the trash icon on an asset with history, Confirm: the line starts with "<tag> cannot be deleted because it has history", no emoji.
+- **B1-H9 repair step, repeated** pass: a repair on the on-loan CITe4D asset, Acknowledge: the asset is in Maintenance, and a query for its loan with status ENDED_BY_MAINTENANCE returns 1 row.

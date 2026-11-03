@@ -182,6 +182,15 @@ $s = Read-Host "Local MySQL root password" -AsSecureString; $p = [Runtime.Intero
 
 Then start the app on the copy ("A fresh local database with demo data", step 4, with `DATABASE_NAME` set to `<db>`) and check the startup line says `Database: <db> on localhost`.
 
+## Backup dry run
+
+- `Dump20261021.sql` is a CCS Cloud copy from 2026-10-21 23:32, taken before the UAT reset. It is only read, never restored.
+- A CCS Cloud dump starts with `CREATE DATABASE AdRIC_DB` and `USE AdRIC_DB`. Loading it as-is goes into a local `AdRIC_DB` (`adric_db` on Windows), not the target. Strip the first two lines first. This line writes `Dump20261021-nodb.sql` next to the dump (UTF-8 without a BOM) and leaves the dump unchanged:
+  ```
+  $dump = "C:\dev\uat-data\Dump20261021.sql"; [IO.File]::WriteAllLines(($dump -replace '\.sql$', '-nodb.sql'), (Get-Content $dump -Encoding UTF8 | Select-Object -Skip 2))
+  ```
+- The dry run on it stops at the expand migration: CCS Cloud's tables are `utf8mb4_0900_ai_ci` and ours are `utf8mb4_unicode_ci` (error 1267). It also has 5 July test assets with `EQ-2026-` tags and 2 `is_immediate` rows. These are known limits of upgrading old data, not defects, because the Nov 8 deploy starts from a fresh database.
+
 ## Writing a Phase 3 change
 
 Every structure change is a migration, tested on your local test database before it is merged. Nobody changes CCS Cloud by hand.
