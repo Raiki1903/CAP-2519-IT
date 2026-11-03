@@ -289,9 +289,10 @@ export async function registerAsset(data: AssetCreateInput): Promise<{ asset: as
         console.log(`📸 Saving image payload for new asset (${imageVal.slice(0, 30)}... [length: ${imageVal.length}])`);
     }
 
-    // The tag prefix is the lab code with anything but letters and digits removed.
-    const labCode = String(data.lab || "CITe4D").trim().replace(/[^a-zA-Z0-9]/g, "") || "CITe4D";
-    const lab = await assetsRepository.findLabByCode(labCode);
+    // The tag prefix is the lab code with anything but letters and digits removed. No lab is refused below: there is
+    // no default lab.
+    const labCode = String(data.lab ?? "").trim().replace(/[^a-zA-Z0-9]/g, "");
+    const lab = labCode ? await assetsRepository.findLabByCode(labCode) : null;
     if (!lab) {
         throw new AppError(400, "Pick a lab from the list.");
     }

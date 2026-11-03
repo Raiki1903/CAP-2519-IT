@@ -155,6 +155,11 @@ export function findLatestRecord(assetId: number) {
     });
 }
 
+/** The research center with this id, or null. */
+export function findLabById(centerId: number) {
+    return prisma.research_centers.findUnique({ where: { center_id: centerId } });
+}
+
 /** The research center with this short code, or null. The database compares it without letter case. */
 export function findLabByCode(shortCode: string) {
     return prisma.research_centers.findFirst({ where: { short_code: shortCode } });

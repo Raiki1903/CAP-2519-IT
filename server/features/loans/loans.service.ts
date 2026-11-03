@@ -1,7 +1,7 @@
 /**
  * Loans service: the business rules for borrow requests, decisions, and the loan list.
  * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, features/assets/assets.repository.ts,
- * and shared/services/lifecycleGuard.ts.
+ * shared/services/lifecycleGuard.ts, and shared/services/permissions.ts (the approver).
  * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
  */
 import { asset_loans_status, type asset_loans } from '@prisma/client';
@@ -13,6 +13,7 @@ import { LOAN_STATUS_LABELS } from '@shared/constants/loanStatuses';
 import { CAMPUS_LABELS } from '@shared/constants/campuses';
 import { AppError } from '../../shared/errors/AppError';
 import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
+import { requireHomeLabHead } from '../../shared/services/permissions';
 import { serverToday } from '../../shared/services/assetState';
 
 /**
@@ -44,29 +45,26 @@ export function legacyLoanStatusLabel(status: asset_loans_status): string {
 
 /**
  * Lists every loan, newest first, shaped for the screens.
- * Every loan goes to every caller; the Lab Head screen keeps its own lab's rows by `lab`. (M-02)
+ * Every loan goes to every caller; the Lab Head screen keeps the loans of the lab it heads by `lab`, the asset's
+ * home lab. (M-02)
  * A Custodian gets no borrower name on another person's loan (D2): `borrower_id` stays, because the asset modal
  * needs to know a loan is pending on the asset whoever asked, and the bell finds the caller's own loans by name.
  *
  * @param viewer the session user
  * @returns one LoanListItem per asset_loans row
  */
-// TODO(M-02): scoping by lab happens only in the browser. Server-side with lab scoping, after step 14 (a lab_id on assets).
+// TODO(M-02): scoping by lab happens only in the browser. Batch 3 adds GET /api/loans/lab-requests for the Lab Head.
 export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]> {
     const dbLoans = await loansRepository.findAllNewestFirst();
 
-    const [dbUsers, dbAssets, dbUserCenters] = await loansRepository.findListLookups();
+    const [dbUsers, dbAssets] = await loansRepository.findListLookups();
 
     const loans: LoanListItem[] = dbLoans.map(l => {
         const borrowerUser = dbUsers.find(u => u.user_id === l.borrower_id);
         const asset = dbAssets.find(a => a.asset_id === l.asset_id);
-        const borrowerCenterLink = dbUserCenters.find(uc => uc.user_id === l.borrower_id);
-        const center = borrowerCenterLink?.research_centers;
-
-        // A loan belongs to the lab that owns the asset, read from the tag prefix ("CeLT-0004" is CeLT),
-        // not to the borrower's own lab: a borrower from another lab still asks the owning Lab Head.
-        // GET /api/asset_transfers and /api/analytics/lab-head use the same convention.
-        const lab = asset?.asset_tag?.includes("-") ? asset.asset_tag.split("-")[0] : "";
+        // A loan belongs to the lab that owns the asset, its home lab, not to the borrower's own lab: a borrower from
+        // another lab still asks the owning Lab Head.
+        const homeLab = asset?.research_centers;
 
         // requestLoan stores the destination lab as the first line of purpose. It is read back out
         // as its own field and removed from the purpose shown, so the screen does not show it twice. (H-19)
@@ -92,9 +90,9 @@ export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]
             dueDate: l.return_by ? l.return_by.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             status: legacyLoanStatusLabel(l.status),
             statusLabel: LOAN_STATUS_LABELS[l.status],
-            location: center ? CAMPUS_LABELS[center.location] : "Manila",
-            lab,
-            center_id: center?.center_id || 1
+            location: homeLab ? CAMPUS_LABELS[homeLab.location] : "",
+            lab: homeLab?.short_code ?? "",
+            center_id: homeLab?.center_id ?? null,
         };
     });
 
@@ -159,7 +157,8 @@ export async function requestLoan(assetTag: string, data: LoanRequestInput, borr
 }
 
 /**
- * Approves or declines a loan in Pending Approval.
+ * Approves or declines a loan in Pending Approval. Only the Head of the asset's home lab decides
+ * (shared/services/permissions.ts resolveLoanApprover).
  * Approval hands the asset over: there is no release step yet, so the loan goes straight to On Loan and the asset to
  * On Loan, in one transaction. Decline closes the loan; the asset stays Available.
  * An approval checks the asset again: it must still be Available. (issue #28)
@@ -169,6 +168,8 @@ export async function requestLoan(assetTag: string, data: LoanRequestInput, borr
  * @param deciderId the session user who decides
  * @returns the updated asset_loans row
  * @throws AppError 404 if no loan has this id
+ * @throws AppError 409 if the asset's lab has no Head yet
+ * @throws AppError 403 if the session user is not the Head of the asset's home lab; the loan is unchanged
  * @throws AppError 400 if the loan is not in Pending Approval any more
  * @throws AppError 409 if an approval finds the asset no longer Available
  */
@@ -178,13 +179,17 @@ export async function decideLoan(loanId: number, decision: LoanDecision, decider
     if (!loan) {
         throw new AppError(404, `No loan found with id ${loanId}.`);
     }
+    const asset = await assetsRepository.findById(loan.asset_id);
+    if (!asset) {
+        throw new AppError(404, `No asset found for loan ${loanId}.`);
+    }
+    await requireHomeLabHead(asset, deciderId);
     if (loan.status !== asset_loans_status.PENDING_APPROVAL) {
         throw new AppError(400, `Loan #${loanId} is ${LOAN_STATUS_LABELS[loan.status]}, so it can no longer be decided.`);
     }
     if (decision === "approve") {
-        const asset = await assetsRepository.findById(loan.asset_id);
         // The open loan is this one, so only the status is checked here.
-        if (asset) assertActionAllowed(asset, "REQUEST_LOAN");
+        assertActionAllowed(asset, "REQUEST_LOAN");
     }
 
     return loansRepository.saveDecision(loan, decision === "approve" ? asset_loans_status.ON_LOAN : asset_loans_status.DECLINED, deciderId);

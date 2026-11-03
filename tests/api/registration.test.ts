@@ -49,7 +49,7 @@ const roleNamesOf = async (userId: number): Promise<string[]> =>
   (await db.user_roles.findMany({ where: { user_id: userId }, include: { roles: true } })).map((ur) => ur.roles.role_name);
 
 describe("POST /api/auth/register-request", () => {
-  it("answers 200 with a PENDING registration and the default role, lab, and user type", async () => {
+  it("answers 200 with a PENDING registration, the default role and user type, and no lab when none is sent", async () => {
     const body = applicant();
     const res = await api.post("/api/auth/register-request", body);
 
@@ -62,7 +62,7 @@ describe("POST /api/auth/register-request", () => {
       idNumber: body.idNumber,
       userType: "STUDENT",
       requestedRole: "Custodian",
-      labAffiliation: "CITe4D",
+      labAffiliation: "",
       status: "PENDING",
     });
     expect(res.body.registration.id).toMatch(/^REG-\d{6}$/);

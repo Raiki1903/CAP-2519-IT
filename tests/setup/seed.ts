@@ -60,6 +60,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
       password: passwordHashes[i],
       id_number: u.idNumber,
       user_type: u.userType,
+      account_status: "ACTIVE",
     })),
   });
   await prisma.user_roles.createMany({

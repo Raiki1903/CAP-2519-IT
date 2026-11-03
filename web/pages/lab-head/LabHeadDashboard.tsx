@@ -458,13 +458,13 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     printWindow.document.close();
   };
 
-  // TODO(M-14): with no lab on the account this falls back to CITE4D's long name, which the analytics tab then uses as an asset tag prefix and matches nothing. Small fix branch.
-  const userLab = (currentUser as any)?.labAffiliation || "Center for ICT for Development (CITE4D)";
+  // The lab this account heads; the Lab Head view is only given to an account that heads one.
+  const userLab = currentUser?.headOf?.code ?? "";
 
-  // Scopes records to the Lab Head's lab affiliation using the shared labMatches helper. (F-31)
-  // TODO(M-02): scoping to the Lab Head's branch happens only here, in the browser; the server sends every lab's rows. Moves to the server (01D section 7) with lab scoping, after step 14 (a lab_id on assets).
+  // Scopes records to the lab this account heads, using the shared labMatches helper. (F-31)
+  // TODO(M-02): scoping to the Lab Head's lab happens only here, in the browser; the server sends every lab's rows. Batch 3 adds the lab's own request list.
   const matchesBranch = (lab: string | undefined | null) => {
-    return labMatches(currentUser?.labAffiliation, lab);
+    return labMatches(currentUser?.headOf?.code, lab);
   };
 
   const branchInventory = displayedAssets.filter(a => matchesBranch(a.lab) && a.status !== "RETIRED");

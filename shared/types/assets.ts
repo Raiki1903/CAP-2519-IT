@@ -24,7 +24,7 @@ export interface AssetCreateInput {
   acquisitionValue?: number | string;
   /** The campus; stored with the lab as "<campus> — <lab>". */
   location?: string;
-  /** The lab code. Also the tag prefix: the new asset gets "<lab>-<next number>". CITe4D when not sent. */
+  /** The lab code. Also the tag prefix: the new asset gets "<lab>-<next number>". Required: there is no default lab. */
   lab?: string;
   /** users.user_id of the first custodian; user 1 when not sent. */
   custodianId?: number;

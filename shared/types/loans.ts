@@ -46,10 +46,10 @@ export interface LoanListItem {
   status: string;
   /** The label of the stored status, for example "Pending Approval" or "On Loan". */
   statusLabel: string;
-  /** The borrower's campus, from their research center; "Manila" when they have none. */
+  /** The campus label of the asset's home lab. */
   location: string;
-  /** The asset tag's prefix, which the Lab Head screen uses to show only its own lab's requests. (M-02) */
+  /** The short code of the asset's home lab, which the Lab Head screen uses to show only its own lab's requests. (M-02) */
   lab: string;
-  /** The borrower's research center id; 1 when they have none. */
-  center_id: number;
+  /** The asset's home lab id, or null if the asset is gone. */
+  center_id: number | null;
 }

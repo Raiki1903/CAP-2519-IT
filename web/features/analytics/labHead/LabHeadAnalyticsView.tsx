@@ -55,9 +55,9 @@ const cardAnimation = {
  * Utilization gauge, category breakdown, and the lab's loan and transfer request lists.
  * Calls analyticsApi.getLabHeadAnalyticsRaw().
  *
- * @param lab the lab to show, default "CITe4D"
+ * @param lab the lab the account heads, shown in the headings; the server answers for that lab whatever is sent
  */
-export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "CITe4D" }) => {
+export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "" }) => {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
@@ -923,10 +923,10 @@ export const AccountabilityHeatmapWidget: React.FC<{ lab: string }> = ({ lab }) 
 /**
  * The Lab Head's analytics screen: lays out five widgets for one lab.
  *
- * @param lab the lab to show, default "CITe4D"
+ * @param lab the lab the account heads, shown in the headings; the server answers for that lab whatever is sent
  */
 // TODO(M-01): all five widgets fetch GET /api/analytics/lab-head on their own, four with the same query, so one screen sends that request five times. Step 12 (analytics).
-export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "CITe4D" }) => {
+export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "" }) => {
   return (
     <div className="space-y-8 text-foreground font-sans">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border pb-4">

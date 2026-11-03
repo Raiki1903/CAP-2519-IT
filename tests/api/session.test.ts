@@ -214,7 +214,7 @@ describe("requireAuth: who gets a 401", () => {
 
   it("keeps accepting the cookie of an account deleted after login for up to 60 seconds (the lookup cache), and a new login fails", async () => {
     const temp = await db.users.create({
-      data: { first_name: "Test", last_name: "Temporary", email: "temporary@example.test", password: await hashPassword("test-password-temporary"), id_number: 90009999, user_type: "STUDENT" },
+      data: { first_name: "Test", last_name: "Temporary", email: "temporary@example.test", password: await hashPassword("test-password-temporary"), id_number: 90009999, user_type: "STUDENT", account_status: "ACTIVE" },
     });
     const tempUser = { ...USERS.custodianA, userId: temp.user_id, email: temp.email, password: "test-password-temporary" };
     try {
@@ -265,7 +265,7 @@ describe("requireRole: the role is read from the database, at most once a minute
 });
 
 describe("the session lookup cache (server/shared/services/sessionCache.ts), with a test clock", () => {
-  const identity = { userId: 6, role: "Custodian" as const, staffUnit: null };
+  const identity = { userId: 6, role: "Custodian" as const, staffUnit: null, dbRoles: ["RESEARCHER" as const], accountStatus: "ACTIVE" as const, headOfCenterId: null };
   const T0 = 1_000_000_000_000;
 
   it("remembers a lookup for just under 60 seconds and forgets it at 60", () => {

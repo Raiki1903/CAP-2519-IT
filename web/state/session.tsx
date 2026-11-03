@@ -5,7 +5,8 @@
  * Used by: every role.
  */
 import { createContext, useContext, useState, useEffect, useRef } from "react";
-import type { Role, StaffUnit } from "@shared/enums/role";
+import { APP_ROLE_LABELS, type Role, type StaffUnit } from "@shared/enums/role";
+import type { SessionLab } from "@shared/types/auth";
 import * as authApi from "../api/auth.api";
 import { setUnauthorizedHandler } from "../api/client";
 
@@ -79,8 +80,14 @@ export interface SessionUser {
   profilePicture?: string;
   userImg?: string;
   avatarUrl?: string;
-  /** Short code of the person's first research center, for example "CITe4D". */
-  labAffiliation?: string;
+  /** Every lab the person belongs to. No first or default lab: a person with no lab has []. */
+  labs?: SessionLab[];
+  /** The lab this account heads, or null. Heading a lab gives the Lab Head view. */
+  headOf?: { centerId: number; code: string } | null;
+  /** The account status; only an Active account may act. */
+  accountStatus?: string;
+  /** The role's label, for example "Researcher" for the Custodian view. */
+  roleLabel?: string;
   /** ITS or TSG for a Staff account, null for every other role. See `StaffUnit`. */
   staffUnit?: StaffUnit | null;
 }
@@ -316,7 +323,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           profilePicture: savedImg,
           userImg: savedImg,
           avatarUrl: savedImg,
-          labAffiliation: data.user.labAffiliation
+          labs: data.user.labs
         } as any);
       }
     } catch (e) {
@@ -370,13 +377,11 @@ export const roleToSlug: Record<Role, string> = {
   AdRICDirector: "adric-director",
 };
 
-/** The name each role is shown by, on every screen (sidebar, mobile header, Preferences, the no-access screen). */
-export const roleLabel: Record<Role, string> = {
-  Staff: "Staff",
-  LabHead: "Lab Head",
-  Custodian: "Custodian",
-  AdRICDirector: "AdRIC Director",
-};
+/**
+ * The name each role is shown by, on every screen (sidebar, mobile header, Preferences, the no-access screen).
+ * The Custodian view's person is a Researcher.
+ */
+export const roleLabel: Record<Role, string> = APP_ROLE_LABELS;
 
 /** Where each role lands after login, and where the no-access and not-found screens send it. */
 export const roleDefaultPath: Record<Role, string> = {

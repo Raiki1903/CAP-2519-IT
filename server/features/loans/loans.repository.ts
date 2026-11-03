@@ -17,18 +17,14 @@ export function findAllNewestFirst() {
 }
 
 /**
- * Every user, asset, and user-to-center link (with its center), read together
- * so the list can name each loan's borrower, asset, and campus.
+ * Every user and asset (with its home lab), read together so the list can name each loan's borrower, asset, and lab.
  *
- * @returns [users, assets, user_centers with research_centers]
+ * @returns [users, assets with research_centers]
  */
 export function findListLookups() {
     return Promise.all([
         prisma.users.findMany(),
-        prisma.assets.findMany(),
-        prisma.user_centers.findMany({
-            include: { research_centers: true }
-        }),
+        prisma.assets.findMany({ include: { research_centers: true } }),
     ]);
 }
 

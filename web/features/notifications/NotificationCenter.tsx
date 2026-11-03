@@ -154,7 +154,7 @@ export function NotificationCenter() {
           isRelevant = true;
           actionRequired = role === "AdRICDirector";
         } else if (role === "LabHead") {
-          const hasLabOverdue = overdueAssets.some(a => a.custodian === custName && labMatches(currentUser?.labAffiliation, a.lab));
+          const hasLabOverdue = overdueAssets.some(a => a.custodian === custName && labMatches(currentUser?.headOf?.code, a.lab));
           if (hasLabOverdue) isRelevant = true;
         } else if (role === "Custodian" && custName === currentUserName) {
           isRelevant = true;
@@ -239,7 +239,7 @@ export function NotificationCenter() {
           isRelevant = true;
           actionRequired = true;
         } else if (role === "LabHead") {
-          if (labMatches(currentUser?.labAffiliation, txn.lab)) {
+          if (labMatches(currentUser?.headOf?.code, txn.lab)) {
             isRelevant = true;
             actionRequired = true;
           }
@@ -276,7 +276,7 @@ export function NotificationCenter() {
         let actionRequired = false;
 
         if (role === "LabHead") {
-          if (labMatches(currentUser?.labAffiliation, loan.lab)) {
+          if (labMatches(currentUser?.headOf?.code, loan.lab)) {
             isRelevant = true;
             actionRequired = true; // Pending Lab Head authorization
           }
@@ -346,7 +346,7 @@ export function NotificationCenter() {
         isRelevant = true;
       } else if (role === "LabHead") {
         // Only disposals of the Lab Head's own lab's assets. (F-31)
-        isRelevant = labMatches(currentUser?.labAffiliation, assets.find(a => a.id === disp.assetId)?.lab);
+        isRelevant = labMatches(currentUser?.headOf?.code, assets.find(a => a.id === disp.assetId)?.lab);
       }
 
       if (isRelevant) {
@@ -402,7 +402,7 @@ export function NotificationCenter() {
         if (role === "AdRICDirector") {
           if (isHighValue) isRelevant = true;
         } else if (role === "LabHead") {
-          if (labMatches(currentUser?.labAffiliation, asset.lab)) isRelevant = true;
+          if (labMatches(currentUser?.headOf?.code, asset.lab)) isRelevant = true;
         } else if (role === "Custodian") {
           if (isMyAsset) {
             isRelevant = true;
@@ -429,7 +429,7 @@ export function NotificationCenter() {
 
       // Due Soon
       if (isDueSoon) {
-        let isRelevant = (role === "Custodian" && isMyAsset) || (role === "LabHead" && labMatches(currentUser?.labAffiliation, asset.lab));
+        let isRelevant = (role === "Custodian" && isMyAsset) || (role === "LabHead" && labMatches(currentUser?.headOf?.code, asset.lab));
         if (isRelevant) {
           reminders.push({
             id: `REM-DUE-${asset.id}`,
@@ -447,14 +447,14 @@ export function NotificationCenter() {
 
       // Degraded Condition / High Value Maintenance
       if (isDegraded) {
-        let isRelevant = role === "Staff" || (role === "AdRICDirector" && isHighValue) || (role === "LabHead" && labMatches(currentUser?.labAffiliation, asset.lab));
+        let isRelevant = role === "Staff" || (role === "AdRICDirector" && isHighValue) || (role === "LabHead" && labMatches(currentUser?.headOf?.code, asset.lab));
         if (isRelevant) {
           reminders.push({
             id: `REM-DEG-${asset.id}`,
             type: "degraded",
             title: `Degraded Health Alert: ${asset.name}`,
             description: `Device health score is ${asset.healthScore} in lab ${asset.lab}. Maintenance inspection recommended.`,
-            needsAction: role === "Staff" || (role === "LabHead" && labMatches(currentUser?.labAffiliation, asset.lab)),
+            needsAction: role === "Staff" || (role === "LabHead" && labMatches(currentUser?.headOf?.code, asset.lab)),
             targetTab: "repairs",
             meta: asset
           });
@@ -489,7 +489,7 @@ export function NotificationCenter() {
             actionRequired = true;
           }
         } else if (role === "LabHead") {
-          if (labMatches(currentUser?.labAffiliation, loan.lab)) {
+          if (labMatches(currentUser?.headOf?.code, loan.lab)) {
             isRelevant = true;
             actionRequired = true;
           }

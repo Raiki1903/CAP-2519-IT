@@ -7,14 +7,15 @@
 import express from 'express';
 import * as maintenanceController from './maintenance.controller';
 import { requireAuth } from '../../shared/middleware/requireAuth';
-import { requireRole } from '../../shared/middleware/requireRole';
+import { requireActive, requireAnyRole, requireTsg } from '../../shared/middleware/permissions';
 
 /** The four repair endpoints. Paths are written out in full, so app.ts mounts the router at the root. */
 export const maintenanceRouter = express.Router();
 
-// Every route needs a session; the roles are the approved 13b role table (rows 23 to 26).
-maintenanceRouter.post('/api/assets/:assetTag/maintenance', requireAuth, requireRole('Custodian', 'LabHead', 'Staff'), maintenanceController.requestRepair);
-maintenanceRouter.get('/api/maintenance', requireAuth, maintenanceController.listRepairs);
+// Every route needs a session and an Active account. A Researcher, a Lab Head, or TSG reports an issue; TSG moves the
+// ticket. The IT Admin and the Secretary have no asset steps.
+maintenanceRouter.post('/api/assets/:assetTag/maintenance', requireAuth, requireActive, requireAnyRole('RESEARCHER', 'LAB_HEAD', 'TSG_STAFF'), maintenanceController.requestRepair);
+maintenanceRouter.get('/api/maintenance', requireAuth, requireActive, maintenanceController.listRepairs);
 // Two endpoints change a ticket's status, with different side effects (H-06). Both kept in step 12, as decided.
-maintenanceRouter.put('/api/maintenance/:repairId', requireAuth, requireRole('Staff'), maintenanceController.updateRepair);
-maintenanceRouter.put('/api/maintenance/:repairId/status', requireAuth, requireRole('Staff'), maintenanceController.updateRepairStatus);
+maintenanceRouter.put('/api/maintenance/:repairId', requireAuth, requireActive, requireTsg, maintenanceController.updateRepair);
+maintenanceRouter.put('/api/maintenance/:repairId/status', requireAuth, requireActive, requireTsg, maintenanceController.updateRepairStatus);

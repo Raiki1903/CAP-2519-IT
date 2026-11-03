@@ -6,7 +6,8 @@
  */
 import type { roles, user_roles, users } from '@prisma/client';
 import { MAX_PASSWORD_LENGTH } from '@shared/constants/passwords';
-import type { Role, StaffUnit } from '@shared/enums/role';
+import { ACCOUNT_NOT_ACTIVE_MESSAGE } from '@shared/constants/accountStatuses';
+import { APP_ROLE_LABELS, type DatabaseRole, type Role, type StaffUnit } from '@shared/enums/role';
 import type {
     AccountUpdateInput,
     AccountUser,
@@ -18,8 +19,10 @@ import type {
     ProfileUser,
     RegistrationRequestInput,
     SessionIdentity,
+    SessionLab,
 } from '@shared/types/auth';
 import * as authRepository from './auth.repository';
+import type { UserProfileRow } from './auth.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { env } from '../../config/env';
 import { DUMMY_PASSWORD_HASH, hashPassword, isPasswordHash, verifyPassword } from '../../shared/services/passwords';
@@ -94,7 +97,7 @@ export async function requestRegistration(data: RegistrationRequestInput): Promi
         idNumber: Number(idNumber),
         userType: userType || "STUDENT",
         requestedRole: "Custodian",
-        labAffiliation: labAffiliation || "CITe4D",
+        labAffiliation: labAffiliation || "",
         password: passwordHash,
         avatarUrl,
         submittedAt: new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }),
@@ -218,16 +221,50 @@ const LOGIN_REFUSED_MESSAGE = "Invalid institutional email address or password."
 /** What a dummy verify hashes in place of a password that is not worth hashing. */
 const UNUSABLE_PASSWORD_STAND_IN = "unusable";
 
+/** Every lab the user belongs to, by lab code. There is no first or default lab: no link means []. */
+function labsOf(user: UserProfileRow): SessionLab[] {
+    return user.user_centers.map(uc => ({
+        centerId: uc.research_centers.center_id,
+        code: uc.research_centers.short_code,
+        name: uc.research_centers.name,
+        campus: uc.research_centers.location,
+    }));
+}
+
+/** The lab the user heads, or null. */
+function headOf(user: UserProfileRow): LoginUser['headOf'] {
+    return user.headed_center ? { centerId: user.headed_center.center_id, code: user.headed_center.short_code } : null;
+}
+
+/** The profile login, /me, and the session reload send: the person's own facts, every lab, and the lab they head. */
+function profileOf(user: UserProfileRow, staffUnit: StaffUnit | null): LoginUser {
+    return {
+        userId: user.user_id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        idNumber: user.id_number,
+        userType: user.user_type,
+        userImg: user.user_img,
+        profilePicture: user.user_img,
+        labs: labsOf(user),
+        headOf: headOf(user),
+        accountStatus: user.account_status,
+        staffUnit,
+    };
+}
+
 /**
- * Logs a user in by email and password. Every refusal runs one verify and gives the same answer, so neither the
- * answer nor its timing reveals which emails exist. An account whose password is still plain text cannot log in:
- * prisma/hashExistingPasswords.ts is the path for old accounts.
- * The lab is the short code of the account's first lab link, or "CITe4D" when it has none.
+ * Logs a user in by email and password. Every refusal of the email or password runs one verify and gives the same
+ * answer, so neither the answer nor its timing reveals which emails exist. An account whose password is still plain
+ * text cannot log in: prisma/hashExistingPasswords.ts is the path for old accounts. Only once the password is right is
+ * an account that is not Active refused, with 403.
  *
  * @param email the email as sent; the repository trims it
  * @param password the password as sent
  * @returns the app role and the profile the session keeps
  * @throws AppError 401 if no account has this email and password
+ * @throws AppError 403 if the account is Pending, Inactive, or Rejected
  */
 export async function login(email: string, password: string): Promise<{ role: string; user: LoginUser }> {
     // Refused before the lookup, so the email plays no part. The check also stops a huge password being hashed.
@@ -245,26 +282,12 @@ export async function login(email: string, password: string): Promise<{ role: st
     if (!user || !passwordMatches) {
         throw new AppError(401, LOGIN_REFUSED_MESSAGE);
     }
+    if (user.account_status !== "ACTIVE") {
+        throw new AppError(403, ACCOUNT_NOT_ACTIVE_MESSAGE);
+    }
 
     const { role: determinedRole, staffUnit } = appRoleFor(user.user_roles || [], user.headed_center !== null);
-
-    const primaryCenter = user.user_centers[0]?.research_centers?.short_code || "CITe4D";
-
-    return {
-        role: determinedRole,
-        user: {
-            userId: user.user_id,
-            firstName: user.first_name,
-            lastName: user.last_name,
-            email: user.email,
-            idNumber: user.id_number,
-            userType: user.user_type,
-            userImg: user.user_img,
-            profilePicture: user.user_img,
-            labAffiliation: primaryCenter,
-            staffUnit
-        }
-    };
+    return { role: determinedRole, user: profileOf(user, staffUnit) };
 }
 
 /**
@@ -292,7 +315,8 @@ export function endSession(token: string | undefined): void {
 
 /**
  * Who a session token belongs to, for requireAuth: the token must verify, must not have logged out, and its account
- * must exist. The app role comes from appRoleFor, as for login and /me.
+ * must exist. The app role comes from appRoleFor, as for login and /me; the database roles, the account status, and
+ * the lab the account heads come along for the permission checks (shared/middleware/permissions.ts).
  * The signature, expiry, and logged-out checks run on every request without the database, so a logout or a
  * tampered cookie is refused at once. The account and its roles are read from the database at most once a minute
  * per token (shared/services/sessionCache.ts), so a changed role or a removed account takes effect within
@@ -314,14 +338,21 @@ export async function sessionIdentityFor(token: string): Promise<SessionIdentity
     if (!user) return null;
 
     const { role, staffUnit } = appRoleFor(user.user_roles || [], user.headed_center !== null);
-    const identity: SessionIdentity = { userId: user.user_id, role: role as Role, staffUnit };
+    const identity: SessionIdentity = {
+        userId: user.user_id,
+        role: role as Role,
+        staffUnit,
+        dbRoles: (user.user_roles || []).map(ur => ur.roles.role_name as DatabaseRole),
+        accountStatus: user.account_status,
+        headOfCenterId: user.headed_center?.center_id ?? null,
+    };
     rememberIdentity(token, identity);
     return identity;
 }
 
 /**
  * The profile and app role of the session's own account, for the session reload and the account page.
- * Same mapping and lab fallback as login, with the role inside the profile.
+ * Same profile as login, with the role and its label inside it.
  *
  * @param userId the session user (C-06: never an email the caller sends)
  * @returns the profile with its role
@@ -335,22 +366,7 @@ export async function getProfile(userId: number): Promise<ProfileUser> {
     }
 
     const { role: determinedRole, staffUnit } = appRoleFor(user.user_roles || [], user.headed_center !== null);
-
-    const primaryCenter = user.user_centers[0]?.research_centers?.short_code || "CITe4D";
-
-    return {
-        userId: user.user_id,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        email: user.email,
-        idNumber: user.id_number,
-        userType: user.user_type,
-        userImg: user.user_img,
-        profilePicture: user.user_img,
-        labAffiliation: primaryCenter,
-        role: determinedRole,
-        staffUnit
-    };
+    return { ...profileOf(user, staffUnit), role: determinedRole, roleLabel: APP_ROLE_LABELS[determinedRole as Role] };
 }
 
 /**
@@ -360,7 +376,7 @@ export async function getProfile(userId: number): Promise<ProfileUser> {
  *
  * @param userId the session user
  * @param data the checked body: names, and the optional picture (under three names)
- * @returns the updated users row, for the log line, and the profile the answer sends, with the account's own lab
+ * @returns the updated users row, for the log line, and the profile the answer sends, with the account's labs
  * @throws AppError 404 if the account no longer exists (deleted within the 60-second session cache)
  */
 export async function updateAccount(userId: number, data: AccountUpdateInput): Promise<{ updatedUser: users; user: AccountUser }> {
@@ -384,9 +400,8 @@ export async function updateAccount(userId: number, data: AccountUpdateInput): P
 
     const updatedUser = await authRepository.updateUser(user.user_id, updateData);
 
-    // The account's own lab, by the same rule as login and /me, so the session and the account page agree.
+    // The account's labs, as login and /me give them, so the session and the account page agree.
     const profile = await authRepository.findUserProfileById(user.user_id);
-    const accountLab = profile?.user_centers[0]?.research_centers?.short_code || "CITe4D";
 
     return {
         updatedUser,
@@ -400,7 +415,7 @@ export async function updateAccount(userId: number, data: AccountUpdateInput): P
             userImg: updatedUser.user_img,
             profilePicture: updatedUser.user_img,
             avatarUrl: updatedUser.user_img,
-            labAffiliation: accountLab
+            labs: profile ? labsOf(profile) : [],
         }
     };
 }

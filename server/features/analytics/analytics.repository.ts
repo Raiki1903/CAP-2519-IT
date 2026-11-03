@@ -184,6 +184,11 @@ export function findTransfersForLabHead(prefixFilter: string, startDate: Date | 
     });
 }
 
+/** The research center with this id, or null: the lab a Lab Head heads. */
+export function findLab(centerId: number) {
+    return prisma.research_centers.findUnique({ where: { center_id: centerId } });
+}
+
 /** The lab's assets: those whose home lab has this short code, or, with no lab, every asset outside the EQ- central pool. */
 function labAssetWhere(prefixFilter: string) {
     const assetWhere: any = {};

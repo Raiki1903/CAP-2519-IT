@@ -96,7 +96,7 @@ interface Props {
  * Shows one asset, with its current custodian under the name, and switches between its detail view, custodian history, and the request forms.
  * The buttons depend on role and status: a Custodian can request a loan (Active),
  * a transfer, repair, or return (On Loan); Staff can send it to maintenance, and record its return
- * when it is On Loan or Overdue; a Lab Head can open the full custodian history. Calls assetsApi.getCustodianHistory() and
+ * when it is On Loan or Overdue; a Lab Head can open the full asset history. Calls assetsApi.getAssetHistory() and
  * reloads the shared loan list (reloadLoans) when it opens.
  *
  * @param asset the asset to show, or null for a closed modal. It is shown as passed, the row of the list it

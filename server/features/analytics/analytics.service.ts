@@ -22,6 +22,8 @@ import * as analyticsRepository from './analytics.repository';
 import { progressTextOf } from '../maintenance/maintenance.service';
 import { legacyLoanStatusLabel } from '../loans/loans.service';
 import type { DirectorFilters, LabHeadFilters } from './analytics.validation';
+import type { SessionIdentity } from '@shared/types/auth';
+import { AppError } from '../../shared/errors/AppError';
 
 /**
  * The old four status keys the response shapes still use, for each stored status. Pending Retirement and Missing have
@@ -349,16 +351,23 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
 }
 
 /**
- * Builds the Lab Head dashboard for one lab prefix: loan and transfer requests, utilization, categories,
+ * Builds the Lab Head dashboard for the lab the viewer heads: loan and transfer requests, utilization, categories,
  * project allocation, overdue loans, and the scatter and heatmap built from them.
  * The date range limits the loans and transfers only.
+ *
+ * @param filters the date range
+ * @param viewer the session user, a Lab Head (the route checks it)
+ * @throws AppError 403 if the viewer heads no lab
  */
-export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHeadAnalyticsData> {
-    const { prefixFilter, startDate, endDate } = filters;
+export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionIdentity): Promise<LabHeadAnalyticsData> {
+    const { startDate, endDate } = filters;
+    const lab = viewer.headOfCenterId === null ? null : await analyticsRepository.findLab(viewer.headOfCenterId);
+    if (!lab) {
+        throw new AppError(403, "Only the account that heads a lab has a lab dashboard.");
+    }
+    const prefixFilter = lab.short_code;
 
     const rawLoans = await analyticsRepository.findLoansForLabHead(prefixFilter, startDate, endDate);
-
-    console.log(`📡 [Prisma/MySQL] /api/analytics/lab-head (prefix: "${prefixFilter}") fetched ${rawLoans.length} filtered loans from DB.`);
 
     const loans = rawLoans.map(l => {
         // The borrow form's destination lab is stored as the first line of the purpose, so it is read back

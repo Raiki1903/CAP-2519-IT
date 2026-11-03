@@ -13,6 +13,7 @@ import { RETIREMENT_STATUS_LABELS } from '@shared/constants/retirementStatuses';
 import { AppError } from '../../shared/errors/AppError';
 import { assertActionAllowed, isActionAllowed } from '../../shared/services/lifecycleGuard';
 import { holderOf } from '../../shared/services/assetState';
+import { notSameActor } from '../../shared/services/permissions';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
 
 /**
@@ -125,7 +126,7 @@ export async function listDisposals(): Promise<DisposalListItem[]> {
  * Approves or rejects a pending disposal request, in one transaction.
  * Approval retires the asset at once: there is no completion step yet, so the request goes straight to Completed and the
  * asset to Retired. Rejection (Denied) gives the asset back its status from before the request.
- * The server does not check who decides (C-02); the screens give the decision to the Director.
+ * The Director or the Secretary decides (the route), never the person who requested it.
  * An approval needs the asset still in Pending Retirement. A rejection is never refused, so stale requests can be
  * cleared; it changes the asset only while the asset is in Pending Retirement. (issue #28)
  *
@@ -134,6 +135,7 @@ export async function listDisposals(): Promise<DisposalListItem[]> {
  * @param deciderId the session user who decides
  * @returns the updated asset_retirements row
  * @throws AppError 404 if no disposal has this id
+ * @throws AppError 403 if the session user requested it
  * @throws AppError 400 if the disposal is not pending any more
  * @throws AppError 409 if an approval finds the asset no longer in Pending Retirement
  */
@@ -143,6 +145,7 @@ export async function decideDisposal(disposalId: number, decision: DisposalDecis
     if (!disposal) {
         throw new AppError(404, `No disposal request found with id ${disposalId}.`);
     }
+    notSameActor(disposal.requested_by_id, deciderId, "You requested this retirement, so someone else must decide it.");
     if (disposal.status !== asset_retirements_status.PENDING) {
         throw new AppError(400, `Disposal #${disposalId} is ${RETIREMENT_STATUS_LABELS[disposal.status]}, so it can no longer be decided.`);
     }

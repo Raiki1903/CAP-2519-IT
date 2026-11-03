@@ -113,25 +113,21 @@ export function createUser(data: Prisma.usersUncheckedCreateInput, roleId: numbe
     });
 }
 
+/** What a profile read includes: the roles, every lab link (by lab code), and the lab the user heads. */
+const PROFILE_INCLUDE = {
+    user_roles: { include: { roles: true } },
+    user_centers: { include: { research_centers: true }, orderBy: { research_centers: { short_code: 'asc' } } },
+    headed_center: { select: { center_id: true, short_code: true } },
+} satisfies Prisma.usersInclude;
+
+/** A user with their roles, labs, and the lab they head. */
+export type UserProfileRow = Prisma.usersGetPayload<{ include: typeof PROFILE_INCLUDE }>;
+
 /** The user with this email (trimmed), with their roles, labs, and the lab they head, or null. The service checks the password. */
 export function findUserForLogin(email: string) {
     return prisma.users.findFirst({
-        where: {
-            email: email.trim()
-        },
-        include: {
-            user_roles: {
-                include: {
-                    roles: true
-                }
-            },
-            user_centers: {
-                include: {
-                    research_centers: true
-                }
-            },
-            headed_center: { select: { center_id: true } }
-        }
+        where: { email: email.trim() },
+        include: PROFILE_INCLUDE,
     });
 }
 
@@ -139,11 +135,7 @@ export function findUserForLogin(email: string) {
 export function findUserProfileById(userId: number) {
     return prisma.users.findUnique({
         where: { user_id: userId },
-        include: {
-            user_roles: { include: { roles: true } },
-            user_centers: { include: { research_centers: true } },
-            headed_center: { select: { center_id: true } }
-        }
+        include: PROFILE_INCLUDE,
     });
 }
 

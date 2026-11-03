@@ -9,6 +9,7 @@
 import type { Request, Response } from 'express';
 import * as analyticsService from './analytics.service';
 import { readCategoryQuery, readDirectorFilters, readLabHeadFilters, readLabQuery } from './analytics.validation';
+import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /** Handles GET /api/analytics/advanced/idle-time: how long the ACTIVE assets have been idle, in three groups. Optional `?lab`. */
 export async function getIdleTime(req: Request, res: Response): Promise<void> {
@@ -52,12 +53,12 @@ export async function getDirectorAnalytics(req: Request, res: Response): Promise
 }
 
 /**
- * Handles GET /api/analytics/lab-head: the Lab Head dashboard. Optional `?labPrefix` (or `?lab`), `?startDate`, `?endDate`.
- * A repeated prefix makes the query reading throw a TypeError, which errorHandler answers with its generic 500.
+ * Handles GET /api/analytics/lab-head: the dashboard of the lab the session user heads. Optional `?startDate`,
+ * `?endDate`; a lab in the query is not read, so a Lab Head sees only their own lab. (C-02)
  */
 export async function getLabHeadAnalytics(req: Request, res: Response): Promise<void> {
     const filters = readLabHeadFilters(req.query);
-    const data = await analyticsService.labHeadDashboard(filters);
+    const data = await analyticsService.labHeadDashboard(filters, sessionUserOf(req));
     res.json({ success: true, data });
 }
 

@@ -10,6 +10,9 @@ export const ACCOUNT_STATUSES = ["PENDING", "ACTIVE", "INACTIVE", "REJECTED"] as
 /** One value of users.account_status. */
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
+/** The 403 message, at login and on every step, for an account that is Pending, Inactive, or Rejected. */
+export const ACCOUNT_NOT_ACTIVE_MESSAGE = "This account is not active. Contact the IT Admin.";
+
 /** The label every screen shows for each account status. */
 export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
   PENDING: "Pending",

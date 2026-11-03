@@ -17,7 +17,7 @@ import { addExtraAsset, removeExtraAssets } from "../setup/extraAssets";
 import { ASSETS, FUNDING_SOURCE, LAB, LOOKUPS, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
-const { db, as } = useApiHarness();
+const { db, as, logIn, withCookie } = useApiHarness();
 const asDirector = as(USERS.director);
 const asLabHead = as(USERS.labHead);
 const asStaff = as(USERS.staffTsg);
@@ -243,18 +243,37 @@ describe("GET /api/analytics/lab-head", () => {
     heatmapData: [],
   };
 
-  it("defaults to the CITe4D prefix, which no seeded asset has, and answers empty data", async () => {
+  it("answers the dashboard of the lab the account heads, with no query", async () => {
     const res = await asLabHead.get("/api/analytics/lab-head");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, data: EMPTY_LAB });
+    expect(res.body.data.loans).toHaveLength(2);
+    expect(res.body.data.utilization.totalAssetsCount).toBe(6);
   });
 
-  it("accepts any prefix and answers empty data, not an error, for one no asset has (known defects 01C 4.4, M-14)", async () => {
-    const res = await labHead("labPrefix=NOPE&lab=NOPE");
+  it("ignores a lab in the query: a Lab Head sees only the lab it heads (C-02 fixed, M-14)", async () => {
+    for (const query of ["labPrefix=NOPE&lab=NOPE", `lab=${LAB.shortCode}`, "labPrefix=ALL"]) {
+      const res = await labHead(query);
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true, data: EMPTY_LAB });
+      expect(res.status, query).toBe(200);
+      expect(res.body.data.loans, query).toHaveLength(2);
+    }
+  });
+
+  it("answers empty data for a lab with no assets", async () => {
+    const empty = await db.research_centers.create({ data: { name: "Test Empty Lab", short_code: "TESTE", location: "MANILA" } });
+    await db.research_centers.update({ where: { center_id: LAB.centerId }, data: { head_user_id: null } });
+    await db.research_centers.update({ where: { center_id: empty.center_id }, data: { head_user_id: USERS.labHead.userId } });
+    try {
+      // A fresh login, so the session lookup sees the lab the account heads now.
+      const res = await withCookie(await logIn(USERS.labHead)).get("/api/analytics/lab-head");
+
+      expect(res.body).toEqual({ success: true, data: EMPTY_LAB });
+    } finally {
+      await db.research_centers.update({ where: { center_id: empty.center_id }, data: { head_user_id: null } });
+      await db.research_centers.update({ where: { center_id: LAB.centerId }, data: { head_user_id: USERS.labHead.userId } });
+      await db.research_centers.delete({ where: { center_id: empty.center_id } });
+    }
   });
 
   it("lists the lab's loans newest first, with the destination lab moved out of the purpose", async () => {
@@ -328,27 +347,16 @@ describe("GET /api/analytics/lab-head", () => {
     }
   });
 
-  it("reads labPrefix first and lab only when labPrefix is missing", async () => {
-    const byLab = await labHead(`lab=${LAB.shortCode}`);
-    expect(byLab.body.data.loans).toHaveLength(2);
-
-    const prefixWins = await labHead(`labPrefix=NOPE&lab=${LAB.shortCode}`);
-    expect(prefixWins.body.data.loans).toHaveLength(0);
-  });
-
-  it("with ALL or All Labs, counts every asset except the EQ- pool", async () => {
-    const otherLab = await addExtraAsset(db, { tag: "OTHER-0701" });
-    const pool = await addExtraAsset(db, { tag: "EQ-0701" });
+  it("leaves out assets of other labs", async () => {
+    const other = await db.research_centers.create({ data: { name: "Test Other Lab", short_code: "OTHER", location: "MANILA" } });
+    const otherLab = await addExtraAsset(db, { tag: "OTHER-0701", centerId: other.center_id });
     try {
-      for (const prefix of ["ALL", "All Labs"]) {
-        const res = await labHead(`labPrefix=${encodeURIComponent(prefix)}`);
+      const res = await labHead(TEST_LAB_QUERY);
 
-        expect(res.status).toBe(200);
-        expect(res.body.data.utilization).toEqual({ assignedCount: 0, unassignedCount: 7, totalAssetsCount: 7, utilizationPercentage: 0 });
-        expect(res.body.data.loans).toHaveLength(2);
-      }
+      expect(res.body.data.utilization.totalAssetsCount).toBe(6);
     } finally {
-      await removeExtraAssets(db, [otherLab.assetId, pool.assetId]);
+      await removeExtraAssets(db, [otherLab.assetId]);
+      await db.research_centers.delete({ where: { center_id: other.center_id } });
     }
   });
 
