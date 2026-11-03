@@ -1,21 +1,20 @@
 /**
  * Lab Head screen: Requests, Lab Inventory, Analytics, and Account Approvals, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /lab-head/* (the tab comes from the URL).
- * Calls: api/assets.api.ts, api/loans.api.ts, api/transfers.api.ts, features/assets/AssetDetailModal.tsx,
+ * Calls: api/assets.api.ts, api/loans.api.ts, features/assets/AssetDetailModal.tsx,
  * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (the loan list, repairs, sign-ups and their decisions).
- * Used by: Lab Head (loan and transfer decisions, sign-up approval, the lab inventory report).
+ * Used by: Lab Head (loan decisions, sign-up approval, the lab inventory report).
  */
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
-import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, Printer, Download, ArrowRight, ShieldCheck, CheckCircle, XCircle } from "lucide-react";
+import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, Printer, Download, ShieldCheck, CheckCircle, XCircle } from "lucide-react";
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { LabHeadAnalyticsView } from "@web/features/analytics/labHead/LabHeadAnalyticsView";
 import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
-import * as transfersApi from "@web/api/transfers.api";
 import { labMatches } from "@web/features/labs/labMatches";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -96,7 +95,7 @@ function VisualTimeline({ status: shownStatus }: { status: string }) {
       failed: status === "Declined"
     },
     {
-      label: "Custody Transferred",
+      label: "Handed Over",
       completed: status === "Approved",
       active: false,
       failed: status === "Declined"
@@ -162,8 +161,8 @@ interface LoanRequest {
 
 /**
  * Shows one Lab Head tab, scoped to the Lab Head's own branch.
- * - custody: the branch's loan and transfer requests, with approve and decline
- *   (the shared loan list, reloaded through reloadLoans, and loansApi.decideLoan; transfersApi.listTransfers, decideTransfer).
+ * - custody: the branch's loan requests, with approve and decline
+ *   (the shared loan list, reloaded through reloadLoans, and loansApi.decideLoan).
  * - inventory: the branch's assets, decommissioned assets, repairs, custody trail, and a printable inventory report.
  * - health: the Lab Head analytics view for the branch.
  * - approvals: pending sign-ups for the branch, approved or rejected through useServerData().
@@ -266,69 +265,12 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     }
   };
 
-  // ── Custodianship Transfer Requests (asset_transfers) ─────────────────────
-  interface TransferRequestDb {
-    id: string;
-    transferId: number;
-    assetId: string;
-    asset: string;
-    from: string;
-    to: string;
-    justification: string;
-    destinationLab?: string;
-    requestedOn: string;
-    status: "Pending" | "Approved" | "Declined";
-    location: string;
-    lab: string;
-  }
-
-  const [dbTransfers, setDbTransfers] = useState<TransferRequestDb[]>([]);
-  const [transfersLoading, setTransfersLoading] = useState(false);
-  const [transferError, setTransferError] = useState<string | null>(null);
-
-  const fetchTransferRequests = useCallback(async () => {
-    setTransfersLoading(true);
-    setTransferError(null);
-    try {
-      const data = await transfersApi.listTransfers();
-      if (data.success) {
-        setDbTransfers(data.transfers);
-      } else {
-        setTransferError(data.error || "Failed to load transfer requests.");
-      }
-    } catch (err: any) {
-      setTransferError(err.message || "Failed to load transfer requests.");
-    } finally {
-      setTransfersLoading(false);
-    }
-  }, []);
-
   // One load of each list per tab: every tab change mounts this screen again (RootLayout keys the page
-  // by its URL). The three loaders never change, so this runs once per tab. (issue #92)
+  // by its URL). The two loaders never change, so this runs once per tab. (issue #92)
   useEffect(() => {
     fetchDbAssets();
     fetchLoanRequests();
-    fetchTransferRequests();
-  }, [activeTab, fetchDbAssets, fetchLoanRequests, fetchTransferRequests]);
-
-  const [transferActionId, setTransferActionId] = useState<number | null>(null);
-
-  const decideTransfer = async (transferId: number, decision: "approve" | "decline") => {
-    setTransferActionId(transferId);
-    setTransferError(null);
-    try {
-      const data = await transfersApi.decideTransfer(transferId, decision);
-      if (!data.success) {
-        setTransferError(data.error || `Failed to ${decision} transfer.`);
-        return;
-      }
-      await fetchTransferRequests();
-    } catch (err: any) {
-      setTransferError(err.message || `Failed to ${decision} transfer.`);
-    } finally {
-      setTransferActionId(null);
-    }
-  };
+  }, [activeTab, fetchDbAssets, fetchLoanRequests]);
 
   const handlePrintAudit = () => {
     const docElement = document.getElementById("audit-document");
@@ -471,7 +413,6 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const decommissionedAssets = displayedAssets.filter(a => matchesBranch(a.lab) && a.status === "RETIRED");
 
   const branchLoanRequests: LoanRequest[] = dbLoans.filter(l => matchesBranch(l.lab));
-  const branchDbTransfers = dbTransfers.filter(t => matchesBranch(t.lab));
 
   const branchPendingRegistrations = pendingRegistrations.filter(r => matchesBranch(r.labAffiliation));
 
@@ -483,19 +424,17 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     const pendingCount = branchLoanRequests.filter(l => l.status === "Pending").length;
     const approvedCount = branchLoanRequests.filter(l => l.status === "Approved" || l.status === "Returned").length;
     const declinedCount = branchLoanRequests.filter(l => l.status === "Declined").length;
-    const pendingTransferCount = branchDbTransfers.filter(t => t.status === "Pending").length;
     return (
       <div>
         <div className="mb-6">
-          <h1 className="text-foreground mb-1">Loan and Transfer Requests</h1>
-          <p className="text-muted-foreground text-sm">Loan and transfer requests for {userLab}. Approve or decline the pending ones.</p>
+          <h1 className="text-foreground mb-1">Loan Requests</h1>
+          <p className="text-muted-foreground text-sm">Loan requests for {userLab}. Approve or decline the pending ones.</p>
         </div>
         {/* The first three count loans only, so their labels say so; approved includes returned loans, all time. */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
           <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-amber-600">{pendingCount}</p><p className="text-xs text-muted-foreground">Loans pending</p></CardContent></Card>
           <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-emerald-700">{approvedCount}</p><p className="text-xs text-muted-foreground">Loans approved</p></CardContent></Card>
           <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-red-700">{declinedCount}</p><p className="text-xs text-muted-foreground">Loans declined</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-amber-600">{pendingTransferCount}</p><p className="text-xs text-muted-foreground">Transfers pending</p></CardContent></Card>
         </div>
 
         <h3 className="text-xs font-extrabold text-foreground uppercase tracking-widest mb-2.5">Equipment Loan Requests</h3>
@@ -564,73 +503,6 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
           </div>
         )}
 
-        {/* Custodianship Transfer Requests (asset_transfers) */}
-        <div className="mt-8">
-          <h3 className="text-xs font-extrabold text-foreground uppercase tracking-widest mb-2.5">
-            Custodianship Transfer Requests {pendingTransferCount > 0 && <span className="text-amber-600">({pendingTransferCount} pending)</span>}
-          </h3>
-
-          {transferError && (
-            <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">{transferError}</div>
-          )}
-
-          {transfersLoading && branchDbTransfers.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-4">Loading transfer requests…</p>
-          ) : branchDbTransfers.length === 0 ? (
-            <div className="py-4">
-              <p className="text-xs text-muted-foreground">No transfer requests for {userLab}.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {branchDbTransfers.map(t => {
-                const isPending = t.status === "Pending" || t.status === "pending";
-                const isActing = transferActionId === t.transferId;
-                return (
-                  <Card key={t.id} className={cn("border-l-4", t.status === "Approved" ? "border-l-emerald-500" : t.status === "Declined" ? "border-l-red-500" : "border-l-amber-500")} style={{ borderLeftWidth: 4 }}>
-                    <CardContent className="pt-4 pb-4">
-                      <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div className="flex-1 min-w-[16rem]">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[11px] font-bold text-primary">{t.id}</span>
-                            <Badge className={cn("text-[10px]", txnBadgeClass[t.status] || "bg-amber-50 text-amber-700 border-amber-200")}>{t.status}</Badge>
-                          </div>
-                          <p className="text-sm font-bold text-foreground mb-2">{t.asset} <span className="font-normal text-muted-foreground">({t.assetId})</span></p>
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground mb-3">
-                            <div>
-                              <p className="text-[9px] font-bold text-muted-foreground tracking-widest mb-0.5">FROM CUSTODIAN</p>
-                              <p className="font-semibold text-foreground">{t.from}</p>
-                            </div>
-                            <ArrowRight size={14} className="text-muted-foreground flex-shrink-0" />
-                            <div>
-                              <p className="text-[9px] font-bold text-muted-foreground tracking-widest mb-0.5">TO CUSTODIAN</p>
-                              <p className="font-semibold text-foreground">{t.to}</p>
-                            </div>
-                            {t.destinationLab && (
-                              <div>
-                                <p className="text-[9px] font-bold text-muted-foreground tracking-widest mb-0.5">DESTINATION LAB</p>
-                                <p className="font-semibold text-foreground">{t.destinationLab}</p>
-                              </div>
-                            )}
-                            <div className="ml-auto text-right">
-                              <p>Requested {t.requestedOn}</p>
-                            </div>
-                          </div>
-                          <p className="text-xs text-muted-foreground max-w-[420px] truncate mb-2" title={t.justification}>{t.justification}</p>
-                        </div>
-                        {isPending && (
-                          <div className="flex gap-2 flex-shrink-0">
-                            <Button size="sm" className="text-xs" disabled={isActing} onClick={() => decideTransfer(t.transferId, "approve")}><CheckCircle size={11} />{isActing ? "Working…" : "Approve"}</Button>
-                            <Button size="sm" variant="outline" className="text-xs border-red-200 text-red-600 hover:bg-red-50" disabled={isActing} onClick={() => decideTransfer(t.transferId, "decline")}><XCircle size={11} />{isActing ? "Working…" : "Decline"}</Button>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
       </div>
     );
   }
@@ -852,7 +724,6 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
             <div className="grid grid-cols-4 gap-3 bg-emerald-50/50 p-4 border border-emerald-100 rounded-xl print:grid-cols-4">
               {[
                 { label: "Assets in Service", val: branchInventory.length },
-                { label: "Pending Transfers", val: branchDbTransfers.filter(t => t.status === "Pending").length },
                 { label: "Repair Tickets", val: branchRepairs.length },
                 { label: "Average Health Score", val: averageHealthScore(branchInventory) }
               ].map(({ label, val }) => (
@@ -895,9 +766,9 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
               </div>
             </div>
 
-            {/* Section 2: loans and transfers */}
+            {/* Section 2: loans */}
             <div>
-              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">II. Loans and Transfers</h3>
+              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">II. Loans</h3>
               <div className="overflow-x-auto">
                 <Table className="min-w-full text-[11px]">
                   <TableHeader>
@@ -909,9 +780,8 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                   </TableHeader>
                   <TableBody>
                     {(() => {
-                      // Combines loans and transfers into one chronological
-                      // trail, same as the live Requests tab. Both lists
-                      // come from the database and are already scoped to this Lab Head's branch.
+                      // The loans in one chronological trail, same as the live Requests tab. The list
+                      // comes from the database and is already scoped to this Lab Head's branch.
                       const custodyTrail = [
                         ...branchLoanRequests.map(l => ({
                           id: l.id,
@@ -924,22 +794,11 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                           date: l.requestedOn,
                           status: l.status,
                         })),
-                        ...branchDbTransfers.map(t => ({
-                          id: t.id,
-                          type: "Transfer",
-                          asset: t.asset,
-                          assetId: t.assetId,
-                          from: t.from,
-                          to: t.to,
-                          destinationLab: t.destinationLab,
-                          date: t.requestedOn,
-                          status: t.status,
-                        })),
                       ].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
                       if (custodyTrail.length === 0) {
                         return (
-                          <TableRow><TableCell colSpan={8} className="text-center text-gray-400 py-4 font-sans">No loans or transfers for {userLab}.</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={8} className="text-center text-gray-400 py-4 font-sans">No loans for {userLab}.</TableCell></TableRow>
                         );
                       }
 

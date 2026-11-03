@@ -53,19 +53,6 @@ export function findUserByEmail(email: string) {
     return prisma.users.findUnique({ where: { email } });
 }
 
-/**
- * The user with this id when they may hold an asset, or null: a Researcher account that heads no lab. A lab's Head
- * account is the lab's office account and never holds an asset. Used by the asset edit, whose new custodian must be
- * one of these, as in the custodian picker (lookups.repository.ts). (issue #95)
- *
- * @param userId the users.user_id
- */
-export function findAssetHolderCandidate(userId: number) {
-    return prisma.users.findFirst({
-        where: { user_id: userId, user_roles: { some: { roles: { role_name: 'RESEARCHER' } } }, headed_center: { is: null } },
-    });
-}
-
 /** The user with this id number, or null. */
 export function findUserByIdNumber(idNumber: number) {
     return prisma.users.findUnique({ where: { id_number: idNumber } });

@@ -1,7 +1,7 @@
 /**
  * Lookups API: the option lists the forms pick from, and the custodian list Staff pick from.
- * Covers GET /api/lookups and GET /api/lookups/users. Workflow: Edit Asset, Register Equipment, the borrow form, and the
- * sign-up page (issue #12).
+ * Covers GET /api/lookups, and that GET /api/lookups/users is gone. Workflow: Edit Asset, Register Equipment, the borrow
+ * form, Report an issue, the inspection forms, and the sign-up page (issue #12).
  * Fixtures: the seeded research center (LAB), accounts (USERS), and lookup rows (LOOKUPS). The first test adds a second,
  * Laguna research center, which stays for the rest of this file.
  */
@@ -29,7 +29,7 @@ describe("GET /api/lookups", () => {
     expect(res.body.fundingSources).toEqual([...LOOKUPS.fundingSources].sort((a, b) => a.name.localeCompare(b.name)));
     expect(res.body.issueTypes).toEqual(LOOKUPS.issueTypes);
     expect(res.body.projects).toEqual([]);
-    expect(res.body.statuses).toEqual(["ACTIVE", "ON_LOAN", "MAINTENANCE"]);
+    expect(res.body).not.toHaveProperty("statuses");
     // CPU measures the three seeded metrics and a tablet the battery; a monitor has none.
     expect(res.body.metricsByCategory.CPU).toEqual(LOOKUPS.metrics);
     expect(res.body.metricsByCategory.TABLET).toEqual([LOOKUPS.metrics[2]]);
@@ -50,16 +50,9 @@ describe("GET /api/lookups", () => {
 });
 
 describe("GET /api/lookups/users", () => {
-  it("lists the Custodian accounts to Staff by user id and name only, without the placeholder or any other role", async () => {
+  it("is gone with Edit Asset's custodian field: 404", async () => {
     const res = await as(USERS.staffTsg).get("/api/lookups/users");
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      success: true,
-      users: [
-        { userId: USERS.custodianA.userId, name: USERS.custodianA.fullName },
-        { userId: USERS.custodianB.userId, name: USERS.custodianB.fullName },
-      ],
-    });
+    expect(res.status).toBe(404);
   });
 });

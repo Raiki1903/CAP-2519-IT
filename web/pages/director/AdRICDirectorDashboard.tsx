@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { cn } from "@web/components/ui/utils";
 import {
   Monitor, BarChart3, ClipboardCheck, ClipboardList, TrendingUp, AlertTriangle,
-  MapPin, CheckCircle2, XCircle, Search, Download, Printer, User, Wrench, Calendar, Tag, ShieldAlert
+  MapPin, CheckCircle2, XCircle, Search, Download, Printer, Wrench, Calendar, Tag, ShieldAlert
 } from "lucide-react";
 
 interface AdRICDirectorDashboardProps {
@@ -131,10 +131,6 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const exportLifecycleCSV = (asset: any) => {
     if (!asset) return;
 
-    const assetTransfers = (asset.asset_transfers && asset.asset_transfers.length > 0)
-      ? asset.asset_transfers
-      : [];
-
     const assetRepairs = (repairRequests || []).filter(r => r.assetId === asset.id);
 
     // Only the reports saved in asset_inspections, the same ones the Staff inspection log shows. (F-28)
@@ -153,18 +149,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     csvContent += `Purchase Valuation,"PHP ${(asset.asset_monetary?.acquisition_value || asset.cost || 0).toLocaleString()}"\n`;
     csvContent += `ITS Property Tag,"${asset.itsPropertyTag || "None"}"\n`;
     csvContent += `TSG Property Tag,"${asset.tsgPropertyTag || "None"}"\n`;
-    csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n\n`;
-
-    csvContent += `CUSTODIANSHIP & TRANSFER HISTORY\n`;
-    csvContent += `Transfer ID,Requested On,From Custodian,To Custodian,Justification,Status\n`;
-
-    if (assetTransfers.length > 0) {
-      assetTransfers.forEach((t: any) => {
-        csvContent += `"${t.transfer_id || t.id || ""}","${t.requested_on || t.initiated || ""}","${(t.from || `Custodian ID #${t.from_custodian_id}`).replace(/"/g, '""')}","${(t.to || `Custodian ID #${t.to_custodian_id}`).replace(/"/g, '""')}","${(t.justification || "").replace(/"/g, '""')}","${t.status || ""}"\n`;
-      });
-    } else {
-      csvContent += `No custody transfer history registered.\n`;
-    }
+    csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n`;
 
     csvContent += `\nREPAIR & MAINTENANCE LOGS\n`;
     csvContent += `Repair ID,Priority,Status,Description,Custodian,Submitted At\n`;
@@ -822,7 +807,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                       Asset History: {selectedAssetForAudit.id}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                      Transfers, repairs, inspections, and disposal of this asset.
+                      Repairs, inspections, and disposal of this asset.
                     </DialogDescription>
                   </div>
                   <Button
@@ -852,38 +837,6 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <p><span>Purchase Valuation:</span> PHP {selectedAssetForAudit.cost?.toLocaleString() || "0"}</p>
                     <p><span>Availability:</span> <span className="font-bold text-[#005A36]">{assetStatusLabel(selectedAssetForAudit.status)}</span></p>
                   </div>
-                </div>
-
-                {/* 2. Custodian & Transfer History */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-foreground border-b border-border pb-1.5 flex items-center gap-1.5">
-                    <User size={13} className="text-[#005A36]" />
-                    Custodianship &amp; Transfer History
-                  </h4>
-                  {(selectedAssetForAudit.asset_transfers && selectedAssetForAudit.asset_transfers.length > 0) ? (
-                    <div className="space-y-2">
-                      {/* Render asset_transfers relation */}
-                      {(selectedAssetForAudit.asset_transfers || []).map((t: any) => (
-                        <div key={t.transfer_id || t.id} className="p-3 bg-card border border-border rounded-lg text-xs space-y-1 shadow-2xs">
-                          <div className="flex justify-between items-center">
-                            <span className="font-bold text-foreground">Transfer ID: #{t.transfer_id || t.id}</span>
-                            <Badge className={cn("text-[9px] uppercase font-bold border",
-                              (t.status || "").toLowerCase() === "approved" || (t.status || "").toLowerCase() === "completed" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-amber-50 border-amber-200 text-amber-700"
-                            )}>{t.status}</Badge>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground font-mono">Requested On: {t.requested_on || t.initiated || "N/A"}</p>
-                          <p className="text-xs">
-                            <span className="font-bold text-foreground">{t.from || `Custodian ID #${t.from_custodian_id}`}</span>
-                            <span className="text-muted-foreground mx-2">➔</span>
-                            <span className="font-bold text-[#005A36]">{t.to || `Custodian ID #${t.to_custodian_id}`}</span>
-                          </p>
-                          {t.justification && <p className="text-[11px] italic text-muted-foreground">Justification: "{t.justification}"</p>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground/60 italic p-1">No custody transfer history registered.</p>
-                  )}
                 </div>
 
                 {/* 3. Repair & Maintenance Logs */}

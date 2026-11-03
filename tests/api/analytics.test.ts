@@ -234,7 +234,6 @@ describe("GET /api/analytics/director", () => {
 describe("GET /api/analytics/lab-head", () => {
   const EMPTY_LAB = {
     loans: [],
-    transfers: [],
     utilization: { assignedCount: 0, unassignedCount: 0, totalAssetsCount: 0, utilizationPercentage: 0 },
     categoryData: [],
     projectAllocation: [],
@@ -306,7 +305,7 @@ describe("GET /api/analytics/lab-head", () => {
     ]);
   });
 
-  it("answers the lab's utilization and categories, and no projects, delinquencies, or transfers for the seed", async () => {
+  it("answers the lab's utilization and categories, and no projects or delinquencies for the seed", async () => {
     const res = await labHead(TEST_LAB_QUERY);
 
     expect(res.body.data.utilization).toEqual({ assignedCount: 0, unassignedCount: 6, totalAssetsCount: 6, utilizationPercentage: 0 });
@@ -314,37 +313,8 @@ describe("GET /api/analytics/lab-head", () => {
     expect(categories).toEqual(
       ["CAMERA", "DEV KIT", "MONITOR", "PROJECTOR", "ROUTER", "TABLET"].map((category) => ({ category, count: 1 })),
     );
-    expect(res.body.data).toMatchObject({ transfers: [], projectAllocation: [], delinquencies: [], scatterData: [], heatmapData: [] });
-  });
-
-  it("lists the lab's transfers with the destination lab moved out, and shows the raw status capitalized (pending_approver as Pending_approver)", async () => {
-    const transfer = await db.asset_transfers.create({
-      data: {
-        asset_id: ASSETS.available.assetId,
-        from_custodian_id: USERS.admin.userId,
-        to_custodian_id: USERS.custodianB.userId,
-        justification: `Destination Lab: ${LAB.shortCode}\n\nTest justification: lab-head analytics`,
-        status: "pending_approver",
-        requested_on: new Date("2026-05-01T09:00:00Z"),
-      },
-    });
-    try {
-      const res = await labHead(TEST_LAB_QUERY);
-
-      expect(res.body.data.transfers).toEqual([
-        {
-          transferId: transfer.transfer_id,
-          assetId: ASSETS.available.tag,
-          asset: ASSETS.available.name,
-          justification: "Test justification: lab-head analytics",
-          destinationLab: LAB.shortCode,
-          requestedOn: "2026-05-01",
-          status: "Pending_approver",
-        },
-      ]);
-    } finally {
-      await db.asset_transfers.delete({ where: { transfer_id: transfer.transfer_id } });
-    }
+    expect(res.body.data).toMatchObject({ projectAllocation: [], delinquencies: [], scatterData: [], heatmapData: [] });
+    expect(res.body.data).not.toHaveProperty("transfers");
   });
 
   it("leaves out assets of other labs", async () => {
@@ -360,7 +330,7 @@ describe("GET /api/analytics/lab-head", () => {
     }
   });
 
-  it("applies the date range to loans and transfers only, not to the lab's assets", async () => {
+  it("applies the date range to loans only, not to the lab's assets", async () => {
     const res = await labHead(`${TEST_LAB_QUERY}&startDate=2026-02-15`);
 
     expect(res.body.data.loans.map((l: { loanId: number }) => l.loanId)).toEqual([SEEDED_ROWS.pendingLoanId]);

@@ -1,22 +1,23 @@
 /**
  * Assets service: the rules for the asset list and search, an asset's history, registration (with its tag), edits, and deletion.
- * Layer: service. Called by assets.controller.ts. Calls assets.repository.ts, features/auth/auth.repository.ts,
- * assets.validation.ts, shared/constants/poolCustodian.ts, and @shared (enums and labels).
+ * Layer: service. Called by assets.controller.ts. Calls assets.repository.ts, shared/services/lifecycleGuard.ts, and
+ * @shared (enums and labels).
  * Used by: every role's inventory view and the bell, the asset detail modal, Staff asset registration, editing, and deletion.
  */
-import { asset_inspections_type, type asset_records, type assets } from '@prisma/client';
+import { asset_inspections_type, type Prisma, type asset_condition, type assets } from '@prisma/client';
 import type {
     AssetCreateInput,
     AssetHistory,
     AssetHistoryEvent,
     AssetListFilters,
     AssetListItem,
+    AssetMasterData,
     AssetUpdateInput,
     PersonRef,
 } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
-import { ASSET_CONDITIONS, ASSET_CONDITION_LABELS } from '@shared/enums/assetCondition';
-import { ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, type AssetCategory } from '@shared/enums/assetCategory';
+import { ASSET_CONDITION_LABELS } from '@shared/enums/assetCondition';
+import { ASSET_CATEGORY_LABELS, type AssetCategory } from '@shared/enums/assetCategory';
 import { ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
 import { CAMPUS_LABELS } from '@shared/constants/campuses';
 import { LOAN_STATUS_LABELS } from '@shared/constants/loanStatuses';
@@ -25,11 +26,8 @@ import { RETIREMENT_PATHWAY_LABELS, RETIREMENT_STATUS_LABELS } from '@shared/con
 import { INSPECTION_TYPE_LABELS } from '@shared/constants/inspectionTypes';
 import { ACTIVITY_EVENT_LABELS } from '@shared/constants/activityEvents';
 import * as assetsRepository from './assets.repository';
-import type { EditRows } from './assets.repository';
-import * as authRepository from '../auth/auth.repository';
-import { checkAssetImage, UNKNOWN_CUSTODIAN } from './assets.validation';
 import { AppError } from '../../shared/errors/AppError';
-import { POOL_CUSTODIAN_ID } from '../../shared/constants/poolCustodian';
+import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -265,235 +263,152 @@ function nextTagOf(labPrefix: string, existingTags: string[]): string {
     return `${labPrefix}-${String(maxSeq + 1).padStart(4, "0")}`;
 }
 
-/** The stored category for any spelling ("Dev Kit" becomes DEV_KIT), or DEV_KIT when it is missing or not a category. */
-function sanitizeCategory(cat: any): any {
-    if (!cat) return 'DEV_KIT';
-    const formatted = String(cat).trim().toUpperCase().replace(/[\s-]+/g, '_');
-    return ASSET_CATEGORIES.includes(formatted) ? formatted : 'DEV_KIT';
-}
-
-/**
- * The funding_sources row a form's funding text names, by name. Empty and "Unspecified" mean none.
- *
- * @param funding the funding text the form sent, or undefined
- * @returns the funding source id, null for none, or undefined when the text was not sent
- * @throws AppError 400 if the text names no funding source
- */
-async function fundingSourceIdFor(funding: string | undefined): Promise<number | null | undefined> {
-    if (funding === undefined) return undefined;
-    const name = String(funding).trim();
-    if (!name || name === "Unspecified") return null;
-    const row = await assetsRepository.findFundingSourceByName(name);
-    if (!row) {
-        throw new AppError(400, "Pick a funding source from the list.");
+/** The assets columns for the master data fields a body sent. */
+function assetColumns(data: AssetMasterData): Prisma.assetsUncheckedUpdateInput {
+    const columns: Prisma.assetsUncheckedUpdateInput = {};
+    for (const [field, column] of Object.entries(MASTER_DATA_COLUMNS) as [keyof AssetMasterData, string][]) {
+        const value = data[field];
+        if (value === undefined) continue;
+        (columns as Record<string, unknown>)[column] = (field === "procurementDate" || field === "warrantyExpiry") && value ? new Date(value as string) : value;
     }
-    return row.funding_source_id;
+    return columns;
+}
+
+/** Each master data field and the assets column it is stored in. */
+const MASTER_DATA_COLUMNS: Record<keyof AssetMasterData, string> = {
+    name: "name",
+    serialNumber: "serial_number",
+    manufacturer: "manufacturer",
+    category: "category",
+    centerId: "center_id",
+    homeRoom: "home_room",
+    projectId: "project_id",
+    fundingSourceId: "funding_source_id",
+    acquisitionValue: "acquisition_value",
+    procurementDate: "procurement_date",
+    warrantyExpiry: "warranty_expiry",
+    accessories: "accessories",
+    itsPropertyTag: "its_property_tag",
+    tsgTag: "tsg_tag",
+    imageUrl: "image_url",
+};
+
+/**
+ * Checks that the lab, project, and funding source a body names exist.
+ *
+ * @throws AppError 400 naming the first one that does not
+ */
+async function checkReferences(data: AssetMasterData): Promise<void> {
+    const [lab, project, funding] = await assetsRepository.findReferences(data.centerId ?? null, data.projectId ?? null, data.fundingSourceId ?? null);
+    if (data.centerId !== undefined && !lab) throw new AppError(400, "Pick a home lab from the list.");
+    if (data.projectId && !project) throw new AppError(400, "Pick a project from the list.");
+    if (data.fundingSourceId && !funding) throw new AppError(400, "Pick a funding source from the list.");
+}
+
+/** One asset in the list's shape, for the answer of a registration or an edit. */
+async function listedAsset(viewer: SessionIdentity, assetId: number): Promise<AssetListItem> {
+    const [item] = await listAssets(viewer, { assetId });
+    return item;
 }
 
 /**
- * Registers a new asset: its assets row, at its home lab, with the funding source and acquisition value sent.
- * Its status starts Available. The tag is the lab code and the next free number for that lab, for example "CeLT-0005",
- * numbered with the lab's row locked so two registrations at once get different tags. (H-11, issue #75)
+ * Registers a new asset, in one transaction: the assets row at its home lab, Available, under the next tag of the lab
+ * (numbered with the lab's row locked, so two registrations at once get different tags, H-11 and issue #75), its
+ * Initial inspection under the TSG member who registers it, and an ASSET_REGISTERED row in the activity log.
  *
  * @param data the checked body
- * @returns the created assets row and its tag
- * @throws AppError 400 if the picture is text but not an image
- * @throws AppError 400 if the lab is not a known research center: the asset's home lab is stored on it
- * @throws AppError 400 if the funding text names no funding source
+ * @param registrar the session user, TSG (the route checks it)
+ * @returns the new asset, as the list shows it, with its tag
+ * @throws AppError 400 if the home lab, project, or funding source does not exist
  */
-export async function registerAsset(data: AssetCreateInput): Promise<{ asset: assets; assetTag: string }> {
-    const imageVal = data.image || data.image_url || data.imageUrl || null;
-    checkAssetImage(imageVal);
-
-    if (imageVal) {
-        console.log(`📸 Saving image payload for new asset (${imageVal.slice(0, 30)}... [length: ${imageVal.length}])`);
+export async function registerAsset(data: AssetCreateInput, registrar: SessionIdentity): Promise<AssetListItem> {
+    await checkReferences(data);
+    const lab = (await assetsRepository.findLabById(data.centerId))!;
+    if (data.imageUrl) {
+        console.log(`📸 Saving image payload for new asset (${data.imageUrl.slice(0, 30)}... [length: ${data.imageUrl.length}])`);
     }
 
-    // The tag prefix is the lab code with anything but letters and digits removed. No lab is refused below: there is
-    // no default lab.
-    const labCode = String(data.lab ?? "").trim().replace(/[^a-zA-Z0-9]/g, "");
-    const lab = labCode ? await assetsRepository.findLabByCode(labCode) : null;
-    if (!lab) {
-        throw new AppError(400, "Pick a lab from the list.");
-    }
-    const fundingSourceId = await fundingSourceIdFor(data.funding);
-
-    // The lab's own short code, so the tag prefix always matches its lab letter for letter.
-    const labPrefix = lab.short_code;
-
-    const asset = await assetsRepository.createWithNextTag(lab.center_id, labPrefix, (existingTags) => nextTagOf(labPrefix, existingTags), {
-        center_id: lab.center_id,
-        name: data.name,
-        category: sanitizeCategory(data.category),
-        serial_number: data.serial || null,
-        manufacturer: data.manufacturer || null,
-        image_url: imageVal || null,
-        procurement_date: data.procured ? new Date(data.procured) : null,
-        warranty_expiry: data.warranty ? new Date(data.warranty) : null,
-        funding_source_id: fundingSourceId ?? null,
-        acquisition_value: data.acquisitionValue === undefined || data.acquisitionValue === "" ? null : data.acquisitionValue,
-    });
-    const assetTag = asset.asset_tag;
-
-    return { asset, assetTag };
+    const { initialInspection, ...master } = data;
+    const assetId = await assetsRepository.register(
+        lab.center_id,
+        (existingTags) => nextTagOf(lab.short_code, existingTags),
+        assetColumns(master) as Omit<Prisma.assetsUncheckedCreateInput, 'asset_tag'>,
+        {
+            inspected_by_id: registrar.userId,
+            type: asset_inspections_type.INITIAL,
+            condition: initialInspection.condition as asset_condition,
+            health_score: initialInspection.healthScore ?? null,
+            missing_accessories: initialInspection.missingAccessories ?? null,
+            remarks: initialInspection.remarks ?? null,
+            photo: initialInspection.photo ?? null,
+        },
+        registrar.userId,
+    );
+    return listedAsset(registrar, assetId);
 }
 
 /**
- * Saves an edit: the assets fields that were sent (funding and value included); a new record when the edit changes the asset's
- * status, location, custodian, condition, or remarks; and, when the edit carries a condition or remarks, a new
- * inspection report, whose condition the new record takes. An existing record is never changed (issue #74), so the
- * custodian history keeps every earlier state.
+ * Saves a master data edit, in one transaction: only the fields sent, and an ASSET_EDITED row in the activity log
+ * naming the fields that changed (none when nothing changed). TSG and the Secretary may edit (the route).
  *
  * @param assetTag the asset's tag, from the URL
- * @param data the body; every field is optional
- * @param editorId the session user, under whom the edit's condition report is filed
- * @returns the assets row, updated or as it was
+ * @param data the checked body: master data only
+ * @param editor the session user
+ * @returns the asset, as the list shows it
  * @throws AppError 404 if no asset has this tag
- * @throws AppError 400 if custodianId is not a Custodian account; if the edit sends a status or custodian and would
- *   leave the asset available with a person; if the picture is text but not an image; or if the funding text names no
- *   funding source. Nothing is saved.
+ * @throws AppError 409 if the asset is Pending Retirement or Retired
+ * @throws AppError 400 if the home lab, project, or funding source does not exist
  */
-export async function updateAsset(assetTag: string, data: AssetUpdateInput, editorId: number): Promise<assets> {
+export async function updateAsset(assetTag: string, data: AssetUpdateInput, editor: SessionIdentity): Promise<AssetListItem> {
+    const existing = await assetsRepository.findByTag(assetTag);
+    if (!existing) {
+        throw new AppError(404, `No asset found with tag ${assetTag}.`);
+    }
+    assertActionAllowed(existing, "EDIT_MASTER_DATA");
+    await checkReferences(data);
+
+    const columns = assetColumns(data);
+    const changed = Object.entries(columns)
+        .filter(([column, value]) => !sameValue((existing as Record<string, unknown>)[column], value))
+        .map(([column]) => column);
+    if (changed.length > 0) {
+        await assetsRepository.saveEdit(existing.asset_id, Object.fromEntries(changed.map(c => [c, (columns as Record<string, unknown>)[c]])), editor.userId, `Changed: ${changed.join(", ")}`);
+    }
+    return listedAsset(editor, existing.asset_id);
+}
+
+/** Whether a stored value and a sent one are the same, for dates, decimals, and plain values. */
+function sameValue(stored: unknown, sent: unknown): boolean {
+    if (stored instanceof Date || sent instanceof Date) {
+        return (stored as Date | null)?.getTime?.() === (sent as Date | null)?.getTime?.();
+    }
+    if (stored !== null && typeof stored === 'object' && 'toNumber' in (stored as object)) {
+        return sent !== null && Number(stored) === Number(sent);
+    }
+    return (stored ?? null) === (sent ?? null);
+}
+
+/**
+ * Deletes a mistaken registration: the asset, its Initial inspection, and its old rows, and writes an ASSET_DELETED
+ * row with the tag. Its earlier activity log rows are kept, without the asset.
+ * An asset with any loan, maintenance ticket, retirement, or inspection besides its initial one is refused: that is
+ * history, and taking the asset out of use is a retirement. (H-03, issue #69)
+ *
+ * @param assetTag the asset's tag, from the URL
+ * @param actorId the session user, TSG (the route checks it)
+ * @throws AppError 404 if no asset has this tag
+ * @throws AppError 409 if the asset has history
+ */
+export async function deleteAsset(assetTag: string, actorId: number): Promise<void> {
     const existing = await assetsRepository.findByTag(assetTag);
     if (!existing) {
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // The new custodian, by user id: a target, not the person acting. null is None, the placeholder; any other id must
-    // be a Custodian account, as the dropdown offers (issue #95, answer 1). Not sent leaves the custodian as it is.
-    let custodianId: number | undefined;
-    if (data.custodianId === null) {
-        custodianId = POOL_CUSTODIAN_ID;
-    } else if (data.custodianId !== undefined) {
-        const custodian = data.custodianId === POOL_CUSTODIAN_ID ? null : await authRepository.findAssetHolderCandidate(data.custodianId);
-        if (!custodian) {
-            throw new AppError(400, UNKNOWN_CUSTODIAN);
-        }
-        custodianId = custodian.user_id;
+    const history = await assetsRepository.countHistory(existing.asset_id);
+    if (history.loans + history.maintenance + history.retirements + history.laterInspections > 0) {
+        throw new AppError(409, `${assetTag} cannot be deleted because it has history (loans, maintenance, a retirement, or inspections). To take it out of use, request its retirement instead.`);
     }
 
-    const imageProvided = data.image !== undefined || data.image_url !== undefined || data.imageUrl !== undefined;
-    const rawImage = data.image ?? data.image_url ?? data.imageUrl;
-    const imageVal = imageProvided ? (rawImage || null) : existing.image_url;
-
-    checkAssetImage(imageVal);
-
-    if (imageProvided && rawImage) {
-        console.log(`📸 Updating image payload for ${assetTag} (${String(rawImage).slice(0, 30)}... [length: ${String(rawImage).length}])`);
-    }
-
-    // Only the assets fields the body sends are written, so a caller that sends only a condition or remarks
-    // leaves the asset's own fields alone.
-    const assetUpdateData: any = {};
-    if (data.name !== undefined) assetUpdateData.name = data.name;
-    if (data.serial !== undefined) assetUpdateData.serial_number = data.serial || null;
-    if (data.manufacturer !== undefined) assetUpdateData.manufacturer = data.manufacturer || null;
-    if (data.category !== undefined) assetUpdateData.category = sanitizeCategory(data.category);
-    if (imageProvided) assetUpdateData.image_url = imageVal;
-    if (data.procured !== undefined) assetUpdateData.procurement_date = data.procured ? new Date(data.procured) : null;
-    if (data.warranty !== undefined) assetUpdateData.warranty_expiry = data.warranty ? new Date(data.warranty) : null;
-
-    // Only the fields sent are written, so a value alone keeps the funding source. (M-16, issue #74)
-    const fundingSourceId = await fundingSourceIdFor(data.funding);
-    if (fundingSourceId !== undefined) assetUpdateData.funding_source_id = fundingSourceId;
-    if (data.acquisitionValue !== undefined) assetUpdateData.acquisition_value = data.acquisitionValue === "" ? null : data.acquisitionValue;
-
-    return assetsRepository.saveEdit(existing, assetUpdateData, (latestRecord: asset_records | null) => {
-        const remarksProvided = data.remarks !== undefined || data.description !== undefined || data.tsgRemarks !== undefined || data.itsRemarks !== undefined;
-        const rawRemarks = data.remarks ?? data.description ?? data.tsgRemarks ?? data.itsRemarks;
-        const remarksVal = remarksProvided ? (rawRemarks || null) : (latestRecord?.Asset_Remarks ?? null);
-
-        // A condition or remarks field files a report. `description` is not on the list: Edit Asset sends its remarks
-        // under that name, so a remarks-only change there files none (issue #74, answer 4).
-        let report: EditRows["report"] = null;
-        if (data.assetCondition || data.reportCondition || data.remarks || data.tsgRemarks || data.itsRemarks) {
-            // The report's condition by stored or display name; any other name is stored as PERFECT. (H-07 family, like issue #53 on the inspection route)
-            const rawCond = String(data.reportCondition || data.assetCondition || "PERFECT").trim();
-            const conditionMap: Record<string, any> = {
-                "PERFECT": "PERFECT",
-                "Perfect": "PERFECT",
-                "OPERATIONAL": "OPERATIONAL",
-                "Operational": "OPERATIONAL",
-                "MINOR_DRIFT": "MINOR_DRIFT",
-                "Minor Drift": "MINOR_DRIFT",
-                "DEGRADED": "DEGRADED",
-                "Degraded Performance": "DEGRADED",
-                "CRITICAL_DEFECT": "CRITICAL_DEFECT",
-                "Critical Defect": "CRITICAL_DEFECT",
-            };
-            report = {
-                asset_id: existing.asset_id,
-                // Filed under the Staff member who made the edit. (issue #32)
-                inspected_by_id: editorId,
-                type: asset_inspections_type.ROUTINE,
-                condition: conditionMap[rawCond] || "PERFECT",
-                remarks: String(remarksVal || "Routine inspection verified.").slice(0, 255),
-                photo: imageVal || null,
-            };
-        }
-
-        // Each record field is the body's value, else the newest record's, else a default. With a report, the condition
-        // is the report's, so the two agree.
-        // TODO(H-07): the status is any text upper-cased with its first space as an underscore, not checked against the enum; a bad one fails in the database with a 500. With the status enum.
-        const next = {
-            status: (data.status?.toUpperCase().replace(" ", "_") || latestRecord?.status || "ACTIVE") as any,
-            location: [data.location, data.lab].filter(Boolean).join(" — ") || latestRecord?.location || "Unassigned",
-            current_custodian: custodianId ?? latestRecord?.current_custodian ?? POOL_CUSTODIAN_ID,
-            asset_condition: (report ? report.condition : ASSET_CONDITIONS.includes(data.assetCondition) ? data.assetCondition : latestRecord?.asset_condition ?? "PERFECT") as any,
-            Asset_Remarks: remarksVal,
-        };
-
-        // Available means nobody holds it (team decision). Checked only when the edit sends a status or custodian, so an
-        // older record that breaks the rule can still take other changes. Thrown here, the transaction saves nothing.
-        if ((data.status !== undefined || data.custodianId !== undefined) && next.status === "ACTIVE" && next.current_custodian !== POOL_CUSTODIAN_ID) {
-            throw new AppError(400, "An available asset has no custodian. Pick None, or change the availability.");
-        }
-
-        const changed = !latestRecord
-            || next.status !== latestRecord.status
-            || next.location !== latestRecord.location
-            || next.current_custodian !== latestRecord.current_custodian
-            || next.asset_condition !== latestRecord.asset_condition
-            || next.Asset_Remarks !== (latestRecord.Asset_Remarks ?? null);
-        if (!changed) {
-            return { record: null, report };
-        }
-
-        // Where the asset is now: home when it is available (as a return writes it), and the new home when it was at
-        // its old one; else it is still away (on loan, transferred, or at the TSG Office), so the newest record's place.
-        const wasAtHome = !latestRecord?.current_location || latestRecord.current_location === latestRecord.location;
-        const currentLocation = next.status === "ACTIVE" || wasAtHome ? next.location : latestRecord!.current_location;
-
-        return {
-            record: {
-                ...next,
-                current_location: currentLocation,
-                // Kept from the newest record: the analytics read an asset's project there.
-                project_id: latestRecord?.project_id ?? null,
-            },
-            report,
-        };
-    });
-}
-
-/**
- * Deletes an asset and every row that points at it.
- * An asset with inspection or condition reports is refused, so its reports are never deleted. (issue #69)
- *
- * @param assetTag the asset's tag, from the URL
- * @throws AppError 404 if no asset has this tag
- * @throws AppError 409 if the asset has any report
- */
-// TODO(H-03): a hard delete that destroys the asset's history. 01D turns it into "retire", a status change, with a later database change.
-export async function deleteAsset(assetTag: string): Promise<void> {
-    const existing = await assetsRepository.findByTag(assetTag);
-    if (!existing) {
-        throw new AppError(404, `No asset found with tag ${assetTag}.`);
-    }
-
-    if (await assetsRepository.countReports(existing.asset_id) > 0) {
-        throw new AppError(409, `${assetTag} cannot be deleted because it has inspection or condition reports, which are part of its history. To take it out of use, file a disposal instead.`);
-    }
-
-    await assetsRepository.deleteWithHistory(existing.asset_id);
+    await assetsRepository.deleteRegistration(existing.asset_id, assetTag, actorId);
 }

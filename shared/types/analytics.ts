@@ -46,18 +46,6 @@ export interface LabHeadLoanItem {
   status: string;
 }
 
-/** One transfer row of GET /api/analytics/lab-head. */
-export interface LabHeadTransferItem {
-  transferId: number;
-  assetId: string;
-  asset: string;
-  justification: string;
-  destinationLab: string | undefined;
-  requestedOn: string;
-  /** As for loans, so a transfer moved by /accept shows as "Pending_approver". (M-12) */
-  status: string;
-}
-
 /** One overdue loan of GET /api/analytics/lab-head. Pending requests past their due date are included. (H-04) */
 export interface LabHeadDelinquencyItem {
   /** The loan id. */
@@ -79,7 +67,6 @@ export interface LabHeadDelinquencyItem {
 /** The `data` of GET /api/analytics/lab-head. */
 export interface LabHeadAnalyticsData {
   loans: LabHeadLoanItem[];
-  transfers: LabHeadTransferItem[];
   utilization: {
     assignedCount: number;
     unassignedCount: number;

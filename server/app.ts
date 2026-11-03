@@ -1,6 +1,6 @@
 /**
  * Builds the Express app: the middleware, in order, then the routes, then the error handler.
- * Layer: server app. Called by main.ts. Calls the routes files of features/loans, returns, transfers, disposals, repairs,
+ * Layer: server app. Called by main.ts. Calls the routes files of features/loans, returns, retirements, maintenance,
  * inspections, auth, assets, analytics, and lookups, shared/middleware/errorHandler.ts, and config/env.ts (the web origin for CORS).
  * Used by: every request to the API.
  */
@@ -8,7 +8,6 @@ import express from 'express';
 import cors from 'cors';
 import { loansRouter } from './features/loans/loans.routes';
 import { returnsRouter } from './features/returns/returns.routes';
-import { transfersRouter } from './features/transfers/transfers.routes';
 import { retirementsRouter } from './features/retirements/retirements.routes';
 import { maintenanceRouter } from './features/maintenance/maintenance.routes';
 import { inspectionsRouter } from './features/inspections/inspections.routes';
@@ -37,7 +36,6 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use(loansRouter);
 app.use(returnsRouter);
-app.use(transfersRouter);
 app.use(retirementsRouter);
 app.use(maintenanceRouter);
 app.use(inspectionsRouter);

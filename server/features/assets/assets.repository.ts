@@ -1,17 +1,17 @@
 /**
  * Asset row access: every database read and write the asset registry endpoints make, plus the asset reads other
- * features need (an asset by tag or by id, and its state), and the newest record reads the transfer feature and the
- * custody request guard still make until commit 9 removes transfers.
- * Layer: repository. Called by assets.service.ts, the services of features/loans, returns, transfers, retirements,
- * maintenance, and inspections, and shared/services/custodyRequestGuard.ts. Calls config/prisma.ts,
- * shared/services/assetState.ts (with the shared client), and shared/services/rowLocks.ts.
+ * features need (an asset by tag or by id, its lab, and its state).
+ * Layer: repository. Called by assets.service.ts, the services of features/loans, returns, retirements, maintenance,
+ * and inspections, and shared/services/permissions.ts. Calls config/prisma.ts, shared/services/assetState.ts (with the
+ * shared client), shared/services/rowLocks.ts, and shared/services/activityLog.ts.
  * Used by: every role's inventory view, Staff registration, editing, and deletion, and every workflow that starts from an asset tag.
  */
-import { type Prisma, type asset_records, type assets } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import type { AssetListFilters } from '@shared/types/assets';
 import { prisma } from '../../config/prisma';
 import * as assetState from '../../shared/services/assetState';
-import { lockCenter } from '../../shared/services/rowLocks';
+import { lockAsset, lockCenter } from '../../shared/services/rowLocks';
+import { logActivity } from '../../shared/services/activityLog';
 
 /** What every asset read for a list or a detail includes: the home lab, the owning project, and the funding source. */
 const ASSET_DETAIL_INCLUDE = {
@@ -40,6 +40,7 @@ export function findForList(filters: AssetListFilters) {
     }
     if (filters.status) where.status = filters.status as Prisma.assetsWhereInput['status'];
     if (filters.centerId !== undefined) where.center_id = filters.centerId;
+    if (filters.assetId !== undefined) where.asset_id = filters.assetId;
     return prisma.assets.findMany({ where, include: ASSET_DETAIL_INCLUDE, orderBy: { asset_id: 'asc' } });
 }
 
@@ -118,11 +119,6 @@ export function findHistoryRows(assetId: number) {
     ]);
 }
 
-/** The funding source with this name, or null. The database compares it without letter case. */
-export function findFundingSourceByName(name: string) {
-    return prisma.funding_sources.findFirst({ where: { name } });
-}
-
 /** The asset with this tag, or null. Used by the asset endpoints and by every workflow that starts from a tag in the URL. */
 export function findByTag(assetTag: string) {
     return prisma.assets.findUnique({ where: { asset_tag: assetTag } });
@@ -132,27 +128,6 @@ export function findByTag(assetTag: string) {
 export function findById(assetId: number) {
     return prisma.assets.findUnique({
         where: { asset_id: assetId }
-    });
-}
-
-/** The status of the asset's newest record, or null if it has none. Read by the custody request guard, for transfers only. (H-05) */
-export function findLatestRecordStatus(assetId: number) {
-    // Same ordering GET /api/assets uses, so this agrees with the status the screens show.
-    return prisma.asset_records.findFirst({
-        where: { asset_id: assetId },
-        orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }],
-        select: { status: true },
-    });
-}
-
-// It is not the custody request guard's reader above: that one breaks ties on asset_record_id, this one does not,
-// so the two can disagree. (M-09)
-/** The asset's newest record, or null if it has none. Read by the transfer request, which commit 9 removes. */
-// TODO(M-09): no tie-break on asset_record_id, unlike the custody request guard and GET /api/assets, so two records logged in the same second can disagree with them. Phase 3, with the shared asset state rule.
-export function findLatestRecord(assetId: number) {
-    return prisma.asset_records.findFirst({
-        where: { asset_id: assetId },
-        orderBy: { date_logged: "desc" },
     });
 }
 
@@ -167,105 +142,102 @@ export function findLabByCode(shortCode: string) {
 }
 
 /**
- * Registers an asset under the next tag of its lab, in one transaction: the lab's row is locked first, then the lab's
- * tags are read and the new tag is built from them, then the assets row is written. Two registrations in the same lab
- * at once therefore number one after the other and never get the same tag. (H-11, issue #75) Its status starts as the
- * column's default, AVAILABLE.
+ * The lab, project, and funding source a body names, read together; each is null when not named or not found.
+ *
+ * @returns [research center, project, funding source]
+ */
+export function findReferences(centerId: number | null, projectId: number | null, fundingSourceId: number | null) {
+    return Promise.all([
+        centerId ? prisma.research_centers.findUnique({ where: { center_id: centerId } }) : null,
+        projectId ? prisma.projects.findUnique({ where: { project_id: projectId } }) : null,
+        fundingSourceId ? prisma.funding_sources.findUnique({ where: { funding_source_id: fundingSourceId } }) : null,
+    ]);
+}
+
+/**
+ * Registers an asset in one transaction: the lab's row is locked first, then the lab's tags are read and the new tag
+ * is built from them, so two registrations in the same lab at once number one after the other and never get the same
+ * tag (H-11, issue #75). Then the assets row (Available, the column's default), its Initial inspection, and an
+ * ASSET_REGISTERED row with the tag.
  *
  * @param centerId the home lab, whose row is locked
- * @param labPrefix the tag prefix, the lab's short code
  * @param nextTag builds the new tag from the tags the lab already has
  * @param assetData the assets row without its tag
- * @returns the created assets row
+ * @param inspection the Initial inspection without its asset
+ * @param actorId the session user who registers it
+ * @returns the new asset's id
  */
-export function createWithNextTag(
+export function register(
     centerId: number,
-    labPrefix: string,
     nextTag: (existingTags: string[]) => string,
     assetData: Omit<Prisma.assetsUncheckedCreateInput, 'asset_tag'>,
+    inspection: Omit<Prisma.asset_inspectionsUncheckedCreateInput, 'asset_id'>,
+    actorId: number,
 ) {
     return prisma.$transaction(async (tx) => {
         await lockCenter(tx, centerId);
+        const lab = await tx.research_centers.findUniqueOrThrow({ where: { center_id: centerId } });
         const existing = await tx.assets.findMany({
-            where: { asset_tag: { startsWith: `${labPrefix}-` } },
+            where: { asset_tag: { startsWith: `${lab.short_code}-` } },
             select: { asset_tag: true },
         });
-        return tx.assets.create({ data: { ...assetData, asset_tag: nextTag(existing.map(a => a.asset_tag)) } });
+        const asset = await tx.assets.create({ data: { ...assetData, center_id: centerId, asset_tag: nextTag(existing.map(a => a.asset_tag)) } });
+        await tx.asset_inspections.create({ data: { ...inspection, asset_id: asset.asset_id } });
+        await logActivity(tx, { eventType: "ASSET_REGISTERED", actorId, assetId: asset.asset_id, details: asset.asset_tag });
+        return asset.asset_id;
     });
 }
 
-/** What an edit adds once the newest record is known: a new record if any, and an inspection report if any. */
-export interface EditRows {
-    record: Omit<Prisma.asset_recordsUncheckedCreateInput, 'asset_id'> | null;
-    report: Prisma.asset_inspectionsUncheckedCreateInput | null;
-}
-
 /**
- * Saves an asset edit in one transaction: the assets fields, and the rows the service asks for (a new record, an
- * inspection report). An existing record is never changed (issue #74). On the slow CCS Cloud link this one
- * interactive transaction can outlast Prisma's transaction timeout, and the edit then fails with P2028, "expired
- * transaction" (issue #8). The newest record is read inside the transaction, after the assets write, and handed to
- * the service, which decides what to add.
+ * Saves a master data edit in one transaction, the asset row locked first: the changed columns and an ASSET_EDITED row.
  *
- * @param existing the asset being edited
- * @param assetUpdateData only the assets fields the request sent; nothing is written when empty
- * @param buildRows builds the new record and the report from the newest record
- * @returns the assets row, updated or as it was
+ * @param assetId the asset
+ * @param changes only the columns whose value changes (never status)
+ * @param actorId the session user who edits
+ * @param details the changed field names, for the log row
  */
-// TODO(H-07): the record half of an edit (status, custodian, location) is kept for Edit Asset until Batch 1 commit 9 makes it master data only. No list or rule reads those records.
-export function saveEdit(
-    existing: assets,
-    assetUpdateData: Prisma.assetsUncheckedUpdateInput,
-    buildRows: (latestRecord: asset_records | null) => EditRows,
-) {
+export function saveEdit(assetId: number, changes: Prisma.assetsUncheckedUpdateInput, actorId: number, details: string) {
     return prisma.$transaction(async (tx) => {
-        let asset = existing;
-        if (Object.keys(assetUpdateData).length > 0) {
-            asset = await tx.assets.update({
-                where: { asset_id: existing.asset_id },
-                data: assetUpdateData,
-            });
-        }
-
-        // Same ordering as the old asset list (ties on date_logged go to the higher asset_record_id). (M-09)
-        const latestRecord = await tx.asset_records.findFirst({
-            where: { asset_id: existing.asset_id },
-            orderBy: [{ date_logged: "desc" }, { asset_record_id: "desc" }],
-        });
-
-        const { record, report } = buildRows(latestRecord);
-
-        if (record) {
-            await tx.asset_records.create({ data: { asset_id: existing.asset_id, ...record } });
-        }
-        if (report) {
-            await tx.asset_inspections.create({ data: report });
-        }
-
-        return asset;
+        await lockAsset(tx, assetId);
+        await tx.assets.update({ where: { asset_id: assetId }, data: changes });
+        await logActivity(tx, { eventType: "ASSET_EDITED", actorId, assetId, details });
     });
 }
 
-/** How many inspection or condition reports the asset has. A delete is refused when there is any. (issue #69) */
-export function countReports(assetId: number) {
-    return prisma.asset_inspections.count({ where: { asset_id: assetId } });
+/** How much history an asset has: a delete is refused when there is any. (issue #69) */
+export async function countHistory(assetId: number) {
+    const where = { asset_id: assetId };
+    const [loans, maintenance, retirements, laterInspections] = await Promise.all([
+        prisma.asset_loans.count({ where }),
+        prisma.asset_maintenance.count({ where }),
+        prisma.asset_retirements.count({ where }),
+        prisma.asset_inspections.count({ where: { asset_id: assetId, type: { not: 'INITIAL' } } }),
+    ]);
+    return { loans, maintenance, retirements, laterInspections };
 }
 
 /**
- * Deletes an asset and the rows of seven tables that point at it, in one transaction.
- * asset_inspections is not among them: an asset with reports is refused before this is called. (H-03, issue #69)
+ * Deletes a fresh registration in one transaction, the asset row locked first: its Initial inspection, its old record,
+ * monetary, transfer, and return rows, and the asset; its activity log rows are kept without the asset, and an
+ * ASSET_DELETED row names the tag. The caller has checked it has no other history.
+ *
+ * @param assetId the asset
+ * @param assetTag its tag, kept in the log row
+ * @param actorId the session user who deletes it
  */
-export function deleteWithHistory(assetId: number) {
+export function deleteRegistration(assetId: number, assetTag: string, actorId: number) {
     // The schema has no ON DELETE CASCADE, so the child rows go first, or the delete fails on a foreign key.
     return prisma.$transaction(async (tx) => {
-        const id = assetId;
-        await tx.asset_records.deleteMany({ where: { asset_id: id } });
-        await tx.asset_monetary.deleteMany({ where: { asset_id: id } });
-        await tx.asset_loans.deleteMany({ where: { asset_id: id } });
-        await tx.asset_maintenance.deleteMany({ where: { asset_id: id } });
-        await tx.asset_transfers.deleteMany({ where: { asset_id: id } });
-        await tx.asset_returns.deleteMany({ where: { asset_id: id } });
-        await tx.asset_retirements.deleteMany({ where: { asset_id: id } });
-        await tx.assets.delete({ where: { asset_id: id } });
+        await lockAsset(tx, assetId);
+        const where = { asset_id: assetId };
+        await tx.activity_log.updateMany({ where, data: { asset_id: null } });
+        await tx.asset_inspection_metrics.deleteMany({ where: { asset_inspections: { asset_id: assetId } } });
+        await tx.asset_inspections.deleteMany({ where });
+        await tx.asset_records.deleteMany({ where });
+        await tx.asset_monetary.deleteMany({ where });
+        await tx.asset_transfers.deleteMany({ where });
+        await tx.asset_returns.deleteMany({ where });
+        await tx.assets.delete({ where });
+        await logActivity(tx, { eventType: "ASSET_DELETED", actorId, details: assetTag });
     });
 }

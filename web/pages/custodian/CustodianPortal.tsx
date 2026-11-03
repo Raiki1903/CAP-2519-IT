@@ -121,8 +121,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     }
   };
 
-  // Loaded once each time a tab opens (every tab change mounts this screen again), so a transfer
-  // or loan elsewhere shows up without a full page reload. (issue #92)
+  // Loaded once each time a tab opens (every tab change mounts this screen again), so a loan
+  // decided elsewhere shows up without a full page reload. (issue #92)
   useEffect(() => {
     fetchDbAssets();
   }, [activeTab]);

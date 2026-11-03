@@ -1,6 +1,6 @@
 /**
- * Lookup row access: the research centers, funding sources, issue types, metric definitions, projects, and Custodian
- * accounts the forms pick from.
+ * Lookup row access: the research centers, funding sources, issue types, metric definitions, and projects the forms
+ * pick from.
  * Layer: repository. Called by lookups.service.ts. Calls config/prisma.ts.
  * Used by: Edit Asset, Register Equipment, the borrow form, Report an issue, the inspection forms, and the sign-up page.
  */
@@ -30,22 +30,4 @@ export function findFormLookupTables() {
             orderBy: { project_code: 'asc' },
         }),
     ]);
-}
-
-/**
- * The id and name of every account that may hold an asset (the RESEARCHER role, heading no lab: a lab's Head account
- * is its office account), except one, by last name then first name.
- *
- * @param excludedUserId an account left out of the list (the placeholder custodian)
- */
-export function findCustodianAccounts(excludedUserId: number) {
-    return prisma.users.findMany({
-        where: {
-            user_id: { not: excludedUserId },
-            user_roles: { some: { roles: { role_name: 'RESEARCHER' } } },
-            headed_center: { is: null },
-        },
-        select: { user_id: true, first_name: true, last_name: true },
-        orderBy: [{ last_name: 'asc' }, { first_name: 'asc' }],
-    });
 }

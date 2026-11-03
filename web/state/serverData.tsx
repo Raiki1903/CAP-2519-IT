@@ -10,7 +10,6 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import * as loansApi from "../api/loans.api";
 import * as assetsApi from "../api/assets.api";
-import * as transfersApi from "../api/transfers.api";
 import * as maintenanceApi from "../api/maintenance.api";
 import * as retirementsApi from "../api/retirements.api";
 import * as inspectionsApi from "../api/inspections.api";
@@ -167,7 +166,6 @@ interface ServerDataContextType {
   addPendingRegistration: (req: PendingRegistration) => void;
   approveRegistration: (reqOrId: string | PendingRegistration) => Promise<ApiResult>;
   rejectRegistration: (requestId: string) => Promise<void>;
-  dbTransfers: any[];
   dbReports: any[];
   dbLoans: any[];
   isDbLoading: boolean;
@@ -191,7 +189,7 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  *   `updateRepairStatus(id, status)`: maintenanceApi.updateRepairRaw. Each reloads afterwards.
  * - `dbLoans`: loansApi.listLoans. `reloadLoans()`: reloads only this list and returns the answer.
  *   `authorizeLoan(loanId, decision)`: loansApi.decideLoan.
- * - `dbTransfers`: transfersApi.listTransfers. `dbReports`: inspectionsApi.listReportSummaries.
+ * - `dbReports`: inspectionsApi.listReportSummaries.
  * - `pendingDisposals`: retirementsApi.listDisposals, pending ones only.
  * - `pendingRegistrations`, `approveRegistration`, `rejectRegistration`: authApi.
  * - `isDbLoading`: true while a reload is running. `syncFromDb()`: runs one.
@@ -212,7 +210,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   const [assets, setAssets] = useState<Asset[]>([]);
   // Lets a screen tell whether the list reloaded after a moment it remembers (the asset detail modal). (issue #89)
   const [assetsVersion, setAssetsVersion] = useState(0);
-  const [dbTransfers, setDbTransfers] = useState<any[]>([]);
   const [dbReports, setDbReports] = useState<any[]>([]);
   const [dbLoans, setDbLoans] = useState<any[]>([]);
   const [pendingDisposals, setPendingDisposals] = useState<PendingDisposal[]>([]);
@@ -247,23 +244,14 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
           doneAssetTags = jsonAssets.assets
             .filter((a: Asset) => a.status === "AVAILABLE" || a.status === "RETIRED")
             .map((a: Asset) => a.id);
-          // First guess at transfers and reports from the rows inside each asset.
-          // The two dedicated requests below replace them when they succeed.
-          const allTransfers = jsonAssets.assets.flatMap((a: any) => a.asset_transfers || []);
+          // First guess at the reports from the rows inside each asset. The dedicated request below replaces
+          // them when it succeeds.
           const allReports = jsonAssets.assets.flatMap((a: any) => a.asset_reports || []);
-          if (allTransfers.length > 0) setDbTransfers(allTransfers);
           if (allReports.length > 0) setDbReports(allReports);
         }
       } catch (e) {
         console.error("Failed to fetch live assets from API:", e);
       }
-
-      try {
-        const jsonT = await transfersApi.listTransfers();
-        if (jsonT.success && Array.isArray(jsonT.transfers)) {
-          setDbTransfers(jsonT.transfers);
-        }
-      } catch (e) {}
 
       if (role && REPORT_READERS.includes(role)) {
         try {
@@ -373,7 +361,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     if (!role) {
       setAssets([]);
       setRepairRequests([]);
-      setDbTransfers([]);
       setDbReports([]);
       setDbLoans([]);
       setPendingDisposals([]);
@@ -458,7 +445,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
         unacknowledgedCount,
         pendingDisposals,
         pendingRegistrations, addPendingRegistration, approveRegistration, rejectRegistration,
-        dbTransfers, dbReports, dbLoans,
+        dbReports, dbLoans,
         isDbLoading,
         syncFromDb, refreshSharedLists, reloadLoans, authorizeLoan
       }}

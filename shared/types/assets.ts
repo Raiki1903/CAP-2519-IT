@@ -4,73 +4,57 @@
  * Used by: every role's inventory view, the asset detail modal, Staff asset registration and editing.
  */
 
-/** The body of POST /api/assets, as IntakeWizard sends it. */
-export interface AssetCreateInput {
+/** One inspection inside a request body (docs/contracts/lifecycle.md, InspectionInput). */
+export interface InspectionInput {
+  /** One of ASSET_CONDITIONS, for example "MINOR_DRIFT". */
+  condition: string;
+  /** 0 to 100. */
+  healthScore?: number | null;
+  /** Empty means nothing is missing. */
+  missingAccessories?: string | null;
+  remarks?: string | null;
+  /** A data URL. */
+  photo?: string | null;
+}
+
+/** The master data of an asset: what registration sets and Edit Asset may change. Every field is checked by the server. */
+export interface AssetMasterData {
+  name?: string;
+  serialNumber?: string | null;
+  manufacturer?: string | null;
+  /** One of ASSET_CATEGORIES. */
+  category?: string;
+  /** The home lab, a research_centers id. */
+  centerId?: number;
+  homeRoom?: string | null;
+  /** The owning project, a projects id, or null for none. */
+  projectId?: number | null;
+  /** A funding_sources id, or null for none. */
+  fundingSourceId?: number | null;
+  acquisitionValue?: number | null;
+  /** yyyy-mm-dd, or null. */
+  procurementDate?: string | null;
+  warrantyExpiry?: string | null;
+  accessories?: string | null;
+  itsPropertyTag?: string | null;
+  tsgTag?: string | null;
+  /** A data URL or a link to a .jpg, .jpeg, .png, .webp, or .svg file, or null for none. */
+  imageUrl?: string | null;
+}
+
+/** The body of POST /api/assets: the master data, with name, category, and home lab required, and the Initial inspection. */
+export interface AssetCreateInput extends AssetMasterData {
   name: string;
-  /** Any spelling: the server upper-cases it, turns spaces and dashes into underscores, and stores DEV_KIT if it is not a category. */
   category: string;
-  serial?: string;
-  manufacturer?: string;
-  /** The picture, under any of three names: a data URL or a link to a .jpg, .jpeg, .png, .webp, or .svg file. */
-  image?: string;
-  image_url?: string;
-  imageUrl?: string;
-  /** yyyy-mm-dd. */
-  procured?: string;
-  /** yyyy-mm-dd. */
-  warranty?: string;
-  /** "Unspecified" when not sent. */
-  funding?: string;
-  acquisitionValue?: number | string;
-  /** The campus; stored with the lab as "<campus> — <lab>". */
-  location?: string;
-  /** The lab code. Also the tag prefix: the new asset gets "<lab>-<next number>". Required: there is no default lab. */
-  lab?: string;
-  /** users.user_id of the first custodian; user 1 when not sent. */
-  custodianId?: number;
-  /** The first record's remarks, under any of four names (the first one sent wins). */
-  remarks?: string;
-  description?: string;
-  tsgRemarks?: string;
-  itsRemarks?: string;
+  centerId: number;
+  initialInspection: InspectionInput;
 }
 
 /**
- * The body of PUT /api/assets/:assetTag, as EditAssetDialog sends it (only the fields Staff changed). Every field is
- * optional: an assets field is written only when sent. A change of status, location, custodian, condition, or remarks
- * adds a record; no record is changed (issue #74). A condition, or remarks under any name but `description`, also files
- * an inspection report.
+ * The body of PUT /api/assets/:assetTag: only the master data fields that change. Status, holder, location, and
+ * condition are worked out or changed by their own steps, so a body that sends one is refused with 400.
  */
-export interface AssetUpdateInput {
-  name?: string;
-  serial?: string;
-  manufacturer?: string;
-  category?: string;
-  /** null or "" removes the picture. */
-  image?: string | null;
-  image_url?: string | null;
-  imageUrl?: string | null;
-  procured?: string;
-  warranty?: string;
-  /** "Unspecified" when sent empty. Left as it is when not sent. */
-  funding?: string;
-  /** Left as it is when not sent. */
-  acquisitionValue?: number | string;
-  location?: string;
-  lab?: string;
-  /** The new custodian's user id, which must be a Custodian account; null for None (nobody holds it). (issue #95) */
-  custodianId?: number | null;
-  /** Display text such as "On Loan"; stored upper-cased with the first space as an underscore. */
-  status?: string;
-  /** An ASSET_CONDITIONS value; anything else keeps the record's condition. */
-  assetCondition?: string;
-  /** The inspection report's condition, by stored or display name; PERFECT for a name it does not know. */
-  reportCondition?: string;
-  remarks?: string;
-  description?: string;
-  tsgRemarks?: string;
-  itsRemarks?: string;
-}
+export type AssetUpdateInput = AssetMasterData;
 
 /** One inspection report inside an asset of GET /api/assets. */
 export interface AssetListReport {
@@ -195,6 +179,8 @@ export interface AssetListFilters {
   q?: string;
   status?: string;
   centerId?: number;
+  /** One asset by id. Not read from the query: the server uses it to answer a registration or an edit with the asset. */
+  assetId?: number;
 }
 
 /** One entry of GET /api/assets/:assetTag/history. */

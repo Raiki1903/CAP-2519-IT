@@ -159,31 +159,6 @@ export function findLoansForLabHead(prefixFilter: string, startDate: Date | null
     });
 }
 
-/**
- * Transfers of the lab's assets, newest first, each with its asset.
- *
- * @param prefixFilter the lab prefix, or "" for every transfer (the EQ- pool included)
- * @param startDate earliest requested_on, or null
- * @param endDate latest requested_on, or null
- */
-export function findTransfersForLabHead(prefixFilter: string, startDate: Date | null, endDate: Date | null) {
-    const transferWhere: any = {};
-    if (startDate || endDate) {
-        transferWhere.requested_on = {};
-        if (startDate && !isNaN(startDate.getTime())) transferWhere.requested_on.gte = startDate;
-        if (endDate && !isNaN(endDate.getTime())) transferWhere.requested_on.lte = endDate;
-    }
-    if (prefixFilter) {
-        transferWhere.assets = { research_centers: { short_code: prefixFilter } };
-    }
-
-    return prisma.asset_transfers.findMany({
-        where: Object.keys(transferWhere).length > 0 ? transferWhere : undefined,
-        include: { assets: true },
-        orderBy: { requested_on: 'desc' }
-    });
-}
-
 /** The research center with this id, or null: the lab a Lab Head heads. */
 export function findLab(centerId: number) {
     return prisma.research_centers.findUnique({ where: { center_id: centerId } });

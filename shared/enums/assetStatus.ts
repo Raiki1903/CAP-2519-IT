@@ -1,5 +1,5 @@
 /**
- * The six asset statuses (assets.status), their labels, and the statuses Edit Asset still offers.
+ * The six asset statuses (assets.status) and their labels.
  * Layer: shared. Imported by the server (lifecycle guard, status setter, derive helpers, asset list, lookups) and web/
  * (badges and filters). Imports nothing.
  * Used by: every workflow that reads or changes an asset's state.
@@ -23,10 +23,3 @@ export const ASSET_STATUS_LABELS: Record<AssetStatus, string> = {
   RETIRED: "Retired",
   MISSING: "Missing",
 };
-
-/**
- * The old record statuses (asset_records.status) Edit Asset still offers. DISPOSED is not here: only a Director's
- * disposal approval sets it.
- */
-// TODO(H-07): Edit Asset still sets a status. Batch 1 commit 9 makes it master data only and removes this list.
-export const EDITABLE_ASSET_STATUSES = ["ACTIVE", "ON_LOAN", "MAINTENANCE"];

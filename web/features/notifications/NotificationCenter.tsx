@@ -1,7 +1,7 @@
 /**
  * Notification bell: a floating panel listing requests, reminders, and clearance holds for the signed-in role.
  * Layer: feature component. Called by app/layouts/RootLayout.tsx, on every signed-in screen.
- * Calls: api/transfers.api.ts decideTransfer(), api/retirements.api.ts decideDisposal(), and state/serverData.tsx
+ * Calls: api/retirements.api.ts decideDisposal(), and state/serverData.tsx
  * (the shared lists, authorizeLoan, acknowledgeRepair). It fetches nothing itself.
  * Used by: every role.
  */
@@ -11,7 +11,6 @@ import { useSession, roleToSlug, roleDefaultPath, roleLabel } from "@web/state/s
 import { useServerData } from "@web/state/serverData";
 import { useBrowserOnly } from "@web/state/browserOnly";
 import { openReturnRequests } from "@web/features/returns/openReturnRequests";
-import * as transfersApi from "@web/api/transfers.api";
 import * as retirementsApi from "@web/api/retirements.api";
 import { labMatches } from "@web/features/labs/labMatches";
 import type { Role } from "@shared/enums/role";
@@ -19,7 +18,6 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Bell,
   Wrench,
-  ArrowLeftRight,
   ClipboardCheck,
   AlertTriangle,
   Trash2,
@@ -36,7 +34,7 @@ import {
 
 /**
  * Builds the role's notifications from the shared lists and offers the decisions that role
- * may make from the bell: Lab Heads approve or decline transfers, the Director authorizes or
+ * may make from the bell: the Director authorizes or
  * rejects disposals, Lab Heads authorize or decline loans, Staff acknowledge repair tickets.
  * Each decision calls the API and then reloads the shared lists. Clicking a card opens the
  * matching tab. Takes no props.
@@ -47,7 +45,6 @@ export function NotificationCenter() {
   const {
     assets,
     repairRequests,
-    dbTransfers,
     dbLoans,
     pendingDisposals,
     acknowledgeRepair,
@@ -176,10 +173,10 @@ export function NotificationCenter() {
       }
     });
 
-    // 2. REQUESTS TAB (Repairs, Custody Transfers, Equipment Loans, Returns, Disposals)
+    // 2. REQUESTS TAB (Repairs, Equipment Loans, Returns, Disposals)
     const requests: {
       id: string;
-      type: "repair" | "transfer" | "loan" | "return" | "disposal";
+      type: "repair" | "loan" | "return" | "disposal";
       title: string;
       description: string;
       date: string;
@@ -216,52 +213,6 @@ export function NotificationCenter() {
             needsAction: actionRequired,
             targetTab: "repairs",
             meta: rep
-          });
-        }
-      }
-    });
-
-    // B. Custody Transfers
-    const rawTransfers = dbTransfers || [];
-    rawTransfers.forEach((txn: any) => {
-      const status = (txn.status || "").toLowerCase();
-      if (status === "pending") {
-        let isRelevant = false;
-        let actionRequired = false;
-
-        const fromName = txn.from || `Custodian ${txn.from_custodian_id}`;
-        const toName = txn.to || `Custodian ${txn.to_custodian_id}`;
-        const assetTitle = txn.assetName || txn.asset || txn.asset_tag || "Equipment";
-
-        if (role === "AdRICDirector") {
-          isRelevant = true;
-        } else if (role === "Staff") {
-          isRelevant = true;
-          actionRequired = true;
-        } else if (role === "LabHead") {
-          if (labMatches(currentUser?.headOf?.code, txn.lab)) {
-            isRelevant = true;
-            actionRequired = true;
-          }
-        } else if (role === "Custodian") {
-          const isToMe = (currentUserId && txn.to_custodian_id === currentUserId) || (toName.toLowerCase().includes(currentUserName.toLowerCase()));
-          const isFromMe = (currentUserId && txn.from_custodian_id === currentUserId) || (fromName.toLowerCase().includes(currentUserName.toLowerCase()));
-          if (isToMe || isFromMe) {
-            isRelevant = true;
-            actionRequired = isToMe;
-          }
-        }
-
-        if (isRelevant) {
-          requests.push({
-            id: txn.id || `TR-${txn.transfer_id}`,
-            type: "transfer",
-            title: `Custody Transfer: ${assetTitle}`,
-            description: `Transfer initiated from ${fromName} (${txn.from_lab || "Manila"}) to ${toName} (${txn.to_lab || "Manila"})`,
-            date: txn.requested_on || txn.initiated || new Date().toISOString(),
-            needsAction: actionRequired,
-            targetTab: "transfers",
-            meta: txn
           });
         }
       }
@@ -539,27 +490,12 @@ export function NotificationCenter() {
       holdsBadge: hBadge,
       totalBadgeCount: totBadge
     };
-  }, [role, currentUser, currentUserName, currentUserEmail, currentUserId, assets, repairRequests, dbTransfers, dbLoans, returns, pendingDisposals, manualClearanceHolds]);
+  }, [role, currentUser, currentUserName, currentUserEmail, currentUserId, assets, repairRequests, dbLoans, returns, pendingDisposals, manualClearanceHolds]);
 
   if (!role) return null;
 
   const hasPersonalHold = holdsList.some(h => h.name === currentUserName);
   const personalHoldNotes = holdsList.find(h => h.name === currentUserName)?.notes;
-
-  const decideTransferFromBell = async (txn: any, decision: "approve" | "decline") => {
-    const transferId = txn?.transferId ?? txn?.transfer_id;
-    if (transferId === undefined) {
-      console.error("Transfer decision skipped: this row has no database id.", txn);
-      return;
-    }
-    try {
-      const data = await transfersApi.decideTransfer(transferId, decision);
-      if (!data.success) console.error("Failed to decide transfer:", data.error);
-    } catch (err) {
-      console.error("Failed to decide transfer:", err);
-    }
-    await syncFromDb();
-  };
 
   const decideDisposalFromBell = async (disp: any, decision: "approve" | "reject") => {
     if (disp?.disposalId === undefined) {
@@ -590,7 +526,7 @@ export function NotificationCenter() {
     }
 
     if (cardRole === "LabHead") {
-      if (cardType === "loan" || cardType === "transfer" || targetTab === "custody" || targetTab === "transfers") {
+      if (cardType === "loan" || targetTab === "custody") {
         return "/lab-head/custody";
       }
       if (targetTab === "inventory" || cardType === "overdue" || cardType === "duesoon" || cardType === "active_loan") {
@@ -600,7 +536,7 @@ export function NotificationCenter() {
     }
 
     if (cardRole === "Custodian") {
-      // Repairs, loans, transfers, and asset reminders all live in myassets.
+      // Repairs, loans, and asset reminders all live in myassets.
       return "/custodian/myassets";
     }
 
@@ -737,13 +673,11 @@ export function NotificationCenter() {
                       <div className="flex items-start gap-2.5 justify-between">
                         <div className="flex items-start gap-2.5">
                           <span className={`p-1.5 rounded-lg flex-shrink-0 mt-0.5 ${item.type === "repair" ? "bg-red-50 text-red-600 border border-red-100" :
-                            item.type === "transfer" ? "bg-blue-50 text-blue-600 border border-blue-100" :
                               item.type === "loan" ? "bg-amber-50 text-amber-600 border border-amber-100" :
                                 item.type === "return" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
                                   "bg-purple-50 text-purple-600 border border-purple-100"
                             }`}>
                             {item.type === "repair" && <Wrench size={14} />}
-                            {item.type === "transfer" && <ArrowLeftRight size={14} />}
                             {item.type === "loan" && <ClipboardCheck size={14} />}
                             {item.type === "return" && <ClipboardCheck size={14} />}
                             {item.type === "disposal" && <Trash2 size={14} />}
@@ -821,30 +755,6 @@ export function NotificationCenter() {
                             </div>
                           )}
 
-                          {/* Authorize Custody Transfer Buttons */}
-                          {item.type === "transfer" && role === "LabHead" && (
-                            <div className="flex gap-1">
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await decideTransferFromBell(item.meta, "approve");
-                                }}
-                                className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                Approve Transfer
-                              </button>
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await decideTransferFromBell(item.meta, "decline");
-                                }}
-                                className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                              >
-                                Decline
-                              </button>
-                            </div>
-                          )}
-
                           {/* Authorize Decommission Disposal Buttons */}
                           {item.type === "disposal" && role === "AdRICDirector" && (
                             <div className="flex gap-1">
@@ -883,7 +793,7 @@ export function NotificationCenter() {
                     <div className="flex flex-col items-center justify-center text-center py-12 text-muted-foreground">
                       <CheckCircle size={32} className="text-emerald-500/50 mb-2" />
                       <p className="text-xs font-bold text-foreground">No Pending Requests</p>
-                      <p className="text-[10px] mt-0.5">All repair, transfer, loan, and disposal requests for your role are up to date.</p>
+                      <p className="text-[10px] mt-0.5">All repair, loan, and disposal requests for your role are up to date.</p>
                     </div>
                   )}
                 </>

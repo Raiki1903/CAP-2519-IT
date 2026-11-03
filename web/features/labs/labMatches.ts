@@ -2,7 +2,7 @@
  * Lab affiliation matcher: strictly compares user lab affiliation with a record lab.
  * Layer: feature helper. Called by NotificationCenter.tsx and LabHeadDashboard.tsx.
  * Calls: nothing.
- * Used by: Lab Head loan and transfer notifications, custody requests. (F-31)
+ * Used by: Lab Head loan notifications and requests. (F-31)
  */
 
 /**

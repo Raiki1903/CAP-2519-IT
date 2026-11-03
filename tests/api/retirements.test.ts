@@ -314,7 +314,7 @@ describe("PUT /api/retirements/:id/decision", () => {
   });
 
   it.each([
-    { decision: "decline", why: "the word loans and transfers use" },
+    { decision: "decline", why: "the word loans use" },
     { decision: "approved", why: "the stored status" },
     { decision: undefined, why: "no decision" },
   ])("answers 400 for $decision, $why, and leaves the disposal pending", async ({ decision }) => {

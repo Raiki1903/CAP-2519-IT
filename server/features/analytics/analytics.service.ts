@@ -351,9 +351,9 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
 }
 
 /**
- * Builds the Lab Head dashboard for the lab the viewer heads: loan and transfer requests, utilization, categories,
+ * Builds the Lab Head dashboard for the lab the viewer heads: loan requests, utilization, categories,
  * project allocation, overdue loans, and the scatter and heatmap built from them.
- * The date range limits the loans and transfers only.
+ * The date range limits the loans only.
  *
  * @param filters the date range
  * @param viewer the session user, a Lab Head (the route checks it)
@@ -386,26 +386,6 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
             requestedOn: l.requested_at.toISOString().split('T')[0],
             dueDate: l.return_by.toISOString().split('T')[0],
             status: legacyLoanStatusLabel(l.status)
-        };
-    });
-
-    const rawTransfers = await analyticsRepository.findTransfersForLabHead(prefixFilter, startDate, endDate);
-
-    const transfers = rawTransfers.map(t => {
-        // The transfer form's destination lab is stored the same way, as the first line of the justification. (H-19)
-        const destLabMatch = t.justification?.match(/^Destination Lab:\s*(.+?)\s*(?:\n|$)/);
-        const destinationLab = destLabMatch ? destLabMatch[1] : undefined;
-        const cleanJustification = destLabMatch ? t.justification.replace(/^Destination Lab:\s*.+?\n\n?/, "") : t.justification;
-
-        return {
-            transferId: t.transfer_id,
-            assetId: t.assets?.asset_tag || `ASSET-${t.asset_id}`,
-            asset: t.assets?.name || "Equipment",
-            justification: cleanJustification,
-            destinationLab,
-            requestedOn: t.requested_on.toISOString().split('T')[0],
-            // TODO(M-12): the raw status with its first letter capitalized, so a transfer moved by /accept shows as "Pending_approver", while GET /api/asset_transfers shows it as Pending. With M-12.
-            status: t.status.charAt(0).toUpperCase() + t.status.slice(1)
         };
     });
 
@@ -551,7 +531,6 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
 
     return {
         loans,
-        transfers,
         utilization: {
             assignedCount,
             unassignedCount,

@@ -1,7 +1,7 @@
 /**
  * Adds one more fake asset in a chosen custody state, for a test that needs an asset no other test touches,
  * and removes such assets again.
- * Layer: test setup. Called by the loan, return, transfer, repair, inspection, disposal, analytics, and session user test files.
+ * Layer: test setup. Called by the asset, loan, return, repair, inspection, disposal, analytics, permission, and session user test files.
  * Calls Prisma; reads fixtures.ts.
  * Used by: the workflows where each request changes an asset's state or its newest record, and the analytics
  * tests, which count every asset and so put the database back after each test.
@@ -59,8 +59,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Creates an asset in the state asked for, the way the server stores it: assets.status, a loan for a holder, an
- * inspection for a condition. It also writes one asset_records row, which Edit Asset and transfers still read until
- * commit 9. Defaults: Available, never inspected, nobody holds it, at its home lab TEST, no project, no warranty,
+ * inspection for a condition. It also writes one asset_records row, which nothing reads; the table goes in commit 9b.
+ * Defaults: Available, never inspected, nobody holds it, at its home lab TEST, no project, no warranty,
  * value 500.
  *
  * @param db Prisma on the test database

@@ -1,7 +1,7 @@
 /**
  * Loan row access: every database read and write the loan endpoints make.
- * Layer: repository. Called by loans.service.ts and shared/services/custodyRequestGuard.ts (the pending loan, for
- * transfers). Calls server/config/prisma.ts, shared/services/assetStatus.ts, and shared/services/rowLocks.ts.
+ * Layer: repository. Called by loans.service.ts. Calls server/config/prisma.ts, shared/services/assetStatus.ts, and
+ * shared/services/rowLocks.ts.
  * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
  */
 import { asset_loans_status, type Prisma, type asset_loans } from '@prisma/client';
@@ -26,11 +26,6 @@ export function findListLookups() {
         prisma.users.findMany(),
         prisma.assets.findMany({ include: { research_centers: true } }),
     ]);
-}
-
-/** The asset's pending loan (its id only), or null. Read by the custody request guard, for transfers. (H-05) */
-export function findPendingLoanId(assetId: number) {
-    return prisma.asset_loans.findFirst({ where: { asset_id: assetId, status: asset_loans_status.PENDING_APPROVAL }, select: { loan_id: true } });
 }
 
 /** Inserts an asset_loans row and returns it. */

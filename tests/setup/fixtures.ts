@@ -90,7 +90,7 @@ export interface TestAsset {
   tag: string;
   name: string;
   category: "DEV_KIT" | "MONITOR" | "CAMERA" | "ROUTER" | "TABLET" | "PROJECTOR";
-  /** The latest asset_records status after seeding (Edit Asset and transfers still read the records until commit 9). */
+  /** The latest asset_records status after seeding. Nothing reads the records; the table goes in Batch 1 commit 9b. */
   recordStatus: "ACTIVE" | "ON_LOAN" | "MAINTENANCE" | "DISPOSED";
   /** assets.status, which GET /api/assets sends as `status`. */
   listStatus: "AVAILABLE" | "ON_LOAN" | "MAINTENANCE" | "RETIRED";

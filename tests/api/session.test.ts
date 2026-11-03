@@ -38,7 +38,8 @@ const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.
 
 /**
  * The approved 13b role table: [row, method, path, roles]. Paths use ids and tags no row has.
- * Row 8, POST /api/auth/register, was deleted with its route (issue #70). Row 41, the custodian list, came with issue #12.
+ * Row 8, POST /api/auth/register, was deleted with its route (issue #70). Rows 29 to 32 (transfers) and 41 (the custodian
+ * list) were deleted with their routes in Batch 1. The Staff account is TSG.
  */
 const ROUTES: [number, string, string, Role[]][] = [
   [3, "GET", "/api/auth/pending-registrations", [L]],
@@ -66,10 +67,6 @@ const ROUTES: [number, string, string, Role[]][] = [
   [26, "PUT", "/api/maintenance/999999/status", [S]],
   [27, "POST", "/api/assets/NOPE-9999/return", [S]],
   [28, "GET", "/api/asset_returns", [S]],
-  [29, "POST", "/api/assets/NOPE-9999/transfer", [C]],
-  [30, "GET", "/api/asset_transfers", ANY],
-  [31, "PUT", "/api/asset_transfers/999999/decision", [L]],
-  [32, "PUT", "/api/asset_transfers/999999/accept", [C]],
   [33, "GET", "/api/analytics/director", [D]],
   [34, "GET", "/api/analytics/lab-head", [L]],
   [35, "GET", "/api/analytics/tsg", [S]],
@@ -78,7 +75,6 @@ const ROUTES: [number, string, string, Role[]][] = [
   [38, "GET", "/api/analytics/advanced/idle-time", [L]],
   [39, "GET", "/api/analytics/advanced/idle-frequency", [L]],
   [40, "GET", "/api/analytics/advanced/loan-recommender", [L]],
-  [41, "GET", "/api/lookups/users", [S]],
 ];
 
 function send(client: ApiClient, method: string, path: string) {
@@ -250,11 +246,11 @@ describe("requireRole: the role is read from the database, at most once a minute
   });
 
   it.each([USERS.admin, USERS.staffIts, USERS.secretary])(
-    "treats the $role account as Staff: it passes a Staff check and nothing more",
+    "treats the $role account as Staff: it passes a Staff check and nothing more, and only TSG registers an asset",
     async (user) => {
       const client = as(user);
 
-      expect((await client.post("/api/assets", {})).status).toBe(400);
+      expect((await client.post("/api/assets", {})).status).toBe(user.role === "TSG_STAFF" ? 400 : 403);
       expect((await client.get("/api/analytics/tsg")).status).toBe(200);
       const labHeadOnly = await client.get("/api/auth/pending-registrations");
       expect(labHeadOnly.status).toBe(403);
@@ -314,6 +310,12 @@ describe("every route of the approved role table", () => {
         expect(res.status, `${role} is refused`).toBe(403);
         expect(res.body).toEqual({ success: false, error: FORBIDDEN });
       }
+    }
+  });
+
+  it("answers 404 for the transfer routes, removed in Batch 1", async () => {
+    for (const [method, path] of [["POST", "/api/assets/TEST-0001/transfer"], ["GET", "/api/asset_transfers"], ["PUT", "/api/asset_transfers/1/decision"], ["PUT", "/api/asset_transfers/1/accept"]]) {
+      expect((await send(as(USERS.custodianA), method, path)).status, `${method} ${path}`).toBe(404);
     }
   });
 

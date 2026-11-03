@@ -1,7 +1,7 @@
 /**
  * Asset detail modal: one asset's facts, QR tag, history, and the request forms each role may open from it.
  * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and pages/staff/InventoryPage.tsx.
- * Calls: api/assets.api.ts getAssetHistory(), state/serverData.tsx addRepairRequest() and reloadLoans(), and the loan, transfer, return, and repair forms.
+ * Calls: api/assets.api.ts getAssetHistory(), state/serverData.tsx addRepairRequest() and reloadLoans(), and the loan, return, and repair forms.
  * Used by: Custodian requests, Lab Head custody review, Staff maintenance flagging and Record Return.
  */
 import { useState, useEffect } from "react";
@@ -10,12 +10,11 @@ import { useServerData, holderLabel, type DisposalDetails } from "@web/state/ser
 import * as assetsApi from "@web/api/assets.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  X, ArrowRightLeft, Wrench, CornerUpLeft,
+  X, Wrench, CornerUpLeft,
   Tag, MapPin, Building2, Calendar, Activity, Bookmark, History, ArrowLeft, Clock
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { assetStatusLabel } from "./assetBadges";
-import { TransferForm } from "@web/features/transfers/TransferForm";
 import { ReturnForm } from "@web/features/returns/ReturnForm";
 import { RepairForm } from "@web/features/repairs/RepairForm";
 import { LoanForm } from "@web/features/loans/LoanForm";
@@ -67,11 +66,10 @@ export interface AssetDetail {
   specs?: string;
 }
 
-type FormView = "detail" | "transfer" | "return" | "repair" | "loan" | "custodianHistory";
+type FormView = "detail" | "return" | "repair" | "loan" | "custodianHistory";
 
 const viewTitles: Record<FormView, string> = {
   detail: "Details",
-  transfer: "Custodianship Transfer",
   return: "Asset Return",
   repair: "Request Repair",
   loan: "Request Loan",
@@ -95,7 +93,7 @@ interface Props {
 /**
  * Shows one asset, with its current custodian under the name, and switches between its detail view, custodian history, and the request forms.
  * The buttons depend on role and status: a Custodian can request a loan (Active),
- * a transfer, repair, or return (On Loan); Staff can send it to maintenance, and record its return
+ * a repair or return (On Loan); Staff can send it to maintenance, and record its return
  * when it is On Loan or Overdue; a Lab Head can open the full asset history. Calls assetsApi.getAssetHistory() and
  * reloads the shared loan list (reloadLoans) when it opens.
  *
@@ -106,7 +104,7 @@ interface Props {
  */
 export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const { role, currentUser } = useSession();
-  const { assets, assetsVersion, addRepairRequest, dbLoans, dbTransfers, reloadLoans } = useServerData();
+  const { assets, assetsVersion, addRepairRequest, dbLoans, reloadLoans } = useServerData();
   // The shared list can be older than the page's own list, so its copy is used only once it reloaded after
   // this asset was opened. Until then the modal shows the same status as the row that was clicked. (issue #89)
   const [openedUnder, setOpenedUnder] = useState({ tag: propAsset?.id, version: assetsVersion });
@@ -115,19 +113,15 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const reloadedCopy = propAsset && assetsVersion > openedVersion ? assets.find(a => a.id === propAsset.id) : undefined;
   const asset = propAsset ? (reloadedCopy || propAsset) : null;
 
-  // The server refuses a second loan or transfer while either is pending, so the
+  // The server refuses a second loan request while one is pending, so the
   // request buttons are swapped for a notice instead of leading to that refusal. (H-05)
   const isPendingFor = (r: any) => !!asset && r.assetId === asset.id && String(r.status).toLowerCase() === "pending";
   const pendingLoan = dbLoans.find(isPendingFor);
-  const pendingTransfer = dbTransfers.find(isPendingFor);
   const pendingRequest = pendingLoan
     ? { kind: "loan", requesterId: pendingLoan.borrower_id, requesterName: pendingLoan.borrower }
-    : pendingTransfer
-      ? { kind: "transfer", requesterId: pendingTransfer.fromCustodianId, requesterName: pendingTransfer.from }
-      : null;
+    : null;
   const isOwnPendingRequest = !!pendingRequest && currentUser?.userId === pendingRequest.requesterId;
-  // The server lets only the asset's current custodian request its transfer (answer 3 of the 13c questions), so the
-  // Transfer and Return buttons show only on an asset the Custodian holds, matched by user id as My Assets matches it
+  // The Return button shows only on an asset the Custodian holds, matched by user id as My Assets matches it
   // (issue #32). The server sends a Custodian no other holder's id, so this matches only their own assets. Repair stays for all.
   const holdsThisAsset = !!asset && !!currentUser && asset.custodianId === currentUser.userId;
   // Staff record a return straight from here, with no request needed in this browser, so a return works from
@@ -253,10 +247,10 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   // Title for each view
   const viewTitles: Record<FormView, string | null> = {
     detail: null,
-    transfer: "Custodianship Transfer",
-    return: "Return Asset",
+      return: "Return Asset",
     repair: "Request Repair",
     loan: "Request a Loan",
+    custodianHistory: "Asset History",
   };
 
   return (
@@ -535,32 +529,12 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 <div>
                                   <p className="text-xs font-bold text-amber-800">Asset Under Maintenance</p>
                                   <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
-                                    Staff are currently servicing this unit. Custodianship transfer, repair requests, and returns are unavailable until maintenance is completed and the asset is handed back.
+                                    Staff are currently servicing this unit. Repair requests and returns are unavailable until maintenance is completed and the asset is handed back.
                                   </p>
                                 </div>
                               </div>
                             ) : (
-                              <div className={cn("grid gap-2.5", role === "Custodian" && holdsThisAsset ? "grid-cols-3" : role === "Staff" && isOnLoan ? "grid-cols-2" : "grid-cols-1")}>
-                                {/* 1: Custodianship Transfer, only for the asset's holder */}
-                                {role === "Custodian" && holdsThisAsset && pendingRequest && requestPendingTile}
-                                {role === "Custodian" && holdsThisAsset && !pendingRequest && (
-                                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
-                                    <Button
-                                      variant="outline"
-                                      className="w-full h-auto flex-col py-4 px-2 gap-2 text-[#005A36] border-[#005A36]/25 hover:bg-emerald-50 hover:border-[#005A36]/60"
-                                      onClick={() => setView("transfer")}
-                                    >
-                                      <ArrowRightLeft size={20} />
-                                      <span
-                                        className="text-[10px] font-extrabold leading-tight text-center"
-                                        style={{ fontFamily: "'Montserrat', sans-serif" }}
-                                      >
-                                        Custodianship<br />Transfer
-                                      </span>
-                                    </Button>
-                                  </motion.div>
-                                )}
-
+                              <div className={cn("grid gap-2.5", role === "Custodian" && holdsThisAsset ? "grid-cols-2" : role === "Staff" && isOnLoan ? "grid-cols-2" : "grid-cols-1")}>
                                 {/* 2a — Request Repair (Form) */}
                                 {(role === "Custodian") && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
@@ -641,18 +615,6 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           </div>
                         </>
                       )}
-                    </motion.div>
-                  )}
-
-                  {view === "transfer" && (
-                    <motion.div
-                      key="transfer"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <TransferForm asset={asset} onBack={goBack} onClose={resetAndClose} />
                     </motion.div>
                   )}
 

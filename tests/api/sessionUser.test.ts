@@ -1,8 +1,7 @@
 /**
  * The session user (step 13c): what a Custodian may see of other people, and the checks that need to know who is asking.
- * Covers GET /api/loans, GET /api/asset_transfers, GET /api/assets, GET /api/assets/:tag/history
- * (other people's names hidden from a Custodian, D2; nobody named for an asset nobody holds; no id numbers or emails), POST
- * /api/assets/:tag/transfer (only the current custodian), and the acting user of a Staff repair ticket and of a
+ * Covers GET /api/loans, GET /api/assets, GET /api/assets/:tag/history (other people's names hidden from a Custodian,
+ * D2; nobody named for an asset nobody holds; no id numbers or emails), and the acting user of a Staff repair ticket and of a
  * return of an asset nobody holds.
  * Fixtures: the seeded accounts and assets; extra assets TEST-0801 onward (see extraAssets.ts).
  */
@@ -16,8 +15,6 @@ const asCustodianA = as(USERS.custodianA);
 const asCustodianB = as(USERS.custodianB);
 const asLabHead = as(USERS.labHead);
 const asStaff = as(USERS.staffTsg);
-
-const NOT_THE_HOLDER = "Only the asset's current custodian can request its transfer.";
 
 /** The row with this display id, as the JSON came back (untyped, like res.body). */
 const byId = (rows: { id: string }[], id: string): any => rows.find((r) => r.id === id);
@@ -39,32 +36,6 @@ describe("GET /api/loans: names for a Custodian (D2)", () => {
 
     expect(byId(res.body.loans, `LOAN-${SEEDED_ROWS.pendingLoanId}`).borrower).toBe(USERS.custodianB.fullName);
     expect(byId(res.body.loans, `LOAN-${SEEDED_ROWS.approvedLoanId}`).borrower).toBe(USERS.custodianA.fullName);
-  });
-});
-
-describe("GET /api/asset_transfers: names for a Custodian (D2)", () => {
-  it("shows a participant all three names and emails, from either side, and hides them from anyone else", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0801", custodianId: USERS.custodianA.userId });
-    const fromA = await db.asset_transfers.create({
-      data: { asset_id: asset.assetId, from_custodian_id: USERS.custodianA.userId, to_custodian_id: USERS.custodianB.userId, justification: "Test transfer A to B", status: "declined" },
-    });
-    const notA = await db.asset_transfers.create({
-      data: { asset_id: asset.assetId, from_custodian_id: USERS.custodianB.userId, to_custodian_id: USERS.labHead.userId, justification: "Test transfer B to Lab Head", status: "declined" },
-    });
-
-    const forA = (await asCustodianA.get("/api/asset_transfers")).body.transfers;
-    expect(byId(forA, `TRF-${fromA.transfer_id}`)).toMatchObject({ from: USERS.custodianA.fullName, to: USERS.custodianB.fullName, toEmail: USERS.custodianB.email });
-    const hidden = byId(forA, `TRF-${notA.transfer_id}`);
-    expect(hidden).not.toHaveProperty("from");
-    expect(hidden).not.toHaveProperty("to");
-    expect(hidden).not.toHaveProperty("toEmail");
-    expect(hidden.fromCustodianId).toBe(USERS.custodianB.userId);
-
-    const forB = (await asCustodianB.get("/api/asset_transfers")).body.transfers;
-    expect(byId(forB, `TRF-${fromA.transfer_id}`)).toMatchObject({ from: USERS.custodianA.fullName, to: USERS.custodianB.fullName, toEmail: USERS.custodianB.email });
-
-    const forLabHead = (await asLabHead.get("/api/asset_transfers")).body.transfers;
-    expect(byId(forLabHead, `TRF-${notA.transfer_id}`)).toMatchObject({ from: USERS.custodianB.fullName, to: USERS.labHead.fullName, toEmail: USERS.labHead.email });
   });
 });
 
@@ -144,35 +115,6 @@ describe("GET /api/assets/:tag/history: no id numbers or emails, and names for a
       expect(text).not.toContain(USERS.custodianA.email);
       expect(text).not.toContain(String(USERS.custodianA.idNumber));
     }
-  });
-});
-
-describe("POST /api/assets/:tag/transfer: only the current custodian (answer 3)", () => {
-  it("answers 403 to a Custodian who does not hold the asset, and writes nothing", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0831", custodianId: USERS.custodianB.userId });
-    const before = await db.asset_transfers.count();
-
-    const res = await asCustodianA.post(`/api/assets/${asset.tag}/transfer`, { toEmail: USERS.labHead.email, reason: "Test not mine" });
-
-    expect(res.status).toBe(403);
-    expect(res.body).toEqual({ success: false, error: NOT_THE_HOLDER });
-    expect(await db.asset_transfers.count()).toBe(before);
-  });
-
-  it("refuses an asset the placeholder holds (nobody holds it) the same way", async () => {
-    const res = await asCustodianA.post(`/api/assets/${ASSETS.available.tag}/transfer`, { toEmail: USERS.custodianB.email, reason: "Test pool asset" });
-
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe(NOT_THE_HOLDER);
-  });
-
-  it("files the transfer from the holder, the session user", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0832", custodianId: USERS.custodianB.userId });
-
-    const res = await asCustodianB.post(`/api/assets/${asset.tag}/transfer`, { toEmail: USERS.custodianA.email, reason: "Test mine" });
-
-    expect(res.status).toBe(200);
-    expect(res.body.transfer).toMatchObject({ from_custodian_id: USERS.custodianB.userId, to_custodian_id: USERS.custodianA.userId });
   });
 });
 

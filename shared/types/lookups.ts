@@ -71,14 +71,4 @@ export interface FormLookups {
   /** The metrics measured for each category. A category with none is left out: its inspections use the health score only. */
   metricsByCategory: Record<string, LookupMetric[]>;
   projects: LookupProject[];
-  /** The old record statuses Edit Asset may still set (EDITABLE_ASSET_STATUSES). */
-  // TODO(H-07): goes with the status field of Edit Asset, Batch 1 commit 9.
-  statuses: string[];
-}
-
-/** One entry of GET /api/lookups/users (Staff only): an account with the Custodian role. Nothing else about the person. */
-export interface CustodianOption {
-  userId: number;
-  /** "First Last", as the asset list writes a holder's name. */
-  name: string;
 }

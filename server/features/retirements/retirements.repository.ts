@@ -1,18 +1,13 @@
 /**
  * Disposal row access: every database read and write the disposal endpoints make.
- * Layer: repository. Called by retirements.service.ts and shared/services/custodyRequestGuard.ts (the pending disposal,
- * for transfers). Calls server/config/prisma.ts, shared/services/assetStatus.ts, and shared/services/rowLocks.ts.
+ * Layer: repository. Called by retirements.service.ts. Calls server/config/prisma.ts, shared/services/assetStatus.ts,
+ * and shared/services/rowLocks.ts.
  * Used by: Staff disposal filing, Director approval, and the screens that list disposals.
  */
 import { asset_retirements_status, type Prisma, type asset_retirements } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { setAssetStatus } from '../../shared/services/assetStatus';
 import { lockAsset } from '../../shared/services/rowLocks';
-
-/** The asset's pending disposal (its id only), or null. Read by the custody request guard, for transfers. (H-05, issue #54) */
-export function findPendingDisposalId(assetId: number) {
-    return prisma.asset_retirements.findFirst({ where: { asset_id: assetId, status: asset_retirements_status.PENDING }, select: { retirement_id: true } });
-}
 
 /**
  * Files a disposal request in one transaction: the asset_retirements row, and the asset set to Pending Retirement.

@@ -28,7 +28,7 @@ export function listDisposals(): Promise<ApiResult> {
 
 /**
  * Approves or rejects a pending disposal.
- * The server accepts only "approve" or "reject" here. Loans and transfers use
+ * The server accepts only "approve" or "reject" here. Loans use
  * "decline" instead, so the words are not interchangeable.
  *
  * @param disposalId numeric disposal id

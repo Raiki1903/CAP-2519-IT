@@ -6,7 +6,7 @@
  * Used by: Staff asset editing and registration, the Custodian borrow request, and the sign-up page.
  */
 import { useEffect, useState } from "react";
-import type { CustodianOption, FormLookups } from "@shared/types/lookups";
+import type { FormLookups } from "@shared/types/lookups";
 import * as lookupsApi from "@web/api/lookups.api";
 
 // One load per page load, shared by every form that asks. A failed load is forgotten, so the next form tries again.
@@ -18,7 +18,7 @@ function loadFormLookups(): Promise<FormLookups | null> {
       .then(data => data.success
         ? {
           labs: data.labs, categories: data.categories, fundingSources: data.fundingSources, issueTypes: data.issueTypes,
-          metricsByCategory: data.metricsByCategory, projects: data.projects, statuses: data.statuses,
+          metricsByCategory: data.metricsByCategory, projects: data.projects,
         }
         : null)
       .catch(err => {
@@ -31,8 +31,7 @@ function loadFormLookups(): Promise<FormLookups | null> {
 }
 
 /**
- * Loads the form option lists (GET /api/lookups): labs, categories, funding sources, issue types, metrics, projects,
- * and editable statuses.
+ * Loads the form option lists (GET /api/lookups): labs, categories, funding sources, issue types, metrics, and projects.
  *
  * @returns `lookups` (null until loaded, and when the load fails) and `failed`, true when the load failed
  */
@@ -51,33 +50,6 @@ export function useFormLookups() {
   }, []);
 
   return { lookups, failed };
-}
-
-/**
- * Loads the Custodian accounts (GET /api/lookups/users) when the calling form opens.
- *
- * @returns `custodians` (empty until loaded, and when the load fails) and `failed`, true when the load failed
- */
-export function useCustodianOptions() {
-  const [custodians, setCustodians] = useState<CustodianOption[]>([]);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let current = true;
-    lookupsApi.getCustodianOptions()
-      .then(data => {
-        if (!current) return;
-        if (data.success && Array.isArray(data.users)) setCustodians(data.users);
-        else setFailed(true);
-      })
-      .catch(err => {
-        console.error("❌ Failed to load the custodian list:", err);
-        if (current) setFailed(true);
-      });
-    return () => { current = false; };
-  }, []);
-
-  return { custodians, failed };
 }
 
 /**
