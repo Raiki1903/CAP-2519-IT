@@ -398,26 +398,76 @@ In `docs/guides/DATABASE-MIGRATIONS.md`:
 - The six commit 4 decisions are confirmed: the maintenance text map (the board's texts mapped, any other text 400, the outside service kept as `provider`); `destination_center_id` filled from the purpose's "Destination Lab:" line; `asset_inspection_metrics` keyed by (`inspection_id`, `metric_id`); motor speed `higher_is_better` true; user 1 INACTIVE only when it has no role.
 - `projects.funding_agency` stays until commit 9b and is dropped there with the other replaced columns (section 3.4).
 
-## Resume here (paused 2026-11-03, after Stop 3)
+## Stop 4 (2026-11-03): commits 5 to 11 built
 
-**Branch** `feat/batch-1-foundation`. **Last commit** `50726b29` docs(tasks): record the Stop 3 answers and drop projects.funding_agency in 9b. Code was last changed in `0ee5dec0` (commit 4). Checks at that commit: typecheck 49, build passes, tests 512 of 513 (the one failure is the date-bound transfers test, H-19, which commit 9 removes). Commit 5 has not started.
+**Branch** `feat/batch-1-foundation`, commits `a03c4000` (5) to the commit 11 docs. Nothing pushed. Checks after commit 11: typecheck **32** (49 before commit 5), build passes, tests **506** passed (513 before; every commit message says how its count moved). The report is in chat; this section keeps what Raiki needs to run.
 
-**Still to do, from sections 3.4, 4 and 7:**
+| # | Commit | Typecheck | Tests |
+|---|---|---|---|
+| 5 | `a03c4000` feat(shared): statuses, labels, page titles, flag rules and care guidelines | 49 | 513 |
+| 6 | `3ac63d9e` feat(server): lifecycle guard, status setter, derive helpers, activity log and row locks | 42 | 515 |
+| 7 | `5c6864c4` feat(server): permission helpers, approver resolver, Lab Head by lab, session with all labs | 42 | 534 |
+| 8 | `53e1f118` fix(assets): lock the lab row when numbering tags (#75) | 42 | 535 |
+| 9 | `c07dc666` feat(assets): master-data-only edits, delete guard, transfers removed | 36 | 494 |
+| 9b | `b7bda343` db: drop the replaced tables and columns | 32 | 491 |
+| 10 | `036a8542` test: foundation rules | 32 | 506 |
+| 11 | docs: data model and lifecycle note, migration log, fix log, AGENTS.md counts and role names | 32 | 506 |
 
-- **Commit 5** `feat(shared)`: the constants in `shared/constants/` (section 4): asset, loan, maintenance, retirement, inspection, ticket and activity statuses and types with labels; campus labels; page titles; metric flag rules by `metric_key`; care guidelines; health score suggestion. Move the commit 4 bridge maps that keep the old screen words (`LEGACY_LOAN_WORDS`, `LEGACY_DISPOSAL_WORDS`, `PROGRESS_TEXTS` and `progressTextOf`, `RETIREMENT_PATHWAY_WORDS`, all marked `TODO(H-07)`) onto these labels. Funding sources, issue types and metrics come from their tables through `GET /api/lookups`; remove `shared/constants/fundingSources.ts` once nothing imports it.
-- **Commit 6** `feat(server)`: `lifecycleGuard.ts`, `assetStatus.ts` (`setAssetStatus`, the only writer of `assets.status`), `assetState.ts` (holder, current location, condition, overdue, open loan, a user's open loans, each with a one-query list version), `activityLog.ts`, `rowLocks.ts`. Every reader of `asset_records` moves to `assets.status` and these helpers. The asset list gains the contract fields and `?q=` search. `GET /api/assets/:assetTag/history` replaces custodian-history.
-- **Commit 7** `feat(server)`: the permission helpers and `resolveLoanApprover` (409 "This lab has no Lab Head yet. Ask the IT Admin to set one."), applied to the existing loan, return, maintenance, retirement and inspection routes; the IT Admin gets 403 on every asset action. The session and `/me` return all labs, the lab headed, and `idNumber`; remove `user_centers[0]` and every `|| "CITe4D"` default; the 3 web readers of `labAffiliation` change with it.
-- **Commit 8** `fix(assets)` (#75): lock the lab row when numbering tags; copy Aryan's test by hand from `fix/75-concurrent-tags`, with his trailer; remove `findTagsWithPrefix` if unused.
-- **Commit 9** `feat(assets)`: master-data-only edits (ASSET_EDITED with the changed field names; TSG and the Secretary), the delete guard (409), registration with an INITIAL inspection and ASSET_REGISTERED, and transfers removed: folder, routes, web client, every call (including `serverData.tsx`), buttons and form, and the transfer tests.
-- **Commit 9b** `db`: drop `asset_records`, `asset_returns`, `asset_transfers`, `asset_monetary`, `asset_maintenance.is_immediate` (Stop 3: 0 true on the UAT data), `projects.funding_agency`, and the old condition enums. Remove the placeholder check and print `Database: <name> on <host>` at startup (answer M).
+### Stop 4 steps for Raiki (local only, never CCS Cloud)
 
-**Open items**
+The script and its SQL files are outside the repository, in the agent's session scratchpad (the full paths are in the chat report): `b1-stop4.ps1`, `b1-counts-old.sql`, `b1-counts-new.sql`, `b1-scratch.sql`. The script refuses any database but `adric_uat_check` and `adric_b1_dryrun`, connects to localhost only, asks for the local MySQL root password once, and never prints it.
 
-- **Answer G:** before the Stop 4 dry run, read only the first 25 and last 5 lines of `C:\dev\uat-data\Dump20261021.sql` and report the dump date and time, so Raiki can confirm with Macy that it was taken before the UAT data was loaded.
-- **Commit 10 tests:** the migration mapping tests on fixture rows (section 8) need a second local test database at the commit 3 state. Ask Raiki before adding it (name, guard rule, how the harness builds it).
-- **Scratch SQL for `adric_uat_check`** (never committed), run after the commit 11 reset and the hash script: users 10 ("UAT Custodian Two") and 11 ("UAT Custodian Three") get IT_ADMIN and ADRIC_SECRETARY in place of RESEARCHER (answer N), and CITe4D's `head_user_id` is set to "UAT LabHead CITe4D One" by name (answer O; user 6 in the reset data). Not written yet.
+1. **Answer G first:** `Dump20261021.sql` says "Dump completed on 2026-10-21 23:32:19" (MySQL 8.0.46 on an Ubuntu server). Confirm with Macy that this is the pre-UAT backup before step 3.
+2. **The UAT reset path on `adric_uat_check`** (section 10): stop anything on ports 4000 and 5173, then `powershell -ExecutionPolicy Bypass -File <scratchpad>\b1-stop4.ps1 -Mode Reset`. It drops and rebuilds the copy from `uat-reset.sql` (0_init, load, resolve, deploy), hashes the passwords, and runs `b1-scratch.sql` (users 10 and 11 become the IT Admin and the Secretary; CITe4D's Head is "UAT LabHead CITe4D One"). Send the agent the printed counts.
+3. **The backup dry run** (section 10): `... b1-stop4.ps1 -Mode DryRun -DumpFile <the confirmed file>`. It builds `adric_b1_dryrun`; the backup file is only read. Send the agent the counts, any tag prefix that matches no lab, and the migration output. Then start the app on `adric_b1_dryrun` (guide step 4 with `DATABASE_NAME=adric_b1_dryrun`) and say whether it loads.
+4. **The hand checks** below, on `adric_uat_check`, started through `C:\dev\uat-data\start-local-uat.ps1`.
 
-**Scratch files still needed** (in the agent's session scratchpad, which may be cleared; each is easy to rebuild):
+## Batch 1 hand checks
 
-- `stop3-scratch.ps1` with `stop3-counts-before.sql` and `stop3-counts-after.sql`: rebuilds the local `adric_b1_scratch` from 0_init and `uat-reset.sql`, applies the migrations, and counts. Prompts for the password once; refuses any other database or host. Reused for checking commits 5 to 9b and as the base of the commit 11 reset path.
-- `apply_edits.py`: applies exact replacements with an expected count per file, keeping line endings.
+On the local copy **`adric_uat_check`** only, after Stop 4 step 2, started through `C:\dev\uat-data\start-local-uat.ps1` (ports 4000 and 5173 free first). Log in with the UAT accounts' passwords (Raiki has them). Accounts after the reset: TSG "UAT Staff One"; Lab Heads "UAT LabHead CITe4D One" (CITe4D, set by `b1-scratch.sql`) and "UAT LabHead CAR" (CAR, set by the migration); Researcher "UAT Custodian One"; IT Admin "UAT Custodian Two" (user 10); Secretary "UAT Custodian Three" (user 11); the UAT Director account. "UAT LabHead CITe4D Two" is a plain Researcher now (answer J).
+
+**B1-H1. Each role lands on its view.** Log in as each account above, one at a time (log out between).
+- Expected: TSG, the IT Admin, and the Secretary land on the Staff view (`/staff/overview`); the Director on `/adric-director/overview`; both Lab Heads on `/lab-head/custody`; the Researcher on `/custodian/myassets`. The sidebar's role line says "Researcher" for UAT Custodian One (not "Custodian"), "Lab Head" for the two Heads. "UAT LabHead CITe4D Two" lands on the Researcher view.
+- Database: `adric_uat_check`, reads only.
+
+**B1-H2. Staff Inventory shows the six statuses and the right campus.** As UAT Staff One, Inventory, table view.
+- Expected: every status badge is one of Available, On Loan, Maintenance, Pending Retirement, Retired, Missing; the In Service tab has no Retired asset and the Disposed tab only Retired ones. The asset that was disposed (for example `CITe4D-0104`) shows Retired. Open a CAR asset: Campus Manila; open an HXIL asset (if the data has one): Campus McKinley; TE3D or GAME: Laguna. "Current Location" shows "<lab code>" or "<lab code>, <room>" (never the old campus-and-lab text), or "TSG Office" for an asset in Maintenance.
+- Database: `adric_uat_check`, reads only.
+
+**B1-H3. Edit Asset is master data only, and the edit shows in the history.** As UAT Staff One, Inventory, the pencil on an Available asset.
+- Expected: the dialog has no Availability, Condition, or Custodian field; it has Home Lab, Home Room, Owning Project, Funding Source, tags, and Accessories. Type a Home Room (for example `G406`), Save: it saves, and the table's Current Location becomes "<lab>, G406". Open the asset, Asset History: the newest line is "Asset edited: UAT Staff One" with "Changed: home_room".
+- Then as UAT Custodian Three (the Secretary): edit another asset's Accessories, Save: saves. Register Equipment as the Secretary and submit: refused, the error under the form contains "Your role is not allowed to do this.", and no new asset appears.
+- Database: `adric_uat_check`: two edits (two ASSET_EDITED log rows), no new asset.
+
+**B1-H4. Deleting an asset with history is refused.** As UAT Staff One, Inventory, the trash icon on an asset that has been on loan or inspected, Confirm.
+- Expected: the dialog stays open with "<tag> cannot be deleted because it has history (loans, maintenance, a retirement, or inspections). To take it out of use, request its retirement instead." The asset is still listed.
+- Database: `adric_uat_check`, nothing changes.
+
+**B1-H5. Registering an asset.** As UAT Staff One, Register Equipment: name "B1 Hcheck Asset", category Camera, step 3 Home Lab CAR, Home Room "V302", Condition at Intake Operational, Commit.
+- Expected: the form resets; Inventory shows a new `CAR-<next number>` (one more than the highest CAR tag), Available, Current Location "CAR, V302", Campus Manila, condition Operational. Its Asset History has "Initial inspection: Operational" and "Asset registered", both by UAT Staff One. Then delete it (trash icon): it is deleted (a fresh registration may be).
+- Database: `adric_uat_check`: one asset registered and deleted, its two log rows kept (registered, deleted).
+
+**B1-H6. The lookups.** Signed out, open `http://localhost:4000/api/lookups` in the browser.
+- Expected: `labs` lists TE3D and GAME with `"campus":"LAGUNA"`, HXIL with `"MCKINLEY"`, the rest `"MANILA"`; CITe4D and CAR have a `headUserId`, the others `null`. `fundingSources` lists DOST, USAID, CHED, Internal Grants, DOST-PCIEERD, DOST-SEI; `issueTypes` lists nine with a `suggestedAction` each; `metricsByCategory` has CPU, TABLET, VR, HARD_DRIVE, MEMORY_CARD, ROUTER, SWITCH, DEV_KIT, SIMULATOR. No `statuses` key.
+- Database: `adric_uat_check`, reads only.
+
+**B1-H7. A Lab Head decides only their own lab's loans.**
+- As UAT Custodian One, request a loan on a CITe4D asset that is Available (asset modal, Request Loan) and one on an HXIL or GAME asset (a lab with no Head).
+- As UAT LabHead CAR, in the browser's DevTools console on `http://localhost:5173`, send `fetch("http://localhost:4000/api/loans/<the CITe4D loan's id>/decision", { method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision: "approve" }) }).then(r => r.json()).then(console.log)`. Expected: `{ success: false, error: "This asset belongs to another lab. Only that lab's Head can decide its loans." }` (403), and the loan stays Pending on UAT LabHead CITe4D One's Requests tab.
+- The same call with the HXIL or GAME loan's id: `"This lab has no Lab Head yet. Ask the IT Admin to set one."` (409).
+- As UAT LabHead CITe4D One, Requests tab: Approve the CITe4D loan: it is approved, and the asset shows On Loan, held by UAT Custodian One.
+- Database: `adric_uat_check`: two loans requested, one approved.
+
+**B1-H8. No transfers anywhere.** As UAT Custodian One open an asset they hold; as a Lab Head open the Requests tab and the analytics tab; as the Director open Overview and an asset's Asset History dialog; open the bell for each.
+- Expected: no "Custodianship Transfer" button, no transfer list, card, or "Transfers Between Campuses" chart; every page loads with no red error and no failed `/api/asset_transfers` call in DevTools, Network.
+- Database: `adric_uat_check`, reads only.
+
+**B1-H9. Nearby behavior still works.** On the existing screens:
+- A loan request (B1-H7 did one) and its approval: done above.
+- A repair report: as UAT Custodian One, on the asset approved in B1-H7, Request Repair with a description: success; as UAT Staff One, Repairs: the ticket is listed "Pending TSG Review", priority Medium. Acknowledge (Inspection Phase): the asset goes to Maintenance at the TSG Office, and its loan ends (Ended by Maintenance). Update Progress to Fixed & Completed with condition Operational: the asset is Available again at its home lab.
+- A return: request a loan on another Available asset as UAT Custodian One, approve it as its lab's Head, then as UAT Staff One open the asset and Record Return with a condition: success with a "LOAN-<id>" reference; the asset is Available and its history shows "Return inspection: <condition>" and "Loan closed: Returned".
+- Database: `adric_uat_check`: one repair ticket, two loans, one return.
+
+## Batch 1 hand checks: results
+
+Not run yet.

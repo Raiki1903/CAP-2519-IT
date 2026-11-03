@@ -1979,3 +1979,38 @@ Console errors seen: the expected refusals (400 answers and the dialog's own log
 - **The asset list's remarks are the newest record's that has any,** so when Staff clear the remarks in Edit Asset, the new record has none but the list, and the dialog next time, still show the older remark. (stop 2)
 - **The transfer request's newest-record read (`findLatestRecord`) still has no tie-break** (M-09). The disposal now uses its own reader with one. (stop 2)
 - **Older pending disposal requests keep their typed Last Custodian** (for example "Unassigned" on the copy's `CITe4D-0110`); only new requests name the holder. (stop 2)
+
+---
+
+## Batch 1: foundation (feat/batch-1-foundation)
+
+The brief, the answers, and the hand checks are in [../tasks/batch-1-foundation.md](../tasks/batch-1-foundation.md). The rules and the data model are in [../contracts/lifecycle.md](../contracts/lifecycle.md). Three migrations: renames, the foundation (expand and backfill), and the drop of what it replaced ([../guides/DATABASE-MIGRATIONS.md](../guides/DATABASE-MIGRATIONS.md), "The migrations so far").
+
+### What changed, by finding
+
+| Finding | Before | After Batch 1 |
+|---|---|---|
+| H-05 (two requests on one asset) | Each service checked the newest record its own way, outside the write | One lifecycle guard (`server/shared/services/lifecycleGuard.ts`) for every step, and the asset row locked in each step's transaction |
+| H-07 (free-text statuses) | Loan, repair, and disposal statuses were text | Enums, with labels in `shared/`. The old loan words and repair progress texts stay only where today's screens compare or send them (TODO H-07, Batches 3 and 5) |
+| H-11, issue #75 (same tag twice) | The next number was read outside the insert | The lab's row is locked while the tag is numbered; Aryan's 5-at-once test passes |
+| H-14 (inspection rewrote the newest record) | The record changed in place | No records: the condition now is the newest TSG inspection; a Self Report never changes it |
+| H-10, POOL_CUSTODIAN_ID (user 1 as "nobody") | A placeholder account held every free asset | Gone: the holder is the borrower of a held loan, else nobody. The server prints `Database: <name> on <host>` at startup instead of the placeholder check |
+| H-03, issue #69 (delete destroyed history) | Any asset without reports could be deleted with its rows | Only a fresh registration (no loan, ticket, retirement, or inspection besides the Initial one); 409 otherwise; ASSET_DELETED logged |
+| M-09 (ties on one-second times) | Some reads had no tie-break | The derive helpers break ties on the higher id |
+| M-13 (packed disposal text) | Pathway, custodian, and date in one text | The pathway has its own column (copied by the migration); new requests still pack the text (TODO M-13, Batch 5) |
+| M-03, M-14 (labs by tag prefix or location text) | Analytics and the Lab Head screens guessed the lab | The asset's home lab (`assets.center_id`) and its campus; the Lab Head dashboard is always the lab the account heads |
+| C-02 (any Lab Head decides any lab's loan) | Only the role was checked | Only the Head of the asset's home lab decides (403 for another lab, 409 when the lab has no Head) |
+| H-19 (destination lab in the purpose text) | Packed into the purpose | Stored in `destination_center_id`; still also packed for today's screens (TODO H-19, Batch 3) |
+
+Also: IT Admin has no asset steps; the Secretary edits master data and decides retirements but never their own request; only Active accounts log in or act; the session lists every lab and the lab headed; transfers are removed.
+
+### Counts
+
+Typecheck **49** to **32**. Tests **513** to **506**: transfer tests removed, foundation, permission, and search tests added (each commit says how its count moved).
+
+### Noticed, not in this branch
+
+- **Status keys are written as typed literals** in the server (Prisma checks them against the enums) and compared as literals in the web screens. Question for Raiki at Stop 4.
+- **The custodian's return request still lives in the browser** (H-02); the Staff System Overview "Pending Returns" card still counts it. Batch 3.
+- **Every maintenance ticket shows priority Medium** now that `is_immediate` is gone. Batch 5 shows the issue type instead.
+- **The Director's location counts ignore the date range** and count McKinley under Laguna (TODO #96, commit 12).

@@ -4,6 +4,8 @@ For Joel and Aryan, to build screens with mock data before the server parts exis
 
 Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges) or **planned (Batch N)** (it does not exist yet; build against mock data shaped exactly like this). If a planned endpoint needs to differ when it is built, that batch updates this file first.
 
+**Batch 1 built (2026-11-03):** the data model below (one migration adds it, a second drops `asset_records`, `asset_monetary`, `asset_returns`, `asset_transfers`, `asset_maintenance.is_immediate`, and `projects.funding_agency`); the lifecycle guard, the status setter, and the derive helpers on the server; the constants in `shared/`; the permission rules of section 6 on every live route; the session with every lab; and the live endpoints marked below. **Removed in Batch 1:** transfers (every route and screen), `GET /api/asset_returns`, `GET /api/lookups/users` (the custodian picker), and `GET /api/assets/:assetTag/custodian-history` (replaced by `/history`).
+
 ---
 
 ## 1. Data model
@@ -54,7 +56,7 @@ Every asset in an answer carries these, worked out on the server:
 | `isOverdue` | boolean | `false` | |
 | `openLoan` | object or null | `{ "loanId": 41, "status": "ON_LOAN", "returnBy": "2026-11-20" }` | The loan in Pending Approval, Pending Release, On Loan or Return Requested, if any |
 
-The asset list sent today (`GET /api/assets`) keeps its old fields while the screens move over; Batch 1 adds the fields above next to them. New screens read only the fields above.
+`GET /api/assets` sends the fields above. Since Batch 1, `status` and `condition` hold the stored keys (before, they held display text and a 0 to 100 score). Next to them it still sends the older fields today's screens read: `id` (the tag), `serial`, `funding` (the name, or "Unspecified"), `cost`, `procured`, `warranty`, `location` (the campus label), `lab` (the home lab's code), `assetCondition`, `custodian`, `custodianId`, `custodianHidden`, `borrowedOn`, `dueDate`, `daysLeft`, `disposalId`, `disposalDetails`, `image`, `image_url`, `description`, `remarks`, and `asset_reports`. New screens read only the fields above.
 
 ---
 
@@ -323,7 +325,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 |---|---|---|---|---|---|---|
 | Log in | `POST /api/auth/login` | anyone | `{ email, password }` | `{ role, user: SessionUser }` | 401 wrong email or password; 403 account Pending or Inactive | live (Batch 1) |
 | Who am I | `GET /api/auth/me` | logged in | | `{ user: SessionUser }` | 404 account gone | live (Batch 1) |
-| Form option lists | `GET /api/lookups` | anyone | | `{ labs: [{ centerId, code, name, campus, campusLabel, headUserId }], categories: [{ key, label }], fundingSources: [{ fundingSourceId, name }], issueTypes: [{ issueTypeId, key, name, suggestedAction }], metricsByCategory: { "<CATEGORY>": [{ metricId, metricKey, name, unit, higherIsBetter }] }, projects: [{ projectId, code, name, centerId }] }` | | live (Batch 1) |
+| Form option lists | `GET /api/lookups` | anyone | | `{ labs: [{ centerId, code, name, campus, campusLabel, headUserId }], categories: [{ key, label }], fundingSources: [{ fundingSourceId, name }], issueTypes: [{ issueTypeId, key, name, suggestedAction }], metricsByCategory: { "<CATEGORY>": [{ metricId, metricKey, name, unit, higherIsBetter }] }, projects: [{ projectId, code, name, centerId }] }`. A category with no metrics is left out of `metricsByCategory` | | live (Batch 1) |
 
 `SessionUser`: `{ userId, firstName, lastName, email, idNumber, role, roleLabel, staffUnit, accountStatus, labs: [{ centerId, code, name, campus }], headOf: { centerId, code } or null, userImg }`. `labs` lists every lab the person belongs to; there is no "first" or default lab, and a person with no lab gets `[]`. `idNumber` is the person's own (never anyone else's), so the loan request form can prefill the name, ID number and labs.
 
@@ -337,6 +339,8 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 | Edit master data | `PUT /api/assets/:assetTag` | TSG, Secretary | any of the register fields except `initialInspection` | `{ asset: Asset }` | 400 the body has `status`, `holder`, `location` or `condition`; 403; 404; 409 Pending Retirement or Retired | live (Batch 1) |
 | Delete a mistaken registration | `DELETE /api/assets/:assetTag` | TSG | | `{ deleted: "<tag>" }` | 403; 404; 409 the asset has a loan, maintenance, retirement, or an inspection besides its initial one | live (Batch 1) |
 
+Registration writes the Initial inspection and an ASSET_REGISTERED log row; an edit that changes something writes an ASSET_EDITED row naming the changed fields (`details`, for example "Changed: name, home_room"); a delete writes ASSET_DELETED with the tag. All three answer with the asset in the list's shape.
+
 ### 7.3 Loans
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
@@ -348,6 +352,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 | Release to the borrower | `PUT /api/loans/:loanId/release` | TSG | `{ inspection: InspectionInput }` | `{ loan: Loan }` | 400; 403; 404; 409 not Pending Release | planned (Batch 3) |
 | Ask to return | `PUT /api/loans/:loanId/return-request` | the borrower | `{ remarks? }` | `{ loan: Loan }` | 403; 404; 409 not On Loan | planned (Batch 3) |
 | Receive the return | `PUT /api/loans/:loanId/receive` | TSG | `{ inspection: InspectionInput, remarks?, returnDamage?: { issueTypeId, issueDescription } }` | `{ loan: Loan, maintenance?: Maintenance }` | 400; 403; 404; 409 not On Loan or Return Requested | planned (Batch 3) |
+| Finalize a return (today's step) | `POST /api/assets/:assetTag/return` | TSG | `{ condition, comments? }` | `{ loan, referenceNumber }`: the loan closed as Returned, with a Return inspection, and "LOAN-<id>" | 400; 403; 404; 409 the asset is not On Loan with a loan to close | live (Batch 1); replaced by receive in Batch 3 |
 | Loan list | `GET /api/loans` | logged in; a Researcher sees names only on their own loans | | `{ loans: [...] }`, today's fields | | live (Batch 1), renamed from `/api/asset_loans`; the `Loan` shape from Batch 3 |
 | Approve or decline (today's step) | `PUT /api/loans/:loanId/decision` | Head of the asset's home lab | `{ decision: "approve" or "decline" }` | `{ loan }` | 403; 404; 409 | live (Batch 1), renamed from `/api/asset_loans/:loanId/decision`; replaced by approve and decline in Batch 3 |
 | Loans by status (TSG Releases and Returns tabs) | `GET /api/loans?status=` | TSG | `?status=PENDING_RELEASE`, `?status=RETURN_REQUESTED`, or several separated by commas | `{ loans: Loan[] }` in the new shape | 400 unknown status; 403 | planned (Batch 3) |

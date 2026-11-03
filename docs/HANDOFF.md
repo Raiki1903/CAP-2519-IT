@@ -1487,3 +1487,28 @@ Eight, in the log section 7: who is in the custodian dropdown; one lookups route
 1. Raiki reviews the branch, merges `main` into it (`git pull origin main`), pushes, and opens the pull request (`Closes #10`), with the `dd524809` note under "Notes".
 2. After the merge, everyone with a local copy runs the script on it, using the command in `docs/guides/DATABASE-MIGRATIONS.md`.
 3. Batch 2b (sign-ups as database rows, IT Admin approval) is Aryan's. The follow-ups are listed in the task file, "## Final report".
+
+## Batch 1 (foundation), commits 5 to 11 and Stop 4, 2026-11-03
+
+**Prompt followed:** the brief and every answer in [tasks/batch-1-foundation.md](tasks/batch-1-foundation.md), the source of truth for this batch; the API and the rules for the other teams are in [contracts/lifecycle.md](contracts/lifecycle.md).
+
+### What was produced
+
+- Commit 5: the shared constants (statuses, labels, page titles, flag rules, care guidelines, role labels); `GET /api/lookups` reads funding sources, issue types, metrics, and projects from their tables.
+- Commit 6: `lifecycleGuard.ts`, `assetStatus.ts` (the only writer of `assets.status`), `assetState.ts` (the derive helpers, two queries for any list), `activityLog.ts`, `rowLocks.ts`; every rule and list moved off `asset_records`; the asset list in the contract shape with `?q=` search; `GET /api/assets/:assetTag/history`.
+- Commit 7: the permission helpers and the approver resolver on every live route; the session lists every lab and the lab headed; no `CITe4D` default and no first-lab rule remain.
+- Commit 8 (#75, Aryan's test): the lab row is locked while a tag is numbered.
+- Commit 9: master-data-only edits (TSG and the Secretary), the delete guard, registration with an Initial inspection, the activity log rows, and transfers removed.
+- Commit 9b: the migration that drops `asset_records`, `asset_monetary`, `asset_returns`, `asset_transfers`, `is_immediate`, and `funding_agency`; the placeholder custodian is gone and the server prints `Database: <name> on <host>`.
+- Commit 10: tests for the guard table, the status setter, the derive helpers, and the database checks. Commit 11: these docs, the UAT reset path, the guide fixes, AGENTS.md.
+
+### Key findings
+
+- Typecheck 49 to 32 and tests 513 to 506 (transfer tests removed, foundation tests added).
+- The backup `Dump20261021.sql` says it completed on 2026-10-21 23:32:19, so it may have been taken after the first UAT session. Raiki confirms with Macy before the dry run.
+- Typed status literals remain in the server and the screens; it is a question for Raiki at Stop 4.
+
+### Exact next step
+
+1. Raiki answers the Stop 4 questions in chat, runs the UAT reset and the backup dry run with the scratchpad script, and runs the hand checks ("Stop 4 steps for Raiki", "Batch 1 hand checks").
+2. Then commits 12 and 13 (#96) on this branch or a new one from `main`, as Raiki decides (section 14.1).
