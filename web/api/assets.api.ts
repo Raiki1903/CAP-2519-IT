@@ -6,6 +6,9 @@
 import type { AssetCreateInput, AssetUpdateInput } from "@shared/types/assets";
 import { apiDelete, apiGet, apiGetRaw, apiPostRaw, apiPutRaw, type ApiResult } from "./client";
 
+/** Reads the answer to `createAssetRaw` or `updateAssetRaw`; see client.ts. */
+export { readResult } from "./client";
+
 /**
  * Lists every asset with its current state, worked out on the server.
  *
@@ -36,9 +39,8 @@ export function getAssetHistory(assetTag: string): Promise<ApiResult> {
 }
 
 /**
- * Registers a new asset. Returns the untouched Response because the intake
- * form checks the status and content type itself, so it can show a non-JSON
- * server error as readable text.
+ * Registers a new asset. Returns the untouched Response; the intake form reads
+ * it with `readResult`, so it shows only the server's message.
  *
  * @param form the intake form values
  * @returns the raw Response; on success its JSON holds `asset` with the new `asset_tag`

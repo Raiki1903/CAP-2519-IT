@@ -164,3 +164,26 @@ export function apiPostRaw(path: string, body: unknown): Promise<Response> {
 export function apiPutRaw(path: string, body: unknown): Promise<Response> {
   return sendRaw("PUT", path, body);
 }
+
+/**
+ * Reads the answer to a Raw call into the usual body, so a screen shows only the server's own message.
+ * A JSON answer keeps its `error` text. Anything else (an HTML error page, an empty or broken body)
+ * becomes a failure with `fallback` as its `error`, so the raw response never reaches the screen.
+ *
+ * @param res the Response from a Raw call
+ * @param fallback a plain sentence to show when the server sent no message
+ * @returns the parsed body; `success` is false whenever the status is not OK
+ */
+export async function readResult(res: Response, fallback: string): Promise<ApiResult> {
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    try {
+      const body = (await res.json()) as ApiResult;
+      if (res.ok && body.success) return body;
+      return { ...body, success: false, error: typeof body.error === "string" && body.error ? body.error : fallback };
+    } catch {
+      // A body labelled JSON that does not parse is treated like any other non-JSON answer.
+    }
+  }
+  return { success: false, error: fallback };
+}

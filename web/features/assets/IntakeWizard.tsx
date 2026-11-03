@@ -1,7 +1,7 @@
 /**
  * Intake wizard: the three-step form Staff use to register a newly acquired asset.
  * Layer: feature component. Called by pages/staff/RegisterPage.tsx.
- * Calls: api/assets.api.ts createAssetRaw(), features/lookups/useLookups.ts (labs and funding sources), state/serverData.tsx syncFromDb().
+ * Calls: api/assets.api.ts createAssetRaw() and readResult(), features/lookups/useLookups.ts (labs and funding sources), state/serverData.tsx syncFromDb().
  * The registration sends the contract body (centerId, fundingSourceId, and the Initial inspection).
  * Used by: Staff asset registration.
  */
@@ -98,14 +98,9 @@ export function IntakeWizard() {
     setRegistrationError(null);
     try {
       const res = await assetsApi.createAssetRaw(createBody(form));
-      const contentType = res.headers.get("content-type");
-      if (!res.ok || !contentType || !contentType.includes("application/json")) {
-        const errText = await res.text();
-        throw new Error(`Server returned error (${res.status}): ${errText.slice(0, 120)}`);
-      }
-      const result = await res.json();
+      const result = await assetsApi.readResult(res, "The asset could not be registered. Please try again.");
       if (!result.success) {
-        throw new Error(result.error || "Registration failed");
+        throw new Error(result.error);
       }
 
       syncFromDb();
@@ -284,7 +279,7 @@ export function IntakeWizard() {
           )}
         </div>
         {registrationError && (
-          <p className="text-xs text-red-600 font-semibold mt-2">⚠️ {registrationError}</p>
+          <p className="text-xs text-red-600 font-semibold mt-2">{registrationError}</p>
         )}
       </CardContent>
     </Card>

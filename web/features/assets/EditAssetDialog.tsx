@@ -3,7 +3,7 @@
  * project, funding, tags, accessories, and photo). Status, holder, location, and condition are not edited here: each
  * changes through its own step.
  * Layer: feature component. Called by pages/staff/InventoryPage.tsx.
- * Calls: api/assets.api.ts updateAssetRaw(), features/lookups/useLookups.ts (the option lists).
+ * Calls: api/assets.api.ts updateAssetRaw() and readResult(), features/lookups/useLookups.ts (the option lists).
  * Used by: TSG and the Secretary, asset editing.
  */
 import { useState } from "react";
@@ -99,15 +99,10 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
     setError(null);
     try {
       const res = await assetsApi.updateAssetRaw(asset.id, changes as AssetUpdateInput);
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const errText = await res.text();
-        throw new Error(`Server returned error (${res.status}): ${errText.slice(0, 120)}`);
-      }
       // A refusal (400, 403, 404, 409) is JSON with the reason in `error`, shown as it is, so the editor sees why. (H-16)
-      const result = await res.json();
-      if (!res.ok || !result.success) {
-        throw new Error(result.error || "Update failed");
+      const result = await assetsApi.readResult(res, "The changes could not be saved. Please try again.");
+      if (!result.success) {
+        throw new Error(result.error);
       }
       onSave(result.asset);
       onClose();
@@ -227,7 +222,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
             )}
           </div>
         </div>
-        {error && <p className="text-xs text-red-600 font-semibold px-1">⚠️ {error}</p>}
+        {error && <p className="text-xs text-red-600 font-semibold px-1">{error}</p>}
         <DialogFooter className="gap-2 mt-4">
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={handleSave} disabled={saving} className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold">
