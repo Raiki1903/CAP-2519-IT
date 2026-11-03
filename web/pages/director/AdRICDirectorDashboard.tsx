@@ -1,8 +1,8 @@
 /**
  * Director screen: Overview, Analytics, Disposal Approvals, and the Inventory Report, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
- * Calls: api/retirements.api.ts listDisposals() and decideDisposal(),
- * features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
+ * Calls: api/retirements.api.ts listDisposals() and decideDisposal(), features/lookups/useLookups.ts (the labs and their campus),
+ * features/assets/campusCounts.ts, features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
  * Used by: AdRIC Director (disposal decisions, inventory reports).
  */
 import { useState, useEffect } from "react";
@@ -11,6 +11,8 @@ import DirectorAnalyticsView from "@web/features/analytics/director/DirectorAnal
 import { useSession } from "@web/state/session";
 import { useServerData, type Asset } from "@web/state/serverData";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
+import { countAssetsByCampus } from "@web/features/assets/campusCounts";
+import { useFormLookups } from "@web/features/lookups/useLookups";
 import * as retirementsApi from "@web/api/retirements.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
@@ -36,20 +38,6 @@ const TAB_TITLES: Record<AdRICDirectorDashboardProps["activeTab"], string> = {
   "clearance-disposal": "Disposal Approvals",
   reports: "Inventory Report",
 };
-
-// TODO(M-03): another hardcoded lab list, with campus, separate from research_centers. Phase 3.
-const ALL_10_LABS = [
-  { id: "CITe4D", name: "CITe4D - Manila", location: "Manila" },
-  { id: "CAR", name: "CAR - Laguna", location: "Laguna" },
-  { id: "CeHCI", name: "CeHCI - Manila", location: "Manila" },
-  { id: "CeLT", name: "CeLT - Laguna", location: "Laguna" },
-  { id: "CNIS", name: "CNIS - Manila", location: "Manila" },
-  { id: "GAME", name: "GAME - Manila", location: "Manila" },
-  { id: "Bio", name: "Bio - Manila", location: "Manila" },
-  { id: "CIVI", name: "CIVI - Laguna", location: "Laguna" },
-  { id: "TE3D", name: "TE3D - Laguna", location: "Laguna" },
-  { id: "HXIL", name: "HXIL - Laguna", location: "Laguna" }
-];
 
 const CONDITION_SCORE_MAP: Record<string, number> = {
   "Perfect (Brand New / 100%)": 100,
@@ -101,7 +89,7 @@ export function getLatestRecordConditionScore(asset: any): number {
 
 /**
  * Shows one Director tab.
- * - overview: campus distribution and the status of every lab.
+ * - overview: campus distribution (three campuses) and the status of every lab, with skeletons until the lists load.
  * - analytics: the Director analytics view.
  * - clearance-disposal: the pending disposal queue, authorized or rejected through retirementsApi.decideDisposal().
  * - reports: the inventory report, with a per-asset history and CSV export.
@@ -127,6 +115,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const [disposalActionId, setDisposalActionId] = useState<number | null>(null);
 
   const isDashboardLoading = isGlobalDbLoading;
+  const { lookups, failed: lookupsFailed } = useFormLookups();
+  // The Labs table needs the lab list as well as the assets.
+  const labsLoading = isDashboardLoading || (!lookups && !lookupsFailed);
 
   const exportLifecycleCSV = (asset: any) => {
     if (!asset) return;
@@ -271,23 +262,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
   // 1. Overview Tab render
   const renderOverview = () => {
-    const manilaAssets = activeAssets.filter(a => {
-      const loc = (a.location || "").toLowerCase();
-      const lab = (a.lab || "").toLowerCase();
-      const tag = (a.asset_tag || a.id || "");
-      return loc.includes("manila") || loc.includes("taft") || ["cite4d", "cehci", "cnis", "game", "bio"].includes(lab) || ["CITe4D-", "CeHCI-", "CNIS-", "GAME-", "Bio-"].some(p => tag.startsWith(p));
-    }).length;
-
-    const lagunaAssets = activeAssets.filter(a => {
-      const loc = (a.location || "").toLowerCase();
-      const lab = (a.lab || "").toLowerCase();
-      const tag = (a.asset_tag || a.id || "");
-      return loc.includes("laguna") || loc.includes("canlubang") || ["car", "celt", "civi", "te3d", "hxil"].includes(lab) || ["CAR-", "CeLT-", "CIVI-", "TE3D-", "HXIL-"].some(p => tag.startsWith(p));
-    }).length;
-
-    const totalCampusCount = activeAssets.length || 1;
-    const manilaPercent = activeAssets.length ? Math.round((manilaAssets / totalCampusCount) * 100) : 0;
-    const lagunaPercent = activeAssets.length ? Math.round((lagunaAssets / totalCampusCount) * 100) : 0;
+    const campusCounts = countAssetsByCampus(activeAssetList.filter(a => a.status !== "RETIRED"));
+    const campusTotal = activeAssets.length;
+    const CAMPUS_BAR_COLORS = ["#005A36", "#10B981", "#0EA5E9"];
 
     return (
       <div className="space-y-6">
@@ -367,31 +344,43 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
               <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Campus Distribution</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between items-center text-xs">
-                <div className="flex items-center gap-1.5 font-medium text-foreground">
-                  <MapPin className="text-[#005A36] size-4" />
-                  <span>Manila Campus</span>
+              {isDashboardLoading ? (
+                <div className="space-y-4 py-1">
+                  {campusCounts.map(c => (
+                    <div key={c.campus} className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <div className="h-4 w-28 bg-muted animate-pulse rounded" />
+                        <div className="h-4 w-16 bg-muted animate-pulse rounded" />
+                      </div>
+                      <div className="w-full bg-muted/60 h-2.5 rounded-full overflow-hidden">
+                        <div className="bg-muted h-full animate-pulse" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <span className="font-bold text-foreground font-mono">{manilaAssets} ({manilaPercent}%)</span>
-              </div>
-              <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
-                <div className="bg-[#005A36] h-full transition-all duration-500" style={{ width: `${manilaPercent}%` }} />
-              </div>
-
-              <div className="flex justify-between items-center text-xs">
-                <div className="flex items-center gap-1.5 font-medium text-foreground">
-                  <MapPin className="text-[#10B981] size-4" />
-                  <span>Laguna Campus</span>
-                </div>
-                <span className="font-bold text-foreground font-mono">{lagunaAssets} ({lagunaPercent}%)</span>
-              </div>
-              <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
-                <div className="bg-[#10B981] h-full transition-all duration-500" style={{ width: `${lagunaPercent}%` }} />
-              </div>
+              ) : (
+                campusCounts.map((c, i) => {
+                  const percent = campusTotal ? Math.round((c.count / campusTotal) * 100) : 0;
+                  return (
+                    <div key={c.campus} className="space-y-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <div className="flex items-center gap-1.5 font-medium text-foreground">
+                          <MapPin className="size-4" style={{ color: CAMPUS_BAR_COLORS[i] }} />
+                          <span>{c.label} Campus</span>
+                        </div>
+                        <span className="font-bold text-foreground font-mono">{c.count} ({percent}%)</span>
+                      </div>
+                      <div className="w-full bg-muted h-2.5 rounded-full overflow-hidden">
+                        <div className="h-full transition-all duration-500" style={{ width: `${percent}%`, backgroundColor: CAMPUS_BAR_COLORS[i] }} />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </CardContent>
           </Card>
 
-          {/* 10 Specialized Laboratories Health & Utilization */}
+          {/* Health and utilization of every laboratory */}
           <Card className="lg:col-span-2 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Labs</CardTitle>
@@ -410,11 +399,18 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ALL_10_LABS.map(lab => {
-                      const labAssets = activeAssets.filter(a => {
-                        const tag = (a.asset_tag || a.id || "");
-                        return a.lab === lab.id || tag.startsWith(lab.id + "-");
-                      });
+                    {labsLoading ? (
+                      Array.from({ length: 5 }, (_, i) => (
+                        <TableRow key={i}>
+                          <TableCell colSpan={6}><div className="h-4 w-full bg-muted/60 animate-pulse rounded" /></TableCell>
+                        </TableRow>
+                      ))
+                    ) : lookupsFailed ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-xs font-semibold text-red-600">Could not load the labs. Reload the page.</TableCell>
+                      </TableRow>
+                    ) : (lookups?.labs ?? []).map(lab => {
+                      const labAssets = activeAssets.filter(a => a.homeLab?.centerId === lab.centerId);
                       const assetCount = labAssets.length;
                       let avgConditionStr = "0%";
                       let utilRateStr = "0%";
@@ -425,7 +421,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                         avgConditionNum = Math.round(totalScore / assetCount);
                         avgConditionStr = `${avgConditionNum}%`;
 
-                        const utilized = labAssets.filter(a => a.status === "ON_LOAN" || a.isOverdue || a.status === "Pending Return" || a.projectId || a.project_id).length;
+                        // Utilization is the share of the lab's assets that are On Loan now.
+                        const utilized = labAssets.filter(a => a.status === "ON_LOAN").length;
                         utilRateStr = `${Math.round((utilized / assetCount) * 100)}%`;
                       } else {
                         avgConditionStr = "N/A";
@@ -442,9 +439,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                       }
 
                       return (
-                        <TableRow key={lab.id} className="hover:bg-muted/30 transition-colors">
-                          <TableCell className="font-bold text-foreground text-xs">{lab.id}</TableCell>
-                          <TableCell className="text-muted-foreground text-xs">{lab.location}</TableCell>
+                        <TableRow key={lab.centerId} className="hover:bg-muted/30 transition-colors">
+                          <TableCell className="font-bold text-foreground text-xs">{lab.code}</TableCell>
+                          <TableCell className="text-muted-foreground text-xs">{lab.campusLabel}</TableCell>
                           <TableCell className="text-center font-semibold text-xs text-foreground font-mono">{assetCount}</TableCell>
                           <TableCell className="text-center text-xs font-mono">
                             <span className={cn(assetCount === 0 ? "text-muted-foreground" : avgConditionNum <= 60 ? "text-red-600 font-bold" : avgConditionNum <= 78 ? "text-amber-600" : "text-[#005A36] font-semibold")}>
@@ -604,7 +601,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         a.cost || 0,
         assetStatusLabel(a.status),
         a.custodian || "None",
-        a.lab || "CITe4D"
+        a.lab || ""
       ]);
 
       const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");

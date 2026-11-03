@@ -1,5 +1,5 @@
 /**
- * Inspection queue: assets grouped by lab group (A to D), each with a button to inspect it and file a condition report.
+ * Inspection queue: assets grouped by lab group (A to D, and Other for a lab in none), each with a button to inspect it and file a condition report.
  * Layer: feature component. Called by pages/staff/InspectionsPage.tsx.
  * Calls: api/inspections.api.ts submitInspectionRaw(), state/serverData.tsx syncFromDb().
  * Used by: Staff single-item inspection.
@@ -15,17 +15,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Label } from "@web/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@web/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
+import { INSPECTION_LAB_GROUPS, OTHER_INSPECTION_GROUP_ID, inspectionGroupIdOf } from "@shared/constants/inspectionGroups";
 import { cn } from "@web/components/ui/utils";
 import { CheckCircle, ClipboardCheck, Camera, Upload } from "lucide-react";
 
-// TODO(M-03): the lab groups are another hardcoded lab list, separate from research_centers. Phase 3.
-// Inspection groups: the 10 research centers spread across 4 groups.
-const labGroups = [
-  { id: "A", name: "Group A", labs: ["CITe4D", "CAR", "CNIS"], color: "text-blue-600" },
-  { id: "B", name: "Group B", labs: ["CeHCI", "CeLT", "TE3D"], color: "text-violet-600" },
-  { id: "C", name: "Group C", labs: ["GAME", "Bio"], color: "text-amber-600" },
-  { id: "D", name: "Group D", labs: ["CIVI", "HXIL"], color: "text-emerald-600" },
-];
+// The dot colour of each group's tab. The groups themselves are in shared/constants/inspectionGroups.ts.
+const GROUP_COLORS: Record<string, string> = {
+  A: "text-blue-600",
+  B: "text-violet-600",
+  C: "text-amber-600",
+  D: "text-emerald-600",
+  [OTHER_INSPECTION_GROUP_ID]: "text-slate-500",
+};
 
 const statusBadge: Record<string, string> = {
   Inspected: "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold",
@@ -67,35 +68,22 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
     <>
       {/* Group tabs using shadcn Tabs */}
       {(() => {
-        const allKnownLabs = ["CITe4D", "CAR", "CeHCI", "CeLT", "CNIS", "GAME", "Bio", "CIVI", "TE3D", "HXIL"];
-
-        const matchesLab = (assetLab: string | undefined, groupLabs: string[]) => {
-          if (!assetLab) return false;
-          const labStr = assetLab.trim().toLowerCase();
-          return groupLabs.some(l => {
-            const lLower = l.toLowerCase();
-            return labStr === lLower || labStr.includes(lLower) || (lLower === "bio" && labStr.includes("bioinformatics")) || (lLower === "game" && labStr.includes("game"));
-          });
-        };
-
         // A disposed asset has left the registry, and the server refuses a report for it (409).
         const queueAssets = displayedAssets.filter(a => a.status !== "RETIRED");
 
-        const getGroupAssets = (groupId: string, labs: string[]) => {
-          return queueAssets.filter(a => {
-            if (matchesLab(a.lab, labs)) return true;
-            // An asset whose lab matches no known lab, or has none, is listed under Group A so it is not lost.
-            if (groupId === "A" && (!a.lab || !allKnownLabs.some(kl => matchesLab(a.lab, [kl])))) {
-              return true;
-            }
-            return false;
-          });
-        };
+        const getGroupAssets = (groupId: string) => queueAssets.filter(a => inspectionGroupIdOf(a.lab) === groupId);
 
-        const dynamicGroups = labGroups.map(g => {
-          const gAssets = getGroupAssets(g.id, g.labs);
+        // A lab in none of the four groups gets its own "Other" tab (only when it has assets), so its assets are not hidden in another group.
+        const otherLabs = [...new Set(getGroupAssets(OTHER_INSPECTION_GROUP_ID).map(a => String(a.lab || "No lab")))].sort();
+        const groups = [
+          ...INSPECTION_LAB_GROUPS,
+          ...(otherLabs.length > 0 ? [{ id: OTHER_INSPECTION_GROUP_ID, name: "Other", labs: otherLabs }] : []),
+        ];
+
+        const dynamicGroups = groups.map(g => {
+          const gAssets = getGroupAssets(g.id);
           const due = gAssets.filter(a => a.status === "MAINTENANCE" || a.isOverdue || (a.healthScore != null && a.healthScore < 80)).length;
-          return { ...g, assets: gAssets.length, due };
+          return { ...g, color: GROUP_COLORS[g.id], assets: gAssets.length, due };
         });
 
         return (
@@ -111,7 +99,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
             </TabsList>
 
             {dynamicGroups.map(g => {
-              const groupAssets = getGroupAssets(g.id, g.labs);
+              const groupAssets = getGroupAssets(g.id);
               const queueItems = groupAssets.map(a => {
                 const isInspected = itemInspectedState[a.id] === true;
                 const status = isInspected ? "Inspected" : "For Inspection";
@@ -122,7 +110,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                   id: `MNT-${String(a.id)}`,
                   asset: a.name,
                   serial: a.serial || a.id,
-                  lab: a.lab || g.labs[0] || "CITe4D",
+                  lab: a.lab,
                   // TODO(F-28): "Last Inspected" shows the procurement date, or a made-up date, not the newest report. Phase 3.
                   lastInspected: a.procured || "Jan 15, 2024",
                   status,
@@ -141,7 +129,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                   <Card className="overflow-hidden p-0 mb-8">
                     <CardHeader className="px-5 py-4 flex-row items-center justify-between space-y-0 border-b border-border">
                       <div>
-                        <CardTitle className="text-sm">Inspection Queue — Group {g.id} ({g.labs.join(", ")})</CardTitle>
+                        <CardTitle className="text-sm">Inspection Queue: {g.name} ({g.labs.join(", ")})</CardTitle>
                       </div>
                     </CardHeader>
                     {queueItems.length > 0 ? (
@@ -185,7 +173,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                       </Table>
                     ) : (
                       <div className="p-6 text-center text-xs text-muted-foreground bg-muted/10">
-                        No registered equipment currently assigned to Group {g.id} ({g.labs.join(", ")}).
+                        No registered equipment currently assigned to {g.name} ({g.labs.join(", ")}).
                       </div>
                     )}
                   </Card>

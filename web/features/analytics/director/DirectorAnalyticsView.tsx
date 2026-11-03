@@ -10,6 +10,7 @@ import { motion } from "motion/react";
 import { useServerData } from "@web/state/serverData";
 import * as analyticsApi from "@web/api/analytics.api";
 import { CAMPUS_LABELS } from "@shared/constants/campuses";
+import { useFormLookups } from "@web/features/lookups/useLookups";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { Badge } from "@web/components/ui/badge";
@@ -62,8 +63,8 @@ export interface DirectorAnalyticsProps {
 // Macro & Financial View (Task 1: Portfolio Value KPI, Pending Disposal Count, Location vs Status Stacked Column, Line Graph Audit Compliance)
 /**
  * Portfolio value and pending disposal KPIs, the location by status chart, and audit compliance over time.
- * Calls analyticsApi.getDirectorAnalytics() with the lab and date filters, and falls back to
- * the shared asset, report, and disposal lists when that fails.
+ * Calls analyticsApi.getDirectorAnalytics() with the lab and date filters. Shows a loading state until the server
+ * answers, and a message when it fails: it never shows an estimate from the shared lists first.
  *
  * @param selectedLabFilter lab to scope to, or "All Labs"
  * @param startDate start of the date range, or empty for no limit
@@ -76,12 +77,15 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
   setStartDate,
   setEndDate,
 }) => {
-  const { assets: dbAssetsList, dbReports, pendingDisposals } = useServerData();
   const [apiData, setApiData] = useState<any>(null);
-  const [isLoadingApi, setIsLoadingApi] = useState(false);
+  const [isLoadingApi, setIsLoadingApi] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
+    // The old answer goes at once, so no figure from another filter stays on screen while this one loads.
+    setApiData(null);
+    setLoadFailed(false);
     setIsLoadingApi(true);
     const params = new URLSearchParams();
     if (selectedLabFilter && selectedLabFilter !== "All Labs" && selectedLabFilter !== "All") {
@@ -92,12 +96,13 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
 
     analyticsApi.getDirectorAnalytics(params.toString())
       .then(json => {
-        if (isMounted && json.success && json.data) {
-          setApiData(json.data);
-        }
+        if (!isMounted) return;
+        if (json.success && json.data) setApiData(json.data);
+        else setLoadFailed(true);
       })
       .catch(err => {
         console.error("Failed to fetch director analytics from server:", err);
+        if (isMounted) setLoadFailed(true);
       })
       .finally(() => {
         if (isMounted) setIsLoadingApi(false);
@@ -106,145 +111,28 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
     return () => { isMounted = false; };
   }, [selectedLabFilter, startDate, endDate]);
 
-  const filteredAssets = useMemo(() => {
-    return dbAssetsList.filter(a => {
-      // 1. Lab Filter
-      if (selectedLabFilter !== "All Labs" && selectedLabFilter !== "All") {
-        const assetLab = (a.lab || "").toLowerCase();
-        const assetTag = (a.id || a.asset_tag || "").toLowerCase();
-        const targetLab = selectedLabFilter.toLowerCase();
-        const isLabMatch = assetLab === targetLab || assetTag.startsWith(targetLab + "-");
-        if (!isLabMatch) return false;
-      }
+  const waiting = isLoadingApi || !apiData;
+  const totalValuation: number = apiData?.totalPortfolioValue ?? 0;
+  const pendingDisposalsCount: number = apiData?.pendingDisposalsCount ?? 0;
 
-      // 2. Dynamic Date Filter (procured or procurement_date)
-      if (startDate) {
-        const proc = a.procurement_date || a.procured;
-        if (proc && new Date(proc).getTime() < new Date(startDate).getTime()) return false;
-      }
-      if (endDate) {
-        const proc = a.procurement_date || a.procured;
-        if (proc && new Date(proc).getTime() > new Date(endDate).getTime() + 86400000) return false;
-      }
-
-      return true;
-    });
-  }, [dbAssetsList, selectedLabFilter, startDate, endDate]);
-
-  // Total Portfolio Value
-  const totalValuation = useMemo(() => {
-    if (apiData?.totalPortfolioValue !== undefined && apiData.totalPortfolioValue > 0) {
-      return apiData.totalPortfolioValue;
-    }
-    return filteredAssets.reduce((sum, asset) => {
-      const val = Number(asset.cost || asset.acquisition_value || 0);
-      return sum + val;
-    }, 0);
-  }, [apiData, filteredAssets]);
-
-  // Pending Disposals Count
-  const pendingDisposalsCount = useMemo(() => {
-    if (apiData?.pendingDisposalsCount !== undefined && apiData.pendingDisposalsCount > 0) {
-      return apiData.pendingDisposalsCount;
-    }
-    const localPending = (pendingDisposals || []).length;
-    const assetPending = filteredAssets.filter(a => {
-      const st = (a.status || "").toUpperCase();
-      return st === "PENDING DISPOSAL" || st === "PENDING_DISPOSAL" || !!a.disposalId;
-    }).length;
-    return Math.max(localPending, assetPending);
-  }, [apiData, pendingDisposals, filteredAssets]);
-
-  // Stacked Column Chart Data: Location vs Status
+  // Stacked column chart: the three campuses by status, as the server counted them.
   const locationStatusData = useMemo(() => {
-    if (apiData?.locationStatusData && Array.isArray(apiData.locationStatusData) && apiData.locationStatusData.length > 0) {
-      return apiData.locationStatusData.map((d: any) => ({
-        location: `${CAMPUS_LABELS[d.location as keyof typeof CAMPUS_LABELS] ?? d.location} Campus`,
-        AVAILABLE: d.AVAILABLE || 0,
-        ON_LOAN: d.ON_LOAN || 0,
-        MAINTENANCE: d.MAINTENANCE || 0,
-      }));
-    }
+    return (apiData?.locationStatusData ?? []).map((d: any) => ({
+      location: `${CAMPUS_LABELS[d.location as keyof typeof CAMPUS_LABELS] ?? d.location} Campus`,
+      AVAILABLE: d.AVAILABLE || 0,
+      ON_LOAN: d.ON_LOAN || 0,
+      MAINTENANCE: d.MAINTENANCE || 0,
+    }));
+  }, [apiData]);
 
-    const manilaAssets = filteredAssets.filter(a => {
-      const loc = (a.location || "").toLowerCase();
-      const lab = (a.lab || "").toLowerCase();
-      const tag = (a.id || a.asset_tag || "");
-      return loc.includes("manila") || loc.includes("taft") || ["cite4d", "cehci", "cnis", "game", "bio"].includes(lab) || ["CITe4D-", "CeHCI-", "CNIS-", "GAME-", "Bio-"].some(p => tag.startsWith(p));
-    });
+  // Inspection reports per month, as the server counted them (empty when none is in the range).
+  const auditComplianceData: { month: string; count: number }[] = apiData?.auditComplianceData ?? [];
 
-    const lagunaAssets = filteredAssets.filter(a => {
-      const loc = (a.location || "").toLowerCase();
-      const lab = (a.lab || "").toLowerCase();
-      const tag = (a.id || a.asset_tag || "");
-      return loc.includes("laguna") || loc.includes("canlubang") || ["car", "celt", "civi", "te3d", "hxil"].includes(lab) || ["CAR-", "CeLT-", "CIVI-", "TE3D-", "HXIL-"].some(p => tag.startsWith(p));
-    });
-
-    const getStatusCounts = (assetArray: typeof filteredAssets) => {
-      let active = 0;
-      let onLoan = 0;
-      let maintenance = 0;
-
-      assetArray.forEach(a => {
-        const st = (a.status || "").toUpperCase();
-        if (st === "ACTIVE" || st === "AVAILABLE") {
-          active++;
-        } else if (st === "ON_LOAN" || st === "ON LOAN" || st === "OVERDUE" || st === "PENDING RETURN") {
-          onLoan++;
-        } else if (st === "MAINTENANCE" || st === "IN REPAIR" || st === "REPAIR") {
-          maintenance++;
-        } else {
-          active++;
-        }
-      });
-
-      return { AVAILABLE: active, ON_LOAN: onLoan, MAINTENANCE: maintenance };
-    };
-
-    return [
-      {
-        location: "Manila Campus",
-        ...getStatusCounts(manilaAssets)
-      },
-      {
-        location: "Laguna Campus",
-        ...getStatusCounts(lagunaAssets)
-      }
-    ];
-  }, [apiData, filteredAssets]);
-
-  // Line Graph Audit Compliance
-  const auditComplianceData = useMemo(() => {
-    if (apiData?.auditComplianceData && Array.isArray(apiData.auditComplianceData) && apiData.auditComplianceData.length > 0) {
-      return apiData.auditComplianceData;
-    }
-
-    const reportsSource = (dbReports && dbReports.length > 0)
-      ? dbReports
-      : filteredAssets.flatMap(a => a.asset_reports || []);
-
-    const monthCounts: Record<string, number> = {};
-
-    reportsSource.forEach(r => {
-      const rawDate = r.report_date || r.reportDate || r.date_logged || r.created_at;
-      if (!rawDate) return;
-      const d = new Date(rawDate);
-      if (isNaN(d.getTime())) return;
-      const monthLabel = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-      monthCounts[monthLabel] = (monthCounts[monthLabel] || 0) + 1;
-    });
-
-    const defaultTimeline = ["Feb 26", "Mar 26", "Apr 26", "May 26", "Jun 26", "Jul 26"];
-    defaultTimeline.forEach(m => {
-      if (monthCounts[m] === undefined) {
-        monthCounts[m] = 0;
-      }
-    });
-
-    return Object.entries(monthCounts)
-      .map(([month, count]) => ({ month, count }))
-      .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime());
-  }, [apiData, dbReports, filteredAssets]);
+  /** What a figure shows while the server has not answered: a pulse bar, or the failure message. */
+  const waitingFor = (barClass: string) =>
+    loadFailed
+      ? <p className="text-xs font-semibold text-red-600 mt-2">Could not load. Reload the page.</p>
+      : <div className={`${barClass} bg-muted/60 animate-pulse rounded-md mt-1`} />;
 
   return (
     <motion.div variants={cardAnimation} initial="hidden" animate="visible" className="space-y-6">
@@ -272,9 +160,11 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Total Portfolio Value</p>
-              <h2 className="text-3xl font-extrabold text-[#005A36] mt-1 font-mono">
-                ₱{totalValuation.toLocaleString()}
-              </h2>
+              {waiting ? waitingFor("h-9 w-40") : (
+                <h2 className="text-3xl font-extrabold text-[#005A36] mt-1 font-mono">
+                  ₱{totalValuation.toLocaleString()}
+                </h2>
+              )}
               <p className="text-[11px] text-muted-foreground mt-1">Total value of the filtered assets</p>
             </div>
             <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl text-[#005A36]">
@@ -287,9 +177,11 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Pending Disposal Items</p>
-              <h2 className="text-3xl font-extrabold text-amber-600 mt-1 font-mono">
-                {pendingDisposalsCount} Items
-              </h2>
+              {waiting ? waitingFor("h-9 w-28") : (
+                <h2 className="text-3xl font-extrabold text-amber-600 mt-1 font-mono">
+                  {pendingDisposalsCount} Items
+                </h2>
+              )}
               <p className="text-[11px] text-muted-foreground mt-1">Filtered disposal requests waiting for your approval</p>
             </div>
             <div className="p-3 bg-amber-50 dark:bg-amber-500/10 rounded-xl text-amber-600">
@@ -307,24 +199,35 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-2">
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={locationStatusData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="location" stroke="#64748B" fontSize={11} />
-                <YAxis stroke="#64748B" fontSize={11} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="AVAILABLE" stackId="statusStack" fill="#10B981" name="Available" />
-                <Bar dataKey="ON_LOAN" stackId="statusStack" fill="#F59E0B" name="On Loan" />
-                <Bar dataKey="MAINTENANCE" stackId="statusStack" fill="#EF4444" name="Maintenance" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {waiting ? (
+            <div className="h-72 w-full bg-muted/30 animate-pulse rounded-lg flex items-center justify-center text-xs text-muted-foreground">
+              {loadFailed ? "Could not load the campus counts. Reload the page." : "Loading campus availability data..."}
+            </div>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={locationStatusData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="location" stroke="#64748B" fontSize={11} />
+                  <YAxis stroke="#64748B" fontSize={11} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="AVAILABLE" stackId="statusStack" fill="#10B981" name="Available" />
+                  <Bar dataKey="ON_LOAN" stackId="statusStack" fill="#F59E0B" name="On Loan" />
+                  <Bar dataKey="MAINTENANCE" stackId="statusStack" fill="#EF4444" name="Maintenance" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {(startDate || endDate) && (
+            <p className="text-[11px] text-muted-foreground mt-2">
+              With a date range, only assets procured in the range are counted. An asset with no procurement date is left out.
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {/* 3. Inspection reports per month, from dbReports */}
+      {/* 3. Inspection reports per month */}
       <Card className="border border-border bg-card shadow-sm rounded-xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -335,17 +238,27 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={auditComplianceData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="month" stroke="#64748B" fontSize={11} />
-                <YAxis stroke="#64748B" fontSize={11} />
-                <Tooltip />
-                <Line type="monotone" dataKey="count" stroke="#005A36" strokeWidth={3} dot={{ r: 5, fill: "#005A36" }} name="Asset Reports Logged" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {waiting ? (
+            <div className="h-64 w-full bg-muted/30 animate-pulse rounded-lg flex items-center justify-center text-xs text-muted-foreground">
+              {loadFailed ? "Could not load the inspection reports. Reload the page." : "Loading inspection reports timeline..."}
+            </div>
+          ) : auditComplianceData.length === 0 ? (
+            <div className="h-64 w-full flex items-center justify-center text-xs text-muted-foreground">
+              No inspection reports in this range
+            </div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={auditComplianceData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="month" stroke="#64748B" fontSize={11} />
+                  <YAxis stroke="#64748B" fontSize={11} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="count" stroke="#005A36" strokeWidth={3} dot={{ r: 5, fill: "#005A36" }} name="Asset Reports Logged" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
@@ -673,6 +586,7 @@ export const DirectorAnalyticsView: React.FC = () => {
   const [selectedTerm, setSelectedTerm] = useState<string>("AY 2025-2026 Term 2");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const { lookups } = useFormLookups();
 
   return (
     <div className="space-y-8 text-foreground font-sans">
@@ -697,13 +611,7 @@ export const DirectorAnalyticsView: React.FC = () => {
               className="text-xs font-bold bg-white dark:bg-slate-900 border border-slate-300 rounded px-2 py-1 text-slate-800 dark:text-slate-100"
             >
               <option value="All Labs">All Laboratories (DLSU Combined)</option>
-              <option value="CITe4D">CITe4D - Manila</option>
-              <option value="CAR">CAR - Laguna</option>
-              <option value="CeHCI">CeHCI - Manila</option>
-              <option value="HXIL">HXIL - Laguna</option>
-              <option value="GAME">GAME - Manila</option>
-              <option value="CeLT">CeLT - Laguna</option>
-              <option value="Bio">Bio - Manila</option>
+              {(lookups?.labs ?? []).map(l => <option key={l.centerId} value={l.code}>{l.code} - {l.campusLabel}</option>)}
             </select>
           </div>
 
