@@ -1,0 +1,481 @@
+# Asset lifecycle and API contract (batches 2 to 8)
+
+For Joel and Aryan, to build screens with mock data before the server parts exist. Written in Batch 1 (`feat/batch-1-foundation`). The source of truth for the rules is the Batch 1 brief, `docs/tasks/batch-1-foundation.md`; this file says the same in screen terms.
+
+Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges) or **planned (Batch N)** (it does not exist yet; build against mock data shaped exactly like this). If a planned endpoint needs to differ when it is built, that batch updates this file first.
+
+**Batch 1 built (2026-11-03):** the data model below (one migration adds it, a second drops `asset_records`, `asset_monetary`, `asset_returns`, `asset_transfers`, `asset_maintenance.is_immediate`, and `projects.funding_agency`); the lifecycle guard, the status setter, and the derive helpers on the server; the constants in `shared/`; the permission rules of section 6 on every live route; the session with every lab; and the live endpoints marked below. **Removed in Batch 1:** transfers (every route and screen), `GET /api/asset_returns`, `GET /api/lookups/users` (the custodian picker), and `GET /api/assets/:assetTag/custodian-history` (replaced by `/history`).
+
+---
+
+## 1. Data model
+
+**Each fact is stored once.** Anything that can be worked out from stored facts is worked out by the server, never stored a second time and never computed by a screen. The one deliberate exception is the asset's status, which is stored because every list and every rule filters on it.
+
+### What is stored
+
+| Fact | Where it lives |
+|---|---|
+| Asset status (one of six, section 3) | `assets.status`. Changed only by the server's status setter, in the same step that causes it |
+| Home lab, and through it the campus | `assets.center_id`, pointing at `research_centers` (`short_code`, `name`, `location` = campus) |
+| Home room (for example G406) | `assets.home_room`, optional |
+| Owning project | `assets.project_id`, optional |
+| Funding | `assets.funding_source_id` (a row of `funding_sources`) and `assets.acquisition_value` |
+| Accessories, ITS property tag, TSG tag | `assets.accessories`, `assets.its_property_tag`, `assets.tsg_tag` |
+| Each loan, maintenance ticket, retirement and inspection | Its own row in `asset_loans`, `asset_maintenance`, `asset_retirements`, `asset_inspections` |
+| Steps that have no table of their own (registered, edited, deleted, marked missing, found, clearance record printed) | `activity_log` |
+| Which labs a person belongs to (one or more) | `user_centers` |
+| Who heads a lab (at most one per lab, one lab per person) | `research_centers.head_user_id` |
+
+### What is worked out
+
+| Value | Rule |
+|---|---|
+| Holder (who has it now) | The borrower of the asset's open loan (status On Loan or Return Requested). Otherwise nobody |
+| Current location | Open loan: its destination lab and room. In maintenance and received by TSG: "TSG Office". Missing or Retired: none. Otherwise: the home lab and room |
+| Condition now | The newest inspection done by TSG (any type except Self Report). A borrower's Self Report never changes it |
+| Overdue | The asset has an open loan whose return-by date has passed. The status stays On Loan; overdue is a separate flag |
+| Cleared | The person has no loan in Pending Release, On Loan or Return Requested |
+| History of an asset | The asset's loan, inspection, maintenance and retirement rows, plus its `activity_log` rows, in time order |
+
+### The fields screens receive
+
+Every asset in an answer carries these, worked out on the server:
+
+| Field | Type | Example | Notes |
+|---|---|---|---|
+| `status` | string | `"ON_LOAN"` | One of the six values in section 3 |
+| `statusLabel` | string | `"On Loan"` | Show this, never a label of your own |
+| `homeLab` | object | `{ "centerId": 1, "code": "CITe4D", "name": "...", "campus": "MANILA", "campusLabel": "Manila" }` | From `center_id`, never from the tag or a location text |
+| `homeRoom` | string or null | `"G406"` | |
+| `currentLocation` | string or null | `"CAR, V302"`, `"CITe4D"`, `"TSG Office"` | `"<lab short code>, <room>"` or `"<lab short code>"`; never the campus; null when Missing or Retired |
+| `holder` | object or null | `{ "userId": 12, "name": "First Last" }` | null when nobody holds it. A Researcher gets `{ "hidden": true }` instead of another person's name and id |
+| `condition` | string or null | `"OPERATIONAL"` | null when TSG has never inspected it |
+| `conditionLabel` | string or null | `"Operational"` | |
+| `healthScore` | number or null | `80` | From the newest TSG inspection |
+| `isOverdue` | boolean | `false` | |
+| `openLoan` | object or null | `{ "loanId": 41, "status": "ON_LOAN", "returnBy": "2026-11-20" }` | The loan in Pending Approval, Pending Release, On Loan or Return Requested, if any |
+
+`GET /api/assets` sends the fields above. Since Batch 1, `status` and `condition` hold the stored keys (before, they held display text and a 0 to 100 score). Next to them it still sends the older fields today's screens read: `id` (the tag), `serial`, `funding` (the name, or "Unspecified"), `cost`, `procured`, `warranty`, `location` (the campus label), `lab` (the home lab's code), `assetCondition`, `custodian`, `custodianId`, `custodianHidden`, `borrowedOn`, `dueDate`, `daysLeft`, `disposalId`, `disposalDetails`, `image`, `image_url`, `description`, `remarks`, and `asset_reports`. New screens read only the fields above.
+
+---
+
+## 2. Locations
+
+- **Home** is stored on the asset: the home lab (`homeLab`, which also gives the campus) and an optional home room (`homeRoom`). TSG and the Secretary change it through Edit Asset.
+- **Current location** is worked out (section 1): the open loan's destination lab and room, or "TSG Office" while TSG holds it for maintenance, or home. Missing and Retired assets have none.
+- **A return always brings the asset back to its home lab and room.** There is no "return to somewhere else".
+- A loan's destination lab is picked from **the borrower's own labs** (the session's `labs`, section 9). The room is optional free text.
+- Campus labels are Manila, Laguna and McKinley. A screen gets a lab's campus from the lab (`GET /api/lookups` or the asset's `homeLab`), never from its own list.
+
+---
+
+## 3. Asset statuses
+
+| Status | Label | Meaning |
+|---|---|---|
+| `AVAILABLE` | Available | At home and free to borrow. A loan waiting for approval or release keeps it Available, but no second request can be made |
+| `ON_LOAN` | On Loan | Released to a borrower (their loan is On Loan or Return Requested) |
+| `MAINTENANCE` | Maintenance | Received by TSG for inspection or repair |
+| `PENDING_RETIREMENT` | Pending Retirement | A retirement was requested; waiting for the decision or for the disposal to be done |
+| `RETIRED` | Retired | Disposed. Nothing more happens to it |
+| `MISSING` | Missing | Cannot be found. It can be found again or retired |
+
+### Which actions each status allows (the lifecycle guard)
+
+The server checks this table before every step. A refused step answers **409** with a plain message. Screens may use the same table to hide buttons, but the server decides.
+
+| Action | Available | On Loan | Maintenance | Pending Retirement | Retired | Missing |
+|---|---|---|---|---|---|---|
+| Request a loan | yes (1) | no | no | no | no | no |
+| Report an issue (open a maintenance ticket) | yes | yes | no | no | no | no |
+| Receive for maintenance | yes | yes (2) | no | no | no | no |
+| Request retirement | yes | no | yes (3) | no | no | yes |
+| Decide retirement (approve or deny) | no | no | no | yes | no | no |
+| Complete retirement | no | no | no | yes (4) | no | no |
+| Mark missing | yes | yes (5) | no | no | no | no |
+| Mark found | no | no | no | no | no | yes |
+| Edit master data | yes | yes | yes | no | no | yes |
+| Routine inspection | yes | no | no | no | no | no |
+
+1. Refused while the asset has a loan in Pending Approval or Pending Release.
+2. Receiving ends the open loan (Ended by Maintenance) in the same step.
+3. After maintenance ends Beyond Repair.
+4. Only once the retirement is Approved. Completing it sets the asset to Retired.
+5. Marking missing ends the open loan (Ended by Loss) in the same step.
+
+---
+
+## 4. Process statuses and moves
+
+Each move names who makes it and what happens to the asset. Any move not listed is refused with **409**.
+
+### Loan (`asset_loans.status`)
+
+| Status | Label |
+|---|---|
+| `PENDING_APPROVAL` | Pending Approval |
+| `PENDING_RELEASE` | Pending Release |
+| `DECLINED` | Declined |
+| `CANCELLED` | Cancelled |
+| `ON_LOAN` | On Loan |
+| `RETURN_REQUESTED` | Return Requested |
+| `RETURNED` | Returned |
+| `ENDED_BY_MAINTENANCE` | Ended by Maintenance |
+| `ENDED_BY_LOSS` | Ended by Loss |
+
+| From | To | Who | Asset |
+|---|---|---|---|
+| (new) | Pending Approval | The borrower | stays Available |
+| Pending Approval | Pending Release | The Head of the asset's home lab (approve) | stays Available |
+| Pending Approval | Declined | The Head of the asset's home lab (decline, remarks required) | stays Available |
+| Pending Approval or Pending Release | Cancelled | The borrower | stays Available |
+| Pending Release | On Loan | TSG (release, with a Loan Release inspection) | On Loan |
+| On Loan | Return Requested | The borrower | stays On Loan |
+| On Loan or Return Requested | Returned | TSG (receive, with a Return inspection) | Available, back at home |
+| On Loan or Return Requested | Ended by Maintenance | TSG receives the asset for maintenance | Maintenance |
+| On Loan or Return Requested | Ended by Loss | TSG marks the asset missing | Missing |
+
+- Declined, Cancelled, Returned, Ended by Maintenance and Ended by Loss are final. `closedAt` is set when a loan reaches one of them.
+- The return-by date is the one the borrower asks for; approval keeps it as is.
+- When the asset's lab has no Head, approve and decline answer **409** "This lab has no Lab Head yet. Ask the IT Admin to set one."
+- If the Return inspection finds damage, TSG can open a Return Damage maintenance ticket in the same step; the asset then goes to Maintenance instead of Available.
+
+### Maintenance (`asset_maintenance.status`)
+
+| Status | Label |
+|---|---|
+| `PENDING_RECEIPT` | Pending Receipt |
+| `INSPECTING` | Inspecting |
+| `REPAIRING` | Repairing |
+| `EXTERNAL_SERVICE` | External Service |
+| `RESOLVED` | Resolved |
+| `BEYOND_REPAIR` | Beyond Repair |
+| `CANCELLED` | Cancelled |
+
+Ticket types: `BORROWER_REPORT` (Borrower Report), `TSG_MAINTENANCE` (TSG Maintenance), `RETURN_DAMAGE` (Return Damage).
+
+| From | To | Who | Asset |
+|---|---|---|---|
+| (new) | Pending Receipt | The holder, the home lab's Head, or TSG (report an issue, with an issue type) | unchanged |
+| Pending Receipt | Inspecting | TSG (receive, with a Maintenance inspection) | Maintenance; an open loan ends (Ended by Maintenance) |
+| Inspecting | Repairing or External Service | TSG (start) | stays Maintenance |
+| Repairing | External Service, or back | TSG (stage change) | stays Maintenance |
+| Inspecting, Repairing or External Service | Resolved | TSG (complete, with a Maintenance inspection) | Available |
+| Inspecting, Repairing or External Service | Beyond Repair | TSG (complete, with a Maintenance inspection) | stays Maintenance until a retirement is requested |
+| Pending Receipt | Cancelled | The reporter or TSG | unchanged |
+| Inspecting | Cancelled | TSG | Available |
+
+- **Under warranty** is worked out: the asset's warranty expiry is on or after the day TSG received it. An asset under warranty goes to External Service (the warranty holder) unless TSG writes a warranty override reason.
+- External Service names the `provider` (the warranty holder or a repair shop).
+
+### Retirement (`asset_retirements.status`, page title "Asset Disposal")
+
+| Status | Label |
+|---|---|
+| `PENDING` | Pending |
+| `APPROVED` | Approved |
+| `DENIED` | Denied |
+| `COMPLETED` | Completed |
+
+| From | To | Who | Asset |
+|---|---|---|---|
+| (new) | Pending | TSG (request, with a reason) | Pending Retirement; the status before is kept as `previousStatus` |
+| Pending | Approved | The Director or the Secretary, never the person who requested it | stays Pending Retirement |
+| Pending | Denied | The Director or the Secretary, never the requester (remarks required) | back to `previousStatus` |
+| Approved | Completed | TSG (pathway and disposition reference) | Retired |
+
+Pathways: `DONATE` (Donate), `RECYCLE` (Recycle), `RETURN_TO_FUNDER` (Return to Funder), `SELL` (Sell), `OTHER` (Other).
+
+### Missing and Found
+
+| From | To | Who | Notes |
+|---|---|---|---|
+| Available or On Loan | Missing | TSG (mark missing, with a reason) | An open loan ends (Ended by Loss). Logged as ASSET_MARKED_MISSING |
+| Missing | Available | TSG (mark found, with a Recovery inspection) | Logged as ASSET_FOUND |
+| Missing | Pending Retirement | TSG (request retirement) | As in the retirement table |
+
+### Sign-up and account (`users.account_status`)
+
+| Status | Label |
+|---|---|
+| `PENDING` | Pending |
+| `ACTIVE` | Active |
+| `INACTIVE` | Inactive |
+| `REJECTED` | Rejected |
+
+| From | To | Who |
+|---|---|---|
+| (new) | Pending | The applicant (sign-up) |
+| Pending | Active | The IT Admin (approve, with one role and one or more labs) |
+| Pending | Rejected | The IT Admin (reject) |
+| Active | Inactive | The IT Admin (deactivate) |
+| Inactive | Active | The IT Admin (reactivate) |
+
+- Only an Active account can log in or act. A Pending or Inactive account gets **403** on every action.
+- Anonymize (IT Admin), for an Inactive or Rejected account. Each field becomes:
+
+  | Field | Becomes |
+  |---|---|
+  | Name | "Former researcher" (first name "Former", last name "researcher") |
+  | Email | `anonymized-<userId>@invalid` |
+  | ID number | empty (NULL) |
+  | Password | cleared, so the account can never log in again |
+  | `anonymizedAt` | the time of the step |
+
+  The history is kept: the person's loans, inspections, tickets and log rows stay, under "Former researcher". The step writes a USER_ANONYMIZED row in the activity log.
+
+### Ticket (`user_tickets.status`)
+
+| Status | Label |
+|---|---|
+| `OPEN` | Open |
+| `IN_PROGRESS` | In Progress |
+| `RESOLVED` | Resolved |
+| `REJECTED` | Rejected |
+
+Types: `BUG` (Bug), `ACCOUNT_ACCESS` (Account Access), `QUESTION` (Question), `OTHER` (Other).
+
+There is no ticket form on the login page: `user_tickets.created_by_id` is a required account, and an open form invites spam. The login page says "Can't log in? Contact the IT Admin."
+
+| From | To | Who |
+|---|---|---|
+| (new) | Open | Any Active account (a ticket always needs a login) |
+| Open | In Progress, Resolved or Rejected | The IT Admin |
+| In Progress | Resolved or Rejected | The IT Admin (resolution remarks required) |
+
+### Inspection types (`asset_inspections.type`)
+
+`INITIAL` (Initial, at registration), `LOAN_RELEASE` (Loan Release), `RETURN` (Return), `MAINTENANCE` (Maintenance), `RECOVERY` (Recovery, when found), `ROUTINE` (Routine), `RETIREMENT` (Retirement assessment), `SELF_REPORT` (Self Report, by the holder). Every type except Self Report is done by TSG.
+
+An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded, Critical Defect), an optional `healthScore` (0 to 100; the form suggests Perfect 100, Operational 80, Minor Drift 60, Degraded 40, Critical Defect 20), `missingAccessories` (empty means nothing missing), `remarks`, an optional `photo`, and the metric values for the asset's category (section 8).
+
+---
+
+## 5. Clearance
+
+- **A person is cleared** when they have no loan in Pending Release, On Loan or Return Requested.
+- **The clearance record** (manuscript OUT5) is a printable page for one person: each of their loans with its release and return verification (who released it and when, who received it back and when, the condition at each), and then either "No unreturned equipment" or the list of open loans.
+- TSG prints it. Each print writes a CLEARANCE_RECORD_PRINTED row in the activity log.
+- Endpoint: section 7.3, planned (Batch 3).
+
+---
+
+## 6. Who may do what
+
+| Role (view) | May |
+|---|---|
+| TSG | Register assets, edit master data, and every physical step: release, receive, inspect, maintenance, mark missing and found, request and complete retirements, print clearance records |
+| Secretary (AdRIC Secretary) | Edit asset master data only, and decide retirements. Registration and every physical step answer 403 |
+| Director | Decide retirements; read analytics and reports |
+| Lab Head (the account that heads a lab) | Approve and decline loans for assets whose home lab it heads; report an issue on its lab's assets. It does not borrow: a loan request answers 403 "Use your personal account to borrow." |
+| Researcher | Request, cancel and ask to return their own loans; report an issue on an asset they hold; file a Self Report |
+| IT Admin | Accounts, labs, Heads, tickets and the activity log. **No asset actions:** every asset step answers 403 |
+
+- A Lab Head is not a separate role: the role is Researcher, and heading a lab (`research_centers.head_user_id`) gives the Lab Head view. Heading a lab wins over Researcher when the server picks the view.
+- **The Lab Head account is an office account** for the lab's Head position, like the practicum coordinator's account. It is handed over when the Head changes. The person who holds the position borrows with their own personal account; the office account cannot request loans (403 "Use your personal account to borrow.").
+- When the Head changes, the office account is **not** deactivated or anonymized. Only its password changes.
+- "Approved by" and "Declined by" show the office account, not the person behind it.
+- Known limit (for the manuscript): when a Head borrows an asset of their own lab with their personal account, the approval comes from the office account they also hold.
+- The app's internal role key for a Researcher is still `"Custodian"` (the screens under `/custodian`); the label shown is "Researcher".
+- In Batch 1 the IT Admin and the Secretary still land on the Staff view; their own views come later.
+- A Researcher never sees another person's name or id on an asset or loan (`holder: { "hidden": true }`).
+
+---
+
+## 7. Endpoints
+
+**Shapes used in every answer**
+
+- Success: `{ "success": true, ...fields }`. Failure: `{ "success": false, "error": "<plain message>" }`. Show `error` as is.
+- Dates are `yyyy-mm-dd`; date-times are ISO 8601 (`2026-11-20T09:30:00.000Z`).
+- Every endpoint needs a login except login, sign-up and `GET /api/lookups`. Without one: **401**.
+- The acting person always comes from the session, never from the body.
+
+**Errors** (each endpoint lists the ones it adds):
+- **400** the body is missing a field or has a wrong value.
+- **401** not logged in.
+- **403** the role, the account status (Pending, Inactive), or the lab does not allow it.
+- **404** no such asset, loan, ticket or person.
+- **409** the asset's status or the process's status does not allow this move, or another open request is in the way.
+
+**Common objects**
+
+`Asset`: the fields in section 1, plus `assetId`, `tag`, `name`, `serialNumber`, `manufacturer`, `category`, `categoryLabel`, `project` (`{ projectId, code, name }` or null), `fundingSource` (`{ fundingSourceId, name }` or null), `acquisitionValue`, `procurementDate`, `warrantyExpiry`, `accessories`, `itsPropertyTag`, `tsgTag`, `imageUrl`.
+
+`Inspection`: `{ inspectionId, type, typeLabel, inspectedBy: { userId, name }, inspectedAt, condition, conditionLabel, healthScore, missingAccessories, remarks, photo, metrics: [{ metricId, metricKey, name, unit, value, flagged }] }`.
+
+`InspectionInput` (a body part): `{ condition, healthScore?, missingAccessories?, remarks?, photo?, metrics?: [{ metricId, value }] }`.
+
+`Loan`: `{ loanId, asset: { assetId, tag, name }, borrower: { userId, name }, status, statusLabel, purpose, project, destinationLab: { centerId, code }, destinationRoom, returnBy, requestedAt, decidedBy, decidedAt, decisionRemarks, releasedBy, releasedAt, releaseInspection, returnRequestedAt, receivedBy, returnInspection, closedAt, remarks, isOverdue }`. People are `{ userId, name }` or null.
+
+`Maintenance`: `{ maintenanceId, asset, type, typeLabel, status, statusLabel, issueType: { issueTypeId, key, name }, issueDescription, reportedBy, reportedAt, receivedBy, receivedAt, underWarranty, warrantyOverrideReason, provider, completedBy, completedAt, resolutionRemarks, triggerInspection, completionInspection }`.
+
+`Retirement`: `{ retirementId, asset, status, statusLabel, reason, pathway, pathwayLabel, previousStatus, requestedBy, requestedAt, decidedBy, decidedAt, decisionRemarks, completedBy, completedAt, dispositionReference, assessmentInspection }`.
+
+`User`: `{ userId, firstName, lastName, email, idNumber, userType, role, roleLabel, accountStatus, labs: [{ centerId, code }], headOf: { centerId, code } or null }`. Sent only to the IT Admin and to the person themself.
+
+`Ticket`: `{ ticketId, createdBy, type, typeLabel, title, description, status, statusLabel, resolutionRemarks, resolvedBy, resolvedAt, createdAt, updatedAt }`.
+
+`ActivityEntry`: `{ logId, eventType, eventLabel, actor, targetUser, asset: { assetId, tag } or null, details, createdAt }`.
+
+### 7.1 Session and lookups
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| Log in | `POST /api/auth/login` | anyone | `{ email, password }` | `{ role, user: SessionUser }` | 401 wrong email or password; 403 account Pending or Inactive | live (Batch 1) |
+| Who am I | `GET /api/auth/me` | logged in | | `{ user: SessionUser }` | 404 account gone | live (Batch 1) |
+| Form option lists | `GET /api/lookups` | anyone | | `{ labs: [{ centerId, code, name, campus, campusLabel, headUserId }], categories: [{ key, label }], fundingSources: [{ fundingSourceId, name }], issueTypes: [{ issueTypeId, key, name, suggestedAction }], metricsByCategory: { "<CATEGORY>": [{ metricId, metricKey, name, unit, higherIsBetter }] }, projects: [{ projectId, code, name, centerId }] }`. A category with no metrics is left out of `metricsByCategory` | | live (Batch 1) |
+
+`SessionUser`: `{ userId, firstName, lastName, email, idNumber, role, roleLabel, staffUnit, accountStatus, labs: [{ centerId, code, name, campus }], headOf: { centerId, code } or null, userImg }`. `labs` lists every lab the person belongs to; there is no "first" or default lab, and a person with no lab gets `[]`. `idNumber` is the person's own (never anyone else's), so the loan request form can prefill the name, ID number and labs.
+
+### 7.2 Assets
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| Asset list and search | `GET /api/assets` | logged in | `?q=&status=&centerId=` optional. `q` matches part of the tag, serial number or name, in any letter case (the fallback when a QR code will not scan, CAP1DEF 1) | `{ assets: Asset[] }` | | live (Batch 1) |
+| One asset's history | `GET /api/assets/:assetTag/history` | logged in | | `{ events: [{ at, kind, label, actor, details, loanId?, maintenanceId?, retirementId?, inspectionId? }] }`, oldest first | 404 | live (Batch 1) |
+| Register an asset | `POST /api/assets` | TSG | `{ name, serialNumber?, manufacturer?, category, centerId, homeRoom?, projectId?, fundingSourceId?, acquisitionValue?, procurementDate?, warrantyExpiry?, accessories?, itsPropertyTag?, tsgTag?, imageUrl?, initialInspection: InspectionInput }` | `{ asset: Asset }` with the new tag `<lab>-<next number>` | 400; 403 | live (Batch 1) |
+| Edit master data | `PUT /api/assets/:assetTag` | TSG, Secretary | any of the register fields except `initialInspection` | `{ asset: Asset }` | 400 the body has `status`, `holder`, `location` or `condition`; 403; 404; 409 Pending Retirement or Retired | live (Batch 1) |
+| Delete a mistaken registration | `DELETE /api/assets/:assetTag` | TSG | | `{ deleted: "<tag>" }` | 403; 404; 409 the asset has a loan, maintenance, retirement, or an inspection besides its initial one | live (Batch 1) |
+
+Registration writes the Initial inspection and an ASSET_REGISTERED log row; an edit that changes something writes an ASSET_EDITED row naming the changed fields (`details`, for example "Changed: name, home_room"); a delete writes ASSET_DELETED with the tag. All three answer with the asset in the list's shape.
+
+### 7.3 Loans
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| Request a loan | `POST /api/assets/:assetTag/loans` | Researcher with at least one lab, whose account heads no lab | `{ destinationCenterId, destinationRoom?, projectId?, returnBy, purpose }`; `destinationCenterId` must be one of the borrower's labs | `{ loan: Loan }` | 400 (return-by before today, lab not theirs); 403; 403 "Use your personal account to borrow." when the account heads a lab; 404; 409 asset not Available or already has a waiting loan; 409 the lab has no Head | planned (Batch 3) |
+| Cancel my request | `PUT /api/loans/:loanId/cancel` | the borrower | | `{ loan: Loan }` | 403 not theirs; 404; 409 not Pending Approval or Pending Release | planned (Batch 3) |
+| Approve | `PUT /api/loans/:loanId/approve` | Head of the asset's home lab | `{ decisionRemarks? }` | `{ loan: Loan }` | 403 not the Head of that lab; 404; 409 not Pending Approval; 409 the lab has no Head | planned (Batch 3) |
+| Decline | `PUT /api/loans/:loanId/decline` | Head of the asset's home lab | `{ decisionRemarks }` | `{ loan: Loan }` | 400 no remarks; 403; 404; 409 | planned (Batch 3) |
+| Release to the borrower | `PUT /api/loans/:loanId/release` | TSG | `{ inspection: InspectionInput }` | `{ loan: Loan }` | 400; 403; 404; 409 not Pending Release | planned (Batch 3) |
+| Ask to return | `PUT /api/loans/:loanId/return-request` | the borrower | `{ remarks? }` | `{ loan: Loan }` | 403; 404; 409 not On Loan | planned (Batch 3) |
+| Receive the return | `PUT /api/loans/:loanId/receive` | TSG | `{ inspection: InspectionInput, remarks?, returnDamage?: { issueTypeId, issueDescription } }` | `{ loan: Loan, maintenance?: Maintenance }` | 400; 403; 404; 409 not On Loan or Return Requested | planned (Batch 3) |
+| Finalize a return (today's step) | `POST /api/assets/:assetTag/return` | TSG | `{ condition, comments? }` | `{ loan, referenceNumber }`: the loan closed as Returned, with a Return inspection, and "LOAN-<id>" | 400; 403; 404; 409 the asset is not On Loan with a loan to close | live (Batch 1); replaced by receive in Batch 3 |
+| Loan list | `GET /api/loans` | logged in; a Researcher sees names only on their own loans | | `{ loans: [...] }`, today's fields | | live (Batch 1), renamed from `/api/asset_loans`; the `Loan` shape from Batch 3 |
+| Approve or decline (today's step) | `PUT /api/loans/:loanId/decision` | Head of the asset's home lab | `{ decision: "approve" or "decline" }` | `{ loan }` | 403; 404; 409 | live (Batch 1), renamed from `/api/asset_loans/:loanId/decision`; replaced by approve and decline in Batch 3 |
+| Loans by status (TSG Releases and Returns tabs) | `GET /api/loans?status=` | TSG | `?status=PENDING_RELEASE`, `?status=RETURN_REQUESTED`, or several separated by commas | `{ loans: Loan[] }` in the new shape | 400 unknown status; 403 | planned (Batch 3) |
+| My loans | `GET /api/loans/mine` | logged in | `?status=` optional | `{ loans: Loan[] }` | | planned (Batch 3) |
+| My lab's requests | `GET /api/loans/lab-requests` | a Lab Head | `?status=` optional | `{ loans: Loan[] }` for assets of the lab they head | 403 heads no lab | planned (Batch 3) |
+| Accountability Form data | `GET /api/loans/:loanId/accountability-form` | the borrower, the Head of the home lab, TSG | | `{ loan: Loan, asset: Asset, borrower: { userId, name, idNumber, labs }, releaseInspection: Inspection }` | 403; 404; 409 not yet released | planned (Batch 3) |
+| Clearance record | `POST /api/users/:userId/clearance-record` | TSG | | `{ person: { userId, name, idNumber, labs }, cleared, loans: Loan[] }`; writes CLEARANCE_RECORD_PRINTED | 403; 404 | planned (Batch 3) |
+
+### 7.4 Maintenance
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| Report an issue ("Request Immediate Inspection") | `POST /api/assets/:assetTag/maintenance` | the holder, the home lab's Head, TSG | `{ issueTypeId, issueDescription }` | `{ maintenance: Maintenance }` (type Borrower Report, or TSG Maintenance when TSG files it) | 400; 403; 404; 409 status does not allow it or a ticket is already open | planned (Batch 5) |
+| Receive the asset | `PUT /api/maintenance/:maintenanceId/receive` | TSG | `{ inspection: InspectionInput }` | `{ maintenance: Maintenance }` | 403; 404; 409 not Pending Receipt | planned (Batch 5) |
+| Start the work | `PUT /api/maintenance/:maintenanceId/start` | TSG | `{ stage: "REPAIRING" or "EXTERNAL_SERVICE", provider?, warrantyOverrideReason? }` | `{ maintenance: Maintenance }` | 400 under warranty, stage Repairing, no override reason; 403; 404; 409 not Inspecting | planned (Batch 5) |
+| Change stage | `PUT /api/maintenance/:maintenanceId/stage` | TSG | `{ stage, provider? }` | `{ maintenance: Maintenance }` | 400; 403; 404; 409 | planned (Batch 5) |
+| Complete | `PUT /api/maintenance/:maintenanceId/complete` | TSG | `{ outcome: "RESOLVED" or "BEYOND_REPAIR", resolutionRemarks, inspection: InspectionInput }` | `{ maintenance: Maintenance }` | 400; 403; 404; 409 | planned (Batch 5) |
+| Cancel | `PUT /api/maintenance/:maintenanceId/cancel` | the reporter (Pending Receipt only), TSG | `{ remarks? }` | `{ maintenance: Maintenance }` | 403; 404; 409 | planned (Batch 5) |
+| Ticket list | `GET /api/maintenance` | TSG, Director, Secretary; a Lab Head sees their lab; a Researcher sees their own | `?status=&type=` optional | `{ tickets: Maintenance[] }` | | live (Batch 1), renamed from `/api/asset_repairs`; new fields from Batch 5 |
+
+### 7.5 Retirement, Missing and Found
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| Request retirement | `POST /api/assets/:assetTag/retirement` | TSG | `{ reason, pathway?, assessmentInspection?: InspectionInput }` | `{ retirement: Retirement }` | 400; 403; 404; 409 | planned (Batch 5) |
+| Decide | `PUT /api/retirements/:retirementId/decision` | Director, Secretary; never the requester | `{ decision: "approve" or "deny", decisionRemarks? }` (remarks required to deny) | `{ retirement: Retirement }` | 400; 403 (also when you requested it); 404; 409 not Pending | planned (Batch 5) |
+| Complete | `PUT /api/retirements/:retirementId/complete` | TSG | `{ pathway, dispositionReference }` | `{ retirement: Retirement }` | 400; 403; 404; 409 not Approved | planned (Batch 5) |
+| Retirement list | `GET /api/retirements` | TSG, Director, Secretary, Lab Head | `?status=` optional | `{ retirements: Retirement[] }` | | live (Batch 1), renamed from `/api/asset_disposals`; new fields from Batch 5 |
+| Mark missing | `PUT /api/assets/:assetTag/missing` | TSG | `{ reason }` | `{ asset: Asset }` | 400; 403; 404; 409 | planned (Batch 5) |
+| Mark found | `PUT /api/assets/:assetTag/found` | TSG | `{ inspection: InspectionInput, remarks? }` | `{ asset: Asset }` | 400; 403; 404; 409 not Missing | planned (Batch 5) |
+
+### 7.6 Inspections and benchmarks
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| File an inspection | `POST /api/assets/:assetTag/inspection` | TSG (Routine); the holder (Self Report) | `InspectionInput` | `{ inspection: Inspection }` | 400; 403; 404; 409 | live (Batch 1) as today; type, score and metrics from Batch 5 |
+| Inspection list | `GET /api/inspections` | TSG, Director | `?assetTag=&type=` optional | `{ inspections: Inspection[] }` | | live (Batch 1), renamed from `/api/asset_reports` and `/api/asset-reports` |
+| Routine queue | `GET /api/inspections/routine-queue` | TSG | `?centerId=` optional | `{ groups: [{ group, labs: [code], assets: [{ asset: Asset, lastTsgInspectionAt }] }] }`, oldest inspection first | 403 | planned (Batch 5) |
+| Benchmark data | `GET /api/assets/:assetTag/benchmarks` | TSG, Director, the home lab's Head | | `{ metrics: [{ metricId, metricKey, name, unit, higherIsBetter, points: [{ inspectionId, inspectedAt, value, flagged }] }], healthScores: [{ inspectionId, inspectedAt, healthScore, flagged }] }` | 403; 404 | planned (Batch 5) |
+
+### 7.7 Sign-up, users and activity log
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| Sign up | `POST /api/auth/register-request` | anyone | `{ firstName, lastName, email, idNumber, userType, password, centerIds: [] }` | `{ message }` | 400; 409 email or ID number taken | planned (Batch 2b), stored in the database |
+| Pending sign-ups | `GET /api/users?status=PENDING` | IT Admin | | `{ users: User[] }` | 403 | planned (Batch 2b) |
+| Approve a sign-up | `PUT /api/users/:userId/approve` | IT Admin | `{ role, centerIds: [] }` (one or more labs) | `{ user: User }` | 400; 403; 404; 409 not Pending | planned (Batch 2b) |
+| Reject a sign-up | `PUT /api/users/:userId/reject` | IT Admin | `{ remarks? }` | `{ user: User }` | 403; 404; 409 not Pending | planned (Batch 2b) |
+| Users list | `GET /api/users` | IT Admin | `?status=&role=&centerId=&q=` | `{ users: User[] }` | 403 | planned (module 6) |
+| Change role | `PUT /api/users/:userId/role` | IT Admin | `{ role }` | `{ user: User }` | 400; 403; 404 | planned (module 6) |
+| Change labs | `PUT /api/users/:userId/labs` | IT Admin | `{ centerIds: [] }` | `{ user: User }` | 400; 403; 404; 409 removes the lab they head | planned (module 6) |
+| Change a lab's Head | `PUT /api/research-centers/:centerId/head` | IT Admin | `{ userId }` or `{ userId: null }` | `{ lab: { centerId, code, headUserId } }` | 400 the person is not in that lab; 403; 404; 409 they already head another lab | planned (module 6) |
+| Deactivate | `PUT /api/users/:userId/deactivate` | IT Admin | | `{ user: User }` | 403; 404; 409 not Active, or heads a lab | planned (module 6) |
+| Reactivate | `PUT /api/users/:userId/reactivate` | IT Admin | | `{ user: User }` | 403; 404; 409 not Inactive | planned (module 6) |
+| Anonymize | `PUT /api/users/:userId/anonymize` | IT Admin | | `{ user: User }` | 403; 404; 409 not Inactive or Rejected, or not cleared | planned (module 6) |
+| Activity log | `GET /api/activity-log` | IT Admin | `?eventType=&actorId=&targetUserId=&assetTag=&from=&to=&page=` | `{ entries: ActivityEntry[], page, pageCount }` | 403 | planned (module 6) |
+
+Activity events: LOGIN_SUCCESS, LOGIN_FAILURE, SIGNUP_APPROVED, SIGNUP_REJECTED, ROLE_CHANGED, LABS_CHANGED, HEAD_CHANGED, USER_DEACTIVATED, USER_REACTIVATED, USER_ANONYMIZED, TICKET_STATUS_CHANGED, ASSET_REGISTERED, ASSET_EDITED (details list the changed field names), ASSET_DELETED, ASSET_MARKED_MISSING, ASSET_FOUND, CLEARANCE_RECORD_PRINTED. A log row never holds an email, a typed login name, or a password.
+
+### 7.8 Tickets
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| Create a ticket | `POST /api/tickets` | any Active account | `{ type, title, description }` | `{ ticket: Ticket }` | 400 | planned (module 6) |
+| My tickets | `GET /api/tickets/mine` | logged in | | `{ tickets: Ticket[] }` | | planned (module 6) |
+| All tickets | `GET /api/tickets` | IT Admin | `?status=&type=` | `{ tickets: Ticket[] }` | 403 | planned (module 6) |
+| Change status | `PUT /api/tickets/:ticketId/status` | IT Admin | `{ status, resolutionRemarks? }` (required for Resolved and Rejected) | `{ ticket: Ticket }` | 400; 403; 404; 409 not a listed move | planned (module 6) |
+
+### 7.9 Analytics
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| Dashboard snapshot | `GET /api/analytics/snapshot` | Director, Secretary, TSG; a Lab Head gets their lab only | `?centerId=&campus=` optional | `{ total, byStatus: [{ status, label, count }], byCondition: [{ condition, label, count }], byHomeLab: [{ centerId, code, count }], byCampus: [{ campus, label, count }], byCategory: [{ category, label, count }], byProject: [{ projectId, code, name, count }] }`. Assets TSG never inspected count under `condition: null`; assets with no project under `projectId: null` | 403 | planned (analytics batch) |
+| Insights | `GET /api/analytics/insights` | Director, Secretary; a Lab Head gets their lab only | `?centerId=` optional | `{ replaceSoon: [{ asset: Asset, reason }], mostRequested: [{ asset: Asset, requests }], loansPerWeekPerLab: [{ weekStart, centerId, code, loans }], averageLoanDays, timeOnLoanShare: [{ centerId, code, share }] }` | 403 | planned (analytics batch) |
+| Inventory Report | `GET /api/analytics/inventory-report` | Director, Secretary, TSG | `?centerId=&status=&campus=&fundingSourceId=&acquiredFrom=&acquiredTo=` (today's filters kept; the acquisition dates filter the procurement date, `yyyy-mm-dd`) | `{ rows: [{ tag, name, category, homeLab, campus, homeRoom, status, condition, holder, acquisitionValue, fundingSource, procurementDate, warrantyExpiry }], totals: { count, acquisitionValue } }`; the screen makes the CSV | 403 | planned (analytics batch) |
+
+Replace-soon, most-requested and the weekly counts are worked out on the server from loans, inspections and warranty dates. The screen draws them; it does not compute them.
+
+- **Average loan length** (`averageLoanDays`, CAP1DEF 8): over released loans, the days from `releasedAt` to `closedAt`, or to now for a loan still open.
+- **Share of time on loan** (`timeOnLoanShare`, CAP1DEF 8): per lab, the days its assets spent between release and close in the period, divided by the days its assets existed in the period (0 to 1).
+- **The Inventory Report's `holder` is a person's name.** That is why the report is for the Director, the Secretary and TSG only.
+
+### 7.10 Notifications
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| My notifications | `GET /api/notifications/mine` | logged in | | `{ notifications: [{ kind, label, loanId?, assetTag?, centerId?, date? }] }` | | planned (Batch 3) |
+
+Worked out on each call from loans and the inspection schedule; there is no notifications table. Each person gets only the kinds that apply to them:
+
+| Kind | For | When |
+|---|---|---|
+| `LOAN_AWAITING_APPROVAL` | the account that heads the asset's home lab | a loan on its lab's asset is Pending Approval |
+| `RELEASE_WAITING` | TSG | a loan is Pending Release |
+| `RETURN_WAITING` | TSG | a loan is Return Requested |
+| `LOAN_DUE_SOON` | the borrower | their open loan's return-by date is within 3 days |
+| `LOAN_OVERDUE` | the borrower | their open loan's return-by date has passed |
+| `STATUS_CHECK_DUE` | members of a lab | the routine inspection cycle of their lab starts (sent once the schedule exists, Batch 5) |
+
+People are matched by user id, never by display name. This replaces the notification bell's name matching (#131).
+
+---
+
+## 8. Lookups each form uses
+
+All from `GET /api/lookups` (section 7.1), never a list kept in a page.
+
+| Form | Lists |
+|---|---|
+| Register Equipment, Edit Asset | `labs` (home lab), `categories`, `fundingSources`, `projects`, and `metricsByCategory` for the initial inspection |
+| Loan request | The destination lab picker lists **only the borrower's own labs**: the session's `labs` (`GET /api/auth/me`), which come from the person's lab memberships. `projects` for the optional project |
+| Report an issue | `issueTypes`, showing each one's `suggestedAction` |
+| Any inspection | Conditions with their suggested health score; `metricsByCategory` for the asset's category. Categories with no metrics use the health score only |
+| Retirement | Pathways (section 4) |
+| Sign-up, approve sign-up, change labs, change Head | `labs` |
+| Analytics and report filters | `labs` (with campus) |
+
+Statuses, types, labels, page titles, flag rules, care guidelines and the health score suggestions are fixed lists in `shared/constants/`, added in Batch 1 (commit 5). Import them; do not copy them into a page.
+
+Page titles: "Repair and Maintenance", "Asset Disposal", "Asset Loaning and Return", "Asset Information", "Reports and Analytics", "System Administration".
+
+---
+
+## 9. Screens never compute status
+
+The server sends every status, label, holder, location, condition, overdue flag and cleared flag. A screen shows what it receives and sends the step the person asked for. It never works out a status from dates or other rows, never keeps its own list of labs, campuses or statuses, and never decides on its own whether a step is allowed: if the server refuses, show its `error`.

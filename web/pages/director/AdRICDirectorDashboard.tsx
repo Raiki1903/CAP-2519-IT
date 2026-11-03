@@ -1,7 +1,7 @@
 /**
  * Director screen: Overview, Analytics, Disposal Approvals, and the Inventory Report, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
- * Calls: api/disposals.api.ts listDisposals() and decideDisposal(),
+ * Calls: api/retirements.api.ts listDisposals() and decideDisposal(),
  * features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
  * Used by: AdRIC Director (disposal decisions, inventory reports).
  */
@@ -11,7 +11,7 @@ import DirectorAnalyticsView from "@web/features/analytics/director/DirectorAnal
 import { useSession } from "@web/state/session";
 import { useServerData, type Asset } from "@web/state/serverData";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
-import * as disposalsApi from "@web/api/disposals.api";
+import * as retirementsApi from "@web/api/retirements.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { cn } from "@web/components/ui/utils";
 import {
   Monitor, BarChart3, ClipboardCheck, ClipboardList, TrendingUp, AlertTriangle,
-  MapPin, CheckCircle2, XCircle, Search, Download, Printer, User, Wrench, Calendar, Tag, ShieldAlert
+  MapPin, CheckCircle2, XCircle, Search, Download, Printer, Wrench, Calendar, Tag, ShieldAlert
 } from "lucide-react";
 
 interface AdRICDirectorDashboardProps {
@@ -86,7 +86,7 @@ export function getLatestRecordConditionScore(asset: any): number {
     return asset.condition;
   }
   const condStr = String(asset.assetCondition || asset.asset_condition || asset.descriptiveCondition || asset.condition || "");
-  if (!condStr || condStr === "undefined") return 100; // Default if ZERO entries in asset_records
+  if (!condStr || condStr === "undefined") return 100; // Default when TSG never inspected the asset
   if (CONDITION_SCORE_MAP[condStr] !== undefined) {
     return CONDITION_SCORE_MAP[condStr];
   }
@@ -103,9 +103,9 @@ export function getLatestRecordConditionScore(asset: any): number {
  * Shows one Director tab.
  * - overview: campus distribution and the status of every lab.
  * - analytics: the Director analytics view.
- * - clearance-disposal: the pending disposal queue, authorized or rejected through disposalsApi.decideDisposal().
+ * - clearance-disposal: the pending disposal queue, authorized or rejected through retirementsApi.decideDisposal().
  * - reports: the inventory report, with a per-asset history and CSV export.
- * Shows the shared asset list. Each time a tab opens it loads its own disposal list (disposalsApi.listDisposals)
+ * Shows the shared asset list. Each time a tab opens it loads its own disposal list (retirementsApi.listDisposals)
  * and reloads the shared lists once (refreshSharedLists), so the bell and the analytics show other people's changes.
  *
  * @param activeTab "overview", "analytics", "clearance-disposal", or "reports"
@@ -131,13 +131,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const exportLifecycleCSV = (asset: any) => {
     if (!asset) return;
 
-    const assetTransfers = (asset.asset_transfers && asset.asset_transfers.length > 0)
-      ? asset.asset_transfers
-      : [];
-
     const assetRepairs = (repairRequests || []).filter(r => r.assetId === asset.id);
 
-    // Only the reports saved in asset_reports, the same ones the Staff inspection log shows. (F-28)
+    // Only the reports saved in asset_inspections, the same ones the Staff inspection log shows. (F-28)
     const assetReports = asset.asset_reports || [];
 
     let csvContent = `Asset History Report\n`;
@@ -148,23 +144,12 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     csvContent += `Asset Name,"${(asset.name || "").replace(/"/g, '""')}"\n`;
     csvContent += `Serial Number,"${asset.serial || asset.serial_number || ""}"\n`;
     csvContent += `Manufacturer,"${(asset.manufacturer || "").replace(/"/g, '""')}"\n`;
-    csvContent += `Funding Source,"${(asset.asset_monetary?.funding_source || asset.funding || "").replace(/"/g, '""')}"\n`;
+    csvContent += `Funding Source,"${(asset.funding || "").replace(/"/g, '""')}"\n`;
     csvContent += `Acquisition Date,"${asset.procurement_date || asset.procured || ""}"\n`;
-    csvContent += `Purchase Valuation,"PHP ${(asset.asset_monetary?.acquisition_value || asset.cost || 0).toLocaleString()}"\n`;
+    csvContent += `Purchase Valuation,"PHP ${(asset.cost || 0).toLocaleString()}"\n`;
     csvContent += `ITS Property Tag,"${asset.itsPropertyTag || "None"}"\n`;
     csvContent += `TSG Property Tag,"${asset.tsgPropertyTag || "None"}"\n`;
-    csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n\n`;
-
-    csvContent += `CUSTODIANSHIP & TRANSFER HISTORY\n`;
-    csvContent += `Transfer ID,Requested On,From Custodian,To Custodian,Justification,Status\n`;
-
-    if (assetTransfers.length > 0) {
-      assetTransfers.forEach((t: any) => {
-        csvContent += `"${t.transfer_id || t.id || ""}","${t.requested_on || t.initiated || ""}","${(t.from || `Custodian ID #${t.from_custodian_id}`).replace(/"/g, '""')}","${(t.to || `Custodian ID #${t.to_custodian_id}`).replace(/"/g, '""')}","${(t.justification || "").replace(/"/g, '""')}","${t.status || ""}"\n`;
-      });
-    } else {
-      csvContent += `No custody transfer history registered.\n`;
-    }
+    csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n`;
 
     csvContent += `\nREPAIR & MAINTENANCE LOGS\n`;
     csvContent += `Repair ID,Priority,Status,Description,Custodian,Submitted At\n`;
@@ -186,7 +171,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
       csvContent += `No physical routine inspections logged.\n`;
     }
 
-    if (asset.status === "Disposed" && asset.disposalDetails) {
+    if (asset.status === "RETIRED" && asset.disposalDetails) {
       csvContent += `\nDECOMMISSIONING & DISPOSAL DETAILS\n`;
       csvContent += `Disposal ID,${asset.disposalId}\n`;
       csvContent += `Decommission Date,${asset.disposalDetails.decommissionDate}\n`;
@@ -209,7 +194,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     setLoadingDbDisposals(true);
     setDbDisposalsError(null);
     try {
-      const data = await disposalsApi.listDisposals();
+      const data = await retirementsApi.listDisposals();
       if (data.success) {
         setDbDisposals(data.disposals);
       } else {
@@ -233,7 +218,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const decideDisposal = async (disposalId: number, decision: "approve" | "reject") => {
     setDisposalActionId(disposalId);
     try {
-      const data = await disposalsApi.decideDisposal(disposalId, decision);
+      const data = await retirementsApi.decideDisposal(disposalId, decision);
       if (!data.success) {
         setDbDisposalsError(data.error || `Failed to ${decision} disposal.`);
         return;
@@ -275,12 +260,12 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
   // The shared asset list. Typed loosely because the server sends fields the Asset type does not declare (H-13).
   const activeAssetList: any[] = assets;
-  const activeAssets = activeAssetList.filter(a => a.status !== "Disposed");
+  const activeAssets = activeAssetList.filter(a => a.status !== "RETIRED");
   const degradingAssets = activeAssets.filter(a => getLatestRecordConditionScore(a) <= 60);
-  const maintenanceCount = activeAssets.filter(a => a.status === "Maintenance" || a.status === "In Repair").length;
+  const maintenanceCount = activeAssets.filter(a => a.status === "MAINTENANCE" || a.status === "In Repair").length;
 
   const totalValuation = activeAssetList.reduce((sum, a) => {
-    const val = Number(a.asset_monetary?.acquisition_value || a.cost || a.acquisition_value || a.acquisitionValue || 0);
+    const val = Number(a.cost || a.acquisition_value || a.acquisitionValue || 0);
     return sum + val;
   }, 0);
 
@@ -333,7 +318,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   <div className="h-7 w-28 bg-muted/60 animate-pulse rounded-md mt-1" />
                 ) : (
                   <h3 className="text-2xl font-extrabold mt-1 text-foreground font-mono">
-                    {activeAssetList.filter(a => a.status !== "Disposed" && a.status !== "DISPOSED").length || activeAssetList.length} assets
+                    {activeAssetList.filter(a => a.status !== "RETIRED" && a.status !== "DISPOSED").length || activeAssetList.length} assets
                   </h3>
                 )}
               </div>
@@ -440,7 +425,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                         avgConditionNum = Math.round(totalScore / assetCount);
                         avgConditionStr = `${avgConditionNum}%`;
 
-                        const utilized = labAssets.filter(a => a.status === "On Loan" || a.status === "Overdue" || a.status === "Pending Return" || a.projectId || a.project_id).length;
+                        const utilized = labAssets.filter(a => a.status === "ON_LOAN" || a.isOverdue || a.status === "Pending Return" || a.projectId || a.project_id).length;
                         utilRateStr = `${Math.round((utilized / assetCount) * 100)}%`;
                       } else {
                         avgConditionStr = "N/A";
@@ -570,7 +555,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
     const filteredAssets = assetSourceList.filter(a => {
       const query = searchQuery.toLowerCase().trim();
-      const fundingVal = a.asset_monetary?.funding_source || a.funding || "";
+      const fundingVal = a.funding || "";
       const matchQuery =
         (a.id || "").toLowerCase().includes(query) ||
         (a.name || "").toLowerCase().includes(query) ||
@@ -614,9 +599,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         a.serial || a.serial_number || "",
         a.manufacturer || "",
         a.category || "",
-        a.asset_monetary?.funding_source || a.funding || "Unspecified",
+        a.funding || "Unspecified",
         a.procurement_date || a.procured || "",
-        a.asset_monetary?.acquisition_value || a.cost || 0,
+        a.cost || 0,
         assetStatusLabel(a.status),
         a.custodian || "None",
         a.lab || "CITe4D"
@@ -750,9 +735,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     </TableRow>
                   ) : (
                     filteredAssets.map(item => {
-                      const isDisposed = item.status === "Disposed";
-                      const itemValuation = Number(item.asset_monetary?.acquisition_value || item.cost || item.acquisition_value || 0);
-                      const itemFunding = item.asset_monetary?.funding_source || item.funding || "Unspecified";
+                      const isDisposed = item.status === "RETIRED";
+                      const itemValuation = Number(item.cost || item.acquisition_value || 0);
+                      const itemFunding = item.funding || "Unspecified";
                       const itemProcured = item.procurement_date || item.procured || "N/A";
 
                       return (
@@ -780,8 +765,8 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                             ) : (
                               <div className="space-y-0.5">
                                 <Badge className={cn("text-[9px] font-bold border uppercase",
-                                  item.status === "Active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                    item.status === "On Loan" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                                  item.status === "AVAILABLE" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                    item.status === "ON_LOAN" ? "bg-blue-50 text-blue-700 border-blue-200" :
                                       "bg-amber-50 text-amber-700 border-amber-200"
                                 )}>
                                   {assetStatusLabel(item.status)}
@@ -822,7 +807,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                       Asset History: {selectedAssetForAudit.id}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                      Transfers, repairs, inspections, and disposal of this asset.
+                      Repairs, inspections, and disposal of this asset.
                     </DialogDescription>
                   </div>
                   <Button
@@ -852,38 +837,6 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <p><span>Purchase Valuation:</span> PHP {selectedAssetForAudit.cost?.toLocaleString() || "0"}</p>
                     <p><span>Availability:</span> <span className="font-bold text-[#005A36]">{assetStatusLabel(selectedAssetForAudit.status)}</span></p>
                   </div>
-                </div>
-
-                {/* 2. Custodian & Transfer History */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-foreground border-b border-border pb-1.5 flex items-center gap-1.5">
-                    <User size={13} className="text-[#005A36]" />
-                    Custodianship &amp; Transfer History
-                  </h4>
-                  {(selectedAssetForAudit.asset_transfers && selectedAssetForAudit.asset_transfers.length > 0) ? (
-                    <div className="space-y-2">
-                      {/* Render asset_transfers relation */}
-                      {(selectedAssetForAudit.asset_transfers || []).map((t: any) => (
-                        <div key={t.transfer_id || t.id} className="p-3 bg-card border border-border rounded-lg text-xs space-y-1 shadow-2xs">
-                          <div className="flex justify-between items-center">
-                            <span className="font-bold text-foreground">Transfer ID: #{t.transfer_id || t.id}</span>
-                            <Badge className={cn("text-[9px] uppercase font-bold border",
-                              (t.status || "").toLowerCase() === "approved" || (t.status || "").toLowerCase() === "completed" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-amber-50 border-amber-200 text-amber-700"
-                            )}>{t.status}</Badge>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground font-mono">Requested On: {t.requested_on || t.initiated || "N/A"}</p>
-                          <p className="text-xs">
-                            <span className="font-bold text-foreground">{t.from || `Custodian ID #${t.from_custodian_id}`}</span>
-                            <span className="text-muted-foreground mx-2">➔</span>
-                            <span className="font-bold text-[#005A36]">{t.to || `Custodian ID #${t.to_custodian_id}`}</span>
-                          </p>
-                          {t.justification && <p className="text-[11px] italic text-muted-foreground">Justification: "{t.justification}"</p>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground/60 italic p-1">No custody transfer history registered.</p>
-                  )}
                 </div>
 
                 {/* 3. Repair & Maintenance Logs */}
@@ -939,7 +892,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                 </div>
 
                 {/* 5. Disposal Details if Disposed */}
-                {selectedAssetForAudit.status === "Disposed" && selectedAssetForAudit.disposalDetails && (
+                {selectedAssetForAudit.status === "RETIRED" && selectedAssetForAudit.disposalDetails && (
                   <div className="space-y-2.5 p-4 bg-red-50 border border-red-200 rounded-xl">
                     <h4 className="text-xs font-bold text-red-755 flex items-center gap-1.5">
                       <XCircle size={13} />

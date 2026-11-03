@@ -96,16 +96,16 @@ Because every file starts from the same fresh data and a fresh server, no test d
 
 Defined in [setup/fixtures.ts](setup/fixtures.ts). Everything is invented. Never copy real data into it, from CCS Cloud, `scratch/backups/`, or `pending_registrations.json`.
 
-| Accounts (all `@example.test`) | Role |
+| Accounts (all `@example.test`, all Active) | Role |
 |---|---|
-| `admin` (user 1, the server's placeholder custodian: "nobody holds it") | ADMIN |
+| `admin` | IT_ADMIN |
 | `director` | ADRIC_DIRECTOR |
-| `staff.tsg`, `staff.its` | TSG_STAFF, ITS_STAFF |
-| `labhead` | LAB_HEAD |
-| `custodian.a`, `custodian.b` | CUSTODIAN |
+| `staff.tsg`, `staff.its` | TSG_STAFF (`staff.its` was ITS_STAFF before Batch 1) |
+| `labhead` | RESEARCHER, and the Head of `TEST`, so the Lab Head view |
+| `custodian.a`, `custodian.b` | RESEARCHER |
 | `secretary` | ADRIC_SECRETARY |
 
-One lab, `TEST` (Test Research Lab, Manila). Six assets, `TEST-0001` to `TEST-0006`: available, on loan (to Custodian A), in repair, disposed, with a pending loan (from Custodian B), and inspected.
+One lab, `TEST` (Test Research Lab, Manila). Six assets, `TEST-0001` to `TEST-0006`: Available, On Loan (to Custodian A), in Maintenance, Retired, Available with a loan waiting for approval (from Custodian B), and Available with a Routine inspection. The seed also writes its own funding sources, issue types, and metrics (`LOOKUPS` in fixtures.ts), because the reset empties the rows the migrations wrote.
 
 ---
 
@@ -129,12 +129,12 @@ describe("loans", () => {
       purpose: "Test purpose", dueDate: "2030-01-01",
     });
     expect(res.status).toBe(409);
-    expect(await db.asset_loans.count({ where: { asset_id: ASSETS.pendingLoan.assetId, status: "pending" } })).toBe(1);
+    expect(await db.asset_loans.count({ where: { asset_id: ASSETS.pendingLoan.assetId, status: "PENDING_APPROVAL" } })).toBe(1);
   });
 });
 ```
 
-- `as(USERS.x).get/post/put/delete(path, body)` returns `{ status, body }`, sent with that account's session. Every route but login, the sign-up request, and logout needs one, and the role the approved table in the restructure log gives it: Staff `USERS.staffTsg`, Lab Head `USERS.labHead`, Custodian `USERS.custodianA` (or `custodianB`), Director `USERS.director`. The first call logs the account in; the cookie is reused for the rest of the file.
+- `as(USERS.x).get/post/put/delete(path, body)` returns `{ status, body }`, sent with that account's session. Every route but login, the sign-up request, and logout needs one, and the role the approved table in the restructure log gives it: Staff `USERS.staffTsg` (TSG), Lab Head `USERS.labHead`, Custodian `USERS.custodianA` (or `custodianB`), Director `USERS.director`; the Secretary and the IT Admin for the checks only they pass or fail (see [api/permissions.test.ts](api/permissions.test.ts)). The first call logs the account in; the cookie is reused for the rest of the file.
 - `api` sends no session: use it for login, the sign-up request, logout, and to check that a route refuses a visitor (401). `logIn(user)` gives a fresh cookie and `withCookie(cookie)` sends it, for tests that log out or change a cookie (see [api/session.test.ts](api/session.test.ts)).
 - **Who acted is whoever the client logs in as.** Since step 13c the server ignores names, emails, and ids in the body that once said who borrowed, reported, requested, or returned; a test that checks who filed something sends as that account (for example `as(USERS.custodianB)`). A Custodian gets no other person's name in the lists; [api/sessionUser.test.ts](api/sessionUser.test.ts) checks what each role sees.
 - `db` is Prisma on the test database, for reading back what a request wrote.
@@ -142,7 +142,7 @@ describe("loans", () => {
 - These are **characterization tests**: they record what the API does **today**, even where that is wrong, so that a later change that alters it by accident makes a test fail. Do not "fix" the expected value to what it should be.
 - Do not check exact timestamps, generated ids, or text containing today's date.
 - Tests inside one file share that file's data, in order. Keep each test's changes in mind for the next one, or use a different seeded asset.
-- When a test changes an asset's state (a borrow, a return, a transfer, a repair, an inspection, a disposal), give it an asset of its own: `addExtraAsset(db, { tag: "TEST-0101", status: "ON_LOAN" })` from [setup/extraAssets.ts](setup/extraAssets.ts) adds one in the state you ask for. Use a tag no other test in the file uses.
+- When a test changes an asset's state (a borrow, a return, a repair, an inspection, a retirement), give it an asset of its own: `addExtraAsset(db, { tag: "TEST-0101", status: "ON_LOAN", custodianId: USERS.custodianA.userId })` from [setup/extraAssets.ts](setup/extraAssets.ts) adds one in the state you ask for (a loan for a holder, an inspection for a condition). Use a tag no other test in the file uses.
 - When a test adds rows that a later test in the file would count (the analytics endpoints count every asset), remove them in a `finally` block: `removeExtraAssets(db, [asset.assetId])` from the same file deletes the assets and every row that points at them.
 - Each file gets the same fresh data, so a test file never relies on another file.
 

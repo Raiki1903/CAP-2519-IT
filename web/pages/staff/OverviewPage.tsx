@@ -215,7 +215,7 @@ export function OverviewPage() {
                   <span className="text-[10px] text-muted-foreground">{asset.category} · {asset.location || asset.lab || "Unknown location"}</span>
                 </div>
                 <Badge variant="outline" className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border-emerald-200">
-                  {asset.status || "Active"}
+                  {asset.statusLabel || asset.status}
                 </Badge>
               </div>
             ))}

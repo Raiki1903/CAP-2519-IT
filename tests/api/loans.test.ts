@@ -1,14 +1,14 @@
 /**
  * Loans API: the borrow request, the loan list, and the Lab Head's decision.
- * Covers POST /api/assets/:tag/borrow, GET /api/asset_loans, PUT /api/asset_loans/:id/decision.
- * Workflow: borrowing (Custodian files a request, Lab Head approves or declines, custody moves on approval).
+ * Covers POST /api/assets/:tag/borrow, GET /api/loans, PUT /api/loans/:id/decision.
+ * Workflow: borrowing (Custodian files a request, Lab Head approves or declines, the asset goes On Loan on approval).
  * Fixtures: the seeded loans (LOAN-1 approved on TEST-0002, LOAN-2 pending on TEST-0005), the seeded assets in
  * each state, and the accounts (USERS). The list tests run first. The write tests use their own extra assets
  * (TEST-0101 onward, see extraAssets.ts) and change no seeded row; the H-08 test puts LOAN-2 back to pending.
  */
 import { describe, expect, it } from "vitest";
 import { addExtraAsset } from "../setup/extraAssets";
-import { ASSETS, LAB, LOCATION_SEPARATOR, SEEDED_ROWS, USERS, type TestUser } from "../setup/fixtures";
+import { ASSETS, LAB, SEEDED_ROWS, USERS, type TestUser } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
 const { db, as } = useApiHarness();
@@ -35,10 +35,7 @@ const borrowBody = (borrower: TestUser | string, extra: Record<string, unknown> 
   ...extra,
 });
 
-const recordCount = (assetId: number) => db.asset_records.count({ where: { asset_id: assetId } });
-
-const newestRecord = (assetId: number) =>
-  db.asset_records.findFirstOrThrow({ where: { asset_id: assetId }, orderBy: [{ date_logged: "desc" }, { asset_record_id: "desc" }] });
+const assetStatus = async (assetId: number) => (await db.assets.findUniqueOrThrow({ where: { asset_id: assetId } })).status;
 
 /** Files a borrow request through the API, signed in as the borrower, and answers the new loan's id. */
 async function requestLoan(tag: string, borrower: TestUser, extra: Record<string, unknown> = {}): Promise<number> {
@@ -52,9 +49,9 @@ async function listedAsset(tag: string) {
   return res.body.assets.find((a: { id: string }) => a.id === tag);
 }
 
-describe("GET /api/asset_loans", () => {
+describe("GET /api/loans", () => {
   it("lists every loan newest first, with the destination lab moved out of the purpose", async () => {
-    const res = await asLabHead.get("/api/asset_loans");
+    const res = await asLabHead.get("/api/loans");
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -79,10 +76,10 @@ describe("GET /api/asset_loans", () => {
 
   it("shows a purpose with no lab line as it is, with no destinationLab", async () => {
     const plain = await db.asset_loans.create({
-      data: { asset_id: ASSETS.disposed.assetId, borrower_id: USERS.custodianA.userId, purpose: "Test purpose without a lab", due_date: new Date("2026-01-20"), status: "declined" },
+      data: { asset_id: ASSETS.disposed.assetId, borrower_id: USERS.custodianA.userId, purpose: "Test purpose without a lab", requested_at: new Date("2026-01-10"), return_by: new Date("2026-01-20"), status: "DECLINED" },
     });
     try {
-      const res = await asLabHead.get("/api/asset_loans");
+      const res = await asLabHead.get("/api/loans");
 
       const listed = res.body.loans.find((l: { loanId: number }) => l.loanId === plain.loan_id);
       expect(listed).toMatchObject({ purpose: "Test purpose without a lab", status: "Declined" });
@@ -95,33 +92,32 @@ describe("GET /api/asset_loans", () => {
   it("writes nothing while some loan is pending", async () => {
     const before = await db.asset_loans.count();
 
-    await asLabHead.get("/api/asset_loans");
+    await asLabHead.get("/api/loans");
 
     expect(await db.asset_loans.count()).toBe(before);
   });
 
   it("writes nothing when no loan is pending, and lists only the real loans (H-08 fixed)", async () => {
-    const pendingIds = (await db.asset_loans.findMany({ where: { status: "pending" }, select: { loan_id: true } })).map((l) => l.loan_id);
-    await db.asset_loans.updateMany({ where: { loan_id: { in: pendingIds } }, data: { status: "declined" } });
+    const pendingIds = (await db.asset_loans.findMany({ where: { status: "PENDING_APPROVAL" }, select: { loan_id: true } })).map((l) => l.loan_id);
+    await db.asset_loans.updateMany({ where: { loan_id: { in: pendingIds } }, data: { status: "DECLINED" } });
     try {
       const before = await db.asset_loans.findMany({ select: { loan_id: true }, orderBy: { loan_id: "asc" } });
 
-      const res = await asLabHead.get("/api/asset_loans");
+      const res = await asLabHead.get("/api/loans");
 
       expect(res.status).toBe(200);
       expect(res.body.loans.some((l: { status: string }) => l.status === "Pending")).toBe(false);
       expect(res.body.loans).toHaveLength(before.length);
       expect(await db.asset_loans.findMany({ select: { loan_id: true }, orderBy: { loan_id: "asc" } })).toEqual(before);
     } finally {
-      await db.asset_loans.updateMany({ where: { loan_id: { in: pendingIds } }, data: { status: "pending" } });
+      await db.asset_loans.updateMany({ where: { loan_id: { in: pendingIds } }, data: { status: "PENDING_APPROVAL" } });
     }
   });
 });
 
 describe("POST /api/assets/:tag/borrow", () => {
-  it("files a pending loan under the session user, with the destination lab written into the purpose, and leaves custody alone (issue #32 fixed)", async () => {
+  it("files a loan in Pending Approval under the session user, with the destination lab, and leaves the asset Available (issue #32 fixed)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0101" });
-    const recordsBefore = await recordCount(asset.assetId);
 
     const res = await as(USERS.custodianB).post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianB));
 
@@ -131,12 +127,21 @@ describe("POST /api/assets/:tag/borrow", () => {
       asset_id: asset.assetId,
       borrower_id: USERS.custodianB.userId,
       purpose: `Destination Lab: ${LAB.shortCode}\n\nTest borrow purpose`,
-      status: "pending",
+      status: "PENDING_APPROVAL",
+      destination_center_id: LAB.centerId,
     });
-    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId, status: "pending" } })).toBe(1);
-    expect(await recordCount(asset.assetId)).toBe(recordsBefore);
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active" });
-    expect((await listedAsset(asset.tag)).custodian).toBeUndefined();
+    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId, status: "PENDING_APPROVAL" } })).toBe(1);
+    expect(await listedAsset(asset.tag)).toMatchObject({ status: "AVAILABLE", holder: null, openLoan: { status: "PENDING_APPROVAL" } });
+  });
+
+  it("answers 400 for a destination lab that is not a lab, and writes nothing", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0108" });
+
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA, { lab: "TESTX" }));
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Pick a destination lab from the list.");
+    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId } })).toBe(0);
   });
 
   it("stores the purpose as typed when no lab is sent", async () => {
@@ -201,7 +206,7 @@ describe("POST /api/assets/:tag/borrow", () => {
     const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA, { dueDate: localToday() }));
 
     expect(res.status).toBe(200);
-    expect(res.body.loan.status).toBe("pending");
+    expect(res.body.loan.status).toBe("PENDING_APPROVAL");
   });
 
   it("answers 404 for an unknown tag", async () => {
@@ -223,7 +228,7 @@ describe("POST /api/assets/:tag/borrow: one pending request per asset (issue #25
     expect(second.status).toBe(409);
     expect(second.body.error).toContain(`LOAN-${first.body.loan.loan_id}`);
 
-    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId, status: "pending" } })).toBe(1);
+    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId, status: "PENDING_APPROVAL" } })).toBe(1);
   });
 
   it("answers 409 for the seeded asset whose loan request is still pending", async () => {
@@ -233,29 +238,16 @@ describe("POST /api/assets/:tag/borrow: one pending request per asset (issue #25
     expect(res.body.error).toContain(`LOAN-${SEEDED_ROWS.pendingLoanId}`);
   });
 
-  it("answers 409 for an asset with a pending transfer request", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0112", custodianId: USERS.custodianA.userId });
-    const transfer = await db.asset_transfers.create({
-      data: { asset_id: asset.assetId, from_custodian_id: USERS.custodianA.userId, to_custodian_id: USERS.custodianB.userId, justification: "Test pending transfer", status: "pending" },
-    });
-
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianB));
-
-    expect(res.status).toBe(409);
-    expect(res.body.error).toContain(`TRF-${transfer.transfer_id}`);
-    expect(await db.asset_loans.count({ where: { asset_id: asset.assetId } })).toBe(0);
-  });
-
-  it("answers 409 while the asset has a pending disposal request, and writes nothing (issue #54)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0113" });
-    const disposal = await db.asset_disposals.create({
-      data: { asset_id: asset.assetId, disposed_by_id: USERS.staffTsg.userId, disposal_reason: "Test pending disposal", status: "pending" },
+  it("answers 409 while the asset is Pending Retirement, and writes nothing (issue #54)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0113", assetStatus: "PENDING_RETIREMENT" });
+    await db.asset_retirements.create({
+      data: { asset_id: asset.assetId, requested_by_id: USERS.staffTsg.userId, reason: "Test pending disposal", status: "PENDING", previous_status: "AVAILABLE" },
     });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA));
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe(`TEST-0113 already has a pending disposal request (DISP-${disposal.disposal_id}).`);
+    expect(res.body.error).toBe("TEST-0113 is Pending Retirement and cannot be requested for a loan.");
     expect(await db.asset_loans.count({ where: { asset_id: asset.assetId } })).toBe(0);
   });
 
@@ -270,82 +262,73 @@ describe("POST /api/assets/:tag/borrow: one pending request per asset (issue #25
   });
 });
 
-describe("PUT /api/asset_loans/:id/decision", () => {
-  it("approve: marks the loan approved and adds an ON_LOAN record under the borrower at the destination lab, keeping the home lab and condition", async () => {
+describe("PUT /api/loans/:id/decision", () => {
+  it("approve: puts the loan and the asset On Loan, with who decided, and the borrower holds it at the destination lab", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0121", condition: "OPERATIONAL" });
-    const loanId = await requestLoan(asset.tag, USERS.custodianB, { lab: "CeLT" });
-    const recordsBefore = await recordCount(asset.assetId);
+    const loanId = await requestLoan(asset.tag, USERS.custodianB);
 
-    const res = await asLabHead.put(`/api/asset_loans/${loanId}/decision`, { decision: "approve" });
+    const res = await asLabHead.put(`/api/loans/${loanId}/decision`, { decision: "approve" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ success: true, loan: { loan_id: loanId, status: "approved" } });
-    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: loanId } })).status).toBe("approved");
-    expect(await recordCount(asset.assetId)).toBe(recordsBefore + 1);
-    expect(await newestRecord(asset.assetId)).toMatchObject({
+    expect(res.body).toMatchObject({ success: true, loan: { loan_id: loanId, status: "ON_LOAN" } });
+    const loan = await db.asset_loans.findUniqueOrThrow({ where: { loan_id: loanId } });
+    expect(loan).toMatchObject({ status: "ON_LOAN", decided_by_id: USERS.labHead.userId, closed_at: null });
+    expect(loan.decided_at).not.toBeNull();
+    expect(await assetStatus(asset.assetId)).toBe("ON_LOAN");
+    expect(await listedAsset(asset.tag)).toMatchObject({
       status: "ON_LOAN",
-      current_custodian: USERS.custodianB.userId,
-      location: LAB.homeLocation,
-      current_location: `Laguna${LOCATION_SEPARATOR}CeLT`,
-      asset_condition: "OPERATIONAL",
+      custodian: USERS.custodianB.fullName,
+      holder: { userId: USERS.custodianB.userId, name: USERS.custodianB.fullName },
+      currentLocation: LAB.shortCode,
+      condition: "OPERATIONAL",
     });
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "On Loan", custodian: USERS.custodianB.fullName });
   });
 
-  it("approve: writes a Manila destination for a lab not on the Laguna list", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0122" });
-    const loanId = await requestLoan(asset.tag, USERS.custodianB, { lab: "TESTX" });
-
-    await asLabHead.put(`/api/asset_loans/${loanId}/decision`, { decision: "approve" });
-
-    expect((await newestRecord(asset.assetId)).current_location).toBe(`Manila${LOCATION_SEPARATOR}TESTX`);
-  });
-
-  it("approve: keeps the asset's current location when the request named no lab", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0123", currentLocation: `Manila${LOCATION_SEPARATOR}Test Elsewhere` });
+  it("approve: a loan with no destination lab leaves the asset at its home lab", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0123", homeRoom: "Test Room 1" });
     const loanId = await requestLoan(asset.tag, USERS.custodianB, { lab: undefined });
 
-    await asLabHead.put(`/api/asset_loans/${loanId}/decision`, { decision: "approve" });
+    await asLabHead.put(`/api/loans/${loanId}/decision`, { decision: "approve" });
 
-    expect((await newestRecord(asset.assetId)).current_location).toBe(`Manila${LOCATION_SEPARATOR}Test Elsewhere`);
+    expect((await listedAsset(asset.tag)).currentLocation).toBe(`${LAB.shortCode}, Test Room 1`);
   });
 
-  it("decline: marks the loan declined and leaves custody alone", async () => {
+  it("decline: closes the loan as Declined, with who decided, and leaves the asset Available", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0124" });
     const loanId = await requestLoan(asset.tag, USERS.custodianB);
-    const recordsBefore = await recordCount(asset.assetId);
 
-    const res = await asLabHead.put(`/api/asset_loans/${loanId}/decision`, { decision: "decline" });
+    const res = await asLabHead.put(`/api/loans/${loanId}/decision`, { decision: "decline" });
 
     expect(res.status).toBe(200);
-    expect(res.body.loan.status).toBe("declined");
-    expect(await recordCount(asset.assetId)).toBe(recordsBefore);
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "Active" });
-    expect((await listedAsset(asset.tag)).custodian, "still the placeholder's: nobody holds it").toBeUndefined();
+    expect(res.body.loan.status).toBe("DECLINED");
+    const loan = await db.asset_loans.findUniqueOrThrow({ where: { loan_id: loanId } });
+    expect(loan.decided_by_id).toBe(USERS.labHead.userId);
+    expect(loan.closed_at).not.toBeNull();
+    expect(await listedAsset(asset.tag)).toMatchObject({ status: "AVAILABLE", holder: null, openLoan: null });
   });
 
   it.each([
-    { status: "MAINTENANCE" as const, described: "under maintenance", tag: "TEST-0127" },
-    { status: "DISPOSED" as const, described: "disposed", tag: "TEST-0128" },
-  ])("approve: answers 409 when the asset is $described now, and writes nothing (issue #28)", async ({ status, described, tag }) => {
+    { status: "MAINTENANCE" as const, label: "Maintenance", tag: "TEST-0127" },
+    { status: "DISPOSED" as const, label: "Retired", tag: "TEST-0128" },
+  ])("approve: answers 409 when the asset is $label now, and writes nothing (issue #28)", async ({ status, label, tag }) => {
     const asset = await addExtraAsset(db, { tag, status });
     const loan = await db.asset_loans.create({
-      data: { asset_id: asset.assetId, borrower_id: USERS.custodianB.userId, purpose: "Test old pending loan", due_date: new Date(inDays(30)), status: "pending" },
+      data: { asset_id: asset.assetId, borrower_id: USERS.custodianB.userId, purpose: "Test old pending loan", return_by: new Date(inDays(30)), status: "PENDING_APPROVAL" },
     });
-    const recordsBefore = await recordCount(asset.assetId);
+    const before = await assetStatus(asset.assetId);
 
-    const res = await asLabHead.put(`/api/asset_loans/${loan.loan_id}/decision`, { decision: "approve" });
+    const res = await asLabHead.put(`/api/loans/${loan.loan_id}/decision`, { decision: "approve" });
 
     expect(res.status).toBe(409);
-    expect(res.body).toEqual({ success: false, error: `${tag} is ${described} now, so this loan can only be declined.` });
-    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: loan.loan_id } })).status).toBe("pending");
-    expect(await recordCount(asset.assetId)).toBe(recordsBefore);
+    expect(res.body).toEqual({ success: false, error: `${tag} is ${label} and cannot be requested for a loan.` });
+    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: loan.loan_id } })).status).toBe("PENDING_APPROVAL");
+    expect(await assetStatus(asset.assetId)).toBe(before);
   });
 
   it("after an approval the asset is on loan, so a new borrow request answers 409 (issue #25)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0125" });
     const loanId = await requestLoan(asset.tag, USERS.custodianB);
-    await asLabHead.put(`/api/asset_loans/${loanId}/decision`, { decision: "approve" });
+    await asLabHead.put(`/api/loans/${loanId}/decision`, { decision: "approve" });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA));
 
@@ -355,7 +338,7 @@ describe("PUT /api/asset_loans/:id/decision", () => {
   it("after a decline the asset takes a new borrow request", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0126" });
     const loanId = await requestLoan(asset.tag, USERS.custodianB);
-    await asLabHead.put(`/api/asset_loans/${loanId}/decision`, { decision: "decline" });
+    await asLabHead.put(`/api/loans/${loanId}/decision`, { decision: "decline" });
 
     const res = await asCustodian.post(`/api/assets/${asset.tag}/borrow`, borrowBody(USERS.custodianA));
 
@@ -363,14 +346,13 @@ describe("PUT /api/asset_loans/:id/decision", () => {
   });
 
   it.each(["approve", "decline"])("answers 400 to %s on a loan that is already decided, and changes nothing", async (decision) => {
-    const recordsBefore = await recordCount(ASSETS.onLoan.assetId);
 
-    const res = await asLabHead.put(`/api/asset_loans/${SEEDED_ROWS.approvedLoanId}/decision`, { decision });
+    const res = await asLabHead.put(`/api/loans/${SEEDED_ROWS.approvedLoanId}/decision`, { decision });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/already been approved/);
-    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.approvedLoanId } })).status).toBe("approved");
-    expect(await recordCount(ASSETS.onLoan.assetId)).toBe(recordsBefore);
+    expect(res.body.error).toMatch(/is On Loan, so it can no longer be decided/);
+    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.approvedLoanId } })).status).toBe("ON_LOAN");
+    expect(await assetStatus(ASSETS.onLoan.assetId)).toBe("ON_LOAN");
   });
 
   it.each([
@@ -378,21 +360,21 @@ describe("PUT /api/asset_loans/:id/decision", () => {
     { decision: "approved", why: "a status, not a decision" },
     { decision: undefined, why: "no decision" },
   ])("answers 400 for $decision, $why, and leaves the loan pending", async ({ decision }) => {
-    const res = await asLabHead.put(`/api/asset_loans/${SEEDED_ROWS.pendingLoanId}/decision`, { decision });
+    const res = await asLabHead.put(`/api/loans/${SEEDED_ROWS.pendingLoanId}/decision`, { decision });
 
     expect(res.status).toBe(400);
-    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.pendingLoanId } })).status).toBe("pending");
+    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.pendingLoanId } })).status).toBe("PENDING_APPROVAL");
   });
 
   it("answers 400 for an id that is not a number, such as the LOAN-n id the list shows", async () => {
-    const res = await asLabHead.put(`/api/asset_loans/LOAN-${SEEDED_ROWS.pendingLoanId}/decision`, { decision: "approve" });
+    const res = await asLabHead.put(`/api/loans/LOAN-${SEEDED_ROWS.pendingLoanId}/decision`, { decision: "approve" });
 
     expect(res.status).toBe(400);
-    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.pendingLoanId } })).status).toBe("pending");
+    expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: SEEDED_ROWS.pendingLoanId } })).status).toBe("PENDING_APPROVAL");
   });
 
   it("answers 404 for an unknown id", async () => {
-    const res = await asLabHead.put("/api/asset_loans/9999/decision", { decision: "approve" });
+    const res = await asLabHead.put("/api/loans/9999/decision", { decision: "approve" });
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);

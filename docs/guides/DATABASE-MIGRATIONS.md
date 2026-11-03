@@ -10,7 +10,7 @@ Every command is given twice: for **PowerShell** in VS Code (use `npx.cmd` and `
 
 - A **migration** is a file of SQL in `prisma/migrations/<name>/migration.sql` that changes the database's structure: a new column, a new table, a renamed key. Migrations are kept in git and reviewed like code.
 - `prisma migrate deploy` applies, in name order, every migration a database has not had yet, and records each one in a table it keeps in that database, `_prisma_migrations`. The app never reads that table.
-- The **baseline** is the first migration, `prisma/migrations/0_init`: the whole structure as it was on 2026-10-16 (15 tables). Every later migration builds on it.
+- The **baseline** is the first migration, `prisma/migrations/0_init`: the whole structure as it was on 2026-10-16 (15 tables). Every later migration builds on it ("The migrations so far" lists them).
 - `prisma/schema.prisma` describes the structure the migrations build. The two must always agree: `npm test` stops if they do not (see "Writing a Phase 3 change").
 - The **seed** (`npm run seed`, `prisma/seed.ts`) fills an empty local database with demo data.
 
@@ -61,14 +61,14 @@ Do not use `AdRIC_DB_test` for this: `npm test` drops and rebuilds that one on e
 
 PowerShell:
 ```
-$env:PRISMA_TARGET_URL = "mysql://root:<password>@localhost:3306/adric_db_dev"
+$env:PRISMA_TARGET_URL = "mysql://root:<password>@localhost:3306/AdRIC_DB_dev"
 npx.cmd prisma migrate deploy
 Remove-Item Env:PRISMA_TARGET_URL
 ```
 
 Git Bash:
 ```
-PRISMA_TARGET_URL="mysql://root:<password>@localhost:3306/adric_db_dev" npx prisma migrate deploy
+PRISMA_TARGET_URL="mysql://root:<password>@localhost:3306/AdRIC_DB_dev" npx prisma migrate deploy
 ```
 
 It ends with "All migrations have been successfully applied."
@@ -88,21 +88,24 @@ Git Bash:
 SEED_DATABASE_URL="mysql://root:<password>@localhost:3306/AdRIC_DB_dev" SEED_PASSWORD="<a demo password>" npm run seed
 ```
 
-It prints `[seed] Done: 7 roles, 10 labs, 8 demo accounts, 100 demo assets held by nobody.`
+It prints `[seed] Done: 5 roles, 10 labs, 11 demo accounts, 12 demo assets, one in each status.` and the emails to log in with.
 
-What it writes: the 7 roles; the 10 research centers; 8 demo accounts, first name "Demo", who log in with `SEED_PASSWORD`:
+What it writes: the 5 roles; the 10 research centers, each on its campus (TE3D and GAME at Laguna, HXIL at McKinley, the rest at Manila); the funding sources, issue types, and metric definitions the forms offer (the ones the migrations wrote are kept); and 11 demo accounts, first name "Demo", who log in with `SEED_PASSWORD`:
 
-| Email | Role | Lab |
+| Email | Role | Labs |
 |---|---|---|
-| `demo.admin@dlsu.edu.ph` | Admin (user 1, the "nobody holds it" placeholder; Staff dashboard) | none |
+| `demo.admin@dlsu.edu.ph` | IT Admin | none |
 | `demo.director@dlsu.edu.ph` | AdRIC Director | none |
-| `demo.tsg@dlsu.edu.ph` | TSG Staff | none |
-| `demo.labhead.cite4d@dlsu.edu.ph` | Lab Head | CITe4D |
-| `demo.labhead.car@dlsu.edu.ph` | Lab Head | CAR |
-| `demo.custodian.a@dlsu.edu.ph`, `demo.custodian.b@dlsu.edu.ph` | Custodian | CITe4D |
-| `demo.custodian.c@dlsu.edu.ph` | Custodian | CAR |
+| `demo.secretary@dlsu.edu.ph` | AdRIC Secretary | none |
+| `demo.tsg@dlsu.edu.ph`, `demo.tsg.b@dlsu.edu.ph` | TSG Staff | none |
+| `demo.labhead.cite4d@dlsu.edu.ph` | Researcher, heads CITe4D (the Lab Head view) | CITe4D |
+| `demo.labhead.car@dlsu.edu.ph` | Researcher, heads CAR (the Lab Head view) | CAR |
+| `demo.researcher.a@dlsu.edu.ph` | Researcher | CITe4D |
+| `demo.researcher.b@dlsu.edu.ph` | Researcher | CITe4D and CAR |
+| `demo.researcher.c@dlsu.edu.ph` | Researcher | HXIL |
+| `demo.pending@dlsu.edu.ph` | none (a Pending sign-up: cannot log in) | CeLT |
 
-and 100 demo assets, 10 per lab, all Active and held by nobody. No loans, repairs, reports, transfers, or disposals. (Known: the first time the loan list is loaded, the server itself inserts a pending loan with id 9 on the first asset, H-08.)
+and 12 demo assets in four labs (CITe4D, CAR, HXIL, TE3D), with home rooms: at least one in each of the six statuses (Available, On Loan, Maintenance, Pending Retirement, Retired, Missing), each with an Initial inspection, plus the loan, maintenance ticket, retirements, and log row behind the ones that are not Available.
 
 **The seed refuses, and writes nothing,** when `SEED_DATABASE_URL` or `SEED_PASSWORD` is missing, when the host is not `localhost` or `127.0.0.1` (it cannot reach CCS Cloud), when the tables do not exist yet (run step 2), or when the database already has users, roles, labs, or assets. It never reads `.env` and never prints the passwords.
 
@@ -122,7 +125,9 @@ Git Bash:
 DATABASE_PASSWORD="$(node -e "process.stdout.write(decodeURIComponent(new URL(require('dotenv').parse(require('fs').readFileSync('.env')).TEST_DATABASE_URL).password))")" DATABASE_HOST=localhost DATABASE_PORT=3306 DATABASE_USER=root DATABASE_NAME=AdRIC_DB_dev npm run dev:all
 ```
 
-The server prints `Pool custodian check passed: user_id 1 (Demo Admin) ...`: that name tells you it is on the demo database. Close the terminal when done (PowerShell keeps the variables until then); a new terminal is back on `.env`.
+The server prints `Database: AdRIC_DB_dev on localhost` when it starts: that line tells you it is on the demo database. Close the terminal when done (PowerShell keeps the variables until then); a new terminal is back on `.env`.
+
+If login fails, read that line first: any other name or host means the server is on another database (for example CCS Cloud, through `.env`), where the demo accounts do not exist.
 
 **Use a private browser window for the demo database, or log out before switching.** The login cookie holds only your user id (and when it expires), not which database it came from. A browser logged in while the server ran on one database stays logged in as the same user id after the server is switched to another: for example, demo user 3 (Demo TSG Staff) becomes CCS Cloud's user 3, whoever that is, until the cookie expires (8 hours) or you log out. A private window keeps the demo login apart and forgets it when closed.
 
@@ -138,10 +143,10 @@ It takes its database only from `HASH_TARGET_URL`, never from `.env`, and refuse
 
 **Nothing runs against CCS Cloud before the Nov 8 deploy.** The deployed UAT site runs the frozen old code against CCS Cloud, and the UAT sessions use it. Running the script there would lock everyone out of that site. Merging this change is safe, because `main` is not deployed until then. After the merge, `main` run against CCS Cloud refuses every login, so use a local copy.
 
-**Local copies** (`adric_uat_local`, `adric_uat_check`, anyone's): after pulling `main`, run the script on the local copy. Run it again after every `uat-reset.sql` load, because that file puts plain passwords back. In PowerShell, as one line. It asks for your local MySQL root password without showing it, encodes it for the URL, and keeps it out of the shell history:
+**Local copies** (anyone's): after pulling `main`, run the script on the local copy. Run it again after every `uat-reset.sql` load, because that file puts plain passwords back. In PowerShell, as one line, with `<your local database>` replaced by your copy's name (for example `adric_uat_local`). It asks for your local MySQL root password without showing it, encodes it for the URL, and keeps it out of the shell history:
 
 ```
-$s = Read-Host "Local MySQL root password" -AsSecureString; $p = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)); $env:HASH_TARGET_URL = "mysql://root:$([uri]::EscapeDataString($p))@localhost:3306/adric_uat_check"; npx.cmd tsx prisma/hashExistingPasswords.ts; Remove-Item Env:HASH_TARGET_URL; Remove-Variable p, s
+$s = Read-Host "Local MySQL root password" -AsSecureString; $p = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)); $env:HASH_TARGET_URL = "mysql://root:$([uri]::EscapeDataString($p))@localhost:3306/<your local database>"; npx.cmd tsx prisma/hashExistingPasswords.ts; Remove-Item Env:HASH_TARGET_URL; Remove-Variable p, s
 ```
 
 **Nov 8 deploy, recommended path:** a fresh database from the migrations plus the seed ("A fresh local database with demo data" shows both commands). The seed writes hashes, so the script is not needed.
@@ -154,6 +159,37 @@ $s = Read-Host "Local MySQL root password" -AsSecureString; $p = [Runtime.Intero
 4. Decline any sign-up request made before the change. Approving one answers 409, because it holds no hash, and the applicant signs up again.
 
 ---
+
+## Resetting a local UAT copy after Batch 1
+
+`uat-reset.sql` holds the UAT data in the **old** tables (the structure of `0_init`), so it no longer loads into an up-to-date database. Load it into the baseline, then let the migrations bring it forward. Run each line in PowerShell from the repository root, in order, on **your local copy only** (here `<db>`, for example `adric_uat_local`; write the name in lower case). Each line asks for the MySQL root password without showing it (`mysql -p` asks by itself) and keeps it out of the shell history; nothing is typed into a URL by hand.
+
+1. **Drop and create the copy** (this deletes the copy, only the copy):
+   ```
+   & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p -e "DROP DATABASE IF EXISTS <db>; CREATE DATABASE <db>;"
+   ```
+2. **Build the baseline tables:**
+   ```
+   $s = Read-Host "Local MySQL root password" -AsSecureString; $p = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)); $env:PRISMA_TARGET_URL = "mysql://root:$([uri]::EscapeDataString($p))@localhost:3306/<db>"; npx.cmd prisma db execute --file prisma/migrations/0_init/migration.sql; Remove-Item Env:PRISMA_TARGET_URL; Remove-Variable p, s
+   ```
+3. **Mark the baseline as applied** (same line with `npx.cmd prisma migrate resolve --applied 0_init` in place of the `db execute`).
+4. **Load the UAT data** into the old tables. MySQL reads the file itself (`source`, with forward slashes), so PowerShell never re-encodes it and characters such as the dash in the old location text arrive intact:
+   ```
+   & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p --default-character-set=utf8mb4 <db> -e "source C:/path/to/uat-reset.sql"
+   ```
+5. **Bring it forward:** the same line as step 2 with `npx.cmd prisma migrate deploy` in place of the `db execute`. It ends with "All migrations have been successfully applied." If the foundation migration stops, it names what it could not place (for example a tag prefix that matches no lab); stop there and ask Raiki.
+6. **Hash the passwords** `uat-reset.sql` put back: the one-line command in "Hashing the passwords of existing data", with `<db>`.
+
+Then start the app on the copy ("A fresh local database with demo data", step 4, with `DATABASE_NAME` set to `<db>`) and check the startup line says `Database: <db> on localhost`.
+
+## Backup dry run
+
+- `Dump20261021.sql` is a CCS Cloud copy from 2026-10-21 23:32, taken before the UAT reset. It is only read, never restored.
+- A CCS Cloud dump starts with `CREATE DATABASE AdRIC_DB` and `USE AdRIC_DB`. Loading it as-is goes into a local `AdRIC_DB` (`adric_db` on Windows), not the target. Strip the first two lines first. This line writes `Dump20261021-nodb.sql` next to the dump (UTF-8 without a BOM) and leaves the dump unchanged:
+  ```
+  $dump = "C:\dev\uat-data\Dump20261021.sql"; [IO.File]::WriteAllLines(($dump -replace '\.sql$', '-nodb.sql'), (Get-Content $dump -Encoding UTF8 | Select-Object -Skip 2))
+  ```
+- The dry run on it stops at the expand migration: CCS Cloud's tables are `utf8mb4_0900_ai_ci` and ours are `utf8mb4_unicode_ci` (error 1267). It also has 5 July test assets with `EQ-2026-` tags and 2 `is_immediate` rows. These are known limits of upgrading old data, not defects, because the Nov 8 deploy starts from a fresh database.
 
 ## Writing a Phase 3 change
 
@@ -231,6 +267,17 @@ PRISMA_TARGET_URL="$(node -e "process.stdout.write(require('dotenv').parse(requi
 
 ---
 
+## The migrations so far
+
+Applied in this order by `prisma migrate deploy`. Never edit one that is merged: write a new one.
+
+| Migration | What it does |
+|---|---|
+| `0_init` | The baseline: the 15 tables as CCS Cloud had them on 2026-10-16 |
+| `20261103090000_rename_tables_columns_roles` | Batch 1. Renames by hand, with no data lost: `asset_repairs` to `asset_maintenance`, `asset_disposals` to `asset_retirements`, `asset_reports` to `asset_inspections`, and their columns; the loan's `requested_at` and `return_by`; the project code columns; the roles `CUSTODIAN` and `ADMIN` to `RESEARCHER` and `IT_ADMIN`, and `ITS_STAFF` removed |
+| `20261103120000_foundation_expand_backfill` | Batch 1. Adds the lookup tables (funding sources, issue types, metric definitions and the metrics of each category), `user_tickets`, `activity_log`, and `asset_inspection_metrics`; stores the asset's status, home lab, room, project, funding, and tags on `assets`; turns the loan, maintenance, retirement, and inspection statuses and types into enums; adds the new process columns; copies each return onto its loan; sets campuses (McKinley added) and the Lab Heads; removes `LAB_HEAD`; adds the CHECK constraints. Every backfill stops with the list of what it could not place |
+| `20261103180000_drop_replaced_tables_columns` | Batch 1. Drops what the foundation migration replaced: `asset_records`, `asset_monetary`, `asset_returns`, `asset_transfers`, `asset_maintenance.is_immediate`, and `projects.funding_agency` |
+
 ## Where things are
 
 | Path | What |
@@ -239,6 +286,7 @@ PRISMA_TARGET_URL="$(node -e "process.stdout.write(require('dotenv').parse(requi
 | `prisma/migrations/0_init/migration.sql` | The baseline, generated by Prisma, never edited |
 | `prisma/migrations/migration_lock.toml` | Says the migrations are for MySQL |
 | `prisma/seed.ts`, `seedTarget.ts`, `seedData.ts` | The demo seed, its safety checks, and its data |
+| `prisma/hashExistingPasswords.ts`, `hashTarget.ts` | Hashes the plain passwords of older data, local copies only unless told otherwise |
 | `prisma.config.ts` | Where Prisma finds the schema and the migrations, and `PRISMA_TARGET_URL` |
 | `tests/setup/globalSetup.ts` | Builds the test database from the migrations before every `npm test` |
 | `docs/reference/AdRIC_DB_Schema.sql` | An old record of the structure and demo data. Builds nothing; do not run it |

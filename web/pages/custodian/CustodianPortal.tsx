@@ -39,7 +39,7 @@ const statusBadgeClass: Record<string, string> = {
   "Overdue": "bg-red-50    text-red-700    border-red-200",
 };
 
-// Keys are the Prisma enum member names of `asset_records.asset_condition` (underscore
+// Keys are the Prisma enum member names of `asset_inspections.condition` (underscore
 // form), not the space-separated strings stored in the database; see the @map values
 // in schema.prisma.
 const CONDITION_TEXT_CLASS: Record<string, string> = {
@@ -64,7 +64,7 @@ const statusPills = [
  * - myassets: assets whose custodian name matches the signed-in user, without Disposed ones.
  * - available: Active assets, filtered by category, campus, lab, and search, with the detail modal for a loan request.
  * - scan: reads a QR tag from the camera or an uploaded picture and opens that asset.
- * - report: a condition report, posted to asset_reports, optionally filing a repair too.
+ * - report: a condition report, posted to asset_inspections, optionally filing a repair too.
  *
  * @param activeTab "myassets", "available", "scan", or "report"
  */
@@ -121,8 +121,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     }
   };
 
-  // Loaded once each time a tab opens (every tab change mounts this screen again), so a transfer
-  // or loan elsewhere shows up without a full page reload. (issue #92)
+  // Loaded once each time a tab opens (every tab change mounts this screen again), so a loan
+  // decided elsewhere shows up without a full page reload. (issue #92)
   useEffect(() => {
     fetchDbAssets();
   }, [activeTab]);
@@ -130,10 +130,10 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   const displayedAssets = dbAssets.length > 0 ? dbAssets : assets;
   // Matched by user id, never by name (issue #32). A disposal keeps the last custodian on the DISPOSED record, so the
   // id match alone would keep listing assets that are no longer in service.
-  const custodianAssets = displayedAssets.filter(a => !!currentUser && a.custodianId === currentUser.userId && a.status !== "Disposed");
+  const custodianAssets = displayedAssets.filter(a => !!currentUser && a.custodianId === currentUser.userId && a.status !== "RETIRED");
   // Only borrowed equipment under the custodian's custody can be picked for an inspection report.
   // Assets in Maintenance or Disposed cannot be inspected again. (issue #88)
-  const reportEligibleAssets = custodianAssets.filter(a => a.status === "On Loan" || a.status === "Overdue");
+  const reportEligibleAssets = custodianAssets.filter(a => a.status === "ON_LOAN" || a.isOverdue);
 
   useEffect(() => {
     if (activeTab === "report") {
@@ -201,8 +201,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         warranty: matched.warranty || "",
         location: matched.location || "Manila",
         lab: matched.lab || "CITe4D",
-        status: matched.status || "Active",
-        condition: matched.condition ?? 100,
+        status: matched.status,
+        condition: matched.condition,
         assetCondition: matched.assetCondition,
         currentLocation: matched.currentLocation,
         custodian: matched.custodian,
@@ -355,7 +355,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     setReportError(null);
 
     try {
-      // 1. Post directly to MySQL database table asset_reports
+      // 1. Post directly to MySQL database table asset_inspections
       const res = await inspectionsApi.submitInspectionRaw(targetTag, {
         reportCondition: reportConditionEnum,
         reportRemarks: fullRemarks,
@@ -392,7 +392,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
       await fetchDbAssets();
     } catch (err: any) {
-      console.error("❌ Failed to save custodian inspection report in MySQL asset_reports:", err);
+      console.error("❌ Failed to save custodian inspection report in MySQL asset_inspections:", err);
       setReportError(err?.message || "The inspection report could not be saved: the server could not be reached. Please try again.");
     } finally {
       setSubmitting(false);
@@ -416,7 +416,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
           </div>
         </div>
 
-        {custodianAssets.some(a => a.status === "Overdue") && (
+        {custodianAssets.some(a => a.isOverdue) && (
           <div className="rounded-xl p-3.5 mb-4 flex items-center gap-3 bg-red-50 border border-red-200">
             <AlertTriangle size={15} className="text-red-500 flex-shrink-0" />
             <p className="text-xs text-red-700"><strong>Overdue Return:</strong> Overdue asset detected. Return immediately or contact your Lab Head.</p>
@@ -429,7 +429,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             {custodianAssets.map(asset => (
               <Card key={asset.id}
-                className={cn("overflow-hidden border-t-4 p-0 gap-0 cursor-pointer hover:shadow-md transition-shadow flex flex-col", asset.status === "Overdue" ? "border-t-red-500" : (asset.daysLeft !== undefined && asset.daysLeft <= 5) ? "border-t-amber-500" : "border-t-primary")}
+                className={cn("overflow-hidden border-t-4 p-0 gap-0 cursor-pointer hover:shadow-md transition-shadow flex flex-col", asset.isOverdue ? "border-t-red-500" : (asset.daysLeft !== undefined && asset.daysLeft <= 5) ? "border-t-amber-500" : "border-t-primary")}
                 style={{ borderTopWidth: 4, borderLeftWidth: 0 }}
                 onClick={() => setSelectedAsset(asset)}
               >
@@ -457,7 +457,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
           <div className="flex flex-col gap-3">
             {custodianAssets.map(asset => (
               <Card key={asset.id}
-                className={cn("overflow-hidden border-l-4 p-0 gap-0 cursor-pointer hover:shadow-md transition-shadow", asset.status === "Overdue" ? "border-l-red-500" : (asset.daysLeft !== undefined && asset.daysLeft <= 5) ? "border-l-amber-500" : "border-l-primary")}
+                className={cn("overflow-hidden border-l-4 p-0 gap-0 cursor-pointer hover:shadow-md transition-shadow", asset.isOverdue ? "border-l-red-500" : (asset.daysLeft !== undefined && asset.daysLeft <= 5) ? "border-l-amber-500" : "border-l-primary")}
                 style={{ borderLeftWidth: 4 }}
                 onClick={() => setSelectedAsset(asset)}
               >
@@ -497,7 +497,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   // ── Available Equipment ───────────────────────────────────────────────────
   if (activeTab === "available") {
     const availableAssets = displayedAssets.filter(a =>
-      a.status === "Active" &&
+      a.status === "AVAILABLE" &&
       (filterCategory === "All" || a.category === filterCategory) &&
       (filterLoc === "All" || a.location === filterLoc) &&
       (filterLab === "All" || a.lab === filterLab) &&

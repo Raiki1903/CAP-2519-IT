@@ -18,10 +18,8 @@ export interface DirectorFilters {
     endDate: Date | null;
 }
 
-/** The Lab Head dashboard's filters, read from the query. */
+/** The Lab Head dashboard's date filters, read from the query. The lab is the one the session user heads. */
 export interface LabHeadFilters {
-    /** The asset tag prefix of the lab, or "" for every lab. */
-    prefixFilter: string;
     startDate: Date | null;
     endDate: Date | null;
 }
@@ -55,23 +53,14 @@ export function readDirectorFilters(query: Query): DirectorFilters {
 }
 
 /**
- * Reads the Lab Head dashboard's lab prefix and date filters. `labPrefix` is read before `lab`; with neither,
- * the prefix is CITe4D. "ALL" and "All Labs" mean every lab.
- * A repeated query value (an array) makes `labParam.trim` throw; errorHandler answers it with its generic 500 and logs
- * the TypeError on the server.
- *
- * @throws TypeError if labPrefix or lab is sent more than once
+ * Reads the Lab Head dashboard's date filters. A date that does not parse is kept as an invalid Date, and the
+ * repository leaves it out of the filter.
  */
-// TODO(C-02): any prefix is accepted, so any Lab Head can read any lab's loans, borrowers, and overdue list (01C section 4.4), and an unknown prefix gives empty data rather than an error (M-14). The lab should come from the session user, 13c or later.
 export function readLabHeadFilters(query: Query): LabHeadFilters {
-    const labParam = (query.labPrefix as string) || (query.lab as string) || "CITe4D";
-    const cleanPrefix = labParam.trim();
-    const prefixFilter = (cleanPrefix && cleanPrefix !== "All Labs" && cleanPrefix !== "ALL") ? cleanPrefix : "";
-
     const startDateParam = query.startDate as string;
     const endDateParam = query.endDate as string;
     const startDate = startDateParam ? new Date(startDateParam) : null;
     const endDate = endDateParam ? new Date(endDateParam) : null;
 
-    return { prefixFilter, startDate, endDate };
+    return { startDate, endDate };
 }

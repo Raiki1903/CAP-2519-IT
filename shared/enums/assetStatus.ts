@@ -1,11 +1,25 @@
 /**
- * The asset statuses Staff may set by hand.
- * Layer: shared. Imported by server/features/lookups/lookups.service.ts. Imports nothing.
- * Used by: Staff asset editing.
+ * The six asset statuses (assets.status) and their labels.
+ * Layer: shared. Imported by the server (lifecycle guard, status setter, derive helpers, asset list, lookups) and web/
+ * (badges and filters). Imports nothing.
+ * Used by: every workflow that reads or changes an asset's state.
  */
 
 /**
- * The stored statuses (asset_records.status) Edit Asset offers. DISPOSED is not here: only a Director's disposal
- * approval sets it.
+ * Every value of assets.status. Must match the `assets_status` enum in schema.prisma, because the server writes these
+ * values straight into that column. Only the status setter (server/shared/services/assetStatus.ts) writes it.
  */
-export const EDITABLE_ASSET_STATUSES = ["ACTIVE", "ON_LOAN", "MAINTENANCE"];
+export const ASSET_STATUSES = ["AVAILABLE", "ON_LOAN", "MAINTENANCE", "PENDING_RETIREMENT", "RETIRED", "MISSING"] as const;
+
+/** One value of assets.status. */
+export type AssetStatus = (typeof ASSET_STATUSES)[number];
+
+/** The label every screen shows for each asset status. A screen never makes up its own. */
+export const ASSET_STATUS_LABELS: Record<AssetStatus, string> = {
+  AVAILABLE: "Available",
+  ON_LOAN: "On Loan",
+  MAINTENANCE: "Maintenance",
+  PENDING_RETIREMENT: "Pending Retirement",
+  RETIRED: "Retired",
+  MISSING: "Missing",
+};

@@ -12,7 +12,7 @@ import { checkLoanDecision, checkLoanRequest } from './loans.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles GET /api/asset_loans: every loan, newest first, as `{ success, loans }`. A Custodian gets no name but
+ * Handles GET /api/loans: every loan, newest first, as `{ success, loans }`. A Custodian gets no name but
  * their own (D2). A failure answers errorHandler's generic 500.
  */
 export async function listLoans(req: Request, res: Response): Promise<void> {
@@ -39,7 +39,7 @@ export async function requestLoan(req: Request<{ assetTag: string }>, res: Respo
 }
 
 /**
- * Handles PUT /api/asset_loans/:loanId/decision: approves or declines a pending loan.
+ * Handles PUT /api/loans/:loanId/decision: approves or declines a pending loan.
  * Answers `{ success, loan }` with the updated row, or the AppError's status and message
  * (400 bad id, bad decision word, or loan already decided; 404 unknown loan; 409 an approval the asset no longer allows), or 500.
  */
@@ -50,7 +50,7 @@ export async function decideLoan(req: Request<{ loanId: string }>, res: Response
     console.log(`🚀 Server received loan decision for #${loanId}:`, decision);
 
     checkLoanDecision(loanId, decision);
-    const updatedLoan = await loansService.decideLoan(loanId, decision);
+    const updatedLoan = await loansService.decideLoan(loanId, decision, sessionUserOf(req).userId);
 
     console.log(`✅ Loan #${loanId} ${decision}d successfully.`);
     res.json({ success: true, loan: updatedLoan });

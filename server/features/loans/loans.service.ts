@@ -1,43 +1,70 @@
 /**
  * Loans service: the business rules for borrow requests, decisions, and the loan list.
  * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, features/assets/assets.repository.ts,
- * shared/services/custodyRequestGuard.ts, and shared/utils/campus.ts.
+ * shared/services/lifecycleGuard.ts, and shared/services/permissions.ts (the approver).
  * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
  */
-import type { Prisma, asset_loans, asset_records } from '@prisma/client';
+import { asset_loans_status, type asset_loans } from '@prisma/client';
 import type { LoanDecision, LoanListItem, LoanRequestInput } from '@shared/types/loans';
 import type { SessionIdentity } from '@shared/types/auth';
 import * as loansRepository from './loans.repository';
 import * as assetsRepository from '../assets/assets.repository';
+import { LOAN_STATUS_LABELS } from '@shared/constants/loanStatuses';
+import { CAMPUS_LABELS } from '@shared/constants/campuses';
 import { AppError } from '../../shared/errors/AppError';
-import { campusForLab } from '../../shared/utils/campus';
-import { findCustodyRequestConflict, findDecisionConflict } from '../../shared/services/custodyRequestGuard';
+import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
+import { requireHomeLabHead } from '../../shared/services/permissions';
+import { serverToday } from '../../shared/services/assetState';
+
+/**
+ * The word the current loan screens compare against for each loan status ("Pending", "Approved"). An open loan is
+ * still "approved" to them. Every other text about a loan uses LOAN_STATUS_LABELS.
+ */
+// TODO(H-07): the Lab Head and Custodian loan screens still compare these words. Batch 3 sends the Loan shape (status and statusLabel) and removes this map.
+const SCREEN_LOAN_WORDS: Record<asset_loans_status, string> = {
+    PENDING_APPROVAL: "Pending",
+    PENDING_RELEASE: "Pending release",
+    DECLINED: "Declined",
+    CANCELLED: "Cancelled",
+    ON_LOAN: "Approved",
+    RETURN_REQUESTED: "Return requested",
+    RETURNED: "Returned",
+    ENDED_BY_MAINTENANCE: "Ended by maintenance",
+    ENDED_BY_LOSS: "Ended by loss",
+};
+
+/**
+ * The word the current loan screens compare against: "Pending", "Approved", "Declined", "Returned".
+ *
+ * @param status the loan's status
+ * @returns the word the screens compare against
+ */
+export function legacyLoanStatusLabel(status: asset_loans_status): string {
+    return SCREEN_LOAN_WORDS[status];
+}
 
 /**
  * Lists every loan, newest first, shaped for the screens.
- * Every loan goes to every caller; the Lab Head screen keeps its own lab's rows by `lab`. (M-02)
+ * Every loan goes to every caller; the Lab Head screen keeps the loans of the lab it heads by `lab`, the asset's
+ * home lab. (M-02)
  * A Custodian gets no borrower name on another person's loan (D2): `borrower_id` stays, because the asset modal
  * needs to know a loan is pending on the asset whoever asked, and the bell finds the caller's own loans by name.
  *
  * @param viewer the session user
  * @returns one LoanListItem per asset_loans row
  */
-// TODO(M-02): scoping by lab happens only in the browser. Server-side with lab scoping, after step 14 (a lab_id on assets).
+// TODO(M-02): scoping by lab happens only in the browser. Batch 3 adds GET /api/loans/lab-requests for the Lab Head.
 export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]> {
     const dbLoans = await loansRepository.findAllNewestFirst();
 
-    const [dbUsers, dbAssets, dbUserCenters] = await loansRepository.findListLookups();
+    const [dbUsers, dbAssets] = await loansRepository.findListLookups();
 
     const loans: LoanListItem[] = dbLoans.map(l => {
         const borrowerUser = dbUsers.find(u => u.user_id === l.borrower_id);
         const asset = dbAssets.find(a => a.asset_id === l.asset_id);
-        const borrowerCenterLink = dbUserCenters.find(uc => uc.user_id === l.borrower_id);
-        const center = borrowerCenterLink?.research_centers;
-
-        // A loan belongs to the lab that owns the asset, read from the tag prefix ("CeLT-0004" is CeLT),
-        // not to the borrower's own lab: a borrower from another lab still asks the owning Lab Head.
-        // GET /api/asset_transfers and /api/analytics/lab-head use the same convention.
-        const lab = asset?.asset_tag?.includes("-") ? asset.asset_tag.split("-")[0] : "";
+        // A loan belongs to the lab that owns the asset, its home lab, not to the borrower's own lab: a borrower from
+        // another lab still asks the owning Lab Head.
+        const homeLab = asset?.research_centers;
 
         // requestLoan stores the destination lab as the first line of purpose. It is read back out
         // as its own field and removed from the purpose shown, so the screen does not show it twice. (H-19)
@@ -59,23 +86,17 @@ export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]
             borrower: borrowerUser ? `${borrowerUser.first_name} ${borrowerUser.last_name}` : `Borrower ID: ${l.borrower_id}`,
             purpose: cleanPurpose || "Research Project Use",
             destinationLab,
-            requestedOn: l.loaned_on ? l.loaned_on.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            dueDate: l.due_date ? l.due_date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            status: l.status ? (l.status.charAt(0).toUpperCase() + l.status.slice(1)) : "Pending",
-            location: center ? (center.location === "MANILA" ? "Manila" : "Laguna") : "Manila",
-            lab,
-            center_id: center?.center_id || 1
+            requestedOn: l.requested_at ? l.requested_at.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            dueDate: l.return_by ? l.return_by.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            status: legacyLoanStatusLabel(l.status),
+            statusLabel: LOAN_STATUS_LABELS[l.status],
+            location: homeLab ? CAMPUS_LABELS[homeLab.location] : "",
+            lab: homeLab?.short_code ?? "",
+            center_id: homeLab?.center_id ?? null,
         };
     });
 
     return withoutOthersNames(loans, viewer);
-}
-
-/** Today as yyyy-mm-dd in the server's local time zone (the Node process's TZ), not in UTC. */
-function serverToday(): string {
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 /** For a Custodian, leaves the borrower name out of every loan that is not their own. Other roles get the list as is. (D2) */
@@ -85,17 +106,16 @@ function withoutOthersNames(loans: LoanListItem[], viewer: SessionIdentity): Loa
 }
 
 /**
- * Files a pending loan request for an asset.
- * Only the asset_loans row is written. Custody does not move until a Lab Head approves
- * (decideLoan), so the asset stays with its current custodian while the request is pending.
- * The custody request guard refuses an asset that already has a pending loan, transfer, or disposal,
- * or is not Active, because two approvals would give one item two custodians. (H-05, issue #54)
+ * Files a loan request for an asset, in Pending Approval.
+ * Only the asset_loans row is written: the asset stays Available until the loan is approved (decideLoan).
+ * The lifecycle guard refuses an asset that is not Available, or that already has an open loan, because two
+ * approvals would promise one item twice. (H-05, issue #54)
  *
  * @param assetTag the asset's tag, from the URL
  * @param data the checked borrow body: optional destination lab, purpose, due date
  * @param borrowerId the session user, who borrows as themselves; any borrower name in the body is ignored (issue #32)
  * @returns the created asset_loans row
- * @throws AppError 400 if the due date is before today
+ * @throws AppError 400 if the due date is before today, or the destination lab is not a known lab
  * @throws AppError 404 if no asset has this tag
  * @throws AppError 409 if the guard refuses the request
  */
@@ -110,82 +130,67 @@ export async function requestLoan(assetTag: string, data: LoanRequestInput, borr
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    const conflict = await findCustodyRequestConflict(existing, ["ACTIVE"]);
-    if (conflict) {
-        throw new AppError(409, conflict);
+    const openLoan = await assetsRepository.findOpenLoan(existing.asset_id);
+    assertActionAllowed(existing, "REQUEST_LOAN", openLoan);
+
+    let destinationCenterId: number | null = null;
+    if (data.lab) {
+        const lab = await assetsRepository.findLabByCode(String(data.lab).trim());
+        if (!lab) {
+            throw new AppError(400, "Pick a destination lab from the list.");
+        }
+        destinationCenterId = lab.center_id;
     }
 
-    // asset_loans has no destination column, so the lab is stored as the first line of purpose,
-    // where listLoans and the approval read it back.
-    // TODO(H-19): the destination lab is packed into free text and parsed back with a regex. A real column, Phase 3.
+    // The lab is also kept as the first line of purpose, where the current screens read it back.
+    // TODO(H-19): the destination lab is still packed into the purpose for the screens. Batch 3 reads destination_center_id and stops packing it.
     const purposeWithLab = data.lab ? `Destination Lab: ${data.lab}\n\n${data.purpose}` : data.purpose;
 
     return loansRepository.create({
         asset_id: existing.asset_id,
         borrower_id: borrowerId,
         purpose: purposeWithLab,
-        due_date: new Date(data.dueDate),
-        status: "pending",
+        return_by: new Date(data.dueDate),
+        status: asset_loans_status.PENDING_APPROVAL,
+        destination_center_id: destinationCenterId,
     });
 }
 
 /**
- * Approves or declines a pending loan.
- * Approval is the custody handoff: the loan becomes approved and a new ON_LOAN record moves
- * the asset to the borrower, in one transaction. Decline changes only the loan's status.
- * An approval checks the asset again: it must still be Active, as for the request. (issue #28)
+ * Approves or declines a loan in Pending Approval. Only the Head of the asset's home lab decides
+ * (shared/services/permissions.ts resolveLoanApprover).
+ * Approval hands the asset over: there is no release step yet, so the loan goes straight to On Loan and the asset to
+ * On Loan, in one transaction. Decline closes the loan; the asset stays Available.
+ * An approval checks the asset again: it must still be Available. (issue #28)
  *
  * @param loanId the numeric loan id
  * @param decision "approve" or "decline"
+ * @param deciderId the session user who decides
  * @returns the updated asset_loans row
  * @throws AppError 404 if no loan has this id
- * @throws AppError 400 if the loan is not pending any more
- * @throws AppError 409 if an approval finds the asset no longer Active
+ * @throws AppError 409 if the asset's lab has no Head yet
+ * @throws AppError 403 if the session user is not the Head of the asset's home lab; the loan is unchanged
+ * @throws AppError 400 if the loan is not in Pending Approval any more
+ * @throws AppError 409 if an approval finds the asset no longer Available
  */
-export async function decideLoan(loanId: number, decision: LoanDecision): Promise<asset_loans> {
+// TODO(H-04): approval skips Pending Release and the TSG release step. Batch 3 adds them.
+export async function decideLoan(loanId: number, decision: LoanDecision, deciderId: number): Promise<asset_loans> {
     const loan = await loansRepository.findById(loanId);
     if (!loan) {
         throw new AppError(404, `No loan found with id ${loanId}.`);
     }
-    if (loan.status !== "pending") {
-        throw new AppError(400, `Loan #${loanId} has already been ${loan.status}.`);
+    const asset = await assetsRepository.findById(loan.asset_id);
+    if (!asset) {
+        throw new AppError(404, `No asset found for loan ${loanId}.`);
+    }
+    await requireHomeLabHead(asset, deciderId);
+    if (loan.status !== asset_loans_status.PENDING_APPROVAL) {
+        throw new AppError(400, `Loan #${loanId} is ${LOAN_STATUS_LABELS[loan.status]}, so it can no longer be decided.`);
     }
     if (decision === "approve") {
-        // The same allowed statuses as requestLoan.
-        const conflict = await findDecisionConflict(loan.asset_id, ["ACTIVE"], "loan");
-        if (conflict) {
-            throw new AppError(409, conflict);
-        }
+        // The open loan is this one, so only the status is checked here.
+        assertActionAllowed(asset, "REQUEST_LOAN");
     }
 
-    const newLoanStatus = decision === "approve" ? "approved" : "declined";
-    // A decline writes no custody record: custody never left the current custodian, so there is nothing to undo.
-    return loansRepository.saveDecision(
-        loan,
-        newLoanStatus,
-        decision === "approve" ? (latestRecord) => handoverRecord(loan, latestRecord) : null,
-    );
-}
-
-/**
- * Builds the custody record an approval appends: ON_LOAN, held by the borrower.
- * The condition and the home location carry over from the asset's latest record.
- * current_location becomes the destination lab with its campus when the request named one,
- * and otherwise stays where the asset is.
- */
-function handoverRecord(loan: asset_loans, latestRecord: asset_records | null): Prisma.asset_recordsUncheckedCreateInput {
-    const destLabMatch = loan.purpose?.match(/^Destination Lab:\s*(.+?)\s*(?:\n|$)/);
-    const destLab = destLabMatch ? destLabMatch[1] : null;
-    const currentLocationVal = destLab
-        ? `${campusForLab(destLab)} — ${destLab}`
-        : (latestRecord?.current_location ?? latestRecord?.location ?? "Unassigned");
-
-    return {
-        asset_id: loan.asset_id,
-        status: "ON_LOAN",
-        asset_condition: latestRecord?.asset_condition ?? "PERFECT",
-        location: latestRecord?.location ?? "Unassigned",
-        current_location: currentLocationVal,
-        current_custodian: loan.borrower_id,
-    };
+    return loansRepository.saveDecision(loan, decision === "approve" ? asset_loans_status.ON_LOAN : asset_loans_status.DECLINED, deciderId);
 }

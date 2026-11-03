@@ -12,7 +12,7 @@ import { checkInspectionReport } from './inspections.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles POST /api/assets/:assetTag/inspection: saves a condition report to asset_reports and
+ * Handles POST /api/assets/:assetTag/inspection: saves a condition report to asset_inspections and
  * writes its condition onto the asset.
  * Answers `{ success, report }` with the new row, or the AppError's status and message
  * (400 missing or unknown condition, 404 unknown asset, 409 a disposed asset), or 500.
@@ -24,14 +24,14 @@ export async function fileReport(req: Request<{ assetTag: string }>, res: Respon
     console.log(`📋 Server received inspection report for ${assetTag}:`, data);
 
     checkInspectionReport(data);
-    const newReport = await inspectionsService.fileReport(assetTag, data, sessionUserOf(req).userId);
+    const newReport = await inspectionsService.fileReport(assetTag, data, sessionUserOf(req));
 
-    console.log("✅ Inspection report saved under asset_reports in DB:", newReport.report_id);
+    console.log("✅ Inspection report saved under asset_inspections in DB:", newReport.inspection_id);
     res.json({ success: true, report: newReport });
 }
 
 /**
- * Handles GET /api/asset_reports: every report, newest first, in the short shape, as `{ success, reports }`.
+ * Handles GET /api/inspections: every report, newest first, in the short shape, as `{ success, reports }`.
  * A failure answers errorHandler's generic 500.
  */
 export async function listReportSummaries(req: Request, res: Response): Promise<void> {
@@ -40,7 +40,7 @@ export async function listReportSummaries(req: Request, res: Response): Promise<
 }
 
 /**
- * Handles GET /api/asset-reports: every report, newest first, in the detailed shape, as `{ success, reports }`.
+ * Handles GET /api/inspections/log: every report, newest first, in the detailed shape, as `{ success, reports }`.
  * A failure answers errorHandler's generic 500.
  */
 export async function listInspectionReports(_req: Request, res: Response): Promise<void> {

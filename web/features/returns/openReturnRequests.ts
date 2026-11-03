@@ -7,12 +7,12 @@
 import type { ReturnRequest } from "@web/state/browserOnly";
 import type { Asset } from "@web/state/serverData";
 
-/** Display statuses of an asset that is still out: on loan, or on loan past its due date. */
-const STILL_OUT = ["On Loan", "Overdue"];
+/** The status of an asset that is still out with its borrower (overdue or not). */
+const STILL_OUT = ["ON_LOAN"];
 
 /**
  * The Pending requests whose asset is still out. A request whose asset the server's list shows as
- * Active, under maintenance, or disposed is left out: it was returned on another computer, or cannot
+ * Available, in maintenance, or retired is left out: it was returned on another computer, or cannot
  * be returned now. A request whose asset is not in the list (not loaded yet, or deleted) is kept.
  * The requests stay in the browser; this only decides which ones to show. (issue #99)
  *

@@ -24,15 +24,15 @@ const REPORT_CONDITION_LABEL: Record<string, string> = {
 };
 
 /**
- * Lists every report from asset_reports, newest first, whoever filed it (custodian or Staff) and
+ * Lists every report from asset_inspections, newest first, whoever filed it (custodian or Staff) and
  * from whichever machine. View Report opens the remarks and photo. (F-28)
  *
- * @param dbReports the reports from GET /api/asset-reports
+ * @param dbReports the reports from GET /api/inspections/log
  */
 export function InspectionLog({ dbReports }: { dbReports: any[] }) {
   const [selectedInspection, setSelectedInspection] = useState<any | null>(null);
 
-  // The log shows the reports saved in asset_reports, newest first, whoever filed
+  // The log shows the reports saved in asset_inspections, newest first, whoever filed
   // them and from whichever browser. The database stores no cycle type, so the
   // log has no cycle column. (F-28, issue #34)
   const reportLog = dbReports.map(r => ({

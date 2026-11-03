@@ -96,20 +96,17 @@ describe("the server's own output", () => {
 });
 
 describe("the list screens", () => {
-  const custodianHistory = `/api/assets/${ASSETS.onLoan.tag}/custodian-history`;
+  const custodianHistory = `/api/assets/${ASSETS.onLoan.tag}/history`;
 
   it.each<[string, TestUser, string]>([
     ["Staff", USERS.staffTsg, "/api/assets"],
     ["Staff", USERS.staffTsg, custodianHistory],
-    ["Staff", USERS.staffTsg, "/api/asset_loans"],
-    ["Staff", USERS.staffTsg, "/api/asset_repairs"],
-    ["Staff", USERS.staffTsg, "/api/asset_returns"],
-    ["Staff", USERS.staffTsg, "/api/asset_transfers"],
-    ["Staff", USERS.staffTsg, "/api/asset_disposals"],
-    ["Staff", USERS.staffTsg, "/api/asset_reports"],
-    ["Staff", USERS.staffTsg, "/api/asset-reports"],
+    ["Staff", USERS.staffTsg, "/api/loans"],
+    ["Staff", USERS.staffTsg, "/api/maintenance"],
+    ["Staff", USERS.staffTsg, "/api/retirements"],
+    ["Staff", USERS.staffTsg, "/api/inspections"],
+    ["Staff", USERS.staffTsg, "/api/inspections/log"],
     ["Staff", USERS.staffTsg, "/api/lookups"],
-    ["Staff", USERS.staffTsg, "/api/lookups/users"],
     ["Staff", USERS.staffTsg, "/api/analytics/location-status"],
     ["Staff", USERS.staffTsg, "/api/analytics/advanced/inspection-progress"],
     ["Staff", USERS.staffTsg, "/api/analytics/tsg"],
@@ -119,8 +116,7 @@ describe("the list screens", () => {
     ["Lab Head", USERS.labHead, "/api/analytics/advanced/loan-recommender"],
     ["Director", USERS.director, "/api/analytics/director"],
     ["Custodian", USERS.custodianA, "/api/assets"],
-    ["Custodian", USERS.custodianA, "/api/asset_loans"],
-    ["Custodian", USERS.custodianA, "/api/asset_transfers"],
+    ["Custodian", USERS.custodianA, "/api/loans"],
   ])("%s, as seeded account: holds no hash at %s", async (_, user, urlPath) => {
     const res = await as(user).get(urlPath);
 

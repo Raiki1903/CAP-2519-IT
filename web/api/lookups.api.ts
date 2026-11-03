@@ -6,19 +6,10 @@
 import { apiGet, type ApiResult } from "./client";
 
 /**
- * Lists the labs, categories, funding sources, and editable statuses. Needs no session.
+ * Lists the labs, categories, funding sources, issue types, metrics, and projects. Needs no session.
  *
- * @returns `success` and the FormLookups fields (`labs`, `categories`, `fundingSources`, `statuses`), or `error`
+ * @returns `success` and the FormLookups fields, or `error`
  */
 export function getFormLookups(): Promise<ApiResult> {
   return apiGet("/api/lookups");
-}
-
-/**
- * Lists the accounts Edit Asset may name as custodian. Staff only.
- *
- * @returns `success` and `users`, each a CustodianOption (`userId` and `name`), or `error`
- */
-export function getCustodianOptions(): Promise<ApiResult> {
-  return apiGet("/api/lookups/users");
 }

@@ -30,13 +30,17 @@ const AVATAR_PRESETS = [
  * Takes no props.
  */
 // TODO(M-17): an uploaded picture is sent and stored as a base64 text string. Phase 3.
+/** The person's labs as text, for example "CAR, CITe4D", or "No lab" when they belong to none. */
+function labsText(labs: { code: string }[] | undefined): string {
+  return labs && labs.length > 0 ? labs.map(l => l.code).join(", ") : "No lab";
+}
+
 export function AccountDetailsPage() {
   const { currentUser, role, updateProfile } = useSession();
   const navigate = useNavigate();
 
   const [firstName, setFirstName] = useState(currentUser?.firstName || "");
   const [lastName, setLastName] = useState(currentUser?.lastName || "");
-  const [labAffiliation, setLabAffiliation] = useState((currentUser as any)?.labAffiliation || "Center for ICT for Development (CITE4D)");
   const [avatar, setAvatar] = useState(currentUser?.profilePicture || AVATAR_PRESETS[0]);
   const [dbUser, setDbUser] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -51,9 +55,6 @@ export function AccountDetailsPage() {
           setDbUser(data.user);
           setFirstName(data.user.firstName);
           setLastName(data.user.lastName);
-          if (data.user.labAffiliation) {
-            setLabAffiliation(data.user.labAffiliation);
-          }
           const img = data.user.userImg || data.user.profilePicture || data.user.avatarUrl;
           if (img) {
             setAvatar(img);
@@ -68,9 +69,6 @@ export function AccountDetailsPage() {
     if (currentUser) {
       if (!firstName) setFirstName(currentUser.firstName);
       if (!lastName) setLastName(currentUser.lastName);
-      if ((currentUser as any).labAffiliation && !labAffiliation) {
-        setLabAffiliation((currentUser as any).labAffiliation);
-      }
       const img = currentUser.profilePicture || (currentUser as any).userImg || (currentUser as any).avatarUrl;
       if (img) {
         setAvatar(img);
@@ -275,7 +273,7 @@ export function AccountDetailsPage() {
                   <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Lab</Label>
                   <div className="relative">
                     <Input
-                      value={dbUser?.labAffiliation || (currentUser as any)?.labAffiliation || labAffiliation}
+                      value={labsText(dbUser?.labs ?? currentUser?.labs)}
                       disabled
                       className="h-9 text-xs bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed pr-8"
                     />

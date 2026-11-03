@@ -53,7 +53,7 @@ export function DeleteAssetDialog({ assetToDelete, onClose, onDeleted }: { asset
             Are you sure you want to permanently delete asset <strong className="text-primary">{assetToDelete}</strong> from the AdRIC registry? This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
-        {deleteError && <p className="text-xs text-red-600 font-semibold">⚠️ {deleteError}</p>}
+        {deleteError && <p className="text-xs text-red-600 font-semibold">{deleteError}</p>}
         <DialogFooter className="gap-2 mt-4">
           <Button variant="outline" size="sm" onClick={() => { onClose(); setDeleteError(null); }}>Cancel</Button>
           <Button variant="destructive" size="sm" disabled={deleting} onClick={handleDeleteConfirm}>

@@ -2,8 +2,9 @@
  * Analytics service: turns the rows the repository reads into the figures each analytics view draws.
  * Layer: service. Called by analytics.controller.ts. Calls analytics.repository.ts.
  * Used by: the Director, Lab Head, and Staff analytics views (the idle and loan recommender figures have no live caller).
- * Labs are recognized by text in asset_records.location or by the asset tag prefix, not by a lab column (M-03),
- * and several figures are invented when the data is missing (H-09). Both are kept as they are, with a TODO at each place.
+ * An asset's status is assets.status and its lab and campus its home lab (assets.center_id). Several figures are still
+ * invented when the data is missing (H-09), and the response shapes keep four of the six statuses; both are kept as
+ * they are, with a TODO at each place, for the #96 rework (Batch 1 commits 12 and 13).
  */
 import type {
     DirectorAnalyticsData,
@@ -15,22 +16,53 @@ import type {
     LocationStatusData,
     StaffAnalyticsData,
 } from '@shared/types/analytics';
+import { asset_loans_status, type assets_status } from '@prisma/client';
+import { CAMPUS_LABELS, type Campus } from '@shared/constants/campuses';
 import * as analyticsRepository from './analytics.repository';
+import { progressTextOf } from '../maintenance/maintenance.service';
+import { legacyLoanStatusLabel } from '../loans/loans.service';
 import type { DirectorFilters, LabHeadFilters } from './analytics.validation';
+import type { SessionIdentity } from '@shared/types/auth';
+import { AppError } from '../../shared/errors/AppError';
+
+/**
+ * The old four status keys the response shapes still use, for each stored status. Pending Retirement and Missing have
+ * none, so they count only in totals.
+ */
+// TODO(#96): the dashboards show four statuses. Batch 1 commits 12 and 13 move them to the six.
+const OLD_STATUS_KEY: Partial<Record<assets_status, "ACTIVE" | "ON_LOAN" | "MAINTENANCE" | "DISPOSED">> = {
+    AVAILABLE: "ACTIVE",
+    ON_LOAN: "ON_LOAN",
+    MAINTENANCE: "MAINTENANCE",
+    RETIRED: "DISPOSED",
+};
+
+/** Whether the lab query names this asset's home lab, by short code in any letter case. No lab means every asset. */
+function inLab(lab: string | undefined, shortCode: string): boolean {
+    return !lab || shortCode.toLowerCase() === lab.trim().toLowerCase();
+}
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+/** Days since the asset's last return, else since its procurement date; 0 when it has neither. */
+function daysIdle(asset: { procurement_date: Date | null; asset_loans: { closed_at: Date | null }[] }, now: number): number {
+    const lastReturn = asset.asset_loans[0]?.closed_at;
+    const reference = lastReturn ? lastReturn.getTime() : asset.procurement_date ? asset.procurement_date.getTime() : now;
+    return Math.floor((now - reference) / MS_PER_DAY);
+}
 
 // ===========================================================================
 // Lab Head widgets kept on 2026-10-07 (no live caller)
 // ===========================================================================
 
 /**
- * Counts the ACTIVE assets by days idle (since their newest return, else since their newest record): under 7, 7 to 30, over 30.
+ * Counts the Available assets by days idle (since their last return, else since their procurement date): under 7,
+ * 7 to 30, over 30.
  *
- * @param lab text the newest record's location must contain (any letter case), or undefined for every asset
+ * @param lab the home lab's short code (any letter case), or undefined for every asset
  */
-// TODO(M-03): the lab is matched as text anywhere in the location. With a lab column, Phase 3.
-// TODO(H-09): an asset with no record counts as ACTIVE and idle for 0 days, unless a lab is given.
 export async function idleTime(lab: string | undefined): Promise<IdleTimeItem[]> {
-    const dbAssets = await analyticsRepository.findAssetsWithLatestRecordAndReturn();
+    const dbAssets = await analyticsRepository.findAssetsWithLastReturn();
 
     let underSevenDays = 0;
     let sevenToThirtyDays = 0;
@@ -39,20 +71,13 @@ export async function idleTime(lab: string | undefined): Promise<IdleTimeItem[]>
     const now = new Date().getTime();
 
     dbAssets.forEach((asset) => {
-        const latestRecord = asset.asset_records[0];
-        const currentStatus = latestRecord?.status || 'ACTIVE';
-        if (currentStatus !== 'ACTIVE') return;
+        if (asset.status !== 'AVAILABLE') return;
+        if (!inLab(lab, asset.research_centers.short_code)) return;
 
-        const loc = latestRecord?.location || '';
-        if (lab && !loc.toLowerCase().includes(lab.toLowerCase())) return;
-
-        const lastReturn = asset.asset_returns[0];
-        const referenceDate = lastReturn ? new Date(lastReturn.returned_on).getTime() : (latestRecord ? new Date(latestRecord.date_logged).getTime() : now);
-        const daysIdle = Math.floor((now - referenceDate) / (1000 * 60 * 60 * 24));
-
-        if (daysIdle < 7) {
+        const idle = daysIdle(asset, now);
+        if (idle < 7) {
             underSevenDays++;
-        } else if (daysIdle <= 30) {
+        } else if (idle <= 30) {
             sevenToThirtyDays++;
         } else {
             overThirtyDays++;
@@ -67,13 +92,12 @@ export async function idleTime(lab: string | undefined): Promise<IdleTimeItem[]>
 }
 
 /**
- * Counts the same ACTIVE assets as idleTime in five ranges: 1 to 7 days (0 included), 8 to 14, 15 to 30, 31 to 60, over 60.
+ * Counts the same Available assets as idleTime in five ranges: 1 to 7 days (0 included), 8 to 14, 15 to 30, 31 to 60, over 60.
  *
  * @param lab as for idleTime
  */
-// TODO(M-03): the lab is matched as text anywhere in the location, as in idleTime. Phase 3.
 export async function idleFrequency(lab: string | undefined): Promise<IdleFrequencyItem[]> {
-    const dbAssets = await analyticsRepository.findAssetsWithLatestRecordAndReturn();
+    const dbAssets = await analyticsRepository.findAssetsWithLastReturn();
 
     let range1 = 0;
     let range2 = 0;
@@ -84,21 +108,14 @@ export async function idleFrequency(lab: string | undefined): Promise<IdleFreque
     const now = new Date().getTime();
 
     dbAssets.forEach((asset) => {
-        const latestRecord = asset.asset_records[0];
-        const currentStatus = latestRecord?.status || 'ACTIVE';
-        if (currentStatus !== 'ACTIVE') return;
+        if (asset.status !== 'AVAILABLE') return;
+        if (!inLab(lab, asset.research_centers.short_code)) return;
 
-        const loc = latestRecord?.location || '';
-        if (lab && !loc.toLowerCase().includes(lab.toLowerCase())) return;
-
-        const lastReturn = asset.asset_returns[0];
-        const referenceDate = lastReturn ? new Date(lastReturn.returned_on).getTime() : (latestRecord ? new Date(latestRecord.date_logged).getTime() : now);
-        const daysIdle = Math.floor((now - referenceDate) / (1000 * 60 * 60 * 24));
-
-        if (daysIdle <= 7) range1++;
-        else if (daysIdle <= 14) range2++;
-        else if (daysIdle <= 30) range3++;
-        else if (daysIdle <= 60) range4++;
+        const idle = daysIdle(asset, now);
+        if (idle <= 7) range1++;
+        else if (idle <= 14) range2++;
+        else if (idle <= 30) range3++;
+        else if (idle <= 60) range4++;
         else range5++;
     });
 
@@ -112,31 +129,27 @@ export async function idleFrequency(lab: string | undefined): Promise<IdleFreque
 }
 
 /**
- * Lists every ACTIVE record as a loan suggestion, with its days idle (at least 1) and its owning lab.
+ * Lists every Available asset as a loan suggestion, with its days idle (at least 1) and its owning lab.
  *
  * @param targetCategory an assets_category value, or undefined for every category
  */
-// TODO(M-09): every ACTIVE record is read, history included, so an asset that is on loan today is still suggested once per earlier ACTIVE record, and the asking lab's own assets are not left out. Phase 3, with the shared asset state rule.
+// TODO(M-09): the asking lab's own assets are not left out. With the insights endpoint, analytics batch.
 export async function loanRecommendations(targetCategory: string | undefined): Promise<LoanRecommendationItem[]> {
-    const activeOtherCenterAssets = await analyticsRepository.findActiveRecordsForRecommender(targetCategory);
+    const available = await analyticsRepository.findAvailableAssetsForRecommender(targetCategory);
 
     const now = new Date().getTime();
-    const recommendations = activeOtherCenterAssets.map((rec) => {
-        const lastReturn = rec.assets?.asset_returns[0];
-        const referenceDate = lastReturn ? new Date(lastReturn.returned_on).getTime() : new Date(rec.date_logged).getTime();
-        const daysIdle = Math.max(1, Math.floor((now - referenceDate) / (1000 * 60 * 60 * 24)));
-
+    return available.map((asset) => {
+        const idle = Math.max(1, daysIdle(asset, now));
+        const homeLab = asset.research_centers.short_code;
         return {
-            recommendationId: rec.asset_record_id,
-            targetLab: rec.location,
-            idleAssetName: rec.assets.name,
-            assetTag: rec.assets.asset_tag,
-            matchReason: `Matches ${rec.assets.category} requirements. Idle for ${daysIdle} days at ${rec.location}.`,
-            ownerLab: rec.projects?.research_centers?.name || rec.location
+            recommendationId: asset.asset_id,
+            targetLab: homeLab,
+            idleAssetName: asset.name,
+            assetTag: asset.asset_tag,
+            matchReason: `Matches ${asset.category} requirements. Idle for ${idle} days at ${homeLab}.`,
+            ownerLab: asset.projects?.research_centers?.name || asset.research_centers.name,
         };
     });
-
-    return recommendations;
 }
 
 // ===========================================================================
@@ -144,57 +157,38 @@ export async function loanRecommendations(targetCategory: string | undefined): P
 // ===========================================================================
 
 /**
- * Counts the assets by their newest record's status, per campus, overall, and per lab.
+ * Counts the assets by status, per campus, overall, and per lab, each from the asset's home lab.
  * The Staff view reads `locationDistribution` and `statusCounts`; `byLocation` and `byStatus` were read by the
  * screens now in legacy/analytics-v1/ and are still sent.
  *
- * @param lab text the location must contain (any letter case), or undefined for every asset
+ * @param lab the home lab's short code (any letter case), or undefined for every asset
  */
-// TODO(H-09): an asset with no record counts as ACTIVE at Manila, CITe4D.
-// TODO(M-03): a location goes under the first code of the hardcoded lab list that its text contains (letter case counts), so a Manila room whose name contains "CAR" counts as the CAR lab, and a lab missing from the list counts as CITe4D. With a lab column, Phase 3.
+// TODO(#96): Pending Retirement and Missing assets count in no status here, and Retired ones are not in the per-lab bars. Batch 1 commit 12.
 export async function locationStatus(lab: string | undefined): Promise<LocationStatusData> {
-    const assets = await analyticsRepository.findAssetsWithLatestRecord();
+    const assets = await analyticsRepository.findAssetsWithLab();
 
-    const campusMap: Record<string, Record<string, number>> = {
-        "Manila Campus": { ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 },
-        "Laguna Campus": { ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 }
-    };
+    const campusMap: Record<string, Record<string, number>> = {};
+    for (const campus of Object.keys(CAMPUS_LABELS) as Campus[]) {
+        campusMap[`${CAMPUS_LABELS[campus]} Campus`] = { ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 };
+    }
     const statusMap: Record<string, number> = { ACTIVE: 0, ON_LOAN: 0, MAINTENANCE: 0, DISPOSED: 0 };
-
-    const labs = ["CITe4D", "CAR", "CeHCI", "HXIL", "GAME", "CeLT", "Bio"];
-    const labMap: Record<string, { available: number; onLoan: number; underRepair: number }> = {};
-    labs.forEach((l) => {
-        labMap[l] = { available: 0, onLoan: 0, underRepair: 0 };
-    });
+    const labMap = new Map<string, { available: number; onLoan: number; underRepair: number }>();
 
     assets.forEach((asset) => {
-        const latestRec = asset.asset_records[0];
-        const locString = latestRec?.location || "Manila — CITe4D";
-        const st = latestRec?.status || "ACTIVE";
+        const center = asset.research_centers;
+        if (!inLab(lab, center.short_code)) return;
+        if (!labMap.has(center.short_code)) labMap.set(center.short_code, { available: 0, onLoan: 0, underRepair: 0 });
 
-        if (lab && !locString.toLowerCase().includes(lab.toLowerCase())) return;
+        const st = OLD_STATUS_KEY[asset.status];
+        if (!st) return;
+        campusMap[`${CAMPUS_LABELS[center.location]} Campus`][st]++;
+        statusMap[st]++;
 
-        const campus = locString.includes("Laguna") ? "Laguna Campus" : "Manila Campus";
-        campusMap[campus][st] = (campusMap[campus][st] || 0) + 1;
-
-        statusMap[st] = (statusMap[st] || 0) + 1;
-
-        let parsedLab = "CITe4D";
-        for (const lName of labs) {
-            if (locString.includes(lName)) {
-                parsedLab = lName;
-                break;
-            }
-        }
-
-        // Disposed assets count in the campus and status totals, but not in the per-lab bars.
-        if (st === "ACTIVE") {
-            labMap[parsedLab].available++;
-        } else if (st === "ON_LOAN") {
-            labMap[parsedLab].onLoan++;
-        } else if (st === "MAINTENANCE") {
-            labMap[parsedLab].underRepair++;
-        }
+        // Retired assets count in the campus and status totals, but not in the per-lab bars.
+        const bars = labMap.get(center.short_code)!;
+        if (st === "ACTIVE") bars.available++;
+        else if (st === "ON_LOAN") bars.onLoan++;
+        else if (st === "MAINTENANCE") bars.underRepair++;
     });
 
     const byLocation = Object.keys(campusMap).map((campus) => ({
@@ -207,35 +201,33 @@ export async function locationStatus(lab: string | undefined): Promise<LocationS
         value: statusMap[st]
     }));
 
-    const locationDistribution = Object.keys(labMap).map((lName) => ({
-        location: lName,
-        available: labMap[lName].available,
-        onLoan: labMap[lName].onLoan,
-        underRepair: labMap[lName].underRepair
-    }));
+    const locationDistribution = [...labMap.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([lName, bars]) => ({ location: lName, ...bars }));
 
     const statusCounts = [
-        { name: "Available", value: statusMap.ACTIVE || 0 },
-        { name: "On Loan", value: statusMap.ON_LOAN || 0 },
-        { name: "Under Repair", value: statusMap.MAINTENANCE || 0 },
-        { name: "Disposed", value: statusMap.DISPOSED || 0 }
+        { name: "Available", value: statusMap.ACTIVE },
+        { name: "On Loan", value: statusMap.ON_LOAN },
+        { name: "Under Repair", value: statusMap.MAINTENANCE },
+        { name: "Disposed", value: statusMap.DISPOSED }
     ];
 
     return { byLocation, byStatus, locationDistribution, statusCounts };
 }
 
-/** Gives one progress entry per research center: `inspected` out of `total`, as a percentage. */
-// Known defect, kept: no inspection report is read. `total` is every record of the center's projects (each asset's whole
-// history, not one per asset), `inspected` is the ACTIVE ones, and a center with no projects reports 100%.
-// Pinned by the Phase 2 tests; proposed as its own commit (restructure log, batch 4 proposals).
+/**
+ * Gives one progress entry per research center: `inspected` out of `total`, as a percentage.
+ * `total` is the center's assets that are not Retired, `inspected` the Available ones; a center with none reports 100%.
+ */
+// Known defect, kept: no inspection report is read, so "inspected" means Available, not inspected. Batch 5 builds the
+// routine queue from the inspections.
 export async function inspectionProgress(): Promise<InspectionProgressItem[]> {
-    const researchCenters = await analyticsRepository.findCentersWithProjectRecords();
+    const researchCenters = await analyticsRepository.findCentersWithAssetStatuses();
 
-    const progress = researchCenters.map((rc) => {
-        const centerRecords = rc.projects.flatMap(p => p.asset_records);
-        const total = centerRecords.length;
-
-        const inspected = centerRecords.filter(r => r.status === "ACTIVE").length;
+    return researchCenters.map((rc) => {
+        const inService = rc.assets.filter(a => a.status !== "RETIRED");
+        const total = inService.length;
+        const inspected = inService.filter(a => a.status === "AVAILABLE").length;
         const percent = total > 0 ? Math.round((inspected / total) * 100) : 100;
 
         return {
@@ -245,8 +237,6 @@ export async function inspectionProgress(): Promise<InspectionProgressItem[]> {
             percent
         };
     });
-
-    return progress;
 }
 
 // ===========================================================================
@@ -269,33 +259,28 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
 
     const pendingDisposalsCount = await analyticsRepository.countPendingDisposals();
 
-    const fundingGroups = await analyticsRepository.groupValueByFundingSource();
+    const [fundingGroups, fundingSources] = await analyticsRepository.groupValueByFundingSource();
 
     const fundingData = fundingGroups.map(g => ({
-        name: g.funding_source || "Unspecified",
+        name: fundingSources.find(f => f.funding_source_id === g.funding_source_id)?.name || "Unspecified",
         value: Number(g._sum.acquisition_value || 0),
         count: g._count.asset_id
     }));
 
-    const allRecords = await analyticsRepository.findRecordsForDirector(isSpecificLab ? labFilter : null, startDate, endDate);
+    // The lab filter names a lab by short code, or a campus by its label (the dropdown offers both).
+    const filterText = isSpecificLab ? labFilter.trim().toLowerCase() : null;
+    const allAssets = await analyticsRepository.findAssetsForDirector(null);
+    const counted = filterText
+        ? allAssets.filter(a => a.research_centers.short_code.toLowerCase() === filterText || CAMPUS_LABELS[a.research_centers.location].toLowerCase() === filterText)
+        : allAssets;
 
-    // Records come newest first, so the first one seen per asset is its newest.
-    const latestRecordsMap = new Map<number, typeof allRecords[0]>();
-    for (const r of allRecords) {
-        if (!latestRecordsMap.has(r.asset_id)) {
-            latestRecordsMap.set(r.asset_id, r);
-        }
-    }
-
+    // TODO(#96): the date range no longer narrows the location counts (an asset's status has no date), and McKinley assets count under Laguna. Batch 1 commit 12 gives each campus its own counts.
     let manilaActive = 0, manilaOnLoan = 0, manilaMaintenance = 0, manilaDisposed = 0;
     let lagunaActive = 0, lagunaOnLoan = 0, lagunaMaintenance = 0, lagunaDisposed = 0;
 
-    for (const record of latestRecordsMap.values()) {
-        const locUpper = (record.location || "").toUpperCase();
-        // TODO(M-03): a location counts as Laguna when its text contains a Laguna lab code anywhere, so a Manila room whose name contains "CAR" counts as Laguna. Campus from research_centers.location, Phase 3.
-        const isLaguna = locUpper.includes("LAGUNA") || locUpper.includes("CAR") || locUpper.includes("HXIL") || locUpper.includes("CELT") || locUpper.includes("CIVI") || locUpper.includes("MECH");
-
-        const st = record.status;
+    for (const asset of counted) {
+        const isLaguna = asset.research_centers.location !== "MANILA";
+        const st = OLD_STATUS_KEY[asset.status];
         if (isLaguna) {
             if (st === "ACTIVE") lagunaActive++;
             else if (st === "ON_LOAN") lagunaOnLoan++;
@@ -333,7 +318,7 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
     // Month labels such as "Oct 26", in the server's time zone, in the order the months first appear (oldest first).
     const reportsByMonthMap = new Map<string, number>();
     for (const rep of reports) {
-        const d = new Date(rep.report_date);
+        const d = new Date(rep.inspected_at);
         const monthLabel = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
         reportsByMonthMap.set(monthLabel, (reportsByMonthMap.get(monthLabel) || 0) + 1);
     }
@@ -366,16 +351,23 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
 }
 
 /**
- * Builds the Lab Head dashboard for one lab prefix: loan and transfer requests, utilization, categories,
+ * Builds the Lab Head dashboard for the lab the viewer heads: loan requests, utilization, categories,
  * project allocation, overdue loans, and the scatter and heatmap built from them.
- * The date range limits the loans and transfers only.
+ * The date range limits the loans only.
+ *
+ * @param filters the date range
+ * @param viewer the session user, a Lab Head (the route checks it)
+ * @throws AppError 403 if the viewer heads no lab
  */
-export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHeadAnalyticsData> {
-    const { prefixFilter, startDate, endDate } = filters;
+export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionIdentity): Promise<LabHeadAnalyticsData> {
+    const { startDate, endDate } = filters;
+    const lab = viewer.headOfCenterId === null ? null : await analyticsRepository.findLab(viewer.headOfCenterId);
+    if (!lab) {
+        throw new AppError(403, "Only the account that heads a lab has a lab dashboard.");
+    }
+    const prefixFilter = lab.short_code;
 
     const rawLoans = await analyticsRepository.findLoansForLabHead(prefixFilter, startDate, endDate);
-
-    console.log(`📡 [Prisma/MySQL] /api/analytics/lab-head (prefix: "${prefixFilter}") fetched ${rawLoans.length} filtered loans from DB.`);
 
     const loans = rawLoans.map(l => {
         // The borrow form's destination lab is stored as the first line of the purpose, so it is read back
@@ -391,40 +383,20 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
             borrower: l.users ? `${l.users.first_name} ${l.users.last_name}` : "Borrower",
             purpose: cleanPurpose,
             destinationLab,
-            requestedOn: l.loaned_on.toISOString().split('T')[0],
-            dueDate: l.due_date.toISOString().split('T')[0],
-            status: l.status.charAt(0).toUpperCase() + l.status.slice(1)
+            requestedOn: l.requested_at.toISOString().split('T')[0],
+            dueDate: l.return_by.toISOString().split('T')[0],
+            status: legacyLoanStatusLabel(l.status)
         };
     });
 
-    const rawTransfers = await analyticsRepository.findTransfersForLabHead(prefixFilter, startDate, endDate);
+    const labAssets = await analyticsRepository.findLabAssets(prefixFilter);
 
-    const transfers = rawTransfers.map(t => {
-        // The transfer form's destination lab is stored the same way, as the first line of the justification. (H-19)
-        const destLabMatch = t.justification?.match(/^Destination Lab:\s*(.+?)\s*(?:\n|$)/);
-        const destinationLab = destLabMatch ? destLabMatch[1] : undefined;
-        const cleanJustification = destLabMatch ? t.justification.replace(/^Destination Lab:\s*.+?\n\n?/, "") : t.justification;
-
-        return {
-            transferId: t.transfer_id,
-            assetId: t.assets?.asset_tag || `ASSET-${t.asset_id}`,
-            asset: t.assets?.name || "Equipment",
-            justification: cleanJustification,
-            destinationLab,
-            requestedOn: t.requested_on.toISOString().split('T')[0],
-            // TODO(M-12): the raw status with its first letter capitalized, so a transfer moved by /accept shows as "Pending_approver", while GET /api/asset_transfers shows it as Pending. With M-12.
-            status: t.status.charAt(0).toUpperCase() + t.status.slice(1)
-        };
-    });
-
-    const labAssets = await analyticsRepository.findLabAssetsWithLatestRecord(prefixFilter);
-
-    // An asset is "assigned" when its newest record names a project.
+    // An asset is "assigned" when it has an owning project.
+    // TODO(#96): utilization should count assets On Loan, not assets with a project. Batch 1 commit 12.
     let assignedCount = 0;
     let unassignedCount = 0;
     for (const a of labAssets) {
-        const latestRec = a.asset_records[0];
-        if (latestRec && latestRec.project_id !== null && latestRec.project_id !== undefined) {
+        if (a.project_id !== null) {
             assignedCount++;
         } else {
             unassignedCount++;
@@ -444,9 +416,8 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
 
     const projectCountsMap = new Map<number, number>();
     for (const a of labAssets) {
-        const r = a.asset_records[0];
-        if (r && r.project_id) {
-            projectCountsMap.set(r.project_id, (projectCountsMap.get(r.project_id) || 0) + 1);
+        if (a.project_id) {
+            projectCountsMap.set(a.project_id, (projectCountsMap.get(a.project_id) || 0) + 1);
         }
     }
 
@@ -454,10 +425,10 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
     const projectAllocation: any[] = [];
     let colorIdx = 0;
     for (const p of allProjects) {
-        const count = projectCountsMap.get(p.master_id) || 0;
+        const count = projectCountsMap.get(p.project_id) || 0;
         if (count > 0) {
             projectAllocation.push({
-                projectId: p.project_id,
+                projectId: p.project_code,
                 name: p.project_name,
                 leader: p.project_leader,
                 center: p.research_centers?.name || "Research Center",
@@ -477,17 +448,16 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
 
     const allLoansForDelinquency = await analyticsRepository.findLoansForDelinquency(prefixFilter);
 
-    // TODO(H-04): a loan counts as overdue unless its status is returned or declined. A pending request past its due date counts, although nothing was handed over, and a loan returned before issue #99 is still approved and counts until its asset's next return. Phase 3.
+    // TODO(H-04): a loan counts as overdue unless it is returned or declined, so a pending request past its due date counts, although nothing was handed over. Batch 3.
     const overdueLoans = allLoansForDelinquency.filter(l => {
-        const dueDate = new Date(l.due_date);
-        return dueDate.getTime() < now.getTime() && l.status !== 'returned' && l.status !== 'declined';
+        const dueDate = new Date(l.return_by);
+        return dueDate.getTime() < now.getTime() && l.status !== asset_loans_status.RETURNED && l.status !== asset_loans_status.DECLINED;
     });
 
     const delinquencies = overdueLoans.map(l => {
-        const dueDate = new Date(l.due_date);
+        const dueDate = new Date(l.return_by);
         const daysOverdue = Math.max(1, Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
-        const assetRecord = l.assets?.asset_records[0];
-        const project = allProjects.find(p => p.master_id === assetRecord?.project_id);
+        const project = allProjects.find(p => p.project_id === l.assets?.project_id);
 
         return {
             id: l.loan_id,
@@ -497,9 +467,9 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
             // TODO(H-09): an invented address when the borrower is missing. The borrower is a required relation, so it does not happen today.
             email: l.users?.email || "student@dlsu.edu.ph",
             daysOverdue,
-            dueDate: l.due_date.toISOString(),
+            dueDate: l.return_by.toISOString(),
             project: project?.project_name || "Unassigned Cohort",
-            projectId: project?.master_id || 0
+            projectId: project?.project_id || 0
         };
     });
 
@@ -561,7 +531,6 @@ export async function labHeadDashboard(filters: LabHeadFilters): Promise<LabHead
 
     return {
         loans,
-        transfers,
         utilization: {
             assignedCount,
             unassignedCount,
@@ -584,24 +553,16 @@ export async function staffDashboard(): Promise<StaffAnalyticsData> {
     const dbRepairs = await analyticsRepository.findRepairsWithAssetAndReporter();
 
     const repairs = dbRepairs.map(r => ({
-        repairId: r.repair_id,
+        repairId: r.maintenance_id,
         assetId: r.assets?.asset_tag || `ASSET-${r.asset_id}`,
         assetName: r.assets?.name || "Equipment",
         reportedBy: r.users ? `${r.users.first_name} ${r.users.last_name}` : "Staff",
         issueDescription: r.issue_description,
-        isImmediate: r.is_immediate,
-        progressStatus: r.progress_status || "Reported",
-        createdAt: r.created_at.toISOString().split('T')[0]
+        progressStatus: progressTextOf(r),
+        createdAt: r.reported_at.toISOString().split('T')[0]
     }));
 
-    // Records come newest first, so the first one seen per asset is its newest.
-    const records = await analyticsRepository.findAllRecordsNewestFirst();
-    const latestRecordsMap = new Map<number, typeof records[0]>();
-    for (const r of records) {
-        if (!latestRecordsMap.has(r.asset_id)) {
-            latestRecordsMap.set(r.asset_id, r);
-        }
-    }
+    const conditions = await analyticsRepository.findCurrentConditions();
 
     let goodCount = 0;
     let degradedCount = 0;
@@ -611,9 +572,8 @@ export async function staffDashboard(): Promise<StaffAnalyticsData> {
     const allAssets = await analyticsRepository.findAllAssets();
 
     for (const a of allAssets) {
-        const rec = latestRecordsMap.get(a.asset_id);
-        // TODO(H-09): an asset with no record shows as PERFECT and "Unassigned".
-        const cond = rec?.asset_condition || "PERFECT";
+        // TODO(H-09): an asset TSG never inspected shows as PERFECT. Batch 1 commit 12 leaves it out of the counts.
+        const cond = conditions.get(a.asset_id)?.condition || "PERFECT";
         let trafficLight: "GREEN" | "YELLOW" | "RED" = "GREEN";
 
         if (cond === "PERFECT" || cond === "OPERATIONAL") {
@@ -633,8 +593,8 @@ export async function staffDashboard(): Promise<StaffAnalyticsData> {
             category: a.category.replace(/_/g, " "),
             condition: cond,
             trafficLight,
-            // The record's home location, not where the asset is now (current_location), so an asset at the TSG Office shows its lab.
-            location: rec?.location || "Unassigned"
+            // The home lab and room, not where the asset is now, so an asset at the TSG Office shows its lab.
+            location: a.home_room ? `${a.research_centers.short_code}, ${a.home_room}` : a.research_centers.short_code
         });
     }
 

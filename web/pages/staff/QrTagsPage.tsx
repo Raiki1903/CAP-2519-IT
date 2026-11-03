@@ -17,7 +17,7 @@ export function QrTagsPage() {
   const { displayedAssets } = useStaffAssets();
   const [selectedQR, setSelectedQR] = useState<string[]>([]);
 
-  const qrAssets = displayedAssets.filter(a => a.status !== "Disposed");
+  const qrAssets = displayedAssets.filter(a => a.status !== "RETIRED");
 
   const toggleQR = (id: string) => setSelectedQR(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 

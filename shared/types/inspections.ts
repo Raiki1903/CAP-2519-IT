@@ -29,7 +29,7 @@ export interface InspectionReportInput {
 }
 
 /**
- * One row of GET /api/asset_reports, the short list (no email, no image), read by state/serverData.tsx.
+ * One row of GET /api/inspections, the short list (no email, no image), read by state/serverData.tsx.
  * Both snake_case and camelCase names are sent for several fields.
  */
 // TODO(L-07): two list endpoints with two spellings and two shapes for the same reports. Kept in step 12 as decided; merging them is its own commit, with the screens that read each.
@@ -55,7 +55,7 @@ export interface ReportSummaryItem {
   remarks: string | null;
 }
 
-/** One row of GET /api/asset-reports, the detailed list, read by the Staff inspection log (useInspectionReports). */
+/** One row of GET /api/inspections/log, the detailed list, read by the Staff inspection log (useInspectionReports). */
 export interface InspectionReportItem {
   /** The numeric report_id (the short list sends "RPT-n" under the same name). */
   reportId: number;

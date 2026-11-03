@@ -1,7 +1,7 @@
 /**
  * Staff analytics: repair board, condition heatmap, warranty timeline, location status, and inspection progress widgets.
  * Layer: feature component. Called by pages/staff/HealthPage.tsx.
- * Calls: api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), api/repairs.api.ts updateRepairStatus(), state/serverData.tsx.
+ * Calls: api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), api/maintenance.api.ts updateRepairStatus(), state/serverData.tsx.
  * Used by: Staff.
  */
 import React from "react";
@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useServerData } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
-import * as repairsApi from "@web/api/repairs.api";
+import * as maintenanceApi from "@web/api/maintenance.api";
 import * as analyticsApi from "@web/api/analytics.api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
@@ -57,7 +57,7 @@ const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#EF4444"];
 // Maintenance & Lifecycle View (Task 3: Repairs Kanban Board, Condition Heatmap with Traffic Light Indicators, 90-day Warranty Expiry Timeline)
 /**
  * Repair board, condition heatmap, and 90-day warranty timeline. Calls analyticsApi.getTsgAnalyticsRaw(),
- * and repairsApi.updateRepairStatus() when a ticket is moved on the board.
+ * and maintenanceApi.updateRepairStatus() when a ticket is moved on the board.
  *
  * @param startDate start of the date range, or empty for no limit
  * @param endDate end of the date range, or empty for no limit
@@ -95,7 +95,7 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
   const moveRepairStatus = async (repairId: number, newStatus: string) => {
     setUpdatingRepairId(repairId);
     try {
-      const json = await repairsApi.updateRepairStatus(repairId, newStatus);
+      const json = await maintenanceApi.updateRepairStatus(repairId, newStatus);
       if (json.success) {
         await refetch();
       }
@@ -150,7 +150,7 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-[#005A36]" /> Repair Operations Kanban Board (`asset_repairs`)
+              <Wrench className="w-5 h-5 text-[#005A36]" /> Repair Operations Kanban Board (`asset_maintenance`)
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               Move repair cards across columns: "Reported", "Diagnosing", "Waiting for Parts", "Resolved" to update the repair's progress.
@@ -403,10 +403,10 @@ export const LocationStatusWidget: React.FC<{
 
   const statusData = (selectedLab !== "All Labs" || selectedCategory !== "All Categories")
     ? [
-        { name: "Available", value: filteredContextAssets.filter(a => a.status === "Active" || a.status === "Available").length },
-        { name: "On Loan", value: filteredContextAssets.filter(a => a.status === "On Loan" || a.status === "Loaned").length },
-        { name: "Under Repair", value: filteredContextAssets.filter(a => a.status === "Maintenance" || a.status === "Repair").length },
-        { name: "Disposed", value: filteredContextAssets.filter(a => a.status === "Disposed").length }
+        { name: "Available", value: filteredContextAssets.filter(a => a.status === "AVAILABLE" || a.status === "Available").length },
+        { name: "On Loan", value: filteredContextAssets.filter(a => a.status === "ON_LOAN" || a.status === "Loaned").length },
+        { name: "Under Repair", value: filteredContextAssets.filter(a => a.status === "MAINTENANCE" || a.status === "Repair").length },
+        { name: "Disposed", value: filteredContextAssets.filter(a => a.status === "RETIRED").length }
       ]
     : rawStatusData;
 

@@ -2,43 +2,37 @@
  * Asset badge styles: colours for an asset's status and condition, the status's display name, and the condition label component.
  * Layer: feature component. Called by features/assets/AssetGalleryCard.tsx, AssetDetailModal.tsx, EditAssetDialog.tsx, pages/staff/InventoryPage.tsx,
  * and, for assetStatusLabel, the Lab Head, Custodian, and Director pages.
- * Calls: ui/utils.ts.
+ * Calls: ui/utils.ts, @shared/enums/assetStatus (the labels).
  * Used by: Staff inventory and asset editing; every screen that shows an asset's availability.
  */
 import { cn } from "@web/components/ui/utils";
+import { ASSET_STATUS_LABELS, type AssetStatus } from "@shared/enums/assetStatus";
 
-/** Badge classes per display status ("Active", "On Loan", "Maintenance", "Disposed"). */
+/** Badge classes per asset status, keyed by the stored value ("AVAILABLE", "ON_LOAN", ...). */
 // LabHeadDashboard, CustodianPortal, and ReturnForm still keep their own copies of
 // these maps; merging them is logged in 02-restructure-log.md, notes.
 export const statusBadgeClass: Record<string, string> = {
-  "Active": "bg-emerald-50 text-emerald-700 border-emerald-200",
-  "On Loan": "bg-blue-50   text-blue-700   border-blue-200",
-  "Maintenance": "bg-amber-50  text-amber-700  border-amber-200",
-  "Disposed": "bg-red-50    text-red-700    border-red-200",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  Active: "Available",
-  ACTIVE: "Available",
-  ON_LOAN: "On Loan",
-  MAINTENANCE: "Maintenance",
-  DISPOSED: "Disposed",
+  AVAILABLE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  ON_LOAN: "bg-blue-50   text-blue-700   border-blue-200",
+  MAINTENANCE: "bg-amber-50  text-amber-700  border-amber-200",
+  PENDING_RETIREMENT: "bg-orange-50 text-orange-700 border-orange-200",
+  RETIRED: "bg-red-50    text-red-700    border-red-200",
+  MISSING: "bg-slate-100 text-slate-700  border-slate-300",
 };
 
 /**
- * The text a screen shows for an asset's status. Screen text only: comparisons and request bodies keep the
- * status as it came ("Active"). The asset list sends the display form ("Active", "On Loan"), the custodian
- * history the stored form ("ACTIVE", "ON_LOAN"), so both are read.
+ * The text a screen shows for an asset's status: its label from @shared (the server also sends it as statusLabel).
+ * Screen text only: comparisons keep the stored value ("AVAILABLE").
  *
- * @param status the status as the server sent it
- * @returns "Available" for Active, the display form of a stored status, or the status unchanged ("On Loan", "Overdue")
+ * @param status the stored status as the server sent it
+ * @returns the label, or the value unchanged when it is not one of the six
  */
 export function assetStatusLabel(status: string | undefined | null): string {
   if (!status) return "";
-  return STATUS_LABEL[status] ?? status;
+  return ASSET_STATUS_LABELS[status as AssetStatus] ?? status;
 }
 
-// Keys are the Prisma enum member names of `asset_records.asset_condition` (underscore
+// Keys are the Prisma enum member names of `asset_inspections.condition` (underscore
 // form), not the space-separated strings stored in the database; see the @map values
 // in schema.prisma.
 

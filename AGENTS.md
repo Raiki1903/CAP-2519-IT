@@ -4,14 +4,14 @@ Rules for any AI agent or chat AI working on CAP-2519-IT, "Asset Management Syst
 
 ## The project in one paragraph
 
-A web app for DLSU CCS AdRIC (research labs) to register, tag, lend, transfer, return, repair, inspect, and dispose of assets. React 18 + TypeScript + Vite in `web/`, Express 5 + TypeScript in `server/`, Prisma 7 with MySQL 8 in `prisma/`, code used by both sides in `shared/`. The shared team database is MySQL on CCS Cloud. Roles: Staff, Lab Head, Custodian, Director.
+A web app for DLSU CCS AdRIC (research labs) to register, tag, lend, return, repair, inspect, and retire assets. React 18 + TypeScript + Vite in `web/`, Express 5 + TypeScript in `server/`, Prisma 7 with MySQL 8 in `prisma/`, code used by both sides in `shared/`. The shared team database is MySQL on CCS Cloud. Roles: Researcher, TSG Staff, AdRIC Director, AdRIC Secretary, IT Admin; a Lab Head is the account that heads a lab (`research_centers.head_user_id`), not a role. The app's views are Staff, Lab Head, Custodian (shown as "Researcher"), and Director. The rules and the data model are in `docs/contracts/lifecycle.md`.
 
 ## Where things are
 
 | Path | What lives there |
 |---|---|
-| `server/features/<feature>/` | One folder per workflow (loans, returns, transfers, disposals, repairs, inspections, auth, assets, analytics), five layers each: `routes`, `validation`, `controller`, `service`, `repository` |
-| `server/shared/` | `errors/AppError.ts`, `middleware/` (`requireAuth`, `requireRole`, `errorHandler`), `services/` (session, mailer, guards), `constants/`, `utils/` |
+| `server/features/<feature>/` | One folder per workflow (loans, returns, maintenance, retirements, inspections, auth, assets, analytics, lookups), five layers each: `routes`, `validation`, `controller`, `service`, `repository` |
+| `server/shared/` | `errors/AppError.ts`, `middleware/` (`requireAuth`, `requireRole`, `permissions`, `errorHandler`), `services/` (session, mailer, `lifecycleGuard`, `assetStatus` (the only writer of `assets.status`), `assetState` (holder, location, condition), `activityLog`, `rowLocks`, `permissions`), `utils/` |
 | `web/pages/<role>/` | Screens per role (staff, lab-head, custodian, director, auth) |
 | `web/features/<feature>/` | Forms, dialogs, and parts used by the screens |
 | `web/api/` | Every call to the server. Screens never call `fetch` directly |
@@ -28,9 +28,9 @@ A web app for DLSU CCS AdRIC (research labs) to register, tag, lend, transfer, r
 |---|---|
 | `npm install`, then `npm run prisma:generate` | Setup after cloning or pulling |
 | `npm run dev:all` | Web on port 5173 and API on port 4000. Uses the database in `.env` (CCS Cloud) |
-| `npm run typecheck` | TypeScript check. **Today: 49 errors** (old ones). The count must not go up |
+| `npm run typecheck` | TypeScript check. **Today: 32 errors** (old ones). The count must not go up |
 | `npm run build` | Production build. Must pass |
-| `npm test` | API tests on the local test database. **Today: 513 passed** |
+| `npm test` | API tests on the local test database. **Today: 506 passed** |
 
 Run typecheck, build, and test before every pull request, and report the three results.
 

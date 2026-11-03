@@ -4,57 +4,53 @@
  * Used by: the Director, Lab Head, and Staff analytics views.
  * Analytics is a read model across every table, so these queries read the other features' tables directly, as 01D
  * section 2 plans for features/analytics/. Most of them load whole tables and count in the service. (M-01)
+ * An asset's status is assets.status, its lab and campus come from its home lab (assets.center_id), and its condition
+ * from shared/services/assetState.ts.
  */
+import { asset_loans_status, asset_retirements_status, type Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import * as assetState from '../../shared/services/assetState';
+
+/** Every asset read here comes with its home lab. */
+const WITH_LAB = { research_centers: true } satisfies Prisma.assetsInclude;
 
 // ---------------------------------------------------------------------------
 // Lab Head widgets kept on 2026-10-07 (idle time, idle frequency, loan recommender)
 // ---------------------------------------------------------------------------
 
-/** Every asset with its newest record and its newest return. Read by the idle-time and idle-frequency charts. */
-// TODO(M-09): the newest record is picked by date_logged alone, so of two records logged in the same second either can come back. Phase 3, with the shared asset state rule.
-export function findAssetsWithLatestRecordAndReturn() {
+/** Every asset with its home lab and its newest returned loan. Read by the idle-time and idle-frequency charts. */
+export function findAssetsWithLastReturn() {
     return prisma.assets.findMany({
         include: {
-            asset_records: {
-                orderBy: { date_logged: 'desc' },
-                take: 1
+            ...WITH_LAB,
+            asset_loans: {
+                where: { status: asset_loans_status.RETURNED, closed_at: { not: null } },
+                orderBy: { closed_at: 'desc' },
+                take: 1,
             },
-            asset_returns: {
-                orderBy: { returned_on: 'desc' },
-                take: 1
-            }
-        }
+        },
     });
 }
 
 /**
- * Every ACTIVE record, history included, optionally of one category, with its asset's newest return
- * and its project's research center.
+ * Every Available asset, optionally of one category, with its home lab, its project's research center, and its newest
+ * returned loan.
  *
  * @param targetCategory an assets_category value, or undefined for every category
  */
-export function findActiveRecordsForRecommender(targetCategory: string | undefined) {
-    return prisma.asset_records.findMany({
-        where: {
-            status: "ACTIVE",
-            assets: targetCategory ? { category: targetCategory as any } : undefined
-        },
+export function findAvailableAssetsForRecommender(targetCategory: string | undefined) {
+    return prisma.assets.findMany({
+        where: { status: 'AVAILABLE', ...(targetCategory ? { category: targetCategory as Prisma.assetsWhereInput['category'] } : {}) },
         include: {
-            assets: {
-                include: {
-                    asset_returns: {
-                        orderBy: { returned_on: "desc" },
-                        take: 1
-                    }
-                }
+            ...WITH_LAB,
+            projects: { include: { research_centers: true } },
+            asset_loans: {
+                where: { status: asset_loans_status.RETURNED, closed_at: { not: null } },
+                orderBy: { closed_at: 'desc' },
+                take: 1,
             },
-            projects: {
-                include: {
-                    research_centers: true
-                }
-            }
-        }
+        },
+        orderBy: { asset_id: 'asc' },
     });
 }
 
@@ -62,29 +58,16 @@ export function findActiveRecordsForRecommender(targetCategory: string | undefin
 // Staff: location status and inspection progress
 // ---------------------------------------------------------------------------
 
-/** Every asset with its newest record. */
-// TODO(M-09): newest record by date_logged alone, as above. Phase 3.
-export function findAssetsWithLatestRecord() {
-    return prisma.assets.findMany({
-        include: {
-            asset_records: {
-                orderBy: { date_logged: 'desc' },
-                take: 1
-            }
-        }
-    });
+/** Every asset with its home lab. */
+export function findAssetsWithLab() {
+    return prisma.assets.findMany({ include: WITH_LAB, orderBy: { asset_id: 'asc' } });
 }
 
-/** Every research center with its projects and every record of each project, history included. */
-export function findCentersWithProjectRecords() {
+/** Every research center with its assets' statuses. */
+export function findCentersWithAssetStatuses() {
     return prisma.research_centers.findMany({
-        include: {
-            projects: {
-                include: {
-                    asset_records: true
-                }
-            }
-        }
+        include: { assets: { select: { status: true } } },
+        orderBy: { center_id: 'asc' },
     });
 }
 
@@ -92,9 +75,9 @@ export function findCentersWithProjectRecords() {
 // Director dashboard
 // ---------------------------------------------------------------------------
 
-/** The sum of every asset's acquisition value, disposed assets included. */
+/** The sum of every asset's acquisition value, retired assets included. */
 export function sumAcquisitionValue() {
-    return prisma.asset_monetary.aggregate({
+    return prisma.assets.aggregate({
         _sum: { acquisition_value: true }
     });
 }
@@ -102,42 +85,32 @@ export function sumAcquisitionValue() {
 /** How many disposals are pending, in any of three spellings. */
 export function countPendingDisposals() {
     // The status column is free text, and older rows were written in other letter cases. (H-07)
-    return prisma.asset_disposals.count({
-        where: { status: { in: ['pending', 'Pending', 'PENDING'] } }
+    return prisma.asset_retirements.count({
+        where: { status: asset_retirements_status.PENDING }
     });
 }
 
-/** Acquisition value and asset count per funding source. */
+/** Acquisition value and asset count per funding source, with the funding sources' names. */
 export function groupValueByFundingSource() {
-    return prisma.asset_monetary.groupBy({
-        by: ['funding_source'],
-        _sum: { acquisition_value: true },
-        _count: { asset_id: true }
-    });
+    return Promise.all([
+        prisma.assets.groupBy({
+            by: ['funding_source_id'],
+            _sum: { acquisition_value: true },
+            _count: { asset_id: true },
+        }),
+        prisma.funding_sources.findMany(),
+    ]);
 }
 
 /**
- * Asset records, newest first, optionally limited to a location and a date range.
- * A date that does not parse is left out of the range. With a range, an asset counts by its newest record inside it.
+ * The assets the Director's location counts are built from, with their home lab.
  *
- * @param locationContains text the location must contain, or null for every location
- * @param startDate earliest date_logged, or null
- * @param endDate latest date_logged, or null
+ * @param labCode the home lab's short code, or null for every lab
  */
-export function findRecordsForDirector(locationContains: string | null, startDate: Date | null, endDate: Date | null) {
-    const recordsWhere: any = {};
-    if (locationContains) {
-        recordsWhere.location = { contains: locationContains };
-    }
-    if (startDate || endDate) {
-        recordsWhere.date_logged = {};
-        if (startDate && !isNaN(startDate.getTime())) recordsWhere.date_logged.gte = startDate;
-        if (endDate && !isNaN(endDate.getTime())) recordsWhere.date_logged.lte = endDate;
-    }
-
-    return prisma.asset_records.findMany({
-        where: Object.keys(recordsWhere).length > 0 ? recordsWhere : undefined,
-        orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }]
+export function findAssetsForDirector(labCode: string | null) {
+    return prisma.assets.findMany({
+        where: labCode ? { research_centers: { short_code: labCode } } : undefined,
+        include: WITH_LAB,
     });
 }
 
@@ -145,21 +118,21 @@ export function findRecordsForDirector(locationContains: string | null, startDat
 export function findReportsForDirector(startDate: Date | null, endDate: Date | null) {
     const reportsWhere: any = {};
     if (startDate || endDate) {
-        reportsWhere.report_date = {};
-        if (startDate && !isNaN(startDate.getTime())) reportsWhere.report_date.gte = startDate;
-        if (endDate && !isNaN(endDate.getTime())) reportsWhere.report_date.lte = endDate;
+        reportsWhere.inspected_at = {};
+        if (startDate && !isNaN(startDate.getTime())) reportsWhere.inspected_at.gte = startDate;
+        if (endDate && !isNaN(endDate.getTime())) reportsWhere.inspected_at.lte = endDate;
     }
 
-    return prisma.asset_reports.findMany({
+    return prisma.asset_inspections.findMany({
         where: Object.keys(reportsWhere).length > 0 ? reportsWhere : undefined,
-        orderBy: { report_date: 'asc' }
+        orderBy: { inspected_at: 'asc' }
     });
 }
 
 // ---------------------------------------------------------------------------
 // Lab Head dashboard
 // ---------------------------------------------------------------------------
-// A lab's assets are the ones whose tag starts with "<prefix>-": the tag prefix is how the server scopes labs today. (M-03)
+// A lab's assets are the ones whose home lab (assets.center_id) has this short code.
 
 /**
  * Loans of the lab's assets, newest first, each with its asset and borrower.
@@ -171,72 +144,40 @@ export function findReportsForDirector(startDate: Date | null, endDate: Date | n
 export function findLoansForLabHead(prefixFilter: string, startDate: Date | null, endDate: Date | null) {
     const loanWhere: any = {};
     if (startDate || endDate) {
-        loanWhere.loaned_on = {};
-        if (startDate && !isNaN(startDate.getTime())) loanWhere.loaned_on.gte = startDate;
-        if (endDate && !isNaN(endDate.getTime())) loanWhere.loaned_on.lte = endDate;
+        loanWhere.requested_at = {};
+        if (startDate && !isNaN(startDate.getTime())) loanWhere.requested_at.gte = startDate;
+        if (endDate && !isNaN(endDate.getTime())) loanWhere.requested_at.lte = endDate;
     }
     if (prefixFilter) {
-        loanWhere.assets = {
-            asset_tag: { startsWith: `${prefixFilter}-` }
-        };
+        loanWhere.assets = { research_centers: { short_code: prefixFilter } };
     }
 
     return prisma.asset_loans.findMany({
         where: Object.keys(loanWhere).length > 0 ? loanWhere : undefined,
         include: { assets: true, users: true },
-        orderBy: { loaned_on: 'desc' }
+        orderBy: { requested_at: 'desc' }
     });
 }
 
-/**
- * Transfers of the lab's assets, newest first, each with its asset.
- *
- * @param prefixFilter the lab prefix, or "" for every transfer (the EQ- pool included)
- * @param startDate earliest requested_on, or null
- * @param endDate latest requested_on, or null
- */
-export function findTransfersForLabHead(prefixFilter: string, startDate: Date | null, endDate: Date | null) {
-    const transferWhere: any = {};
-    if (startDate || endDate) {
-        transferWhere.requested_on = {};
-        if (startDate && !isNaN(startDate.getTime())) transferWhere.requested_on.gte = startDate;
-        if (endDate && !isNaN(endDate.getTime())) transferWhere.requested_on.lte = endDate;
-    }
-    if (prefixFilter) {
-        transferWhere.assets = {
-            asset_tag: { startsWith: `${prefixFilter}-` }
-        };
-    }
-
-    return prisma.asset_transfers.findMany({
-        where: Object.keys(transferWhere).length > 0 ? transferWhere : undefined,
-        include: { assets: true },
-        orderBy: { requested_on: 'desc' }
-    });
+/** The research center with this id, or null: the lab a Lab Head heads. */
+export function findLab(centerId: number) {
+    return prisma.research_centers.findUnique({ where: { center_id: centerId } });
 }
 
-/** The lab's assets: tags starting with "<prefixFilter>-", or, with no prefix, every asset outside the EQ- central pool. */
+/** The lab's assets: those whose home lab has this short code, or, with no lab, every asset outside the EQ- central pool. */
 function labAssetWhere(prefixFilter: string) {
     const assetWhere: any = {};
     if (prefixFilter) {
-        assetWhere.asset_tag = { startsWith: `${prefixFilter}-` };
+        assetWhere.research_centers = { short_code: prefixFilter };
     } else {
         assetWhere.NOT = { asset_tag: { startsWith: 'EQ-' } };
     }
     return assetWhere;
 }
 
-/** The lab's assets, each with its newest record. The date range does not apply. */
-export function findLabAssetsWithLatestRecord(prefixFilter: string) {
-    return prisma.assets.findMany({
-        where: labAssetWhere(prefixFilter),
-        include: {
-            asset_records: {
-                orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }],
-                take: 1
-            }
-        }
-    });
+/** The lab's assets. The date range does not apply. */
+export function findLabAssets(prefixFilter: string) {
+    return prisma.assets.findMany({ where: labAssetWhere(prefixFilter) });
 }
 
 /** The lab's asset count per category, largest first. */
@@ -256,29 +197,14 @@ export function findProjectsWithCenter() {
     });
 }
 
-/** Every loan of the lab's assets (any status, no date range), oldest due date first, with the asset's newest record and the borrower. */
+/** Every loan of the lab's assets (any status, no date range), oldest due date first, with the asset and the borrower. */
 export function findLoansForDelinquency(prefixFilter: string) {
-    const delinquencyWhere: any = {};
-    if (prefixFilter) {
-        delinquencyWhere.assets = { asset_tag: { startsWith: `${prefixFilter}-` } };
-    } else {
-        delinquencyWhere.assets = { NOT: { asset_tag: { startsWith: 'EQ-' } } };
-    }
+    const delinquencyWhere: any = { assets: labAssetWhere(prefixFilter) };
 
     return prisma.asset_loans.findMany({
         where: delinquencyWhere,
-        include: {
-            assets: {
-                include: {
-                    asset_records: {
-                        orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }],
-                        take: 1
-                    }
-                }
-            },
-            users: true
-        },
-        orderBy: { due_date: 'asc' }
+        include: { assets: true, users: true },
+        orderBy: { return_by: 'asc' }
     });
 }
 
@@ -288,22 +214,20 @@ export function findLoansForDelinquency(prefixFilter: string) {
 
 /** Every repair ticket, newest first, with its asset and reporter. */
 export function findRepairsWithAssetAndReporter() {
-    return prisma.asset_repairs.findMany({
+    return prisma.asset_maintenance.findMany({
         include: { assets: true, users: true },
-        orderBy: { created_at: 'desc' }
+        orderBy: { reported_at: 'desc' }
     });
 }
 
-/** Every asset record, newest first, ties broken by the higher asset_record_id. */
-export function findAllRecordsNewestFirst() {
-    return prisma.asset_records.findMany({
-        orderBy: [{ date_logged: 'desc' }, { asset_record_id: 'desc' }]
-    });
+/** The condition now of every asset: its newest TSG inspection. */
+export function findCurrentConditions() {
+    return assetState.conditionsFor(prisma, null);
 }
 
-/** Every asset. */
+/** Every asset with its home lab. */
 export function findAllAssets() {
-    return prisma.assets.findMany();
+    return prisma.assets.findMany({ include: WITH_LAB, orderBy: { asset_id: 'asc' } });
 }
 
 /** Every asset with a warranty expiry, soonest first. */

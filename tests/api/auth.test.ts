@@ -16,15 +16,15 @@ const asCustodian = as(USERS.custodianA);
 const EXPECTED_ROLES: { user: TestUser; role: string; staffUnit: string | null }[] = [
   { user: USERS.admin, role: "Staff", staffUnit: "ITS" },
   { user: USERS.secretary, role: "Staff", staffUnit: "ITS" },
-  { user: USERS.staffIts, role: "Staff", staffUnit: "ITS" },
+  { user: USERS.staffIts, role: "Staff", staffUnit: "TSG" },
   { user: USERS.staffTsg, role: "Staff", staffUnit: "TSG" },
   { user: USERS.director, role: "AdRICDirector", staffUnit: null },
   { user: USERS.labHead, role: "LabHead", staffUnit: null },
   { user: USERS.custodianA, role: "Custodian", staffUnit: null },
 ];
 
-/** The lab the server reports: the account's lab code, or CITe4D for an account with no lab. */
-const labOf = (user: TestUser) => (user.inLab ? LAB.shortCode : "CITe4D");
+/** The labs the server reports: every lab the account is linked to, and none ([]) for an account with no lab. */
+const labsOf = (user: TestUser) => (user.inLab ? [{ centerId: LAB.centerId, code: LAB.shortCode, name: LAB.name, campus: LAB.location }] : []);
 
 const profileOf = (user: TestUser) => ({
   userId: user.userId,
@@ -33,7 +33,9 @@ const profileOf = (user: TestUser) => ({
   email: user.email,
   idNumber: user.idNumber,
   userType: user.userType,
-  labAffiliation: labOf(user),
+  labs: labsOf(user),
+  headOf: user === USERS.labHead ? { centerId: LAB.centerId, code: LAB.shortCode } : null,
+  accountStatus: "ACTIVE",
 });
 
 describe("POST /api/auth/login", () => {
@@ -47,17 +49,44 @@ describe("POST /api/auth/login", () => {
     },
   );
 
-  it("maps ITS_STAFF to Staff with unit ITS (M-11, the Phase 2 check the team asked for)", async () => {
+  it("maps a former ITS_STAFF account, moved to TSG_STAFF by the rename migration, to Staff with unit TSG", async () => {
     const res = await api.post("/api/auth/login", { email: USERS.staffIts.email, password: USERS.staffIts.password });
 
     expect(res.body.role).toBe("Staff");
-    expect(res.body.user.staffUnit).toBe("ITS");
+    expect(res.body.user.staffUnit).toBe("TSG");
   });
 
-  it("answers labAffiliation CITe4D for an account linked to no lab", async () => {
+  it("answers no lab, and no CITe4D default, for an account linked to no lab", async () => {
     const res = await api.post("/api/auth/login", { email: USERS.director.email, password: USERS.director.password });
 
-    expect(res.body.user.labAffiliation).toBe("CITe4D");
+    expect(res.body.user.labs).toEqual([]);
+    expect(res.body.user).not.toHaveProperty("labAffiliation");
+  });
+
+  it("lists every lab of an account in two labs, and the lab it heads", async () => {
+    const second = await db.research_centers.create({ data: { name: "Test Second Lab", short_code: "TESTB2", location: "LAGUNA" } });
+    await db.user_centers.create({ data: { user_id: USERS.labHead.userId, center_id: second.center_id } });
+    try {
+      const res = await api.post("/api/auth/login", { email: USERS.labHead.email, password: USERS.labHead.password });
+
+      expect(res.body.user.labs.map((l: { code: string }) => l.code)).toEqual([LAB.shortCode, "TESTB2"]);
+      expect(res.body.user.headOf).toEqual({ centerId: LAB.centerId, code: LAB.shortCode });
+    } finally {
+      await db.user_centers.deleteMany({ where: { center_id: second.center_id } });
+      await db.research_centers.delete({ where: { center_id: second.center_id } });
+    }
+  });
+
+  it.each(["PENDING", "INACTIVE", "REJECTED"] as const)("answers 403 for a %s account with the right password, and sets no cookie", async (status) => {
+    await db.users.update({ where: { user_id: USERS.custodianB.userId }, data: { account_status: status } });
+    try {
+      const res = await api.post("/api/auth/login", { email: USERS.custodianB.email, password: USERS.custodianB.password });
+
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ success: false, error: "This account is not active. Contact the IT Admin." });
+    } finally {
+      await db.users.update({ where: { user_id: USERS.custodianB.userId }, data: { account_status: "ACTIVE" } });
+    }
   });
 
   it("answers 400 when the email or the password is missing", async () => {
@@ -150,7 +179,7 @@ describe("GET /api/auth/me", () => {
       const res = await as(user).get("/api/auth/me");
 
       expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ success: true, user: { ...profileOf(user), role, staffUnit } });
+      expect(res.body).toMatchObject({ success: true, user: { ...profileOf(user), role, staffUnit, roleLabel: role === "Custodian" ? "Researcher" : expect.any(String) } });
     },
   );
 
@@ -184,7 +213,7 @@ describe("PUT /api/auth/account", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       success: true,
-      user: { userId: USERS.custodianB.userId, firstName: "Renamed", lastName: "Custodian B", email: USERS.custodianB.email, labAffiliation: LAB.shortCode },
+      user: { userId: USERS.custodianB.userId, firstName: "Renamed", lastName: "Custodian B", email: USERS.custodianB.email, labs: labsOf(USERS.custodianB) },
     });
     const row = await userRow(USERS.custodianB.userId);
     expect(row.first_name).toBe("Renamed");
@@ -259,7 +288,7 @@ describe("PUT /api/auth/account", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(res.body.user.labAffiliation).toBe(LAB.shortCode);
+    expect(res.body.user.labs).toEqual(labsOf(USERS.custodianA));
     const links = await labLinks(USERS.custodianA.userId);
     expect(links.map((l) => l.center_id)).toEqual([LAB.centerId]);
   });
@@ -270,7 +299,7 @@ describe("PUT /api/auth/account", () => {
       const me = await as(user).get("/api/auth/me");
 
       expect(res.status).toBe(200);
-      expect(res.body.user.labAffiliation, user.role).toBe(me.body.user.labAffiliation);
+      expect(res.body.user.labs, user.role).toEqual(me.body.user.labs);
     }
     expect(await labLinks(USERS.staffTsg.userId)).toEqual([]);
   });

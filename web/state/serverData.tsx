@@ -10,9 +10,8 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import * as loansApi from "../api/loans.api";
 import * as assetsApi from "../api/assets.api";
-import * as transfersApi from "../api/transfers.api";
-import * as repairsApi from "../api/repairs.api";
-import * as disposalsApi from "../api/disposals.api";
+import * as maintenanceApi from "../api/maintenance.api";
+import * as retirementsApi from "../api/retirements.api";
 import * as inspectionsApi from "../api/inspections.api";
 import * as authApi from "../api/auth.api";
 import type { ApiResult } from "../api/client";
@@ -29,7 +28,7 @@ const REGISTRATION_READERS: Role[] = ["LabHead"];
 // refreshSharedLists() skips a reload that started less than this long ago, or is still running.
 const RECENT_SYNC_MS = 5000;
 
-/** A repair ticket as `GET /api/asset_repairs` returns it, and as the repair forms build one to send. */
+/** A repair ticket as `GET /api/maintenance` returns it, and as the repair forms build one to send. */
 export interface RepairRequest {
   id: string;
   assetId: string;
@@ -68,7 +67,7 @@ export function holderLabel(name: string | undefined, hidden?: boolean): string 
 }
 
 /** One asset as `GET /api/assets` returns it for display. */
-// TODO(H-13): the server also sends fields that are not declared here (asset_transfers, asset_reports, asset_monetary). The real shape belongs in shared/types. Step 12.
+// TODO(H-13): the server also sends fields that are not declared here (asset_reports and the contract fields). The real shape is AssetListItem in shared/types/assets.ts.
 export interface Asset {
   /** The asset tag, for example "CITe4D-0004". Not the numeric database id. */
   id: string;
@@ -83,10 +82,19 @@ export interface Asset {
   warranty: string;
   location: string;
   lab: string;
-  /** Display status, for example "Active", "On Loan", "Maintenance", "Overdue", or "Disposed". */
+  /** One of the six asset statuses, for example "ON_LOAN". */
   status: string;
-  /** Health score from 0 to 100. */
-  condition: number;
+  /** The status's label, for example "On Loan". */
+  statusLabel: string;
+  /** The newest TSG inspection's condition, or null when TSG never inspected it. */
+  condition: string | null;
+  /** The newest TSG inspection's health score, 0 to 100, or null. */
+  healthScore: number | null;
+  /** True when the asset is on loan past its return-by date. */
+  isOverdue: boolean;
+  /** "<lab short code>, <room>", "<lab short code>", or "TSG Office"; null when Missing or Retired. */
+  currentLocation: string | null;
+  assetCondition?: string;
   descriptiveCondition?: string;
   custodian?: string;
   /** The holder's user id, sent with `custodian`. Screens match people by it. (issue #32) */
@@ -158,7 +166,6 @@ interface ServerDataContextType {
   addPendingRegistration: (req: PendingRegistration) => void;
   approveRegistration: (reqOrId: string | PendingRegistration) => Promise<ApiResult>;
   rejectRegistration: (requestId: string) => Promise<void>;
-  dbTransfers: any[];
   dbReports: any[];
   dbLoans: any[];
   isDbLoading: boolean;
@@ -177,13 +184,13 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  *
  * What it shares, and the api function behind each:
  * - `assets`: assetsApi.listAssets. `assetsVersion`: goes up by one each time a new asset list is stored.
- * - `repairRequests`, `unacknowledgedCount`: repairsApi.listRepairs.
- * - `addRepairRequest(req)`: repairsApi.requestRepairRaw. `acknowledgeRepair(id)` and
- *   `updateRepairStatus(id, status)`: repairsApi.updateRepairRaw. Each reloads afterwards.
+ * - `repairRequests`, `unacknowledgedCount`: maintenanceApi.listRepairs.
+ * - `addRepairRequest(req)`: maintenanceApi.requestRepairRaw. `acknowledgeRepair(id)` and
+ *   `updateRepairStatus(id, status)`: maintenanceApi.updateRepairRaw. Each reloads afterwards.
  * - `dbLoans`: loansApi.listLoans. `reloadLoans()`: reloads only this list and returns the answer.
  *   `authorizeLoan(loanId, decision)`: loansApi.decideLoan.
- * - `dbTransfers`: transfersApi.listTransfers. `dbReports`: inspectionsApi.listReportSummaries.
- * - `pendingDisposals`: disposalsApi.listDisposals, pending ones only.
+ * - `dbReports`: inspectionsApi.listReportSummaries.
+ * - `pendingDisposals`: retirementsApi.listDisposals, pending ones only.
  * - `pendingRegistrations`, `approveRegistration`, `rejectRegistration`: authApi.
  * - `isDbLoading`: true while a reload is running. `syncFromDb()`: runs one.
  * - `refreshSharedLists()`: runs one too, unless one is running or started in the last few seconds.
@@ -203,7 +210,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   const [assets, setAssets] = useState<Asset[]>([]);
   // Lets a screen tell whether the list reloaded after a moment it remembers (the asset detail modal). (issue #89)
   const [assetsVersion, setAssetsVersion] = useState(0);
-  const [dbTransfers, setDbTransfers] = useState<any[]>([]);
   const [dbReports, setDbReports] = useState<any[]>([]);
   const [dbLoans, setDbLoans] = useState<any[]>([]);
   const [pendingDisposals, setPendingDisposals] = useState<PendingDisposal[]>([]);
@@ -236,25 +242,16 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
           setAssets(jsonAssets.assets);
           setAssetsVersion(v => v + 1);
           doneAssetTags = jsonAssets.assets
-            .filter((a: Asset) => a.status === "Active" || a.status === "Disposed")
+            .filter((a: Asset) => a.status === "AVAILABLE" || a.status === "RETIRED")
             .map((a: Asset) => a.id);
-          // First guess at transfers and reports from the rows inside each asset.
-          // The two dedicated requests below replace them when they succeed.
-          const allTransfers = jsonAssets.assets.flatMap((a: any) => a.asset_transfers || []);
+          // First guess at the reports from the rows inside each asset. The dedicated request below replaces
+          // them when it succeeds.
           const allReports = jsonAssets.assets.flatMap((a: any) => a.asset_reports || []);
-          if (allTransfers.length > 0) setDbTransfers(allTransfers);
           if (allReports.length > 0) setDbReports(allReports);
         }
       } catch (e) {
         console.error("Failed to fetch live assets from API:", e);
       }
-
-      try {
-        const jsonT = await transfersApi.listTransfers();
-        if (jsonT.success && Array.isArray(jsonT.transfers)) {
-          setDbTransfers(jsonT.transfers);
-        }
-      } catch (e) {}
 
       if (role && REPORT_READERS.includes(role)) {
         try {
@@ -271,7 +268,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
       if (role && DISPOSAL_READERS.includes(role)) {
         try {
-          const jsonD: any = await disposalsApi.listDisposals();
+          const jsonD: any = await retirementsApi.listDisposals();
           if (jsonD.success && Array.isArray(jsonD.disposals)) {
             // The endpoint returns decided disposals too. Only pending ones are kept,
             // so one that was just approved or rejected leaves the bell. (H-01)
@@ -289,7 +286,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       }
 
       try {
-        const data = await repairsApi.listRepairs();
+        const data = await maintenanceApi.listRepairs();
         if (data.success && Array.isArray(data.repairs)) {
           setRepairRequests(data.repairs);
         }
@@ -318,9 +315,8 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   // and the custodian condition report). RepairForm posts its ticket itself. (M-07)
   const addRepairRequest = async (req: RepairRequest) => {
     try {
-      await repairsApi.requestRepairRaw(req.assetId, {
+      await maintenanceApi.requestRepairRaw(req.assetId, {
         description: req.description,
-        isImmediate: req.priority === "Critical" || req.statusLabel === "Disposal Recommendation",
       });
     } catch (e) {
       console.error("Failed to post repair request to DB API:", e);
@@ -334,7 +330,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     const numericId = parseInt(id.replace(/^MNT-/, ""), 10);
     if (!isNaN(numericId)) {
       try {
-        await repairsApi.updateRepairRaw(numericId, { progressStatus: "Inspection Phase" });
+        await maintenanceApi.updateRepairRaw(numericId, { progressStatus: "Inspection Phase" });
       } catch (e) {
         console.error("Failed to acknowledge repair in DB API:", e);
       }
@@ -346,7 +342,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     const numericId = parseInt(id.replace(/^MNT-/, ""), 10);
     if (!isNaN(numericId)) {
       try {
-        await repairsApi.updateRepairRaw(numericId, { progressStatus: statusLabel });
+        await maintenanceApi.updateRepairRaw(numericId, { progressStatus: statusLabel });
       } catch (e) {
         console.error("Failed to update repair status in DB API:", e);
       }
@@ -364,7 +360,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     if (!role) {
       setAssets([]);
       setRepairRequests([]);
-      setDbTransfers([]);
       setDbReports([]);
       setDbLoans([]);
       setPendingDisposals([]);
@@ -449,7 +444,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
         unacknowledgedCount,
         pendingDisposals,
         pendingRegistrations, addPendingRegistration, approveRegistration, rejectRegistration,
-        dbTransfers, dbReports, dbLoans,
+        dbReports, dbLoans,
         isDbLoading,
         syncFromDb, refreshSharedLists, reloadLoans, authorizeLoan
       }}

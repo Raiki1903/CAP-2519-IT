@@ -5,7 +5,8 @@
  * Used by: Custodian condition report (CustodianPortal), Staff inspection finalize (InspectionQueue),
  * the Staff inspection log, and state/serverData.tsx.
  */
-import type { asset_reports } from '@prisma/client';
+import { asset_inspections_type, type asset_inspections } from '@prisma/client';
+import type { SessionIdentity } from '@shared/types/auth';
 import type { InspectionReportInput, InspectionReportItem, ReportSummaryItem } from '@shared/types/inspections';
 import * as inspectionsRepository from './inspections.repository';
 import * as assetsRepository from '../assets/assets.repository';
@@ -13,20 +14,20 @@ import { readInspectionReport } from './inspections.validation';
 import { AppError } from '../../shared/errors/AppError';
 
 /**
- * Saves an inspection report and writes its condition and remarks onto the asset's newest record,
- * in one transaction. Known inspection defects stay as they are, each marked at its line and pinned by
- * tests/api/inspections.test.ts: the record and reporter defects below.
+ * Saves an inspection report. The asset's condition now is worked out from its newest TSG inspection
+ * (shared/services/assetState.ts), so nothing else is written.
  *
  * @param assetTag the asset's tag from the URL, or its numeric asset_id
  * @param data the request body, its condition already checked by the controller (issue #53); every other field
  * has a fallback. reporterEmail and reportedById are ignored (issue #32)
- * @param reporterId the session user, who files the report
- * @returns the created asset_reports row
+ * @param reporter the session user, who files the report. A TSG report is a routine inspection; anyone else's is
+ * the holder's own report (Self Report), which never changes the asset's condition.
+ * @returns the created asset_inspections row
  * @throws AppError 404 if no asset has this tag (or, for a number, this id)
- * @throws AppError 409 if the asset is disposed
+ * @throws AppError 409 if the asset is retired
  */
-// TODO(H-05): the check and the write are not atomic, so a report filed in the same instant as a disposal approval can pass. Phase 3 database triggers.
-export async function fileReport(assetTag: string, data: InspectionReportInput, reporterId: number): Promise<asset_reports> {
+// TODO(H-05): a report filed in the same instant as a retirement approval can pass the check. Batch 5 files inspections inside the step's transaction.
+export async function fileReport(assetTag: string, data: InspectionReportInput, reporter: SessionIdentity): Promise<asset_inspections> {
     // A tag that is a number is also tried as an asset_id.
     let asset = await assetsRepository.findByTag(assetTag);
     if (!asset && !isNaN(Number(assetTag))) {
@@ -37,80 +38,48 @@ export async function fileReport(assetTag: string, data: InspectionReportInput, 
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
 
-    // A disposed asset is out of use, and the report would rewrite the condition its DISPOSED record keeps.
-    // An asset under maintenance is still accepted: Staff inspect assets in repair on purpose. (issue #88)
-    const latestRecord = await assetsRepository.findLatestRecordStatus(asset.asset_id);
-    if (latestRecord?.status === "DISPOSED") {
-        throw new AppError(409, `${asset.asset_tag} is disposed and cannot take an inspection report.`);
+    // A retired asset is out of use. An asset in maintenance is still accepted: Staff inspect assets in repair on
+    // purpose (issue #88). The routine inspection rule of the lifecycle guard comes with the routine queue, Batch 5.
+    if (asset.status === "RETIRED") {
+        throw new AppError(409, `${asset.asset_tag} is retired and cannot take an inspection report.`);
     }
 
     const { condition, remarks: remarksVal, image: imgVal } = readInspectionReport(data);
 
-    return inspectionsRepository.saveReport(
-        {
-            asset_id: asset.asset_id,
-            reported_by_id: reporterId,
-            report_condition: condition,
-            report_remarks: remarksVal,
-            report_img: imgVal || null,
-        },
-        (latestReport, latestRecord) => {
-            // The asset takes the condition and remarks of its newest report, which is normally this one.
-            const latestCondition = latestReport ? latestReport.report_condition : condition;
-            const latestRemarks = latestReport ? latestReport.report_remarks : remarksVal;
-
-            // TODO(H-14): the newest record is changed in place (it keeps its id and date), so the history loses the condition it had. Append a record instead, Phase 3 with the shared asset state rule.
-            if (latestRecord) {
-                return {
-                    update: {
-                        assetRecordId: latestRecord.asset_record_id,
-                        data: {
-                            asset_condition: latestCondition as any,
-                            Asset_Remarks: latestRemarks,
-                        },
-                    },
-                };
-            }
-            // An asset with no records gets its first one here.
-            // TODO(H-09): "DLSU Campus" and the reporter as custodian are invented values, like the custodian history's made-up first entry. Phase 3.
-            return {
-                create: {
-                    asset_id: asset.asset_id,
-                    status: "ACTIVE",
-                    asset_condition: latestCondition as any,
-                    location: "DLSU Campus",
-                    current_custodian: reporterId,
-                    Asset_Remarks: latestRemarks
-                },
-            };
-        },
-    );
+    return inspectionsRepository.create({
+        asset_id: asset.asset_id,
+        inspected_by_id: reporter.userId,
+        type: reporter.staffUnit === "TSG" ? asset_inspections_type.ROUTINE : asset_inspections_type.SELF_REPORT,
+        condition,
+        remarks: remarksVal,
+        photo: imgVal || null,
+    });
 }
 
 /**
  * Lists every report, newest first, in the short shape (no email, no image).
  *
- * @returns one ReportSummaryItem per asset_reports row
+ * @returns one ReportSummaryItem per asset_inspections row
  */
 export async function listReportSummaries(): Promise<ReportSummaryItem[]> {
     const [dbReports, dbUsers, dbAssets] = await inspectionsRepository.findSummaryLookups();
     return dbReports.map(r => {
-        const rUser = dbUsers.find(u => u.user_id === r.reported_by_id);
+        const rUser = dbUsers.find(u => u.user_id === r.inspected_by_id);
         const asset = dbAssets.find(a => a.asset_id === r.asset_id);
         return {
-            report_id: r.report_id,
-            id: r.report_id,
-            reportId: `RPT-${r.report_id}`,
+            report_id: r.inspection_id,
+            id: r.inspection_id,
+            reportId: `RPT-${r.inspection_id}`,
             asset_id: r.asset_id,
             asset_tag: asset?.asset_tag || `EQ-2024-${r.asset_id}`,
             assetName: asset?.name || "Unknown Asset",
-            reported_by_id: r.reported_by_id,
+            reported_by_id: r.inspected_by_id,
             reportedBy: rUser ? `${rUser.first_name} ${rUser.last_name}` : "Staff",
             // report_date is never null in the schema, so the current-time fallback is not reached.
-            report_date: r.report_date ? r.report_date.toISOString() : new Date().toISOString(),
-            reportDate: r.report_date ? r.report_date.toISOString() : new Date().toISOString(),
-            condition: r.report_condition,
-            remarks: r.report_remarks
+            report_date: r.inspected_at ? r.inspected_at.toISOString() : new Date().toISOString(),
+            reportDate: r.inspected_at ? r.inspected_at.toISOString() : new Date().toISOString(),
+            condition: r.condition,
+            remarks: r.remarks
         };
     });
 }
@@ -118,20 +87,20 @@ export async function listReportSummaries(): Promise<ReportSummaryItem[]> {
 /**
  * Lists every report, newest first, in the detailed shape (reporter email and image included).
  *
- * @returns one InspectionReportItem per asset_reports row
+ * @returns one InspectionReportItem per asset_inspections row
  */
 export async function listInspectionReports(): Promise<InspectionReportItem[]> {
     const dbReports = await inspectionsRepository.findAllWithAssetAndReporter();
 
     return dbReports.map(r => ({
-        reportId: r.report_id,
+        reportId: r.inspection_id,
         assetId: r.assets.asset_tag,
         assetName: r.assets.name,
         reportedBy: `${r.users.first_name} ${r.users.last_name}`,
         reporterEmail: r.users.email,
-        reportDate: r.report_date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-        reportCondition: r.report_condition,
-        reportRemarks: r.report_remarks,
-        reportImg: r.report_img
+        reportDate: r.inspected_at.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+        reportCondition: r.condition,
+        reportRemarks: r.remarks,
+        reportImg: r.photo
     }));
 }

@@ -20,21 +20,21 @@ export function submitInspectionRaw(assetTag: string, input: InspectionReportInp
 
 /**
  * Lists inspection reports in the detailed shape (reporter email, image),
- * from `/api/asset-reports`. Used by the Staff inspection log (useInspectionReports).
+ * from `/api/inspections/log`. Used by the Staff inspection log (useInspectionReports).
  *
  * @returns `success` and `reports`
  */
 // TODO(L-07): two list endpoints with two spellings and two shapes. Kept in step 12 as decided; merging them is its own commit, with both callers.
 export function listInspectionReports(): Promise<ApiResult> {
-  return apiGet("/api/asset-reports");
+  return apiGet("/api/inspections/log");
 }
 
 /**
  * Lists inspection reports in the short shape (no email, no image), from
- * `/api/asset_reports`. Used by state/serverData.tsx on every reload.
+ * `/api/inspections`. Used by state/serverData.tsx on every reload.
  *
  * @returns `success` and `reports`
  */
 export function listReportSummaries(): Promise<ApiResult> {
-  return apiGet("/api/asset_reports");
+  return apiGet("/api/inspections");
 }

@@ -1,7 +1,7 @@
 /**
- * Director analytics: portfolio value, location and status, funding, cross-campus transfers, and utilization widgets.
+ * Director analytics: portfolio value, location and status, funding, and utilization widgets.
  * Layer: feature component. Called by pages/director/AdRICDirectorDashboard.tsx (analytics tab).
- * Calls: api/analytics.api.ts getDirectorAnalytics(), state/serverData.tsx (assets, reports, transfers, loans, pending disposals).
+ * Calls: api/analytics.api.ts getDirectorAnalytics(), state/serverData.tsx (assets, reports, loans, pending disposals).
  * Used by: AdRIC Director.
  */
 import React, { useState, useEffect, useMemo } from "react";
@@ -136,7 +136,7 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
       return apiData.totalPortfolioValue;
     }
     return filteredAssets.reduce((sum, asset) => {
-      const val = Number(asset.asset_monetary?.acquisition_value || asset.cost || asset.acquisition_value || 0);
+      const val = Number(asset.cost || asset.acquisition_value || 0);
       return sum + val;
     }, 0);
   }, [apiData, filteredAssets]);
@@ -370,12 +370,12 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
     });
   }, [dbAssetsList, selectedLabFilter]);
 
-  // Task 1: Group assets by asset.asset_monetary?.funding_source and sum monetary values
+  // Task 1: Group assets by funding source and sum their values
   const outer = useMemo(() => {
     const map: Record<string, number> = {};
     filteredAssets.forEach(a => {
-      const fund = a.asset_monetary?.funding_source || a.funding || "DLSU University";
-      const val = Number(a.asset_monetary?.acquisition_value || a.cost || a.acquisition_value || 0);
+      const fund = a.funding || "DLSU University";
+      const val = Number(a.cost || a.acquisition_value || 0);
       map[fund] = (map[fund] || 0) + val;
     });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
@@ -385,7 +385,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
     const map: Record<string, number> = {};
     filteredAssets.forEach(a => {
       const cat = a.category || "General Equipment";
-      const val = Number(a.asset_monetary?.acquisition_value || a.cost || a.acquisition_value || 0);
+      const val = Number(a.cost || a.acquisition_value || 0);
       map[cat] = (map[cat] || 0) + val;
     });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
@@ -500,391 +500,15 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
   );
 };
 
-// 2. Cross-Campus Transfer Flow (Dynamic Sankey Diagram built strictly from active dbTransfers)
-/** Flow diagram of transfers between campuses, from the shared transfer and asset lists. Takes no props. */
-export const CampusTransferFlow: React.FC = () => {
-  const { dbTransfers, assets } = useServerData();
-  const [hoveredFlow, setHoveredFlow] = useState<string | null>(null);
-  const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
-
-  // 1. Filter valid transfers (approved or completed)
-  const validTransfers = useMemo(() => {
-    const rawTransfers = dbTransfers || [];
-    const filtered = rawTransfers.filter(t => {
-      const st = (t.status || "").toLowerCase();
-      return st === "approved" || st === "completed" || st === "approved & sent";
-    });
-    return filtered.length > 0 ? filtered : rawTransfers;
-  }, [dbTransfers]);
-
-  // 2. Group transfers by [Source Lab, Target Lab] pair and build ONLY links where count > 0
-  const sankeyData = useMemo(() => {
-    const pairMap: Record<string, { fromLab: string; toLab: string; count: number; rawTransfers: any[] }> = {};
-    const LAGUNA_LABS = ["CAR", "HXIL", "CELT", "CIVI", "MECH"];
-
-    validTransfers.forEach(t => {
-      const originLab = t.lab || (t.assetId && t.assetId.includes("-") ? t.assetId.split("-")[0] : "CITe4D");
-      const isLagunaOrigin = (t.location || "").toLowerCase().includes("laguna") || LAGUNA_LABS.some(l => originLab.toUpperCase().includes(l));
-      const fromLab = t.from_lab || `${isLagunaOrigin ? "Laguna" : "Manila"} - ${originLab} Lab`;
-
-      const destLab = t.destinationLab || t.to_lab || (originLab === "CITe4D" ? "CAR" : "CITe4D");
-      const isLagunaDest = (t.to || "").toLowerCase().includes("laguna") || LAGUNA_LABS.some(l => destLab.toUpperCase().includes(l)) || (t.destinationLab || "").toLowerCase().includes("laguna");
-      const toLab = t.to_lab || `${isLagunaDest ? "Laguna" : "Manila"} - ${destLab} Lab`;
-
-      const key = `${fromLab} -> ${toLab}`;
-      if (!pairMap[key]) {
-        pairMap[key] = { fromLab, toLab, count: 0, rawTransfers: [] };
-      }
-      pairMap[key].count += 1;
-      pairMap[key].rawTransfers.push(t);
-    });
-
-    // STRICT RULE: Only links with value > 0
-    const activePairs = Object.values(pairMap).filter(p => p.count > 0);
-
-    // Build active node lists for left (sources) and right (targets)
-    const sourceLabNames = Array.from(new Set(activePairs.map(p => p.fromLab)));
-    const targetLabNames = Array.from(new Set(activePairs.map(p => p.toLab)));
-
-    // Calculate dynamic diagram height based on total nodes to expand container as needed
-    const maxNodes = Math.max(sourceLabNames.length, targetLabNames.length, 1);
-    const nodeH = 65;
-    const nodeGap = 20;
-    const containerH = Math.max(380, maxNodes * (nodeH + nodeGap) + 40);
-
-    const leftX = 30;
-    const rightX = 660;
-
-    // Dynamic left source nodes
-    const sourceCount = sourceLabNames.length || 1;
-    const sourceTotalH = sourceCount * nodeH + (sourceCount - 1) * nodeGap;
-    const sourceStartY = Math.max(20, Math.floor((containerH - sourceTotalH) / 2));
-
-    const sourceNodes = sourceLabNames.map((name, idx) => {
-      const y = sourceStartY + idx * (nodeH + nodeGap);
-      const totalOut = activePairs.filter(p => p.fromLab === name).reduce((s, p) => s + p.count, 0);
-      return {
-        id: `src-${idx}`,
-        name,
-        x: leftX,
-        y,
-        h: nodeH,
-        total: totalOut,
-        color: name.includes("Laguna") ? "#005A36" : "#1D4ED8"
-      };
-    });
-
-    // Dynamic right target nodes
-    const targetNodes = targetLabNames.map((name, idx) => {
-      const targetCount = targetLabNames.length || 1;
-      const targetTotalH = targetCount * nodeH + (targetCount - 1) * nodeGap;
-      const targetStartY = Math.max(20, Math.floor((containerH - targetTotalH) / 2));
-      const y = targetStartY + idx * (nodeH + nodeGap);
-      const totalIn = activePairs.filter(p => p.toLab === name).reduce((s, p) => s + p.count, 0);
-      return {
-        id: `dest-${idx}`,
-        name,
-        x: rightX,
-        y,
-        h: nodeH,
-        total: totalIn,
-        color: name.includes("Laguna") ? "#005A36" : name.includes("CeHCI") ? "#1D4ED8" : name.includes("CITe4D") ? "#059669" : "#4F46E5"
-      };
-    });
-
-    // Stack ribbons inside source and destination nodes
-    const sourceOffsetMap: Record<string, number> = {};
-    const targetOffsetMap: Record<string, number> = {};
-
-    const links = activePairs.map((pair, idx) => {
-      const srcNode = sourceNodes.find(n => n.name === pair.fromLab);
-      const destNode = targetNodes.find(n => n.name === pair.toLab);
-
-      const srcTotalOut = srcNode?.total || pair.count;
-      const destTotalIn = destNode?.total || pair.count;
-
-      const srcStartOffset = sourceOffsetMap[pair.fromLab] || 0;
-      const destStartOffset = targetOffsetMap[pair.toLab] || 0;
-
-      const h1 = srcNode ? Math.max(14, Math.floor((pair.count / srcTotalOut) * (srcNode.h - 12))) : 24;
-      const h2 = destNode ? Math.max(14, Math.floor((pair.count / destTotalIn) * (destNode.h - 12))) : 24;
-
-      const y1 = srcNode ? srcNode.y + 6 + srcStartOffset : 50;
-      const y2 = destNode ? destNode.y + 6 + destStartOffset : 50;
-
-      sourceOffsetMap[pair.fromLab] = srcStartOffset + h1;
-      targetOffsetMap[pair.toLab] = destStartOffset + h2;
-
-      const items = pair.rawTransfers.map(t => {
-        const assetMatch = assets.find(a => a.id === t.asset_tag || a.id === t.assetId || a.name === t.assetName);
-        return {
-          tag: t.asset_tag || t.assetId || `EQ-2024-${t.asset_id}`,
-          name: t.assetName || assetMatch?.name || "Transferred Asset",
-          custodian: t.to || t.from || "DLSU Custodian",
-          status: t.status === "approved" || t.status === "APPROVED" ? "Approved & Sent" : "Completed"
-        };
-      });
-
-      return {
-        id: `flow-${idx}`,
-        from: pair.fromLab,
-        to: pair.toLab,
-        value: pair.count,
-        y1,
-        h1,
-        y2,
-        h2,
-        colorFrom: srcNode?.color || "#1D4ED8",
-        colorTo: destNode?.color || "#005A36",
-        items
-      };
-    });
-
-    return { sourceNodes, targetNodes, links, containerH };
-  }, [validTransfers, assets]);
-
-  const { sourceNodes, targetNodes, links, containerH } = sankeyData;
-  const selectedFlow = links.find(f => f.id === selectedFlowId);
-  const totalActiveTransfers = links.reduce((s, l) => s + l.value, 0);
-
-  return (
-    <motion.div variants={cardAnimation} initial="hidden" animate="visible">
-      <Card className="border border-border bg-card text-card-foreground shadow-sm rounded-xl">
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <ArrowRightLeft className="w-5 h-5 text-[#005A36]" />
-              <CardTitle className="text-sm font-bold text-foreground">
-                Transfers Between Campuses
-              </CardTitle>
-            </div>
-            <CardDescription className="text-muted-foreground text-xs mt-0.5">
-              Live transfer topology derived from active database records ({totalActiveTransfers} Total Transfers).
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            {selectedFlowId && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedFlowId(null)}
-                className="text-xs text-slate-600 hover:text-slate-900 border-slate-300 font-bold"
-              >
-                Reset Chart View
-              </Button>
-            )}
-            <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50 text-[10px] font-bold">
-              Active Flows: {links.length}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {links.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-8 bg-muted/20 border border-dashed border-border rounded-xl text-center">
-              <AlertTriangle className="w-8 h-8 text-amber-500 mb-2" />
-              <p className="text-xs font-bold text-foreground">
-                No cross-campus transfer activity recorded for the selected parameters.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 transition-all duration-300">
-              {/* Main Dynamic Sankey Flow Diagram */}
-              <div className={selectedFlowId ? "lg:col-span-7 transition-all duration-300" : "lg:col-span-12 transition-all duration-300"}>
-                <div
-                  className="w-full relative bg-muted/10 rounded-xl p-3 border border-border flex items-center justify-center overflow-x-auto transition-all duration-300"
-                  style={{ height: `${containerH}px` }}
-                >
-                  <svg width="100%" height="100%" viewBox={`0 0 850 ${containerH}`} className="w-full h-full">
-                    <defs>
-                      {links.map(f => (
-                        <linearGradient key={f.id} id={`grad-${f.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop
-                            offset="0%"
-                            stopColor={f.colorFrom}
-                            stopOpacity={selectedFlowId ? (selectedFlowId === f.id ? 0.9 : 0.15) : (hoveredFlow === f.id ? 0.85 : 0.45)}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor={f.colorTo}
-                            stopOpacity={selectedFlowId ? (selectedFlowId === f.id ? 0.9 : 0.15) : (hoveredFlow === f.id ? 0.85 : 0.45)}
-                          />
-                        </linearGradient>
-                      ))}
-                    </defs>
-
-                    {/* Sankey Ribbon Curved Paths */}
-                    {links.map(f => {
-                      const x1 = 180;
-                      const x2 = 660;
-                      const isHovered = hoveredFlow === f.id;
-                      const isSelected = selectedFlowId === f.id;
-                      const pathD = `
-                        M ${x1} ${f.y1}
-                        C ${x1 + 200} ${f.y1}, ${x2 - 200} ${f.y2}, ${x2} ${f.y2}
-                        L ${x2} ${f.y2 + f.h2}
-                        C ${x2 - 200} ${f.y2 + f.h2}, ${x1 + 200} ${f.y1 + f.h1}, ${x1} ${f.y1 + f.h1}
-                        Z
-                      `;
-
-                      const midX = (x1 + x2) / 2;
-                      const midY = (f.y1 + f.y2) / 2 + f.h1 / 2;
-
-                      return (
-                        <g
-                          key={f.id}
-                          onMouseEnter={() => setHoveredFlow(f.id)}
-                          onMouseLeave={() => setHoveredFlow(null)}
-                          onClick={() => setSelectedFlowId(prev => (prev === f.id ? null : f.id))}
-                          className="cursor-pointer transition-all"
-                        >
-                          <path
-                            d={pathD}
-                            fill={`url(#grad-${f.id})`}
-                            stroke={isSelected ? "#005A36" : isHovered ? f.colorFrom : "transparent"}
-                            strokeWidth={isSelected ? 3 : isHovered ? 2 : 0}
-                          />
-                          <g transform={`translate(${midX - 52}, ${midY - 11})`}>
-                            <rect
-                              width={104}
-                              height={22}
-                              rx={11}
-                              fill={isSelected ? "#005A36" : "#FFFFFF"}
-                              stroke={isSelected ? "#005A36" : "#CBD5E1"}
-                              strokeWidth={1}
-                              className="shadow-xs transition-all"
-                            />
-                            <text
-                              x={52}
-                              y={14}
-                              textAnchor="middle"
-                              className={`text-[10px] font-extrabold pointer-events-none ${isSelected ? "fill-white" : "fill-slate-800"}`}
-                            >
-                              {f.value} Transfers {isSelected ? "✓" : ""}
-                            </text>
-                          </g>
-                        </g>
-                      );
-                    })}
-
-                    {/* Source Nodes (Left) */}
-                    {sourceNodes.map(src => (
-                      <g key={src.id}>
-                        <rect
-                          x={src.x}
-                          y={src.y}
-                          width={150}
-                          height={src.h}
-                          rx={10}
-                          fill={src.color}
-                          className="shadow-md"
-                        />
-                        <text x={src.x + 75} y={src.y + src.h / 2 - 6} textAnchor="middle" className="text-[11px] font-black fill-white">
-                          {src.name}
-                        </text>
-                        <text x={src.x + 75} y={src.y + src.h / 2 + 12} textAnchor="middle" className="text-[10px] font-extrabold fill-emerald-200">
-                          {src.total} Outgoing Transfers
-                        </text>
-                      </g>
-                    ))}
-
-                    {/* Target Nodes (Right) */}
-                    {targetNodes.map(dest => (
-                      <g key={dest.id}>
-                        <rect
-                          x={dest.x}
-                          y={dest.y}
-                          width={150}
-                          height={dest.h}
-                          rx={10}
-                          fill={dest.color}
-                          className="shadow-md"
-                        />
-                        <text x={dest.x + 75} y={dest.y + dest.h / 2 - 6} textAnchor="middle" className="text-[11px] font-black fill-white">
-                          {dest.name}
-                        </text>
-                        <text x={dest.x + 75} y={dest.y + dest.h / 2 + 12} textAnchor="middle" className="text-[10px] font-extrabold fill-emerald-200">
-                          {dest.total} Incoming Transfers
-                        </text>
-                      </g>
-                    ))}
-                  </svg>
-                </div>
-              </div>
-
-              {/* Manifest Side Panel */}
-              {selectedFlow && (
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  style={{ height: `${containerH}px` }}
-                  className="lg:col-span-5 bg-muted/20 border border-border rounded-xl p-4 flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between border-b border-border pb-3">
-                      <div>
-                        <span className="text-xs font-bold text-[#005A36] uppercase tracking-wider">
-                          Transfer Flow Manifest
-                        </span>
-                        <h4 className="text-xs font-extrabold text-foreground mt-0.5">
-                          {selectedFlow.from} → {selectedFlow.to}
-                        </h4>
-                      </div>
-                      <Badge className="bg-[#005A36] text-white font-bold text-xs">
-                        {selectedFlow.value} Items
-                      </Badge>
-                    </div>
-
-                    <div className="mt-3 space-y-2 max-h-[240px] overflow-y-auto pr-1">
-                      {selectedFlow.items.map((item, idx) => (
-                        <div key={idx} className="p-2.5 bg-card border border-border rounded-lg text-xs flex items-center justify-between shadow-2xs hover:border-[#005A36]/40 transition-colors">
-                          <div>
-                            <div className="font-bold text-foreground">{item.name}</div>
-                            <div className="text-[10px] text-muted-foreground font-mono">{item.tag} • Custodian: {item.custodian}</div>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className="border-emerald-300 text-emerald-700 bg-emerald-50 text-[9px] font-bold shrink-0"
-                          >
-                            {item.status}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-border flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground font-medium">
-                      Showing {selectedFlow.items.length} transferred assets
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedFlowId(null)}
-                      className="text-xs text-[#005A36] hover:bg-emerald-50 font-bold h-7"
-                    >
-                      Close Manifest
-                    </Button>
-                  </div>
-                </motion.div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-};
-
 // 7. Descriptive - Asset Utilization & Procurement Justifier (Maximizable Preview)
 /**
- * Most and least used assets, from the shared asset, transfer, and loan lists.
+ * Most and least used assets, from the shared asset and loan lists.
  *
  * @param selectedLabFilter lab to scope to, or "All Labs"
  */
 export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selectedLabFilter = "All Labs" }) => {
   const [isMaximized, setIsMaximized] = useState(false);
-  const { assets: dbAssetsList, dbTransfers, dbLoans } = useServerData();
+  const { assets: dbAssetsList, dbLoans } = useServerData();
 
   const filteredAssets = useMemo(() => {
     if (selectedLabFilter === "All Labs" || selectedLabFilter === "All") return dbAssetsList;
@@ -899,8 +523,7 @@ export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selecte
   const topAssets = useMemo(() => {
     return filteredAssets.slice(0, 10).map((a, idx) => {
       const loanCount = (dbLoans || []).filter(l => l.asset_id === a.id || l.assetId === a.id || l.asset_tag === a.id || l.asset_tag === a.asset_tag).length;
-      const transferCount = (dbTransfers || []).filter(t => t.asset_id === a.id || t.assetId === a.id || t.asset_tag === a.id).length;
-      const calculatedBorrowCount = loanCount + transferCount + (a.status === "On Loan" || a.status === "ON_LOAN" ? 1 : 0);
+      const calculatedBorrowCount = loanCount + (a.status === "ON_LOAN" ? 1 : 0);
       const borrowCount = Math.max(1, calculatedBorrowCount);
       return {
         assetId: a.id,
@@ -910,7 +533,7 @@ export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selecte
         borrowCount
       };
     }).sort((a, b) => b.borrowCount - a.borrowCount);
-  }, [filteredAssets, dbTransfers, dbLoans]);
+  }, [filteredAssets, dbLoans]);
 
   const previewData = topAssets.slice(0, 3); // Compact Top 3 bars preview
 
@@ -978,7 +601,7 @@ export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selecte
               Procurement Justifier — Complete {topAssets.length}-Item Asset Utilization Ranking
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-              Full institute-wide checkout & transfer frequency log used for university budget defense.
+              Full institute-wide checkout frequency log used for university budget defense.
             </DialogDescription>
           </DialogHeader>
 
@@ -1042,7 +665,7 @@ export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selecte
 // Master AdRIC Director Dashboard Analytics View
 /**
  * The Director's analytics screen: holds the lab and date filters and lays out four widgets
- * (macro and financial, funding, transfer flow, utilization). Takes no props.
+ * (macro and financial, funding, utilization). Takes no props.
  */
 export const DirectorAnalyticsView: React.FC = () => {
   const [selectedLabFilter, setSelectedLabFilter] = useState<string>("All Labs");
@@ -1059,7 +682,7 @@ export const DirectorAnalyticsView: React.FC = () => {
             Analytics
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Value, funding, transfers, and use of assets across AdRIC.
+            Value, funding, and use of assets across AdRIC.
           </p>
         </div>
 
@@ -1113,7 +736,6 @@ export const DirectorAnalyticsView: React.FC = () => {
 
       <FundingValuationWidget selectedLabFilter={selectedLabFilter} />
 
-      <CampusTransferFlow />
 
       <TopUtilizationWidget selectedLabFilter={selectedLabFilter} />
     </div>

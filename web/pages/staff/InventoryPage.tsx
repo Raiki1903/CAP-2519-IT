@@ -1,19 +1,20 @@
 /**
  * Staff Inventory: every asset, in gallery or table view, with search, filters, sorting, and the active and decommissioned sub-tabs.
  * Layer: page. Called by app/routes.tsx at /staff/inventory.
- * Calls: features/assets (useStaffAssets, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx, state/serverData.tsx syncFromDb().
+ * Calls: features/assets (useStaffAssets, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx,
+ * features/lookups/useLookups.ts (the funding filter), state/serverData.tsx syncFromDb().
  * Used by: Staff asset editing, deletion, and disposal requests.
  */
 import { useState } from "react";
 import { useServerData } from "@web/state/serverData";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
+import { useFormLookups } from "@web/features/lookups/useLookups";
 import { AssetGalleryCard } from "@web/features/assets/AssetGalleryCard";
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { EditAssetDialog } from "@web/features/assets/EditAssetDialog";
 import { DeleteAssetDialog } from "@web/features/assets/DeleteAssetDialog";
 import { statusBadgeClass, ConditionState, assetStatusLabel } from "@web/features/assets/assetBadges";
-import { FUNDING_SOURCES } from "@shared/constants/fundingSources";
 import { DisposalFormDialog } from "@web/features/disposals/DisposalFormDialog";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -30,6 +31,7 @@ import { Search, LayoutGrid, Table2, Pencil, Archive, Trash2 } from "lucide-reac
  */
 export function InventoryPage() {
   const { syncFromDb } = useServerData();
+  const { lookups } = useFormLookups();
   const { displayedAssets, fetchDbAssets } = useStaffAssets();
 
   const [search, setSearch] = useState("");
@@ -48,7 +50,8 @@ export function InventoryPage() {
     id: eq.id, name: eq.name, serial: eq.serial, manufacturer: eq.manufacturer,
     category: eq.category, funding: eq.funding, procured: eq.procured,
     warranty: eq.warranty, location: eq.location, currentLocation: eq.currentLocation, lab: eq.lab,
-    status: eq.status, condition: eq.condition, assetCondition: eq.assetCondition, custodian: eq.custodian,
+    status: eq.status, statusLabel: eq.statusLabel, condition: eq.condition, healthScore: eq.healthScore, isOverdue: eq.isOverdue,
+    assetCondition: eq.assetCondition, custodian: eq.custodian,
     description: eq.description || eq.remarks || "No additional Staff remarks recorded.",
     image: eq.image || eq.image_url,
     disposalId: eq.disposalId,
@@ -62,8 +65,8 @@ export function InventoryPage() {
 
     // Decommissioned subtab filtering
     const matchSubTab = inventorySubTab === "disposed"
-      ? eq.status === "Disposed"
-      : eq.status !== "Disposed";
+      ? eq.status === "RETIRED"
+      : eq.status !== "RETIRED";
 
     return matchSearch && matchFunding && matchLoc && matchSubTab;
   });
@@ -73,7 +76,7 @@ export function InventoryPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-foreground mb-1">Asset Inventory</h1>
-          <p className="text-muted-foreground text-sm">{displayedAssets.filter(a => a.status !== "Disposed").length} assets in service across 2 campuses</p>
+          <p className="text-muted-foreground text-sm">{displayedAssets.filter(a => a.status !== "RETIRED").length} assets in service across 2 campuses</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg overflow-hidden border border-border">
@@ -89,13 +92,13 @@ export function InventoryPage() {
           onClick={() => setInventorySubTab("active")}
           className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "active" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
         >
-          In Service ({displayedAssets.filter(a => a.status !== "Disposed").length})
+          In Service ({displayedAssets.filter(a => a.status !== "RETIRED").length})
         </button>
         <button
           onClick={() => setInventorySubTab("disposed")}
           className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "disposed" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
         >
-          Disposed ({displayedAssets.filter(a => a.status === "Disposed").length})
+          Disposed ({displayedAssets.filter(a => a.status === "RETIRED").length})
         </button>
       </div>
 
@@ -107,7 +110,7 @@ export function InventoryPage() {
         <select value={filterFunding} onChange={e => setFilterFunding(e.target.value)}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <option value="All">All Funding Sources</option>
-          {FUNDING_SOURCES.map(f => <option key={f} value={f}>{f}</option>)}
+          {(lookups?.fundingSources ?? []).map(f => <option key={f.fundingSourceId} value={f.name}>{f.name}</option>)}
         </select>
         <select value={filterLoc} onChange={e => setFilterLoc(e.target.value)}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -166,7 +169,7 @@ export function InventoryPage() {
               </TableHeader>
               <TableBody>
                 {sortedAssets.map(eq => (
-                  <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "Disposed" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset(openAsset(eq))}>
+                  <TableRow key={eq.id} className={cn("cursor-pointer transition-colors", eq.status === "RETIRED" ? "opacity-50 grayscale bg-muted/10 hover:bg-muted/20" : "")} onClick={() => setSelectedAsset(openAsset(eq))}>
                     <TableCell><div className="w-10 h-7 rounded overflow-hidden"><AssetImagePlaceholder category={eq.category} aspectRatio="4/3" imageUrl={eq.image || eq.image_url} /></div></TableCell>
                     <TableCell className="font-bold text-primary text-xs">{eq.id}</TableCell>
                     <TableCell className="text-xs font-semibold text-foreground">{eq.name}</TableCell>

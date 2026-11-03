@@ -2,7 +2,7 @@
  * Lab affiliation matcher: strictly compares user lab affiliation with a record lab.
  * Layer: feature helper. Called by NotificationCenter.tsx and LabHeadDashboard.tsx.
  * Calls: nothing.
- * Used by: Lab Head loan and transfer notifications, custody requests. (F-31)
+ * Used by: Lab Head loan notifications and requests. (F-31)
  */
 
 /**
@@ -11,7 +11,7 @@
  * Matches by exact string equality (case-insensitive, trimmed), substring inclusion,
  * or parenthesized short code (for example, "Center for ICT for Development (CITe4D)" matches "CITe4D").
  *
- * @param userLab the user's lab affiliation from session (currentUser?.labAffiliation)
+ * @param userLab the lab the session user heads (currentUser?.headOf?.code)
  * @param lab the record's lab affiliation or destination lab
  * @returns true if the affiliations match, false otherwise
  */

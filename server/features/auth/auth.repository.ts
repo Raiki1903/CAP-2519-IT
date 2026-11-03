@@ -53,19 +53,6 @@ export function findUserByEmail(email: string) {
     return prisma.users.findUnique({ where: { email } });
 }
 
-/**
- * The user with this id when they hold this database role, or null. Used by the asset edit, whose new custodian must
- * be a Custodian account. (issue #95)
- *
- * @param userId the users.user_id
- * @param roleName a roles.role_name value, for example "CUSTODIAN"
- */
-export function findUserWithRole(userId: number, roleName: string) {
-    return prisma.users.findFirst({
-        where: { user_id: userId, user_roles: { some: { roles: { role_name: roleName as any } } } },
-    });
-}
-
 /** The user with this id number, or null. */
 export function findUserByIdNumber(idNumber: number) {
     return prisma.users.findUnique({ where: { id_number: idNumber } });
@@ -113,43 +100,40 @@ export function createUser(data: Prisma.usersUncheckedCreateInput, roleId: numbe
     });
 }
 
-/** The user with this email (trimmed), with their roles and labs, or null. The service checks the password. */
+/** What a profile read includes: the roles, every lab link (by lab code), and the lab the user heads. */
+const PROFILE_INCLUDE = {
+    user_roles: { include: { roles: true } },
+    user_centers: { include: { research_centers: true }, orderBy: { research_centers: { short_code: 'asc' } } },
+    headed_center: { select: { center_id: true, short_code: true } },
+} satisfies Prisma.usersInclude;
+
+/** A user with their roles, labs, and the lab they head. */
+export type UserProfileRow = Prisma.usersGetPayload<{ include: typeof PROFILE_INCLUDE }>;
+
+/** The user with this email (trimmed), with their roles, labs, and the lab they head, or null. The service checks the password. */
 export function findUserForLogin(email: string) {
     return prisma.users.findFirst({
-        where: {
-            email: email.trim()
-        },
-        include: {
-            user_roles: {
-                include: {
-                    roles: true
-                }
-            },
-            user_centers: {
-                include: {
-                    research_centers: true
-                }
-            }
-        }
+        where: { email: email.trim() },
+        include: PROFILE_INCLUDE,
     });
 }
 
-/** The user with this id, with their roles and labs, or null. */
+/** The user with this id, with their roles, labs, and the lab they head, or null. */
 export function findUserProfileById(userId: number) {
     return prisma.users.findUnique({
         where: { user_id: userId },
-        include: {
-            user_roles: { include: { roles: true } },
-            user_centers: { include: { research_centers: true } }
-        }
+        include: PROFILE_INCLUDE,
     });
 }
 
-/** The user with this id and their roles, or null. Read for a session at most once a minute per cookie (sessionCache.ts). */
+/**
+ * The user with this id, their roles, and the lab they head, or null.
+ * Read for a session at most once a minute per cookie (sessionCache.ts).
+ */
 export function findUserRolesById(userId: number) {
     return prisma.users.findUnique({
         where: { user_id: userId },
-        include: { user_roles: { include: { roles: true } } }
+        include: { user_roles: { include: { roles: true } }, headed_center: { select: { center_id: true } } }
     });
 }
 

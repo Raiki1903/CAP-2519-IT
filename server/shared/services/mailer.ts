@@ -1,6 +1,6 @@
 /**
  * Mailer: sends the notification emails (transfer and disposal requests and decisions) through Mailgun.
- * Layer: shared service. Called by features/transfers/transfers.service.ts and features/disposals/disposals.service.ts. Calls config/env.ts and mailgun.js.
+ * Layer: shared service. Called by features/transfers/transfers.service.ts and features/retirements/retirements.service.ts. Calls config/env.ts and mailgun.js.
  * Used by: every workflow that notifies a custodian, Lab Head, Staff, or the Director by email.
  */
 import formData from 'form-data';

@@ -42,7 +42,8 @@ describe("smoke", () => {
         email: USERS.custodianA.email,
         firstName: USERS.custodianA.firstName,
         lastName: USERS.custodianA.lastName,
-        labAffiliation: LAB.shortCode,
+        labs: [{ centerId: LAB.centerId, code: LAB.shortCode, name: LAB.name, campus: LAB.location }],
+        headOf: null,
         staffUnit: null,
       },
     });

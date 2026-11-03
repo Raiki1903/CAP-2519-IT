@@ -16,7 +16,7 @@ export const FORBIDDEN_MESSAGE = "Your role is not allowed to do this.";
  * Builds the check for one route. It checks the app role only. Whose asset it is is checked in the service where a
  * rule needs it (only the holder may request a transfer); whose lab it is waits for lab scoping, after step 14.
  *
- * @param roles the app roles allowed; ADMIN and ADRIC_SECRETARY accounts are "Staff" (auth.service.ts appRoleFor)
+ * @param roles the app roles allowed; IT_ADMIN and ADRIC_SECRETARY accounts are "Staff" (auth.service.ts appRoleFor)
  * @returns middleware that throws AppError 403 FORBIDDEN_MESSAGE for any other role
  */
 export function requireRole(...roles: Role[]) {

@@ -3,7 +3,7 @@
  * Covers every route of the approved 13b role table (docs/phase-1c-restructure/02-restructure-log.md, "Route role table"),
  * POST /api/auth/login and POST /api/auth/logout, and the SESSION_SECRET check in server/config/env.ts.
  * Workflow: every signed-in screen; the table is the specification, so this file restates it on purpose.
- * Fixtures: the seeded accounts (USERS) and ROLE_IDS. Requests use ids and tags that do not exist and empty bodies, so an
+ * Fixtures: the seeded accounts (USERS) and LAB, whose Head the cache test changes. Requests use ids and tags that do not exist and empty bodies, so an
  * allowed request is refused by its handler (400 or 404) and writes nothing. The role-change test puts Custodian B's role back;
  * the deleted-account test creates and removes its own account. The server's 60-second lookup cache runs in the server's
  * process, out of the tests' reach: the cache tests use the module directly with their own clock, and the server tests
@@ -20,7 +20,7 @@ import {
   rememberIdentity,
   SESSION_CACHE_SECONDS,
 } from "../../server/shared/services/sessionCache";
-import { ROLE_IDS, USERS, type TestUser } from "../setup/fixtures";
+import { LAB, USERS, type TestUser } from "../setup/fixtures";
 import { useApiHarness, type ApiClient } from "../setup/harness";
 import { loadTestDatabaseConfig } from "../setup/testDatabase";
 import { startTestServer, TEST_SESSION_SECRET, TEST_WEB_ORIGIN } from "../setup/testServer";
@@ -38,7 +38,8 @@ const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.
 
 /**
  * The approved 13b role table: [row, method, path, roles]. Paths use ids and tags no row has.
- * Row 8, POST /api/auth/register, was deleted with its route (issue #70). Row 41, the custodian list, came with issue #12.
+ * Row 8, POST /api/auth/register, was deleted with its route (issue #70). Rows 29 to 32 (transfers) and 41 (the custodian
+ * list) were deleted with their routes in Batch 1. The Staff account is TSG.
  */
 const ROUTES: [number, string, string, Role[]][] = [
   [3, "GET", "/api/auth/pending-registrations", [L]],
@@ -47,29 +48,24 @@ const ROUTES: [number, string, string, Role[]][] = [
   [6, "GET", "/api/auth/me", ANY],
   [7, "PUT", "/api/auth/account", ANY],
   [9,"GET", "/api/assets", ANY],
-  [10, "GET", "/api/assets/NOPE-9999/custodian-history", ANY],
+  [10, "GET", "/api/assets/NOPE-9999/history", ANY],
   [11, "POST", "/api/assets", [S]],
   [12, "PUT", "/api/assets/NOPE-9999", [S]],
   [13, "DELETE", "/api/assets/NOPE-9999", [S]],
-  [14, "POST", "/api/assets/NOPE-9999/disposal", [S]],
-  [15, "GET", "/api/asset_disposals", [S, D, L]],
-  [16, "PUT", "/api/asset_disposals/999999/decision", [D]],
+  [14, "POST", "/api/assets/NOPE-9999/retirement", [S]],
+  [15, "GET", "/api/retirements", [S, D, L]],
+  [16, "PUT", "/api/retirements/999999/decision", [D]],
   [17, "POST", "/api/assets/NOPE-9999/inspection", [C, S]],
-  [18, "GET", "/api/asset_reports", [S, D]],
-  [19, "GET", "/api/asset-reports", [S]],
-  [20, "GET", "/api/asset_loans", ANY],
+  [18, "GET", "/api/inspections", [S, D]],
+  [19, "GET", "/api/inspections/log", [S]],
+  [20, "GET", "/api/loans", ANY],
   [21, "POST", "/api/assets/NOPE-9999/borrow", [C]],
-  [22, "PUT", "/api/asset_loans/999999/decision", [L]],
-  [23, "POST", "/api/assets/NOPE-9999/repair", [C, L, S]],
-  [24, "GET", "/api/asset_repairs", ANY],
-  [25, "PUT", "/api/asset_repairs/999999", [S]],
-  [26, "PUT", "/api/asset_repairs/999999/status", [S]],
+  [22, "PUT", "/api/loans/999999/decision", [L]],
+  [23, "POST", "/api/assets/NOPE-9999/maintenance", [C, L, S]],
+  [24, "GET", "/api/maintenance", ANY],
+  [25, "PUT", "/api/maintenance/999999", [S]],
+  [26, "PUT", "/api/maintenance/999999/status", [S]],
   [27, "POST", "/api/assets/NOPE-9999/return", [S]],
-  [28, "GET", "/api/asset_returns", [S]],
-  [29, "POST", "/api/assets/NOPE-9999/transfer", [C]],
-  [30, "GET", "/api/asset_transfers", ANY],
-  [31, "PUT", "/api/asset_transfers/999999/decision", [L]],
-  [32, "PUT", "/api/asset_transfers/999999/accept", [C]],
   [33, "GET", "/api/analytics/director", [D]],
   [34, "GET", "/api/analytics/lab-head", [L]],
   [35, "GET", "/api/analytics/tsg", [S]],
@@ -78,7 +74,6 @@ const ROUTES: [number, string, string, Role[]][] = [
   [38, "GET", "/api/analytics/advanced/idle-time", [L]],
   [39, "GET", "/api/analytics/advanced/idle-frequency", [L]],
   [40, "GET", "/api/analytics/advanced/loan-recommender", [L]],
-  [41, "GET", "/api/lookups/users", [S]],
 ];
 
 function send(client: ApiClient, method: string, path: string) {
@@ -214,7 +209,7 @@ describe("requireAuth: who gets a 401", () => {
 
   it("keeps accepting the cookie of an account deleted after login for up to 60 seconds (the lookup cache), and a new login fails", async () => {
     const temp = await db.users.create({
-      data: { first_name: "Test", last_name: "Temporary", email: "temporary@example.test", password: await hashPassword("test-password-temporary"), id_number: 90009999, user_type: "STUDENT" },
+      data: { first_name: "Test", last_name: "Temporary", email: "temporary@example.test", password: await hashPassword("test-password-temporary"), id_number: 90009999, user_type: "STUDENT", account_status: "ACTIVE" },
     });
     const tempUser = { ...USERS.custodianA, userId: temp.user_id, email: temp.email, password: "test-password-temporary" };
     try {
@@ -233,28 +228,28 @@ describe("requireAuth: who gets a 401", () => {
 });
 
 describe("requireRole: the role is read from the database, at most once a minute per cookie", () => {
-  it("keeps a cookie's role for up to 60 seconds after the account's role changes, while a new login gets the new role at once", async () => {
+  it("keeps a cookie's view for up to 60 seconds after the account starts heading a lab, while a new login gets the Lab Head view at once", async () => {
     const cookie = await logIn(USERS.custodianB);
     expect((await withCookie(cookie).get("/api/auth/pending-registrations")).status).toBe(403);
 
-    await db.user_roles.updateMany({ where: { user_id: USERS.custodianB.userId }, data: { role_id: ROLE_IDS.LAB_HEAD } });
+    await db.research_centers.update({ where: { center_id: LAB.centerId }, data: { head_user_id: USERS.custodianB.userId } });
     try {
       expect((await withCookie(cookie).get("/api/auth/pending-registrations")).status, "the old cookie, remembered").toBe(403);
       const fresh = await logIn(USERS.custodianB);
       expect((await withCookie(fresh).get("/api/auth/pending-registrations")).status, "a new cookie, looked up").toBe(200);
     } finally {
-      await db.user_roles.updateMany({ where: { user_id: USERS.custodianB.userId }, data: { role_id: ROLE_IDS.CUSTODIAN } });
+      await db.research_centers.update({ where: { center_id: LAB.centerId }, data: { head_user_id: USERS.labHead.userId } });
     }
     const after = await logIn(USERS.custodianB);
     expect((await withCookie(after).get("/api/auth/pending-registrations")).status).toBe(403);
   });
 
   it.each([USERS.admin, USERS.staffIts, USERS.secretary])(
-    "treats the $role account as Staff: it passes a Staff check and nothing more",
+    "treats the $role account as Staff: it passes a Staff check and nothing more, and only TSG registers an asset",
     async (user) => {
       const client = as(user);
 
-      expect((await client.post("/api/assets", {})).status).toBe(400);
+      expect((await client.post("/api/assets", {})).status).toBe(user.role === "TSG_STAFF" ? 400 : 403);
       expect((await client.get("/api/analytics/tsg")).status).toBe(200);
       const labHeadOnly = await client.get("/api/auth/pending-registrations");
       expect(labHeadOnly.status).toBe(403);
@@ -265,7 +260,7 @@ describe("requireRole: the role is read from the database, at most once a minute
 });
 
 describe("the session lookup cache (server/shared/services/sessionCache.ts), with a test clock", () => {
-  const identity = { userId: 6, role: "Custodian" as const, staffUnit: null };
+  const identity = { userId: 6, role: "Custodian" as const, staffUnit: null, dbRoles: ["RESEARCHER" as const], accountStatus: "ACTIVE" as const, headOfCenterId: null };
   const T0 = 1_000_000_000_000;
 
   it("remembers a lookup for just under 60 seconds and forgets it at 60", () => {
@@ -314,6 +309,12 @@ describe("every route of the approved role table", () => {
         expect(res.status, `${role} is refused`).toBe(403);
         expect(res.body).toEqual({ success: false, error: FORBIDDEN });
       }
+    }
+  });
+
+  it("answers 404 for the transfer routes, removed in Batch 1", async () => {
+    for (const [method, path] of [["POST", "/api/assets/TEST-0001/transfer"], ["GET", "/api/asset_transfers"], ["PUT", "/api/asset_transfers/1/decision"], ["PUT", "/api/asset_transfers/1/accept"]]) {
+      expect((await send(as(USERS.custodianA), method, path)).status, `${method} ${path}`).toBe(404);
     }
   });
 

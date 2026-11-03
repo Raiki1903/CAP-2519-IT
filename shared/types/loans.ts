@@ -14,12 +14,12 @@ export interface LoanRequestInput {
 }
 
 /**
- * The two words PUT /api/asset_loans/:loanId/decision accepts.
+ * The two words PUT /api/loans/:loanId/decision accepts.
  * Transfers accept the same two; disposals use "reject" instead of "decline".
  */
 export type LoanDecision = "approve" | "decline";
 
-/** One row of GET /api/asset_loans. Several fields come in two spellings because different screens read each. */
+/** One row of GET /api/loans. Several fields come in two spellings because different screens read each. */
 export interface LoanListItem {
   /** Display id, "LOAN-<loan_id>". */
   id: string;
@@ -42,12 +42,14 @@ export interface LoanListItem {
   requestedOn: string;
   /** yyyy-mm-dd. */
   dueDate: string;
-  /** "Pending", "Approved", or "Declined". */
+  /** The word the current screens compare against: "Pending", "Approved", "Declined", or "Returned". */
   status: string;
-  /** The borrower's campus, from their research center; "Manila" when they have none. */
+  /** The label of the stored status, for example "Pending Approval" or "On Loan". */
+  statusLabel: string;
+  /** The campus label of the asset's home lab. */
   location: string;
-  /** The asset tag's prefix, which the Lab Head screen uses to show only its own lab's requests. (M-02) */
+  /** The short code of the asset's home lab, which the Lab Head screen uses to show only its own lab's requests. (M-02) */
   lab: string;
-  /** The borrower's research center id; 1 when they have none. */
-  center_id: number;
+  /** The asset's home lab id, or null if the asset is gone. */
+  center_id: number | null;
 }

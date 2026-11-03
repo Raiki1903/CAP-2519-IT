@@ -4,106 +4,57 @@
  * Used by: every role's inventory view, the asset detail modal, Staff asset registration and editing.
  */
 
-/** The body of POST /api/assets, as IntakeWizard sends it. */
-export interface AssetCreateInput {
+/** One inspection inside a request body (docs/contracts/lifecycle.md, InspectionInput). */
+export interface InspectionInput {
+  /** One of ASSET_CONDITIONS, for example "MINOR_DRIFT". */
+  condition: string;
+  /** 0 to 100. */
+  healthScore?: number | null;
+  /** Empty means nothing is missing. */
+  missingAccessories?: string | null;
+  remarks?: string | null;
+  /** A data URL. */
+  photo?: string | null;
+}
+
+/** The master data of an asset: what registration sets and Edit Asset may change. Every field is checked by the server. */
+export interface AssetMasterData {
+  name?: string;
+  serialNumber?: string | null;
+  manufacturer?: string | null;
+  /** One of ASSET_CATEGORIES. */
+  category?: string;
+  /** The home lab, a research_centers id. */
+  centerId?: number;
+  homeRoom?: string | null;
+  /** The owning project, a projects id, or null for none. */
+  projectId?: number | null;
+  /** A funding_sources id, or null for none. */
+  fundingSourceId?: number | null;
+  acquisitionValue?: number | null;
+  /** yyyy-mm-dd, or null. */
+  procurementDate?: string | null;
+  warrantyExpiry?: string | null;
+  accessories?: string | null;
+  itsPropertyTag?: string | null;
+  tsgTag?: string | null;
+  /** A data URL or a link to a .jpg, .jpeg, .png, .webp, or .svg file, or null for none. */
+  imageUrl?: string | null;
+}
+
+/** The body of POST /api/assets: the master data, with name, category, and home lab required, and the Initial inspection. */
+export interface AssetCreateInput extends AssetMasterData {
   name: string;
-  /** Any spelling: the server upper-cases it, turns spaces and dashes into underscores, and stores DEV_KIT if it is not a category. */
   category: string;
-  serial?: string;
-  manufacturer?: string;
-  /** The picture, under any of three names: a data URL or a link to a .jpg, .jpeg, .png, .webp, or .svg file. */
-  image?: string;
-  image_url?: string;
-  imageUrl?: string;
-  /** yyyy-mm-dd. */
-  procured?: string;
-  /** yyyy-mm-dd. */
-  warranty?: string;
-  /** "Unspecified" when not sent. */
-  funding?: string;
-  acquisitionValue?: number | string;
-  /** The campus; stored with the lab as "<campus> — <lab>". */
-  location?: string;
-  /** The lab code. Also the tag prefix: the new asset gets "<lab>-<next number>". CITe4D when not sent. */
-  lab?: string;
-  /** users.user_id of the first custodian; user 1 when not sent. */
-  custodianId?: number;
-  /** The first record's remarks, under any of four names (the first one sent wins). */
-  remarks?: string;
-  description?: string;
-  tsgRemarks?: string;
-  itsRemarks?: string;
+  centerId: number;
+  initialInspection: InspectionInput;
 }
 
 /**
- * The body of PUT /api/assets/:assetTag, as EditAssetDialog sends it (only the fields Staff changed). Every field is
- * optional: an assets field is written only when sent. A change of status, location, custodian, condition, or remarks
- * adds a record; no record is changed (issue #74). A condition, or remarks under any name but `description`, also files
- * an inspection report.
+ * The body of PUT /api/assets/:assetTag: only the master data fields that change. Status, holder, location, and
+ * condition are worked out or changed by their own steps, so a body that sends one is refused with 400.
  */
-export interface AssetUpdateInput {
-  name?: string;
-  serial?: string;
-  manufacturer?: string;
-  category?: string;
-  /** null or "" removes the picture. */
-  image?: string | null;
-  image_url?: string | null;
-  imageUrl?: string | null;
-  procured?: string;
-  warranty?: string;
-  /** "Unspecified" when sent empty. Left as it is when not sent. */
-  funding?: string;
-  /** Left as it is when not sent. */
-  acquisitionValue?: number | string;
-  location?: string;
-  lab?: string;
-  /** The new custodian's user id, which must be a Custodian account; null for None (nobody holds it). (issue #95) */
-  custodianId?: number | null;
-  /** Display text such as "On Loan"; stored upper-cased with the first space as an underscore. */
-  status?: string;
-  /** An ASSET_CONDITIONS value; anything else keeps the record's condition. */
-  assetCondition?: string;
-  /** The inspection report's condition, by stored or display name; PERFECT for a name it does not know. */
-  reportCondition?: string;
-  remarks?: string;
-  description?: string;
-  tsgRemarks?: string;
-  itsRemarks?: string;
-}
-
-/** One history row inside an asset of GET /api/assets. */
-export interface AssetListRecord {
-  id: number;
-  created_at: string;
-  date_logged: string;
-  status: string;
-  condition: string;
-  location: string;
-  currentLocation?: string;
-  /** The record's custodian. Left out for a Custodian when it is someone else. (D2) */
-  custodian?: string;
-  remarks: string;
-}
-
-/** One transfer inside an asset of GET /api/assets. */
-export interface AssetListTransfer {
-  transfer_id: number;
-  id: string;
-  asset_id: number;
-  assetId: string;
-  from_custodian_id: number;
-  to_custodian_id: number;
-  /** Left out, with `to`, for a Custodian not part of the transfer. (D2) */
-  from?: string;
-  to?: string;
-  requested_on: string;
-  initiated: string;
-  created_at: string;
-  status: string;
-  justification: string;
-  lab: string;
-}
+export type AssetUpdateInput = AssetMasterData;
 
 /** One inspection report inside an asset of GET /api/assets. */
 export interface AssetListReport {
@@ -112,6 +63,7 @@ export interface AssetListReport {
   assetId: string;
   /** Left out for a Custodian when someone else reported it. (D2) */
   reportedBy?: string;
+  /** The inspection type's label, for example "Routine". */
   reporterRole: string;
   reportDate: string;
   date_logged: string;
@@ -122,9 +74,9 @@ export interface AssetListReport {
   status: string;
 }
 
-/** The disposal details of a disposed asset in GET /api/assets. */
+/** The disposal details of a retired asset in GET /api/assets. */
 export interface AssetDisposalDetails {
-  /** Left out for a Custodian when it is someone else (D2); "No Custodian" when nobody held it. */
+  /** Read from the packed reason text (M-13); left out for a Custodian (D2); "No Custodian" when the text names none. */
   lastCustodian?: string;
   breakdownReasons: string;
   disposalPathway: string;
@@ -133,32 +85,75 @@ export interface AssetDisposalDetails {
   decommissionedBy?: string;
 }
 
-/** One asset of GET /api/assets: the asset with its current state, built from its newest record. */
-export interface AssetListItem {
-  /** The asset tag. */
-  id: string;
+/** A person as an asset answer names them. A Researcher gets `{ hidden: true }` for anyone but themself. (D2) */
+export type PersonRef = { userId: number; name: string } | { hidden: true };
+
+/** A lab as an asset answer names it. */
+export interface AssetLabRef {
+  centerId: number;
+  code: string;
   name: string;
-  serial: string;
-  manufacturer: string;
+  campus: "MANILA" | "LAGUNA" | "MCKINLEY";
+  campusLabel: string;
+}
+
+/**
+ * One asset of GET /api/assets. The contract fields (docs/contracts/lifecycle.md, section 1 and the `Asset` object)
+ * are worked out on the server; the older fields after them stay while the screens move over.
+ */
+export interface AssetListItem {
+  assetId: number;
+  tag: string;
+  name: string;
+  serialNumber: string | null;
+  manufacturer: string | null;
   category: string;
+  categoryLabel: string;
+  /** One of the six asset statuses, for example "ON_LOAN". */
+  status: string;
+  statusLabel: string;
+  homeLab: AssetLabRef;
+  homeRoom: string | null;
+  /** "<lab short code>, <room>", "<lab short code>", or "TSG Office"; null when Missing or Retired. */
+  currentLocation: string | null;
+  /** Null when nobody holds the asset. */
+  holder: PersonRef | null;
+  /** The newest TSG inspection's condition, or null when TSG never inspected it. */
+  condition: string | null;
+  conditionLabel: string | null;
+  healthScore: number | null;
+  isOverdue: boolean;
+  /** The loan in Pending Approval, Pending Release, On Loan, or Return Requested, if any. returnBy is yyyy-mm-dd. */
+  openLoan: { loanId: number; status: string; returnBy: string } | null;
+  project: { projectId: number; code: string; name: string } | null;
+  fundingSource: { fundingSourceId: number; name: string } | null;
+  acquisitionValue: number | null;
+  /** yyyy-mm-dd, or null. */
+  procurementDate: string | null;
+  warrantyExpiry: string | null;
+  accessories: string | null;
+  itsPropertyTag: string | null;
+  tsgTag: string | null;
+  imageUrl: string | null;
+
+  /** The asset tag (older field). */
+  id: string;
+  serial: string;
+  /** The funding source's name, or "Unspecified". */
   funding: string;
+  /** The acquisition value, or 0. */
   cost: number;
   procured: string;
   warranty: string;
-  /** The home campus and lab, split from the newest record's location; Manila and CITe4D when it has none. */
+  /** The home lab's campus label (older field). */
   location: string;
+  /** The home lab's short code (older field). */
   lab: string;
-  /** Where the asset is right now ("<campus> — <lab>"), when a loan, transfer, or repair moved it. */
-  currentLocation?: string;
-  /** Active, On Loan, Maintenance, Disposed, or Overdue (on loan past the due date). */
-  status: string;
-  /** A health score from the condition: 100, 90, 78, 60, or 35. */
-  condition: number;
-  /** The newest record's condition, as stored. */
-  assetCondition: string;
-  /** The holder's full name. Left out when nobody holds the asset (the placeholder custodian), and when it is hidden. */
+  /** The condition, as `condition` (older field). */
+  assetCondition?: string;
+  /** The holder's full name. Left out when nobody holds the asset, and when it is hidden. */
   custodian?: string;
-  /** The holder's user id, sent and left out exactly as `custodian` is. Screens match people by it, never by name. (issue #32) */
+  /** The holder's user id, sent and left out exactly as `custodian` is. Screens match people by it. (issue #32) */
   custodianId?: number;
   /** True when someone holds the asset but the caller, a Custodian, may not see who (D2). Left out otherwise. */
   custodianHidden?: true;
@@ -169,44 +164,44 @@ export interface AssetListItem {
   disposalDetails?: AssetDisposalDetails;
   image: string | null;
   image_url: string | null;
+  /** The newest TSG inspection's remarks, or a fixed sentence. */
   description: string;
   remarks?: string;
   tsgRemarks?: string;
   itsRemarks?: string;
-  asset_records: AssetListRecord[];
-  asset_transfers: AssetListTransfer[];
   asset_reports: AssetListReport[];
-  asset_monetary: { asset_monetary_id?: number; asset_id?: number; acquisition_value: number; funding_source: string };
 }
 
-/**
- * One entry of GET /api/assets/:assetTag/custodian-history: one asset record with its custodian.
- * An asset with no records gets one invented entry (sequence 1, "Equipment Custodian"). (H-09 family)
- */
-export interface CustodianHistoryEntry {
-  sequence: number;
-  recordId?: number;
-  /** Left out when the placeholder custodian holds the asset at this entry (nobody holds it), and when it is hidden. */
-  custodianName?: string;
-  /** Sent to a Lab Head only, whose full Custodian History view shows it. (01C 4.2) */
-  custodianEmail?: string;
-  /** True when a Custodian asks and this entry's holder is someone else: no name. (answer 6) */
-  custodianHidden?: true;
-  status: string;
-  location: string;
-  currentLocation?: string;
-  condition: string;
-  remarks: string;
-  /** A display date and time. */
-  dateLogged: string;
-  /** True for the newest entry. */
-  isCurrent: boolean;
+/** The filters GET /api/assets reads from its query string. Each is optional. */
+export interface AssetListFilters {
+  /** Part of the tag, serial number, or name, in any letter case. */
+  q?: string;
+  status?: string;
+  centerId?: number;
+  /** One asset by id. Not read from the query: the server uses it to answer a registration or an edit with the asset. */
+  assetId?: number;
 }
 
-/** The answer of GET /api/assets/:assetTag/custodian-history, without `success`. */
-export interface CustodianHistory {
+/** One entry of GET /api/assets/:assetTag/history. */
+export interface AssetHistoryEvent {
+  /** ISO date-time. */
+  at: string;
+  /** What happened, for example "LOAN_REQUESTED", "INSPECTION", or an activity event type such as "ASSET_EDITED". */
+  kind: string;
+  label: string;
+  /** Who did it; null when nobody is recorded. */
+  actor: PersonRef | null;
+  details: string | null;
+  loanId?: number;
+  maintenanceId?: number;
+  retirementId?: number;
+  inspectionId?: number;
+}
+
+/** The answer of GET /api/assets/:assetTag/history, without `success`. */
+export interface AssetHistory {
   assetTag: string;
   assetName: string;
-  historyCount: number;
-  custodianHistory: CustodianHistoryEntry[];
+  /** Oldest first. */
+  events: AssetHistoryEvent[];
 }

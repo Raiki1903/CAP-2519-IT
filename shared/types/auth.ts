@@ -1,10 +1,12 @@
 /**
  * Request and response shapes of the auth and registration endpoints.
- * Layer: shared. Imported by server/features/auth/, server/shared/middleware/requireAuth.ts, the loans, transfers, and assets
- * services (SessionIdentity, to hide names from a Custodian), and web/api/auth.api.ts. Imports shared/enums/role.ts.
+ * Layer: shared. Imported by server/features/auth/, server/shared/middleware/ (requireAuth and the permission checks),
+ * the loans, transfers, and assets services (SessionIdentity, to hide names from a Custodian), and web/api/auth.api.ts.
+ * Imports shared/enums/role.ts and shared/constants/accountStatuses.ts.
  * Used by: login, the session reload, the account page, self-registration, and the Lab Head's sign-up approvals.
  */
-import type { Role, StaffUnit } from '../enums/role';
+import type { DatabaseRole, Role, StaffUnit } from '../enums/role';
+import type { AccountStatus } from '../constants/accountStatuses';
 
 /**
  * The body of POST /api/auth/register-request, as Register sends it (Register also sends fields the server ignores,
@@ -17,7 +19,7 @@ export interface RegistrationRequestInput {
   idNumber: number | string;
   /** STUDENT when not sent. */
   userType?: "STUDENT" | "FACULTY" | "STAFF";
-  /** A lab name or code; CITe4D when not sent. */
+  /** A lab name or code; no lab when not sent. */
   labAffiliation?: string;
   /** The password as typed. The server stores only its hash. (C-03) */
   password: string;
@@ -85,27 +87,43 @@ export interface AccountUpdateInput {
   userImg: string;
 }
 
-/** The `user` of a login answer: the profile the session keeps. */
+/** One lab of the session user. */
+export interface SessionLab {
+  centerId: number;
+  code: string;
+  name: string;
+  campus: "MANILA" | "LAGUNA" | "MCKINLEY";
+}
+
+/**
+ * The `user` of a login answer: the profile the session keeps (docs/contracts/lifecycle.md, SessionUser). `labs` lists
+ * every lab the person belongs to; there is no first or default lab, and a person with no lab gets [].
+ */
 export interface LoginUser {
   userId: number;
   firstName: string;
   lastName: string;
   email: string;
-  idNumber: number;
+  /** The person's own ID number, so the loan form can prefill it. Never anyone else's. */
+  idNumber: number | null;
   userType: "STUDENT" | "FACULTY" | "STAFF";
   /** The picture, the same value under two names. */
   userImg: string | null;
   profilePicture: string | null;
-  /** Short code of the account's first lab link, or "CITe4D" when it has none. */
-  labAffiliation: string;
+  labs: SessionLab[];
+  /** The lab this account heads, or null. Heading a lab gives the Lab Head view. */
+  headOf: { centerId: number; code: string } | null;
+  accountStatus: AccountStatus;
   /** ITS or TSG for a Staff account, otherwise null. */
   staffUnit: StaffUnit | null;
 }
 
-/** The `user` of a GET /api/auth/me answer: the login profile with the app role inside it. */
+/** The `user` of a GET /api/auth/me answer: the login profile with the app role and its label inside it. */
 export interface ProfileUser extends LoginUser {
   /** An app Role: "Staff", "LabHead", "Custodian", or "AdRICDirector". */
   role: string;
+  /** The role's label: a Custodian shows "Researcher". */
+  roleLabel: string;
 }
 
 /** The `user` of a PUT /api/auth/account answer. Unlike login, it has no staffUnit, and the picture comes under three names. */
@@ -114,18 +132,25 @@ export interface AccountUser {
   firstName: string;
   lastName: string;
   email: string;
-  idNumber: number;
+  idNumber: number | null;
   userType: "STUDENT" | "FACULTY" | "STAFF";
   userImg: string | null;
   profilePicture: string | null;
   avatarUrl: string | null;
-  /** The account's lab after the save: the short code of its first lab link, or "CITe4D" when it has none (as login and /me). */
-  labAffiliation: string;
+  /** The account's labs after the save, as login and /me give them. */
+  labs: SessionLab[];
 }
 
 /** Who a valid session cookie belongs to, as requireAuth finds them on each request. Server only; never sent. */
 export interface SessionIdentity {
   userId: number;
+  /** The app role, which picks the view. */
   role: Role;
   staffUnit: StaffUnit | null;
+  /** The account's database roles, which the permission checks read. */
+  dbRoles: DatabaseRole[];
+  /** Only an ACTIVE account may act (requireActive). */
+  accountStatus: AccountStatus;
+  /** The research center this account heads, or null. */
+  headOfCenterId: number | null;
 }

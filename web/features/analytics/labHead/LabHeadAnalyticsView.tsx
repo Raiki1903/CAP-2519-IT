@@ -1,14 +1,13 @@
 /**
  * Lab Head analytics: utilization, category mix, project allocation, delinquencies, and accountability widgets for one lab.
  * Layer: feature component. Called by pages/lab-head/LabHeadDashboard.tsx (health tab).
- * Calls: api/analytics.api.ts getLabHeadAnalyticsRaw(), api/loans.api.ts, api/transfers.api.ts.
+ * Calls: api/analytics.api.ts getLabHeadAnalyticsRaw(), api/loans.api.ts.
  * Used by: Lab Head.
  */
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import * as loansApi from "@web/api/loans.api";
-import * as transfersApi from "@web/api/transfers.api";
 import * as analyticsApi from "@web/api/analytics.api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
@@ -50,14 +49,14 @@ const cardAnimation = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } }
 };
 
-// Operational & Localized View (Task 2: Actionable Data Tables for loans & transfers with Approve/Reject buttons, Utilization Gauge, Category Breakdown Horizontal Bar Chart)
+// Operational & Localized View (Task 2: Actionable Data Table for loans with Approve/Reject buttons, Utilization Gauge, Category Breakdown Horizontal Bar Chart)
 /**
- * Utilization gauge, category breakdown, and the lab's loan and transfer request lists.
+ * Utilization gauge, category breakdown, and the lab's loan request list.
  * Calls analyticsApi.getLabHeadAnalyticsRaw().
  *
- * @param lab the lab to show, default "CITe4D"
+ * @param lab the lab the account heads, shown in the headings; the server answers for that lab whatever is sent
  */
-export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "CITe4D" }) => {
+export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "" }) => {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
@@ -85,8 +84,8 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
 
   const [actingId, setActingId] = useState<string | null>(null);
 
-  // Nothing calls handleLoanDecision or handleTransferDecision. Both send "reject", which the
-  // server refuses (it expects "decline" for loans and transfers). Decisions are made from the
+  // Nothing calls handleLoanDecision. It sends "reject", which the
+  // server refuses (it expects "decline"). Decisions are made from the
   // Custody tab and the bell instead.
   const handleLoanDecision = async (loanId: number, decision: "approve" | "reject") => {
     setActingId(`loan-${loanId}`);
@@ -97,20 +96,6 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
       }
     } catch (e) {
       console.error("Failed loan decision:", e);
-    } finally {
-      setActingId(null);
-    }
-  };
-
-  const handleTransferDecision = async (transferId: number, decision: "approve" | "reject") => {
-    setActingId(`transfer-${transferId}`);
-    try {
-      const json = await transfersApi.decideTransfer(transferId, decision);
-      if (json.success) {
-        await refetch();
-      }
-    } catch (e) {
-      console.error("Failed transfer decision:", e);
     } finally {
       setActingId(null);
     }
@@ -132,7 +117,6 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
   }
 
   const loans = data?.loans || [];
-  const transfers = data?.transfers || [];
   const utilization = data?.utilization || { utilizationPercentage: 0, assignedCount: 0, unassignedCount: 0, totalAssetsCount: 0 };
   const categoryData = data?.categoryData || [];
 
@@ -237,7 +221,7 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
                 <TableHead className="text-xs font-bold">Asset Tag / Name</TableHead>
                 <TableHead className="text-xs font-bold">Borrower</TableHead>
                 <TableHead className="text-xs font-bold">Purpose</TableHead>
-                <TableHead className="text-xs font-bold">Transfer Location</TableHead>
+                <TableHead className="text-xs font-bold">Destination Lab</TableHead>
                 <TableHead className="text-xs font-bold">Due Date</TableHead>
                 <TableHead className="text-xs font-bold text-center">Status</TableHead>
               </TableRow>
@@ -269,48 +253,6 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = "C
         </div>
       </Card>
 
-      {/* Actionable Inter-Lab Transfer Requests Table */}
-      <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
-        <h3 className="text-sm font-extrabold text-foreground uppercase tracking-wider mb-2.5">
-          Inter-Lab Transfer Requests
-        </h3>
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow>
-                <TableHead className="text-xs font-bold">Transfer ID</TableHead>
-                <TableHead className="text-xs font-bold">Asset Tag / Name</TableHead>
-                <TableHead className="text-xs font-bold">Justification</TableHead>
-                <TableHead className="text-xs font-bold">Transfer Location</TableHead>
-                <TableHead className="text-xs font-bold">Requested On</TableHead>
-                <TableHead className="text-xs font-bold text-center">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transfers.map((trf: any) => {
-                const isPending = trf.status === "Pending" || trf.status === "pending";
-                const isApproved = trf.status === "Approved" || trf.status === "approved";
-                const isWorking = actingId === `transfer-${trf.transferId}`;
-
-                return (
-                  <TableRow key={trf.transferId} className="text-xs hover:bg-muted/20">
-                    <TableCell className="font-mono font-bold text-primary">TRF-{trf.transferId}</TableCell>
-                    <TableCell className="font-semibold">{trf.asset} ({trf.assetId})</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{trf.justification}</TableCell>
-                    <TableCell className="text-[11px]">{trf.destinationLab || "—"}</TableCell>
-                    <TableCell className="text-[11px] text-muted-foreground">{trf.requestedOn}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge className={cn("text-[10px] font-extrabold", isApproved ? "bg-emerald-50 text-emerald-700 border-emerald-200" : isPending ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-red-50 text-red-700 border-red-200")}>
-                        {trf.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
     </motion.div>
   );
 };
@@ -571,7 +513,7 @@ export const DelinquencyTable: React.FC<{ lab: string }> = ({ lab }) => {
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-1">
-              Active equipment loans assigned to students in {lab} past expected return date (`asset_loans.due_date`). Reporting only.
+              Active equipment loans assigned to students in {lab} past expected return date (`asset_loans.return_by`). Reporting only.
             </CardDescription>
           </div>
           <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50 font-bold text-xs">
@@ -923,10 +865,10 @@ export const AccountabilityHeatmapWidget: React.FC<{ lab: string }> = ({ lab }) 
 /**
  * The Lab Head's analytics screen: lays out five widgets for one lab.
  *
- * @param lab the lab to show, default "CITe4D"
+ * @param lab the lab the account heads, shown in the headings; the server answers for that lab whatever is sent
  */
 // TODO(M-01): all five widgets fetch GET /api/analytics/lab-head on their own, four with the same query, so one screen sends that request five times. Step 12 (analytics).
-export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "CITe4D" }) => {
+export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "" }) => {
   return (
     <div className="space-y-8 text-foreground font-sans">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border pb-4">
@@ -936,7 +878,7 @@ export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "CITe4D
             Analytics: {lab}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Loans, transfers, project use, and overdue items for your lab.
+            Loans, project use, and overdue items for your lab.
           </p>
         </div>
       </div>

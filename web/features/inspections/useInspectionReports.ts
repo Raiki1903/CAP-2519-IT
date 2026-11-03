@@ -1,5 +1,5 @@
 /**
- * Inspection reports for Staff: loads every report saved in asset_reports.
+ * Inspection reports for Staff: loads every report saved in asset_inspections.
  * Layer: feature component (data hook). Called by pages/staff/InspectionsPage.tsx.
  * Calls: api/inspections.api.ts listInspectionReports().
  * Used by: Staff inspection log.
@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import * as inspectionsApi from "@web/api/inspections.api";
 
 /**
- * Loads GET /api/asset-reports once when the calling page mounts, newest first.
+ * Loads GET /api/inspections/log once when the calling page mounts, newest first.
  * A failed request leaves the list empty and is written to the console only.
  *
  * @returns `dbReports` and `fetchDbReports()` to reload after a new report is saved

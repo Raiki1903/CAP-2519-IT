@@ -1,19 +1,19 @@
 /**
  * Repair tickets for Staff: loads them, shapes them for the Staff screens, and saves progress.
  * Layer: feature component (data hook). Called by pages/staff/OverviewPage.tsx and RepairsPage.tsx.
- * Calls: api/repairs.api.ts listRepairs() and updateRepair(), state/serverData.tsx (fallback actions).
+ * Calls: api/maintenance.api.ts listRepairs() and updateRepair(), state/serverData.tsx (fallback actions).
  * Used by: Staff repair handling.
  */
 import { useState, useEffect } from "react";
 import { useServerData } from "@web/state/serverData";
-import * as repairsApi from "@web/api/repairs.api";
+import * as maintenanceApi from "@web/api/maintenance.api";
 
 // The two statuses a new ticket starts in. A ticket in either is "not acknowledged yet".
 const DB_PENDING_STATUSES = ["Pending TSG Review", "Awaiting Immediate Dispatch"];
 
 /**
- * Loads GET /api/asset_repairs once when the calling page mounts and maps each ticket to the
- * shape the Staff screens use. Saving a status goes through repairsApi.updateRepair(), which also
+ * Loads GET /api/maintenance once when the calling page mounts and maps each ticket to the
+ * shape the Staff screens use. Saving a status goes through maintenanceApi.updateRepair(), which also
  * moves the asset into or out of maintenance, then reloads the tickets.
  *
  * @param onAssetsChanged optional; called after a status save so a page that shows assets can reload them
@@ -31,7 +31,7 @@ export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
     setLoadingDbRepairs(true);
     setDbRepairsError(null);
     try {
-      const data = await repairsApi.listRepairs();
+      const data = await maintenanceApi.listRepairs();
       if (data.success) {
         setDbRepairs(data.repairs);
       } else {
@@ -52,7 +52,7 @@ export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
   // Shaped like RepairRequest for the priority table and RepairProgressDialog. _repairId is the
   // number the update endpoint needs; the shown id is "MNT-<number>".
   // Known gaps: forwardedTo is always undefined, so "Dispatched To" always shows a dash, and
-  // priority is only ever Critical or Medium, so the High styling never appears.
+  // priority is always Medium until Batch 5 shows the issue type, so the High styling never appears.
   const mappedDbRepairs = dbRepairs.map(r => ({
     id: r.id,
     _source: "db" as const,
@@ -63,7 +63,7 @@ export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
     statusLabel: r.progressStatus,
     description: r.description,
     submittedAt: new Date(r.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-    priority: r.isImmediate ? "Critical" : "Medium",
+    priority: r.priority,
     acknowledged: !DB_PENDING_STATUSES.includes(r.progressStatus),
     forwardedTo: undefined as string | undefined,
   }));
@@ -75,7 +75,7 @@ export function useRepairTickets(onAssetsChanged?: () => Promise<void>) {
     try {
       // TODO(H-06): the Staff analytics board moves tickets through a second endpoint that does not touch the asset's status. Kept in step 12 as decided; merging them is its own behavior-change commit.
       // TODO(H-07): the server stores any status text it is sent. Phase 3.
-      const data = await repairsApi.updateRepair(repairId, { progressStatus: status, assetCondition: condition, assetRemarks: remarks });
+      const data = await maintenanceApi.updateRepair(repairId, { progressStatus: status, assetCondition: condition, assetRemarks: remarks });
       if (!data.success) {
         console.error("❌ Failed to update repair status:", data.error);
       }
