@@ -315,7 +315,7 @@ describe("GET /api/analytics/lab-head", () => {
     }
   });
 
-  it("lists the lab's loans newest first, with the destination lab moved out of the purpose", async () => {
+  it("lists the lab's loans newest first, with the destination lab from destination_center_id", async () => {
     const res = await labHead(TEST_LAB_QUERY);
 
     expect(res.status).toBe(200);

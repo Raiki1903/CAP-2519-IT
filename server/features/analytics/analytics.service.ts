@@ -310,19 +310,13 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
     const rawLoans = await analyticsRepository.findLoansForLabHead(prefixFilter, startDate, endDate);
 
     const loans = rawLoans.map(l => {
-        // The borrow form's destination lab is stored as the first line of the purpose, so it is read back
-        // from there and cut from the purpose shown. (H-19)
-        const destLabMatch = l.purpose?.match(/^Destination Lab:\s*(.+?)\s*(?:\n|$)/);
-        const destinationLab = destLabMatch ? destLabMatch[1] : undefined;
-        const cleanPurpose = destLabMatch ? l.purpose.replace(/^Destination Lab:\s*.+?\n\n?/, "") : l.purpose;
-
         return {
             loanId: l.loan_id,
             assetId: l.assets?.asset_tag || `ASSET-${l.asset_id}`,
             asset: l.assets?.name || "Equipment",
             borrower: l.users ? `${l.users.first_name} ${l.users.last_name}` : "Borrower",
-            purpose: cleanPurpose,
-            destinationLab,
+            purpose: l.purpose,
+            destinationLab: l.destination_center?.short_code,
             requestedOn: l.requested_at.toISOString().split('T')[0],
             dueDate: l.return_by.toISOString().split('T')[0],
             status: legacyLoanStatusLabel(l.status)

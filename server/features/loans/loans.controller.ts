@@ -2,18 +2,18 @@
  * Loan controller: unpacks loan requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by loans.routes.ts. Calls loans.validation.ts, loans.service.ts, and shared/middleware/requireAuth.ts
  * (sessionUserOf: who is acting).
- * Used by: Custodian borrow request, Lab Head approval.
+ * Used by: Researcher loan requests, Lab Head approval, and the screens that list loans.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as loansService from './loans.service';
-import { checkLoanDecision, checkLoanRequest } from './loans.validation';
+import { readDecisionRemarks, readLoanId, readLoanRequest } from './loans.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles GET /api/loans: every loan, newest first, as `{ success, loans }`. A Custodian gets no name but
- * their own (D2). A failure answers errorHandler's generic 500.
+ * Handles GET /api/loans: every loan, newest first, in today's list shape, as `{ success, loans }`. A Custodian gets
+ * no name but their own (D2). A failure answers errorHandler's generic 500.
  */
 export async function listLoans(req: Request, res: Response): Promise<void> {
     const loans = await loansService.listLoans(sessionUserOf(req));
@@ -21,35 +21,55 @@ export async function listLoans(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * Handles POST /api/assets/:assetTag/borrow: files a pending loan request for the session user.
- * Answers `{ success, loan }` with the new row, or the AppError's status and message
- * (400 missing field, 404 unknown tag, 409 refused by the custody request guard), or 500.
+ * Handles POST /api/assets/:assetTag/loans: files a loan request for the session user.
+ * Answers 201 `{ success, loan }` in the Loan shape, or the AppError's status and message (400, 403, 404, 409), or 500.
  */
 export async function requestLoan(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
-    const { assetTag } = req.params;
-    const data = req.body;
+    const data = readLoanRequest(req.body);
+    const borrower = sessionUserOf(req);
+    const loan = await loansService.requestLoan(req.params.assetTag, data, borrower);
 
-    checkLoanRequest(data);
-    const borrowerId = sessionUserOf(req).userId;
-    const loan = await loansService.requestLoan(assetTag, data, borrowerId);
+    console.log(`Loan ${loan.loanId} requested by user ${borrower.userId}`);
+    res.status(201).json({ success: true, loan });
+}
 
-    console.log(`Loan ${loan.loan_id} on ${assetTag} requested by user ${borrowerId}`);
+/**
+ * Handles PUT /api/loans/:loanId/cancel: the borrower cancels a request still waiting for approval or release.
+ * Answers `{ success, loan }`, or the AppError's status and message (400 bad id, 403, 404, 409), or 500.
+ */
+export async function cancelLoan(req: Request<{ loanId: string }>, res: Response): Promise<void> {
+    const loanId = readLoanId(req.params.loanId);
+    const actor = sessionUserOf(req);
+    const loan = await loansService.cancelLoan(loanId, actor);
+
+    console.log(`Loan ${loanId} cancelled by user ${actor.userId}`);
     res.json({ success: true, loan });
 }
 
 /**
- * Handles PUT /api/loans/:loanId/decision: approves or declines a pending loan.
- * Answers `{ success, loan }` with the updated row, or the AppError's status and message
- * (400 bad id, bad decision word, or loan already decided; 404 unknown loan; 409 an approval the asset no longer allows), or 500.
+ * Handles PUT /api/loans/:loanId/approve: the Head of the asset's home lab approves; the loan waits for TSG's release.
+ * Answers `{ success, loan }`, or the AppError's status and message (400, 403, 404, 409), or 500.
  */
-export async function decideLoan(req: Request<{ loanId: string }>, res: Response): Promise<void> {
-    const loanId = parseInt(req.params.loanId, 10);
-    const { decision } = req.body as { decision?: string };
+export async function approveLoan(req: Request<{ loanId: string }>, res: Response): Promise<void> {
+    const loanId = readLoanId(req.params.loanId);
+    const remarks = readDecisionRemarks(req.body, false);
+    const decider = sessionUserOf(req);
+    const loan = await loansService.approveLoan(loanId, remarks, decider);
 
-    checkLoanDecision(loanId, decision);
-    const deciderId = sessionUserOf(req).userId;
-    const updatedLoan = await loansService.decideLoan(loanId, decision, deciderId);
+    console.log(`Loan ${loanId} approved by user ${decider.userId}`);
+    res.json({ success: true, loan });
+}
 
-    console.log(`Loan ${loanId} ${decision}d by user ${deciderId}`);
-    res.json({ success: true, loan: updatedLoan });
+/**
+ * Handles PUT /api/loans/:loanId/decline: the Head of the asset's home lab declines, with remarks.
+ * Answers `{ success, loan }`, or the AppError's status and message (400 no remarks, 403, 404, 409), or 500.
+ */
+export async function declineLoan(req: Request<{ loanId: string }>, res: Response): Promise<void> {
+    const loanId = readLoanId(req.params.loanId);
+    const remarks = readDecisionRemarks(req.body, true)!;
+    const decider = sessionUserOf(req);
+    const loan = await loansService.declineLoan(loanId, remarks, decider);
+
+    console.log(`Loan ${loanId} declined by user ${decider.userId}`);
+    res.json({ success: true, loan });
 }

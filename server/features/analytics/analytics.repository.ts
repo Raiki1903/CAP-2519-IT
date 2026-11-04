@@ -141,7 +141,7 @@ export function findReportsForDirector(startDate: Date | null, endDate: Date | n
 // A lab's assets are the ones whose home lab (assets.center_id) has this short code.
 
 /**
- * Loans of the lab's assets, newest first, each with its asset and borrower.
+ * Loans of the lab's assets, newest first, each with its asset, borrower, and destination lab's code.
  *
  * @param prefixFilter the lab prefix, or "" for every loan (the EQ- pool included)
  * @param startDate earliest loaned_on, or null
@@ -160,7 +160,7 @@ export function findLoansForLabHead(prefixFilter: string, startDate: Date | null
 
     return prisma.asset_loans.findMany({
         where: Object.keys(loanWhere).length > 0 ? loanWhere : undefined,
-        include: { assets: true, users: true },
+        include: { assets: true, users: true, destination_center: { select: { short_code: true } } },
         orderBy: { requested_at: 'desc' }
     });
 }

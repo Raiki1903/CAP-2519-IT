@@ -79,10 +79,10 @@ export function isHeld(loan: Pick<OpenLoan, 'status'> | null): boolean {
  * Whether a held loan's return-by date has passed. A loan still waiting for approval or release is never overdue:
  * nothing was handed over. (H-04)
  *
- * @param loan the asset's open loan, or null
+ * @param loan the asset's open loan, or any loan's status and return-by date, or null
  * @param today yyyy-mm-dd, for tests
  */
-export function isOverdue(loan: OpenLoan | null, today: string = serverToday()): boolean {
+export function isOverdue(loan: Pick<OpenLoan, 'status' | 'returnBy'> | null, today: string = serverToday()): boolean {
     return isHeld(loan) && dateOnly(loan!.returnBy) < today;
 }
 

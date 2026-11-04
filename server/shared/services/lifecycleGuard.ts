@@ -12,6 +12,7 @@ import { AppError } from '../errors/AppError';
 /** A step that the asset's status may allow or refuse. */
 export type LifecycleAction =
     | "REQUEST_LOAN"
+    | "APPROVE_LOAN"
     | "START_MAINTENANCE"
     | "RECEIVE_FOR_MAINTENANCE"
     | "REQUEST_RETIREMENT"
@@ -25,6 +26,7 @@ export type LifecycleAction =
 /** Every action, for tests and for screens that build a table from it. */
 export const LIFECYCLE_ACTIONS: readonly LifecycleAction[] = [
     "REQUEST_LOAN",
+    "APPROVE_LOAN",
     "START_MAINTENANCE",
     "RECEIVE_FOR_MAINTENANCE",
     "REQUEST_RETIREMENT",
@@ -39,9 +41,11 @@ export const LIFECYCLE_ACTIONS: readonly LifecycleAction[] = [
 /**
  * The actions each status allows (docs/contracts/lifecycle.md, section 3). Pending Retirement allows only the
  * decision and, once approved, the completion; Retired allows nothing; Missing allows found and a retirement request.
+ * Approving a loan needs the asset still Available. Cancelling or declining a loan checks no asset status, so a loan
+ * on an asset that went to maintenance can still be closed.
  */
 export const ALLOWED_ACTIONS: Record<assets_status, readonly LifecycleAction[]> = {
-    AVAILABLE: ["REQUEST_LOAN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "REQUEST_RETIREMENT", "MARK_MISSING", "EDIT_MASTER_DATA", "ROUTINE_INSPECTION"],
+    AVAILABLE: ["REQUEST_LOAN", "APPROVE_LOAN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "REQUEST_RETIREMENT", "MARK_MISSING", "EDIT_MASTER_DATA", "ROUTINE_INSPECTION"],
     ON_LOAN: ["START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "MARK_MISSING", "EDIT_MASTER_DATA"],
     MAINTENANCE: ["REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
     PENDING_RETIREMENT: ["DECIDE_RETIREMENT", "COMPLETE_RETIREMENT"],
@@ -52,6 +56,7 @@ export const ALLOWED_ACTIONS: Record<assets_status, readonly LifecycleAction[]> 
 /** The words a refusal uses for each action. */
 const ACTION_WORDS: Record<LifecycleAction, string> = {
     REQUEST_LOAN: "be requested for a loan",
+    APPROVE_LOAN: "have a loan approved",
     START_MAINTENANCE: "take a maintenance ticket",
     RECEIVE_FOR_MAINTENANCE: "be received for maintenance",
     REQUEST_RETIREMENT: "be requested for retirement",

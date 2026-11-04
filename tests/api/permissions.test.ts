@@ -36,7 +36,7 @@ describe("the Head of the asset's home lab decides its loans", () => {
   it("answers 403 to the Head of another lab, and leaves the loan and the asset as they were", async () => {
     const { loan, asset } = await otherLabWithPendingLoan("OTHERLAB", USERS.secretary.userId);
 
-    const res = await as(USERS.labHead).put(`/api/loans/${loan.loan_id}/decision`, { decision: "approve" });
+    const res = await as(USERS.labHead).put(`/api/loans/${loan.loan_id}/approve`, {});
 
     expect(res.status).toBe(403);
     expect(res.body.error).toBe("This asset belongs to another lab. Only that lab's Head can decide its loans.");
@@ -47,10 +47,10 @@ describe("the Head of the asset's home lab decides its loans", () => {
   it("answers 409 for an asset of a lab with no Head yet, approve or decline", async () => {
     const { loan } = await otherLabWithPendingLoan("NOHEAD", null);
 
-    for (const decision of ["approve", "decline"]) {
-      const res = await as(USERS.labHead).put(`/api/loans/${loan.loan_id}/decision`, { decision });
+    for (const step of ["approve", "decline"]) {
+      const res = await as(USERS.labHead).put(`/api/loans/${loan.loan_id}/${step}`, { decisionRemarks: "Test remark" });
 
-      expect(res.status, decision).toBe(409);
+      expect(res.status, step).toBe(409);
       expect(res.body.error).toBe(NO_LAB_HEAD);
     }
     expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: loan.loan_id } })).status).toBe("PENDING_APPROVAL");
@@ -65,8 +65,10 @@ describe("the IT Admin has no asset steps", () => {
     ["POST", `/api/assets/${ASSETS.available.tag}/retirement`, { breakdownReasons: "Test", disposalPathway: "Test" }],
     ["PUT", "/api/retirements/1/decision", { decision: "reject" }],
     ["POST", `/api/assets/${ASSETS.available.tag}/inspection`, { reportCondition: "PERFECT" }],
-    ["POST", `/api/assets/${ASSETS.available.tag}/borrow`, { purpose: "Test", dueDate: "2030-01-01" }],
-    ["PUT", "/api/loans/2/decision", { decision: "approve" }],
+    ["POST", `/api/assets/${ASSETS.available.tag}/loans`, { destinationCenterId: 1, returnBy: "2030-01-01", purpose: "Test" }],
+    ["PUT", "/api/loans/2/cancel", {}],
+    ["PUT", "/api/loans/2/approve", {}],
+    ["PUT", "/api/loans/2/decline", { decisionRemarks: "Test" }],
     ["PUT", `/api/assets/${ASSETS.available.tag}`, { name: "Test name from the IT Admin" }],
   ])("answers 403 to %s %s, and writes nothing", async (method, path, body) => {
     const client = as(USERS.admin);
@@ -90,7 +92,7 @@ describe("only an Active account acts", () => {
 
       for (const res of [
         await client.get("/api/assets"),
-        await client.post(`/api/assets/${ASSETS.available.tag}/borrow`, { purpose: "Test", dueDate: "2030-01-01" }),
+        await client.post(`/api/assets/${ASSETS.available.tag}/loans`, { destinationCenterId: 1, returnBy: "2030-01-01", purpose: "Test" }),
       ]) {
         expect(res.status).toBe(403);
         expect(res.body).toEqual({ success: false, error: NOT_ACTIVE });

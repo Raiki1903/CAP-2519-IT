@@ -1,10 +1,13 @@
 /**
  * Request and response shapes of the loan endpoints.
- * Layer: shared. Imported by server/features/loans/ and web/api/loans.api.ts. Imports nothing.
- * Used by: Custodian borrow request, Lab Head approval.
+ * Layer: shared. Imported by server/features/loans/ and web/api/loans.api.ts. Imports the shared person and inspection
+ * types.
+ * Used by: Researcher loan requests, Lab Head approval, TSG release and receipt, and the loan lists.
  */
+import type { PersonRef } from './assets';
+import type { Inspection } from './inspections';
 
-/** The body of POST /api/assets/:assetTag/borrow, as LoanForm sends it. */
+/** The body LoanForm sends today. It goes in commit 8 of Batch 3, when LoanForm sends LoanRequestBody. */
 export interface LoanRequestInput {
   /** Destination lab code, for example "CITe4D". Optional: without it the asset keeps its current location on approval. */
   lab?: string;
@@ -14,8 +17,8 @@ export interface LoanRequestInput {
 }
 
 /**
- * The two words PUT /api/loans/:loanId/decision accepts.
- * Transfers accept the same two; disposals use "reject" instead of "decline".
+ * The two decision words today's Lab Head screens use. They go in commit 8 of Batch 3, when the screens call approve
+ * and decline.
  */
 export type LoanDecision = "approve" | "decline";
 
@@ -34,9 +37,9 @@ export interface LoanListItem {
   borrower_id: number;
   /** The borrower's full name. Left out for a Custodian on a loan that is not their own. (D2) */
   borrower?: string;
-  /** The purpose as typed, without the destination lab line. */
+  /** The purpose as stored. */
   purpose: string;
-  /** The destination lab picked on the form, read back out of the stored purpose. (H-19) */
+  /** The destination lab's short code, from destination_center_id; undefined when the loan names none. */
   destinationLab?: string;
   /** yyyy-mm-dd. */
   requestedOn: string;
@@ -52,4 +55,57 @@ export interface LoanListItem {
   lab: string;
   /** The asset's home lab id, or null if the asset is gone. */
   center_id: number | null;
+}
+
+/** The body of POST /api/assets/:assetTag/loans. The borrower is the session user. */
+export interface LoanRequestBody {
+  /** One of the borrower's own labs (the session's `labs`). */
+  destinationCenterId: number;
+  /** At most 100 characters. */
+  destinationRoom?: string | null;
+  /** The project the asset is borrowed for, a projects id. */
+  projectId?: number | null;
+  /** yyyy-mm-dd, not before today. */
+  returnBy: string;
+  purpose: string;
+}
+
+/** The body of PUT /api/loans/:loanId/approve and /decline. Required, and not empty, to decline. */
+export interface LoanDecisionBody {
+  decisionRemarks?: string | null;
+}
+
+/** A loan in an answer (docs/contracts/lifecycle.md, Loan). People are `{ userId, name }`, `{ hidden: true }`, or null. */
+export interface Loan {
+  loanId: number;
+  asset: { assetId: number; tag: string; name: string };
+  /** `{ hidden: true }` for a Researcher who is not the borrower. */
+  borrower: PersonRef;
+  /** One of LOAN_STATUSES. */
+  status: string;
+  statusLabel: string;
+  /** As stored. */
+  purpose: string;
+  project: { projectId: number; code: string; name: string } | null;
+  /** From destination_center_id. Null only on older loans that named none. */
+  destinationLab: { centerId: number; code: string } | null;
+  destinationRoom: string | null;
+  /** yyyy-mm-dd. */
+  returnBy: string;
+  /** ISO date-times from here on, or null. */
+  requestedAt: string;
+  decidedBy: PersonRef | null;
+  decidedAt: string | null;
+  decisionRemarks: string | null;
+  releasedBy: PersonRef | null;
+  releasedAt: string | null;
+  releaseInspection: Inspection | null;
+  returnRequestedAt: string | null;
+  receivedBy: PersonRef | null;
+  returnInspection: Inspection | null;
+  closedAt: string | null;
+  /** The borrower's remarks when asking to return. */
+  remarks: string | null;
+  /** On Loan or Return Requested with the return-by date passed. A loan never released is never overdue. */
+  isOverdue: boolean;
 }
