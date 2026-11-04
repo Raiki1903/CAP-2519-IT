@@ -1,147 +1,43 @@
 /**
- * IT Admin Users: lists active and inactive accounts with actions to deactivate, reactivate, or anonymize.
+ * IT Admin Users: lists accounts across active, inactive, and rejected statuses.
  * Layer: page. Called by app/routes.tsx at /it-admin/users.
- * Calls: shared/constants, shared/types, UI primitives. Uses hardcoded mock data until GET /api/users supports active accounts.
+ * Calls: shared/constants, shared/types, UI primitives, and mockUsers.ts.
  * Used by: the IT Admin.
  */
 import { useState, useMemo } from "react";
 import { PAGE_TITLES } from "@shared/constants/pageTitles";
-import { USER_TYPE_LABELS, type UserType } from "@shared/constants/signUp";
-import type { DatabaseRole } from "@shared/enums/role";
-import type { AccountStatus } from "@shared/constants/accountStatuses";
+import { USER_TYPE_LABELS } from "@shared/constants/signUp";
+import { DATABASE_ROLE_LABELS } from "@shared/enums/role";
+import { ACCOUNT_STATUS_LABELS, type AccountStatus } from "@shared/constants/accountStatuses";
+import type { User } from "@shared/types/users";
+import { MOCK_USERS } from "./mockUsers";
 import { Badge } from "@web/components/ui/badge";
 import { Button } from "@web/components/ui/button";
 import { Card } from "@web/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@web/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@web/components/ui/tooltip";
 
-/** One lab assigned to an account, identified by its ID and short code. */
-export interface UserLab {
-  centerId: number;
-  code: string;
-}
-
-/** An account as managed on the IT Admin users screen. */
-export interface ManagedUser {
-  userId: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  idNumber: number | null;
-  userType: UserType;
-  role: DatabaseRole;
-  roleLabel: string;
-  accountStatus: Extract<AccountStatus, "ACTIVE" | "INACTIVE">;
-  labs: UserLab[];
-  headOf: UserLab | null;
-}
-
-/** Mock initial user dataset representing active and inactive DLSU accounts. */
-export const INITIAL_MOCK_USERS: ManagedUser[] = [
-  {
-    userId: 1,
-    firstName: "System",
-    lastName: "Admin",
-    email: "itadmin@dlsu.edu.ph",
-    idNumber: 12000001,
-    userType: "FACULTY",
-    role: "IT_ADMIN",
-    roleLabel: "IT Admin",
-    accountStatus: "ACTIVE",
-    labs: [],
-    headOf: null,
-  },
-  {
-    userId: 2,
-    firstName: "Teresa",
-    lastName: "Santos",
-    email: "teresa.santos@dlsu.edu.ph",
-    idNumber: 11800002,
-    userType: "FACULTY",
-    role: "RESEARCHER",
-    roleLabel: "Researcher",
-    accountStatus: "ACTIVE",
-    labs: [
-      { centerId: 1, code: "AL" },
-      { centerId: 2, code: "CV" },
-    ],
-    headOf: { centerId: 1, code: "AL" },
-  },
-  {
-    userId: 3,
-    firstName: "Mark",
-    lastName: "Reyes",
-    email: "mark.reyes@dlsu.edu.ph",
-    idNumber: 11900003,
-    userType: "STAFF",
-    role: "TSG_STAFF",
-    roleLabel: "TSG Staff",
-    accountStatus: "ACTIVE",
-    labs: [],
-    headOf: null,
-  },
-  {
-    userId: 4,
-    firstName: "Elena",
-    lastName: "Cruz",
-    email: "elena.cruz@dlsu.edu.ph",
-    idNumber: 11500004,
-    userType: "FACULTY",
-    role: "ADRIC_DIRECTOR",
-    roleLabel: "AdRIC Director",
-    accountStatus: "ACTIVE",
-    labs: [],
-    headOf: null,
-  },
-  {
-    userId: 5,
-    firstName: "Patricia",
-    lastName: "Ramos",
-    email: "patricia.ramos@dlsu.edu.ph",
-    idNumber: 12100005,
-    userType: "STAFF",
-    role: "ADRIC_SECRETARY",
-    roleLabel: "AdRIC Secretary",
-    accountStatus: "ACTIVE",
-    labs: [],
-    headOf: null,
-  },
-  {
-    userId: 6,
-    firstName: "Carlos",
-    lastName: "Dizon",
-    email: "carlos.dizon@dlsu.edu.ph",
-    idNumber: 12200006,
-    userType: "STUDENT",
-    role: "RESEARCHER",
-    roleLabel: "Researcher",
-    accountStatus: "INACTIVE",
-    labs: [{ centerId: 3, code: "NLP" }],
-    headOf: null,
-  },
-  {
-    userId: 7,
-    firstName: "Ana",
-    lastName: "Valdez",
-    email: "ana.valdez@dlsu.edu.ph",
-    idNumber: 11700007,
-    userType: "FACULTY",
-    role: "RESEARCHER",
-    roleLabel: "Researcher",
-    accountStatus: "INACTIVE",
-    labs: [{ centerId: 4, code: "ROB" }],
-    headOf: { centerId: 4, code: "ROB" },
-  },
-];
+type FilterTab = "ALL" | Extract<AccountStatus, "ACTIVE" | "INACTIVE" | "REJECTED">;
 
 /**
- * Lists the accounts for the IT Admin, showing role, lab memberships, Lab Head status, and status.
- * Provides placeholder actions to deactivate, reactivate, or anonymize user accounts.
+ * Lists the accounts for the IT Admin, showing role, lab memberships, Lab Head status, and account status.
+ * Enforces Contract 7.7 by disabling deactivation for accounts heading a lab, and Contract 4 by offering
+ * irreversible anonymization with a confirmation dialog for inactive or rejected accounts.
  */
 export function UsersPage() {
-  const [userList, setUserList] = useState<ManagedUser[]>(INITIAL_MOCK_USERS);
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
+  const [userList, setUserList] = useState<User[]>(MOCK_USERS);
+  const [statusFilter, setStatusFilter] = useState<FilterTab>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [anonymizingUser, setAnonymizingUser] = useState<User | null>(null);
 
   const filteredUsers = useMemo(() => {
     return userList.filter((user) => {
@@ -175,21 +71,37 @@ export function UsersPage() {
     setNotice(`User ${target?.firstName} ${target?.lastName} reactivated.`);
   };
 
-  const handleAnonymize = (userId: number) => {
+  const handleConfirmAnonymize = () => {
+    if (!anonymizingUser) return;
+    const targetId = anonymizingUser.userId;
     setUserList((prev) =>
       prev.map((u) =>
-        u.userId === userId
+        u.userId === targetId
           ? {
               ...u,
-              firstName: "Anonymized",
-              lastName: `User #${userId}`,
-              email: `anonymized.${userId}@example.local`,
+              firstName: "Former",
+              lastName: "researcher",
+              email: `anonymized-${targetId}@invalid`,
               idNumber: null,
             }
           : u
       )
     );
-    setNotice(`User #${userId} anonymized.`);
+    setNotice(`Account #${targetId} anonymized.`);
+    setAnonymizingUser(null);
+  };
+
+  const statusBadgeVariant = (status: AccountStatus) => {
+    switch (status) {
+      case "ACTIVE":
+        return "default";
+      case "INACTIVE":
+        return "secondary";
+      case "REJECTED":
+        return "destructive";
+      default:
+        return "outline";
+    }
   };
 
   return (
@@ -197,7 +109,7 @@ export function UsersPage() {
       <div className="mb-6">
         <h1 className="text-foreground mb-1">{PAGE_TITLES.administration}</h1>
         <p className="text-muted-foreground text-sm">
-          Users: view and manage active and inactive accounts.
+          Users: view and manage active, inactive, and rejected accounts.
         </p>
       </div>
 
@@ -210,7 +122,7 @@ export function UsersPage() {
           <button
             type="button"
             onClick={() => setNotice(null)}
-            className="text-emerald-700 hover:text-emerald-950 font-bold ml-4"
+            className="text-emerald-700 hover:text-emerald-950 font-bold ml-4 cursor-pointer"
           >
             Dismiss
           </button>
@@ -218,17 +130,27 @@ export function UsersPage() {
       )}
 
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex gap-2">
-          {(["ALL", "ACTIVE", "INACTIVE"] as const).map((tab) => (
-            <Button
-              key={tab}
-              size="sm"
-              variant={statusFilter === tab ? "default" : "outline"}
-              onClick={() => setStatusFilter(tab)}
-            >
-              {tab === "ALL" ? "All Users" : tab === "ACTIVE" ? "Active" : "Inactive"}
-            </Button>
-          ))}
+        <div className="flex flex-wrap gap-2">
+          {(["ALL", "ACTIVE", "INACTIVE", "REJECTED"] as const).map((tab) => {
+            const label =
+              tab === "ALL"
+                ? "All Users"
+                : tab === "ACTIVE"
+                ? "Active"
+                : tab === "INACTIVE"
+                ? "Inactive"
+                : "Rejected";
+            return (
+              <Button
+                key={tab}
+                size="sm"
+                variant={statusFilter === tab ? "default" : "outline"}
+                onClick={() => setStatusFilter(tab)}
+              >
+                {label}
+              </Button>
+            );
+          })}
         </div>
 
         <input
@@ -261,80 +183,149 @@ export function UsersPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredUsers.map((user) => (
-                <TableRow key={user.userId}>
-                  <TableCell className="text-xs font-semibold">
-                    {user.firstName} {user.lastName}
-                  </TableCell>
-                  <TableCell className="text-xs">{user.email}</TableCell>
-                  <TableCell className="text-xs font-mono">
-                    {user.idNumber ?? "None"}
-                  </TableCell>
-                  <TableCell className="text-xs">{USER_TYPE_LABELS[user.userType]}</TableCell>
-                  <TableCell className="text-xs font-medium">{user.roleLabel}</TableCell>
-                  <TableCell className="text-xs">
-                    <div className="flex flex-wrap items-center gap-1">
-                      {user.labs.length === 0 && (
-                        <span className="text-muted-foreground text-[11px]">None</span>
-                      )}
-                      {user.labs.map((lab) => (
-                        <Badge key={lab.centerId} variant="outline" className="text-[10px]">
-                          {lab.code}
-                        </Badge>
-                      ))}
-                      {user.headOf && (
-                        <Badge variant="secondary" className="text-[10px] font-semibold">
-                          Head: {user.headOf.code}
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    <Badge
-                      variant={user.accountStatus === "ACTIVE" ? "default" : "destructive"}
-                      className="text-[10px]"
-                    >
-                      {user.accountStatus}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1.5">
-                      {user.accountStatus === "ACTIVE" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs text-amber-700 hover:text-amber-800 hover:bg-amber-50"
-                          onClick={() => handleDeactivate(user.userId)}
-                        >
-                          Deactivate
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
-                          onClick={() => handleReactivate(user.userId)}
-                        >
-                          Reactivate
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => handleAnonymize(user.userId)}
-                      >
-                        Anonymize
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+              filteredUsers.map((user) => {
+                const roleDisplay = user.role
+                  ? DATABASE_ROLE_LABELS[user.role]
+                  : user.roleLabel ?? "None";
+                const isHead = user.headOf !== null;
+                const canAnonymize =
+                  user.accountStatus === "INACTIVE" || user.accountStatus === "REJECTED";
+
+                return (
+                  <TableRow key={user.userId}>
+                    <TableCell className="text-xs font-semibold">
+                      {user.firstName} {user.lastName}
+                    </TableCell>
+                    <TableCell className="text-xs">{user.email}</TableCell>
+                    <TableCell className="text-xs font-mono">
+                      {user.idNumber ?? "None"}
+                    </TableCell>
+                    <TableCell className="text-xs">{USER_TYPE_LABELS[user.userType]}</TableCell>
+                    <TableCell className="text-xs font-medium">{roleDisplay}</TableCell>
+                    <TableCell className="text-xs">
+                      <div className="flex flex-wrap items-center gap-1">
+                        {user.labs.length === 0 && (
+                          <span className="text-muted-foreground text-[11px]">None</span>
+                        )}
+                        {user.labs.map((lab) => (
+                          <Badge key={lab.centerId} variant="outline" className="text-[10px]">
+                            {lab.code}
+                          </Badge>
+                        ))}
+                        {user.headOf && (
+                          <Badge variant="secondary" className="text-[10px] font-semibold">
+                            Head: {user.headOf.code}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <Badge variant={statusBadgeVariant(user.accountStatus)} className="text-[10px]">
+                        {ACCOUNT_STATUS_LABELS[user.accountStatus] ?? user.accountStatus}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {user.accountStatus === "ACTIVE" && (
+                          isHead ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-block" tabIndex={0}>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled
+                                    className="h-7 text-xs opacity-50 cursor-not-allowed"
+                                    title="Change the lab's Head first."
+                                  >
+                                    Deactivate
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>Change the lab's Head first.</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                              onClick={() => handleDeactivate(user.userId)}
+                            >
+                              Deactivate
+                            </Button>
+                          )
+                        )}
+
+                        {user.accountStatus === "INACTIVE" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                            onClick={() => handleReactivate(user.userId)}
+                          >
+                            Reactivate
+                          </Button>
+                        )}
+
+                        {canAnonymize && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setAnonymizingUser(user)}
+                          >
+                            Anonymize
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </Card>
+
+      {anonymizingUser && (
+        <Dialog open onOpenChange={(open) => { if (!open) setAnonymizingUser(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Anonymize Account</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to anonymize{" "}
+                <span className="font-semibold text-foreground">
+                  {anonymizingUser.firstName} {anonymizingUser.lastName}
+                </span>{" "}
+                ({anonymizingUser.email})?
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-2 text-xs text-muted-foreground">
+              This action cannot be undone. In accordance with Contract 4, their name will be set to
+              "Former researcher", their email to an invalid domain, and their ID number cleared to
+              free it for future registration.
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAnonymizingUser(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleConfirmAnonymize}
+              >
+                Confirm Anonymization
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
-

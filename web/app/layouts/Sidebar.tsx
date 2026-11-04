@@ -28,50 +28,50 @@ import {
 import { cn } from "@web/components/ui/utils";
 
 const COLLAPSED_W = 64;
-const EXPANDED_W  = 240;
+const EXPANDED_W = 240;
 
 const roleConfig: Record<Role, {
   nav: { id: string; label: string; icon: React.ElementType }[];
 }> = {
   Staff: {
     nav: [
-      { id: "overview",    label: "System Overview",      icon: Monitor       },
-      { id: "register",    label: "Register Equipment",   icon: Package       },
-      { id: "inventory",   label: "Asset Inventory",      icon: ClipboardList },
-      { id: "repairs",     label: "Repairs",              icon: Wrench        },
-      { id: "inspections", label: "Inspections",          icon: ClipboardCheck },
-      { id: "returns",     label: "Pending Returns",       icon: ClipboardList },
-      { id: "qrtags",      label: "QR Tags",               icon: QrCode        },
-      { id: "health",      label: "Analytics",             icon: BarChart3     },
+      { id: "overview", label: "System Overview", icon: Monitor },
+      { id: "register", label: "Register Equipment", icon: Package },
+      { id: "inventory", label: "Asset Inventory", icon: ClipboardList },
+      { id: "repairs", label: "Repairs", icon: Wrench },
+      { id: "inspections", label: "Inspections", icon: ClipboardCheck },
+      { id: "returns", label: "Pending Returns", icon: ClipboardList },
+      { id: "qrtags", label: "QR Tags", icon: QrCode },
+      { id: "health", label: "Analytics", icon: BarChart3 },
     ],
   },
   LabHead: {
     nav: [
-      { id: "custody",     label: "Requests",            icon: Users         },
-      { id: "inventory",   label: "Lab Inventory",       icon: ClipboardList },
-      { id: "health",      label: "Analytics",             icon: BarChart3     },
+      { id: "custody", label: "Requests", icon: Users },
+      { id: "inventory", label: "Lab Inventory", icon: ClipboardList },
+      { id: "health", label: "Analytics", icon: BarChart3 },
     ],
   },
   Custodian: {
     nav: [
-      { id: "myassets",  label: "My Assets",           icon: Package },
+      { id: "myassets", label: "My Assets", icon: Package },
       { id: "available", label: "Available Equipment", icon: Monitor },
-      { id: "scan",      label: "QR Scan",             icon: QrCode  },
-      { id: "report",    label: "Send Inspection Report", icon: ClipboardCheck },
+      { id: "scan", label: "QR Scan", icon: QrCode },
+      { id: "report", label: "Send Inspection Report", icon: ClipboardCheck },
     ],
   },
   AdRICDirector: {
     nav: [
-      { id: "overview",           label: "Overview",            icon: Monitor       },
-      { id: "analytics",          label: "Analytics",            icon: BarChart3     },
-      { id: "clearance-disposal", label: "Disposal Approvals",    icon: ClipboardCheck },
-      { id: "reports",            label: "Inventory Report",    icon: ClipboardList },
+      { id: "overview", label: "Overview", icon: Monitor },
+      { id: "analytics", label: "Analytics", icon: BarChart3 },
+      { id: "clearance-disposal", label: "Disposal Approvals", icon: ClipboardCheck },
+      { id: "reports", label: "Inventory Report", icon: ClipboardList },
     ],
   },
   ITAdmin: {
     nav: [
       { id: "approvals", label: "Approvals", icon: ShieldCheck },
-      { id: "users",     label: "Users",     icon: Users       },
+      { id: "users", label: "Users", icon: Users },
     ],
   },
 };
@@ -90,8 +90,8 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
   const { unacknowledgedCount } = useServerData();
   const { users: pendingSignUps } = usePendingSignUps();
   const [showSettings, setShowSettings] = useState(false);
-  const navigate   = useNavigate();
-  const location   = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   useEffect(() => {
@@ -107,10 +107,10 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
 
   if (!role) return null;
 
-  const cfg        = roleConfig[role];
-  const slug       = roleToSlug[role];
-  const activeTab  = location.pathname.split("/").pop() ?? "";
-  const collapsed  = sidebarCollapsed;
+  const cfg = roleConfig[role];
+  const slug = roleToSlug[role];
+  const activeTab = location.pathname.split("/").pop() ?? "";
+  const collapsed = sidebarCollapsed;
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -183,7 +183,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                 >
                   {collapsed
                     ? <ChevronsRight size={13} />
-                    : <ChevronsLeft  size={13} />
+                    : <ChevronsLeft size={13} />
                   }
                 </motion.button>
               </TooltipTrigger>
@@ -285,7 +285,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
           {cfg.nav.map(({ id, label, icon: Icon }) => {
             const active = activeTab === id;
             const alertCount = id === "repairs" ? unacknowledgedCount : id === "approvals" && role === "ITAdmin" ? pendingSignUps.length : 0;
-            const hasAlert   = alertCount > 0;
+            const hasAlert = alertCount > 0;
 
             const navBtn = (
               <motion.button
@@ -512,7 +512,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                   {/* Session Information */}
                   <div className="p-4 bg-[#0A1F14] border border-emerald-500/10 rounded-xl space-y-2.5">
                     <p className="text-[10px] font-extrabold text-emerald-400 tracking-wider uppercase">Active Session Details</p>
-                    
+
                     <div className="space-y-1.5 text-[11px]">
                       <div className="flex justify-between">
                         <span className="text-slate-400">Signed in as:</span>
