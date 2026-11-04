@@ -20,6 +20,7 @@ import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";
 import { ApprovalsPage } from "@web/pages/it-admin/ApprovalsPage";
+import { UsersPage } from "@web/pages/it-admin/UsersPage";
 import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
 import { NotFound } from "@web/pages/NotFound";
 
@@ -120,6 +121,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="approvals" replace /> },
           { path: "approvals", element: <ApprovalsPage /> },
+          { path: "users",     element: <UsersPage /> },
           { path: "account",   element: <AccountDetailsPage /> },
         ],
       },

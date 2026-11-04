@@ -71,6 +71,7 @@ const roleConfig: Record<Role, {
   ITAdmin: {
     nav: [
       { id: "approvals", label: "Approvals", icon: ShieldCheck },
+      { id: "users",     label: "Users",     icon: Users       },
     ],
   },
 };
