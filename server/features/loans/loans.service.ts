@@ -2,13 +2,14 @@
  * Loans service: the business rules for loan requests, cancellations, Lab Head decisions, and the loan list, and the
  * one builder of the Loan shape.
  * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, features/assets/assets.repository.ts,
- * shared/services/lifecycleGuard.ts, shared/services/permissions.ts (the approver), and shared/services/assetState.ts.
- * Used by: Researcher loan requests, Lab Head approval, and the screens that list loans.
+ * shared/services/lifecycleGuard.ts, shared/services/permissions.ts (the approver), shared/services/assetState.ts, and,
+ * inside the step's transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts.
+ * Used by: Researcher loan requests, Lab Head approval, TSG release, and the screens that list loans.
  */
 import { asset_loans_status } from '@prisma/client';
 import type { Loan, LoanListItem, LoanRequestBody } from '@shared/types/loans';
 import type { Inspection } from '@shared/types/inspections';
-import type { PersonRef } from '@shared/types/assets';
+import type { InspectionInput, PersonRef } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
 import * as loansRepository from './loans.repository';
 import type { LoanInspectionRow, LoanRow, LoanRows } from './loans.repository';
@@ -22,6 +23,8 @@ import { AppError } from '../../shared/errors/AppError';
 import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
 import { NO_LAB_HEAD_MESSAGE, requireHomeLabHead, resolveLoanApprover } from '../../shared/services/permissions';
 import { isOverdue, serverToday } from '../../shared/services/assetState';
+import { writeInspection } from '../../shared/services/inspections';
+import { setAssetStatus } from '../../shared/services/assetStatus';
 import { PICK_OWN_LAB_MESSAGE } from './loans.validation';
 
 /** The 403 message when the account that heads a lab asks to borrow: it is the lab's office account. */
@@ -346,4 +349,37 @@ export function approveLoan(loanId: number, remarks: string | null, decider: Ses
  */
 export function declineLoan(loanId: number, remarks: string, decider: SessionIdentity): Promise<Loan> {
     return decideLoan(loanId, false, remarks, decider);
+}
+
+/**
+ * TSG checks the asset and hands it to the borrower, in one transaction: a Loan Release inspection by the session
+ * user, the loan On Loan with who released it and when, and the asset On Loan. The asset must still be Available.
+ * From then on the borrower holds it at the loan's destination (shared/services/assetState.ts).
+ *
+ * @param loanId the loan
+ * @param inspection the checked Loan Release inspection
+ * @param releaser the session user, TSG (the route checks it)
+ * @returns the loan, On Loan, with its release inspection
+ * @throws AppError 404 if no loan has this id
+ * @throws AppError 409 if the loan is not Pending Release, or the asset is no longer Available
+ * @throws AppError 400 if a metric does not apply to the asset; nothing is written
+ */
+export async function releaseLoan(loanId: number, inspection: InspectionInput, releaser: SessionIdentity): Promise<Loan> {
+    const loan = await existingLoan(loanId);
+
+    await loansRepository.withAssetLock(loan.asset_id, async (tx) => {
+        const current = await loansRepository.findLoanIn(tx, loanId);
+        if (current.status !== asset_loans_status.PENDING_RELEASE) throw new AppError(409, wrongStatus(loanId, current.status, "released"));
+        assertActionAllowed(await loansRepository.findAssetIn(tx, loan.asset_id), "RELEASE_LOAN");
+
+        const row = await writeInspection(tx, { assetId: loan.asset_id, type: "LOAN_RELEASE", input: inspection, inspectorId: releaser.userId });
+        await loansRepository.updateLoan(tx, loanId, {
+            status: asset_loans_status.ON_LOAN,
+            released_by_id: releaser.userId,
+            released_at: new Date(),
+            release_inspection_id: row.inspection_id,
+        });
+        await setAssetStatus(tx, loan.asset_id, "ON_LOAN");
+    });
+    return loanById(loanId, releaser);
 }

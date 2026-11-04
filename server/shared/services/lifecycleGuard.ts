@@ -13,6 +13,7 @@ import { AppError } from '../errors/AppError';
 export type LifecycleAction =
     | "REQUEST_LOAN"
     | "APPROVE_LOAN"
+    | "RELEASE_LOAN"
     | "START_MAINTENANCE"
     | "RECEIVE_FOR_MAINTENANCE"
     | "REQUEST_RETIREMENT"
@@ -27,6 +28,7 @@ export type LifecycleAction =
 export const LIFECYCLE_ACTIONS: readonly LifecycleAction[] = [
     "REQUEST_LOAN",
     "APPROVE_LOAN",
+    "RELEASE_LOAN",
     "START_MAINTENANCE",
     "RECEIVE_FOR_MAINTENANCE",
     "REQUEST_RETIREMENT",
@@ -41,11 +43,11 @@ export const LIFECYCLE_ACTIONS: readonly LifecycleAction[] = [
 /**
  * The actions each status allows (docs/contracts/lifecycle.md, section 3). Pending Retirement allows only the
  * decision and, once approved, the completion; Retired allows nothing; Missing allows found and a retirement request.
- * Approving a loan needs the asset still Available. Cancelling or declining a loan checks no asset status, so a loan
+ * Approving and releasing a loan need the asset still Available. Cancelling or declining a loan checks no asset status, so a loan
  * on an asset that went to maintenance can still be closed.
  */
 export const ALLOWED_ACTIONS: Record<assets_status, readonly LifecycleAction[]> = {
-    AVAILABLE: ["REQUEST_LOAN", "APPROVE_LOAN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "REQUEST_RETIREMENT", "MARK_MISSING", "EDIT_MASTER_DATA", "ROUTINE_INSPECTION"],
+    AVAILABLE: ["REQUEST_LOAN", "APPROVE_LOAN", "RELEASE_LOAN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "REQUEST_RETIREMENT", "MARK_MISSING", "EDIT_MASTER_DATA", "ROUTINE_INSPECTION"],
     ON_LOAN: ["START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "MARK_MISSING", "EDIT_MASTER_DATA"],
     MAINTENANCE: ["REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
     PENDING_RETIREMENT: ["DECIDE_RETIREMENT", "COMPLETE_RETIREMENT"],
@@ -57,6 +59,7 @@ export const ALLOWED_ACTIONS: Record<assets_status, readonly LifecycleAction[]> 
 const ACTION_WORDS: Record<LifecycleAction, string> = {
     REQUEST_LOAN: "be requested for a loan",
     APPROVE_LOAN: "have a loan approved",
+    RELEASE_LOAN: "be released on a loan",
     START_MAINTENANCE: "take a maintenance ticket",
     RECEIVE_FOR_MAINTENANCE: "be received for maintenance",
     REQUEST_RETIREMENT: "be requested for retirement",

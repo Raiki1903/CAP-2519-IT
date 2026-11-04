@@ -2,13 +2,13 @@
  * Loan controller: unpacks loan requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by loans.routes.ts. Calls loans.validation.ts, loans.service.ts, and shared/middleware/requireAuth.ts
  * (sessionUserOf: who is acting).
- * Used by: Researcher loan requests, Lab Head approval, and the screens that list loans.
+ * Used by: Researcher loan requests, Lab Head approval, TSG release, and the screens that list loans.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as loansService from './loans.service';
-import { readDecisionRemarks, readLoanId, readLoanRequest } from './loans.validation';
+import { readDecisionRemarks, readLoanId, readLoanRequest, readReleaseBody } from './loans.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
@@ -71,5 +71,19 @@ export async function declineLoan(req: Request<{ loanId: string }>, res: Respons
     const loan = await loansService.declineLoan(loanId, remarks, decider);
 
     console.log(`Loan ${loanId} declined by user ${decider.userId}`);
+    res.json({ success: true, loan });
+}
+
+/**
+ * Handles PUT /api/loans/:loanId/release: TSG releases an approved loan with a Loan Release inspection.
+ * Answers `{ success, loan }`, or the AppError's status and message (400, 403, 404, 409), or 500.
+ */
+export async function releaseLoan(req: Request<{ loanId: string }>, res: Response): Promise<void> {
+    const loanId = readLoanId(req.params.loanId);
+    const inspection = readReleaseBody(req.body);
+    const releaser = sessionUserOf(req);
+    const loan = await loansService.releaseLoan(loanId, inspection, releaser);
+
+    console.log(`Loan ${loanId} released by user ${releaser.userId}`);
     res.json({ success: true, loan });
 }

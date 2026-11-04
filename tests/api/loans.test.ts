@@ -1,8 +1,8 @@
 /**
  * Loans API: the loan request, cancel, the Lab Head's approve and decline, and the old loan list.
- * Covers POST /api/assets/:tag/loans, PUT /api/loans/:id/cancel, /approve, /decline, and GET /api/loans.
+ * Covers POST /api/assets/:tag/loans, PUT /api/loans/:id/cancel, /approve, /decline, /release, and GET /api/loans.
  * Workflow: borrowing (a Researcher requests, the home lab's Head approves or declines, the borrower may cancel while
- * the loan waits).
+ * the loan waits, TSG releases it with a Loan Release inspection).
  * Fixtures: the seeded loans (LOAN-1 On Loan on TEST-0002, LOAN-2 Pending Approval on TEST-0005), the seeded assets
  * in each state, and the accounts (USERS). The list tests run first. The write tests use their own extra assets
  * (TEST-0101 onward, see extraAssets.ts) and change no seeded row; the H-08 test puts LOAN-2 back to pending.
@@ -427,6 +427,141 @@ describe("PUT /api/loans/:id/approve and /decline", () => {
   it("answers 404 for an unknown loan, and 400 for an id that is not a number", async () => {
     expect((await asLabHead.put("/api/loans/999999/approve", {})).status).toBe(404);
     expect((await asLabHead.put("/api/loans/LOAN-1/decline", { decisionRemarks: "Test" })).status).toBe(400);
+  });
+});
+
+/** What TSG sends to release or receive: one inspection. */
+const inspectionBody = (extra: Record<string, unknown> = {}) => ({
+  inspection: { condition: "OPERATIONAL", healthScore: 80, remarks: "Test inspection remark", ...extra },
+});
+
+const inspectionsOf = (assetId: number, type: "LOAN_RELEASE" | "RETURN") => db.asset_inspections.findMany({ where: { asset_id: assetId, type } });
+
+describe("PUT /api/loans/:id/release", () => {
+  it("TSG releases: a Loan Release inspection by TSG, the loan and the asset On Loan, held by the borrower at the destination", async () => {
+    const { asset, loanId } = await pendingReleaseOn("TEST-0401");
+
+    const res = await asStaff.put(`/api/loans/${loanId}/release`, inspectionBody());
+
+    expect(res.status).toBe(200);
+    expect(res.body.loan).toMatchObject({
+      status: "ON_LOAN",
+      statusLabel: "On Loan",
+      releasedBy: { userId: USERS.staffTsg.userId, name: USERS.staffTsg.fullName },
+      releaseInspection: {
+        type: "LOAN_RELEASE",
+        typeLabel: "Loan Release",
+        inspectedBy: { userId: USERS.staffTsg.userId },
+        condition: "OPERATIONAL",
+        conditionLabel: "Operational",
+        healthScore: 80,
+        remarks: "Test inspection remark",
+        metrics: [],
+      },
+      isOverdue: false,
+    });
+    expect(res.body.loan.releasedAt).not.toBeNull();
+    const [inspection] = await inspectionsOf(asset.assetId, "LOAN_RELEASE");
+    expect(inspection).toMatchObject({ inspected_by_id: USERS.staffTsg.userId, condition: "OPERATIONAL" });
+    expect((await loanRow(loanId)).release_inspection_id).toBe(inspection.inspection_id);
+    expect(await assetStatus(asset.assetId)).toBe("ON_LOAN");
+    expect(await listedAsset(asset.tag)).toMatchObject({
+      holder: { userId: USERS.custodianA.userId },
+      currentLocation: `${LAB.shortCode}, Test Room 1`,
+      condition: "OPERATIONAL",
+    });
+  });
+
+  it.each([USERS.custodianA, USERS.labHead, USERS.secretary, USERS.admin])("answers 403 to $lastName, and writes nothing", async (user) => {
+    const { asset, loanId } = await pendingReleaseOn(`TEST-041${user.userId}`);
+
+    const res = await as(user).put(`/api/loans/${loanId}/release`, inspectionBody());
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe(FORBIDDEN);
+    expect((await loanRow(loanId)).status).toBe("PENDING_RELEASE");
+    expect(await inspectionsOf(asset.assetId, "LOAN_RELEASE")).toHaveLength(0);
+  });
+
+  it("answers 409 for a loan that is not Pending Release, and writes nothing", async () => {
+    const { asset, loanId } = await pendingLoanOn("TEST-0402");
+
+    const res = await asStaff.put(`/api/loans/${loanId}/release`, inspectionBody());
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(`Loan ${loanId} is Pending Approval, so it can no longer be released.`);
+    expect(await inspectionsOf(asset.assetId, "LOAN_RELEASE")).toHaveLength(0);
+    expect(await assetStatus(asset.assetId)).toBe("AVAILABLE");
+  });
+
+  it("answers 409 when the asset is no longer Available, and writes nothing", async () => {
+    const { asset, loanId } = await pendingReleaseOn("TEST-0403");
+    await db.assets.update({ where: { asset_id: asset.assetId }, data: { status: "MISSING" } });
+
+    const res = await asStaff.put(`/api/loans/${loanId}/release`, inspectionBody());
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("TEST-0403 is Missing and cannot be released on a loan.");
+    expect((await loanRow(loanId)).status).toBe("PENDING_RELEASE");
+    expect(await inspectionsOf(asset.assetId, "LOAN_RELEASE")).toHaveLength(0);
+  });
+
+  it("gives one release to two at the same moment: one 200, one 409, and one inspection", async () => {
+    const { asset, loanId } = await pendingReleaseOn("TEST-0404");
+    const asStaffIts = as(USERS.staffIts);
+    await asStaffIts.get("/api/auth/me");
+
+    const results = await Promise.all([
+      asStaff.put(`/api/loans/${loanId}/release`, inspectionBody()),
+      asStaffIts.put(`/api/loans/${loanId}/release`, inspectionBody()),
+    ]);
+
+    expect(results.map(r => r.status).sort()).toEqual([200, 409]);
+    expect(await inspectionsOf(asset.assetId, "LOAN_RELEASE")).toHaveLength(1);
+  });
+
+  it("files the metric values of the asset's category, each flagged by its rule", async () => {
+    const { asset, loanId } = await pendingReleaseOn("TEST-0405");
+    await db.assets.update({ where: { asset_id: asset.assetId }, data: { category: "CPU" } });
+
+    const res = await asStaff.put(`/api/loans/${loanId}/release`, inspectionBody({ metrics: [{ metricId: 3, value: 65 }, { metricId: 1, value: 50 }] }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.loan.releaseInspection.metrics).toEqual([
+      { metricId: 1, metricKey: "CPU_LOAD_TEMP", name: "CPU load temperature", unit: "°C", value: 50, flagged: false },
+      { metricId: 3, metricKey: "BATTERY_CAPACITY", name: "Battery capacity", unit: "% of design", value: 65, flagged: true },
+    ]);
+    const [inspection] = await inspectionsOf(asset.assetId, "LOAN_RELEASE");
+    expect(await db.asset_inspection_metrics.count({ where: { inspection_id: inspection.inspection_id } })).toBe(2);
+  });
+
+  it("answers 400 for a metric the asset's category does not measure, and writes nothing", async () => {
+    const { asset, loanId } = await pendingReleaseOn("TEST-0406");
+
+    const res = await asStaff.put(`/api/loans/${loanId}/release`, inspectionBody({ metrics: [{ metricId: 1, value: 40 }] }));
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("That measurement does not apply to this asset.");
+    expect((await loanRow(loanId)).status).toBe("PENDING_RELEASE");
+    expect(await inspectionsOf(asset.assetId, "LOAN_RELEASE")).toHaveLength(0);
+    expect(await assetStatus(asset.assetId)).toBe("AVAILABLE");
+  });
+
+  it.each([
+    ["no inspection", {}, "Missing required field: inspection."],
+    ["an unknown condition", inspectionBody({ condition: "BROKEN" }), "Pick the condition of the inspection from the list."],
+    ["metrics that are not a list", inspectionBody({ metrics: { metricId: 1, value: 1 } }), "metrics must be a list of { metricId, value }."],
+    ["the same metric twice", inspectionBody({ metrics: [{ metricId: 3, value: 80 }, { metricId: 3, value: 81 }] }), "Send each metric only once."],
+  ])("answers 400 for %s, and changes nothing", async (_what, body, message) => {
+    const res = await asStaff.put(`/api/loans/${SEEDED_ROWS.pendingLoanId}/release`, body);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(message);
+    expect((await loanRow(SEEDED_ROWS.pendingLoanId)).status).toBe("PENDING_APPROVAL");
+  });
+
+  it("answers 404 for an unknown loan", async () => {
+    expect((await asStaff.put("/api/loans/999999/release", inspectionBody())).status).toBe(404);
   });
 });
 

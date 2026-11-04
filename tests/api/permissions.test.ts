@@ -69,6 +69,7 @@ describe("the IT Admin has no asset steps", () => {
     ["PUT", "/api/loans/2/cancel", {}],
     ["PUT", "/api/loans/2/approve", {}],
     ["PUT", "/api/loans/2/decline", { decisionRemarks: "Test" }],
+    ["PUT", "/api/loans/2/release", { inspection: { condition: "OPERATIONAL" } }],
     ["PUT", `/api/assets/${ASSETS.available.tag}`, { name: "Test name from the IT Admin" }],
   ])("answers 403 to %s %s, and writes nothing", async (method, path, body) => {
     const client = as(USERS.admin);

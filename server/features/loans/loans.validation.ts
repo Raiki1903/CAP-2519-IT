@@ -1,11 +1,14 @@
 /**
  * Loan request checks: is the request shaped correctly, before any database work.
- * Layer: validation. Called by loans.controller.ts. Calls shared/validation/fields.ts and shared/errors/AppError.ts.
- * Used by: Researcher loan requests, Lab Head approval, and the loan steps that take a loan id.
+ * Layer: validation. Called by loans.controller.ts. Calls shared/validation/ (the field and inspection readers) and
+ * shared/errors/AppError.ts.
+ * Used by: Researcher loan requests, Lab Head approval, TSG release, and the loan steps that take a loan id.
  */
+import type { InspectionInput } from '@shared/types/assets';
 import type { LoanRequestBody } from '@shared/types/loans';
 import { AppError } from '../../shared/errors/AppError';
 import { readDate, readId, readText } from '../../shared/validation/fields';
+import { readInspectionInput } from '../../shared/validation/inspectionInput';
 
 /** The longest purpose or remarks text a loan keeps. The columns are TEXT; this stays well inside them. */
 const LONG_TEXT_MAX = 2000;
@@ -66,4 +69,14 @@ export function readDecisionRemarks(body: unknown, required: boolean): string | 
     const remarks = readText(bodyOf(body), "decisionRemarks", LONG_TEXT_MAX) ?? null;
     if (required && !remarks) throw new AppError(400, "Write the reason for declining.");
     return remarks;
+}
+
+/**
+ * Reads a release body: the Loan Release inspection TSG files when the borrower collects the asset.
+ *
+ * @param body the request body, `{ inspection }`
+ * @throws AppError 400 if the inspection is missing or a value is wrong
+ */
+export function readReleaseBody(body: unknown): InspectionInput {
+    return readInspectionInput(bodyOf(body).inspection, "inspection");
 }

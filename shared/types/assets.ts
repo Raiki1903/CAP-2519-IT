@@ -15,6 +15,8 @@ export interface InspectionInput {
   remarks?: string | null;
   /** A data URL. */
   photo?: string | null;
+  /** The measured values, each a metric of the asset's category (`metricsByCategory` in GET /api/lookups), at most once. */
+  metrics?: { metricId: number; value: number }[];
 }
 
 /** The master data of an asset: what registration sets and Edit Asset may change. Every field is checked by the server. */
