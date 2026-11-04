@@ -475,16 +475,29 @@ describe("GET /api/analytics/lab-head", () => {
     }
   });
 
-  it("leaves out returned and declined loans past due, but counts a pending request past its due date as overdue (new)", async () => {
+  it("leaves out returned and declined loans past due, and a Pending Approval request past its return-by date (H-04 fixed)", async () => {
     const returned = await addOverdueLoan("TEST-0724", 5, "RETURNED");
     const declined = await addOverdueLoan("TEST-0725", 5, "DECLINED");
     const pending = await addOverdueLoan("TEST-0726", 5, "PENDING_APPROVAL");
     try {
       const res = await labHead(TEST_LAB_QUERY);
 
-      expect(res.body.data.delinquencies.map((d: { id: number }) => d.id)).toEqual([pending.loan.loan_id]);
+      expect(res.body.data.delinquencies).toEqual([]);
     } finally {
       await removeExtraAssets(db, [returned.asset.assetId, declined.asset.assetId, pending.asset.assetId]);
+    }
+  });
+
+  it("counts On Loan and Return Requested loans past their return-by date, and not a Pending Release one", async () => {
+    const onLoan = await addOverdueLoan("TEST-0728", 3, "ON_LOAN");
+    const returnRequested = await addOverdueLoan("TEST-0729", 3, "RETURN_REQUESTED");
+    const waiting = await addOverdueLoan("TEST-0730", 3, "PENDING_RELEASE");
+    try {
+      const res = await labHead(TEST_LAB_QUERY);
+
+      expect(res.body.data.delinquencies.map((d: { id: number }) => d.id).sort()).toEqual([onLoan.loan.loan_id, returnRequested.loan.loan_id].sort());
+    } finally {
+      await removeExtraAssets(db, [onLoan.asset.assetId, returnRequested.asset.assetId, waiting.asset.assetId]);
     }
   });
 
