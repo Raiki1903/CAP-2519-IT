@@ -2,22 +2,25 @@
  * Loan controller: unpacks loan requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by loans.routes.ts. Calls loans.validation.ts, loans.service.ts, and shared/middleware/requireAuth.ts
  * (sessionUserOf: who is acting).
- * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, and the screens
- * that list loans.
+ * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, the loan lists,
+ * the Accountability Form, and the clearance record.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as loansService from './loans.service';
-import { readDecisionRemarks, readLoanId, readLoanRequest, readReceiveBody, readReleaseBody, readReturnRequest } from './loans.validation';
+import { readDecisionRemarks, readLoanId, readLoanRequest, readReceiveBody, readReleaseBody, readReturnRequest, readStatusFilter, readUserId } from './loans.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles GET /api/loans: every loan, newest first, in today's list shape, as `{ success, loans }`. A Custodian gets
- * no name but their own (D2). A failure answers errorHandler's generic 500.
+ * Handles GET /api/loans. With no `?status=`: every loan, newest first, in today's list shape (a Custodian gets no
+ * name but their own, D2). With `?status=` (TSG only): the loans in those statuses, oldest first, in the Loan shape.
+ * Answers `{ success, loans }`, or 400 for an unknown status, 403 for `?status=` from anyone but TSG, or 500.
  */
 export async function listLoans(req: Request, res: Response): Promise<void> {
-    const loans = await loansService.listLoans(sessionUserOf(req));
+    const viewer = sessionUserOf(req);
+    const statuses = readStatusFilter(req.query.status);
+    const loans = statuses ? await loansService.loansByStatus(statuses, viewer) : await loansService.listLoans(viewer);
     res.json({ success: true, loans });
 }
 
@@ -119,4 +122,46 @@ export async function receiveReturn(req: Request<{ loanId: string }>, res: Respo
         ? `Loan ${loanId} received by user ${receiver.userId}, with maintenance ${maintenance.repairId}`
         : `Loan ${loanId} received by user ${receiver.userId}`);
     res.json({ success: true, loan, ...(maintenance ? { maintenance } : {}) });
+}
+
+/**
+ * Handles GET /api/loans/mine: the session user's own loans, newest first, `?status=` optional.
+ * Answers `{ success, loans }` in the Loan shape, or 400 for an unknown status, or 500.
+ */
+export async function listMyLoans(req: Request, res: Response): Promise<void> {
+    const loans = await loansService.myLoans(readStatusFilter(req.query.status), sessionUserOf(req));
+    res.json({ success: true, loans });
+}
+
+/**
+ * Handles GET /api/loans/lab-requests: the loans on the assets of the lab the session user's account heads, oldest
+ * first, `?status=` optional.
+ * Answers `{ success, loans }` in the Loan shape, or 400 for an unknown status, 403 for an account that heads no lab, or 500.
+ */
+export async function listLabRequests(req: Request, res: Response): Promise<void> {
+    const loans = await loansService.labRequests(readStatusFilter(req.query.status), sessionUserOf(req));
+    res.json({ success: true, loans });
+}
+
+/**
+ * Handles GET /api/loans/:loanId/accountability-form: the data of the printed Accountability Form.
+ * Answers `{ success, loan, asset, borrower, releaseInspection }`, or the AppError's status and message
+ * (400, 403, 404, 409), or 500.
+ */
+export async function getAccountabilityForm(req: Request<{ loanId: string }>, res: Response): Promise<void> {
+    const form = await loansService.accountabilityForm(readLoanId(req.params.loanId), sessionUserOf(req));
+    res.json({ success: true, ...form });
+}
+
+/**
+ * Handles POST /api/users/:userId/clearance-record: TSG prints a person's clearance record, which is logged.
+ * Answers `{ success, person, cleared, loans }`, or the AppError's status and message (400, 403, 404), or 500.
+ */
+export async function printClearanceRecord(req: Request<{ userId: string }>, res: Response): Promise<void> {
+    const userId = readUserId(req.params.userId);
+    const actor = sessionUserOf(req);
+    const record = await loansService.clearanceRecord(userId, actor);
+
+    console.log(`Clearance record of user ${userId} printed by user ${actor.userId}`);
+    res.json({ success: true, ...record });
 }

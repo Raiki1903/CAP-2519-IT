@@ -1,13 +1,15 @@
 /**
  * Loan row access: every database read and write the loan endpoints make.
- * Layer: repository. Called by loans.service.ts. Calls server/config/prisma.ts, shared/services/rowLocks.ts, and
- * shared/services/assetState.ts (the open loan, read inside the lock).
- * Used by: Researcher loan requests, Lab Head approval, TSG release and receipt, and the screens that list loans.
+ * Layer: repository. Called by loans.service.ts. Calls server/config/prisma.ts, shared/services/rowLocks.ts,
+ * shared/services/assetState.ts (the open loan, read inside the lock, and clearance), and shared/services/activityLog.ts.
+ * Used by: Researcher loan requests, Lab Head approval, TSG release and receipt, the loan lists, the Accountability
+ * Form, and the clearance record.
  */
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { lockAsset } from '../../shared/services/rowLocks';
-import { openLoanOf, type Db } from '../../shared/services/assetState';
+import { isCleared, openLoanOf, type Db } from '../../shared/services/assetState';
+import { logActivity } from '../../shared/services/activityLog';
 
 /** The person fields every loan answer names. */
 const PERSON = { select: { user_id: true, first_name: true, last_name: true } } as const;
@@ -170,4 +172,34 @@ export function findMaintenanceForList(maintenanceId: number) {
         where: { maintenance_id: maintenanceId },
         include: { assets: { select: { asset_tag: true, name: true } }, users: { select: { first_name: true, last_name: true } } },
     });
+}
+
+/** A person's name, ID number, email, and labs, or null when there is no such account. */
+export function findPerson(userId: number) {
+    return prisma.users.findUnique({
+        where: { user_id: userId },
+        select: {
+            user_id: true,
+            first_name: true,
+            last_name: true,
+            id_number: true,
+            email: true,
+            user_centers: { select: { research_centers: { select: { center_id: true, short_code: true } } }, orderBy: { center_id: 'asc' } },
+        },
+    });
+}
+
+/** Whether the person has no loan in Pending Release, On Loan, or Return Requested. */
+export function findCleared(userId: number) {
+    return isCleared(prisma, userId);
+}
+
+/**
+ * Writes the CLEARANCE_RECORD_PRINTED row: TSG as the actor, the person as the target, no details.
+ *
+ * @param actorId the session user, TSG
+ * @param targetUserId the person whose record was printed
+ */
+export function logClearancePrinted(actorId: number, targetUserId: number) {
+    return prisma.$transaction(tx => logActivity(tx, { eventType: 'CLEARANCE_RECORD_PRINTED', actorId, targetUserId }));
 }

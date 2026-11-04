@@ -4,7 +4,7 @@
  * types.
  * Used by: Researcher loan requests, Lab Head approval, TSG release and receipt, and the loan lists.
  */
-import type { PersonRef } from './assets';
+import type { AssetListItem, PersonRef } from './assets';
 import type { Inspection } from './inspections';
 
 /** The body LoanForm sends today. It goes in commit 8 of Batch 3, when LoanForm sends LoanRequestBody. */
@@ -108,4 +108,34 @@ export interface Loan {
   remarks: string | null;
   /** On Loan or Return Requested with the return-by date passed. A loan never released is never overdue. */
   isOverdue: boolean;
+}
+
+/** A lab as a person's lab list names it. */
+export interface PersonLab {
+  centerId: number;
+  code: string;
+}
+
+/**
+ * GET /api/loans/:loanId/accountability-form: what the printed Accountability Form needs (Appendix 1 of the CCS
+ * Equipment Monitoring Policies). The clauses are fixed text on the print page, not server data. The asset's
+ * `manufacturer` stands in for the model.
+ */
+export interface AccountabilityForm {
+  loan: Loan;
+  /** The asset in the asset list's shape (GET /api/assets). */
+  asset: AssetListItem;
+  /** The Responsible Person. The email goes only to the borrower, the home lab's Head, and TSG, who may open this. */
+  borrower: { userId: number; name: string; idNumber: number | null; email: string; labs: PersonLab[] };
+  /** Null only for a loan handed over before the release step existed. */
+  releaseInspection: Inspection | null;
+}
+
+/** POST /api/users/:userId/clearance-record: one person's clearance record, for TSG to print. */
+export interface ClearanceRecord {
+  person: { userId: number; name: string; idNumber: number | null; labs: PersonLab[] };
+  /** No loan in Pending Release, On Loan, or Return Requested. */
+  cleared: boolean;
+  /** The person's loans that were released, or still wait in Pending Release, newest first. */
+  loans: Loan[];
 }

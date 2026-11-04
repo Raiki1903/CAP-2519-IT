@@ -4,25 +4,29 @@
  * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, features/assets/assets.repository.ts,
  * shared/services/lifecycleGuard.ts, shared/services/permissions.ts (the approver), shared/services/assetState.ts, and,
  * inside the step's transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts;
- * features/maintenance/maintenance.service.ts for the shape of a Return Damage ticket.
- * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, and the screens
- * that list loans.
+ * features/maintenance/maintenance.service.ts for the shape of a Return Damage ticket; features/assets/assets.service.ts
+ * for the asset on the Accountability Form.
+ * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, the loan lists,
+ * the Accountability Form, and the clearance record.
  */
-import { asset_loans_status } from '@prisma/client';
-import type { Loan, LoanListItem, LoanRequestBody } from '@shared/types/loans';
+import { asset_loans_status, type Prisma } from '@prisma/client';
+import type { AccountabilityForm, ClearanceRecord, Loan, LoanListItem, LoanRequestBody } from '@shared/types/loans';
 import type { Inspection } from '@shared/types/inspections';
 import type { InspectionInput, PersonRef } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
 import * as loansRepository from './loans.repository';
 import type { LoanInspectionRow, LoanRow, LoanRows } from './loans.repository';
 import * as assetsRepository from '../assets/assets.repository';
+import * as assetsService from '../assets/assets.service';
 import type { RepairListItem } from '@shared/types/maintenance';
-import { HELD_LOAN_STATUSES, LOAN_STATUS_LABELS, WAITING_LOAN_STATUSES } from '@shared/constants/loanStatuses';
+import { HELD_LOAN_STATUSES, LOAN_STATUS_LABELS, WAITING_LOAN_STATUSES, type LoanStatus } from '@shared/constants/loanStatuses';
 import { INSPECTION_TYPE_LABELS } from '@shared/constants/inspectionTypes';
 import { ASSET_CONDITION_LABELS } from '@shared/enums/assetCondition';
 import { CAMPUS_LABELS } from '@shared/constants/campuses';
 import { isMetricFlagged } from '@shared/constants/metricFlagRules';
 import { AppError } from '../../shared/errors/AppError';
+import { hasAccessRole } from '../../shared/middleware/permissions';
+import { FORBIDDEN_MESSAGE } from '../../shared/middleware/requireRole';
 import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
 import { NO_LAB_HEAD_MESSAGE, requireHomeLabHead, resolveLoanApprover } from '../../shared/services/permissions';
 import { isOverdue, serverToday } from '../../shared/services/assetState';
@@ -166,7 +170,7 @@ async function loanById(loanId: number, viewer: SessionIdentity): Promise<Loan> 
  * @param viewer the session user
  * @returns one LoanListItem per asset_loans row
  */
-// TODO(M-02): scoping by lab happens only in the browser. Batch 3 adds GET /api/loans/lab-requests for the Lab Head.
+// TODO(M-02): today's Lab Head screens still pick their lab's loans out of this list in the browser. Joel's Requests redesign (#116) reads GET /api/loans/lab-requests instead.
 export async function listLoans(viewer: SessionIdentity): Promise<LoanListItem[]> {
     const dbLoans = await loansRepository.findAllNewestFirst();
 
@@ -482,4 +486,132 @@ export async function receiveReturn(
         maintenance = repairListItemOf(ticket, ticket.assets, ticket.users);
     }
     return { loan: await loanById(loanId, receiver), maintenance };
+}
+
+/** Oldest request first, for the lists that are worked through in order (TSG's queues, a Head's requests). */
+const OLDEST_FIRST: Prisma.asset_loansOrderByWithRelationInput[] = [{ requested_at: 'asc' }, { loan_id: 'asc' }];
+
+/** Newest request first, for a person's own loans and the clearance record. */
+const NEWEST_FIRST: Prisma.asset_loansOrderByWithRelationInput[] = [{ requested_at: 'desc' }, { loan_id: 'desc' }];
+
+/**
+ * The loans that were handed over: held now, or closed after a release. Stored as statuses rather than read from
+ * released_at, so loans from before the release step (which have no released_at) count too.
+ */
+const HANDED_OVER_STATUSES: readonly LoanStatus[] = [...HELD_LOAN_STATUSES, "RETURNED", "ENDED_BY_MAINTENANCE", "ENDED_BY_LOSS"];
+
+/** The loans a clearance record lists: handed over, or still waiting in Pending Release. A cancelled loan is left out. */
+const CLEARANCE_RECORD_STATUSES: readonly LoanStatus[] = ["PENDING_RELEASE", ...HANDED_OVER_STATUSES];
+
+/** A status filter, or no filter at all. */
+function statusWhere(statuses: LoanStatus[] | null): Prisma.asset_loansWhereInput {
+    return statuses ? { status: { in: statuses } } : {};
+}
+
+/** Whether the session user is TSG. */
+function isTsg(viewer: SessionIdentity): boolean {
+    return hasAccessRole(viewer, ["TSG_STAFF"]);
+}
+
+/**
+ * The loans in some statuses, oldest request first, for TSG's Releases and Returns lists.
+ *
+ * @param statuses one or more loan statuses, already checked
+ * @param viewer the session user
+ * @throws AppError 403 FORBIDDEN_MESSAGE for anyone but TSG
+ */
+export async function loansByStatus(statuses: LoanStatus[], viewer: SessionIdentity): Promise<Loan[]> {
+    if (!isTsg(viewer)) throw new AppError(403, FORBIDDEN_MESSAGE);
+    return loansOf(await loansRepository.findRows(statusWhere(statuses), OLDEST_FIRST), viewer);
+}
+
+/**
+ * The session user's own loans, newest request first.
+ *
+ * @param statuses a status filter, or null for every status
+ * @param viewer the session user, the borrower
+ */
+export async function myLoans(statuses: LoanStatus[] | null, viewer: SessionIdentity): Promise<Loan[]> {
+    return loansOf(await loansRepository.findRows({ borrower_id: viewer.userId, ...statusWhere(statuses) }, NEWEST_FIRST), viewer);
+}
+
+/**
+ * The loans on assets whose home lab the session user's account heads, oldest request first. This is the server's
+ * scoping of a Lab Head's requests. (M-02)
+ *
+ * @param statuses a status filter, or null for every status
+ * @param viewer the session user
+ * @throws AppError 403 if the account heads no lab
+ */
+export async function labRequests(statuses: LoanStatus[] | null, viewer: SessionIdentity): Promise<Loan[]> {
+    if (viewer.headOfCenterId === null) throw new AppError(403, "You do not head a lab.");
+    return loansOf(await loansRepository.findRows({ assets: { center_id: viewer.headOfCenterId }, ...statusWhere(statuses) }, OLDEST_FIRST), viewer);
+}
+
+/** A person's labs as the answers name them. */
+function labsOf(person: NonNullable<Awaited<ReturnType<typeof loansRepository.findPerson>>>) {
+    return person.user_centers.map(uc => ({ centerId: uc.research_centers.center_id, code: uc.research_centers.short_code }));
+}
+
+/**
+ * The data of a loan's Accountability Form: the loan, the asset, the Responsible Person (with their email), and the
+ * release inspection. Only the borrower, the Head of the asset's home lab, and TSG may see it, because it carries
+ * the borrower's email and ID number.
+ *
+ * @param loanId the loan
+ * @param viewer the session user
+ * @throws AppError 404 if no loan has this id
+ * @throws AppError 403 for anyone else
+ * @throws AppError 409 if the loan was never handed over
+ */
+export async function accountabilityForm(loanId: number, viewer: SessionIdentity): Promise<AccountabilityForm> {
+    const loan = await existingLoan(loanId);
+    const asset = await assetsRepository.findById(loan.asset_id);
+    if (!asset) throw new AppError(404, `No asset found for loan ${loanId}.`);
+    const allowed = loan.borrower_id === viewer.userId || isTsg(viewer) || (await resolveLoanApprover(asset)) === viewer.userId;
+    if (!allowed) throw new AppError(403, "Only the borrower, the Head of the asset's lab, and TSG can see this Accountability Form.");
+    if (!HANDED_OVER_STATUSES.includes(loan.status)) throw new AppError(409, "This loan has not been released yet.");
+
+    const [shaped, [listed], person] = await Promise.all([
+        loanById(loanId, viewer),
+        assetsService.listAssets(viewer, { assetId: loan.asset_id }),
+        loansRepository.findPerson(loan.borrower_id),
+    ]);
+    return {
+        loan: shaped,
+        asset: listed,
+        borrower: {
+            userId: person!.user_id,
+            name: `${person!.first_name} ${person!.last_name}`,
+            idNumber: person!.id_number,
+            email: person!.email,
+            labs: labsOf(person!),
+        },
+        releaseInspection: shaped.releaseInspection,
+    };
+}
+
+/**
+ * One person's clearance record for TSG to print: whether they are cleared, and their loans that were handed over or
+ * still wait for release, newest first, each with its release and return inspections. Writes a
+ * CLEARANCE_RECORD_PRINTED row, TSG as the actor and the person as the target.
+ *
+ * @param userId the person
+ * @param viewer the session user, TSG (the route checks it)
+ * @throws AppError 404 if there is no such person
+ */
+export async function clearanceRecord(userId: number, viewer: SessionIdentity): Promise<ClearanceRecord> {
+    const person = await loansRepository.findPerson(userId);
+    if (!person) throw new AppError(404, `No person found with id ${userId}.`);
+
+    const [cleared, rows] = await Promise.all([
+        loansRepository.findCleared(userId),
+        loansRepository.findRows({ borrower_id: userId, status: { in: [...CLEARANCE_RECORD_STATUSES] } }, NEWEST_FIRST),
+    ]);
+    await loansRepository.logClearancePrinted(viewer.userId, userId);
+    return {
+        person: { userId: person.user_id, name: `${person.first_name} ${person.last_name}`, idNumber: person.id_number, labs: labsOf(person) },
+        cleared,
+        loans: loansOf(rows, viewer),
+    };
 }

@@ -2,11 +2,12 @@
  * Loan request checks: is the request shaped correctly, before any database work.
  * Layer: validation. Called by loans.controller.ts. Calls shared/validation/ (the field and inspection readers) and
  * shared/errors/AppError.ts.
- * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, and the loan steps
- * that take a loan id.
+ * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, the loan lists'
+ * status filter, and the steps that take a loan or user id.
  */
 import type { InspectionInput } from '@shared/types/assets';
 import type { LoanRequestBody } from '@shared/types/loans';
+import { LOAN_STATUSES, type LoanStatus } from '@shared/constants/loanStatuses';
 import { AppError } from '../../shared/errors/AppError';
 import { readDate, readId, readText } from '../../shared/validation/fields';
 import { readInspectionInput } from '../../shared/validation/inspectionInput';
@@ -126,4 +127,32 @@ export function readReceiveBody(body: unknown): { inspection: InspectionInput; r
     const issueDescription = readText(damage, "issueDescription", LONG_TEXT_MAX);
     if (!issueDescription) throw new AppError(400, "Describe the damage.");
     return { inspection, returnDamage: { issueTypeId, issueDescription } };
+}
+
+/**
+ * Reads a `?status=` filter: one or more loan statuses separated by commas.
+ *
+ * @param value the query value
+ * @returns the statuses, each once, or null when no filter was sent
+ * @throws AppError 400 for an empty filter or an unknown status
+ */
+export function readStatusFilter(value: unknown): LoanStatus[] | null {
+    if (value === undefined) return null;
+    if (typeof value !== 'string') throw new AppError(400, "status must be one or more loan statuses separated by commas.");
+    const statuses = [...new Set(value.split(',').map(s => s.trim()).filter(Boolean))];
+    if (statuses.length === 0) throw new AppError(400, "Pick at least one loan status.");
+    const unknown = statuses.find(s => !(LOAN_STATUSES as readonly string[]).includes(s));
+    if (unknown) throw new AppError(400, `Unknown loan status: ${unknown}.`);
+    return statuses as LoanStatus[];
+}
+
+/**
+ * Reads the person's id from the URL.
+ *
+ * @param value the `:userId` path part
+ * @throws AppError 400 if it is not a whole number
+ */
+export function readUserId(value: string): number {
+    if (!/^\d+$/.test(value)) throw new AppError(400, "Invalid user id.");
+    return Number(value);
 }
