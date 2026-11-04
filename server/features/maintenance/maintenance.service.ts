@@ -119,35 +119,50 @@ export async function requestRepair(assetTag: string, data: RepairRequestInput, 
 export async function listRepairs(): Promise<RepairListItem[]> {
     const [dbRepairs, dbAssets, dbUsers] = await maintenanceRepository.findListLookups();
 
-    return dbRepairs.map(repair => {
-        const asset = dbAssets.find(a => a.asset_id === repair.asset_id);
-        const reporter = dbUsers.find(u => u.user_id === repair.reported_by_id);
+    return dbRepairs.map(repair => repairListItemOf(
+        repair,
+        dbAssets.find(a => a.asset_id === repair.asset_id),
+        dbUsers.find(u => u.user_id === repair.reported_by_id),
+    ));
+}
 
-        const submittedAt = repair.reported_at.toLocaleString("en-US", {
-            month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit"
-        });
-
-        return {
-            id: `MNT-${repair.maintenance_id}`,
-            repairId: repair.maintenance_id,
-            _source: "db",
-            _repairId: repair.maintenance_id,
-            assetId: asset?.asset_tag || `EQ-2024-${String(repair.asset_id).padStart(3, "0")}`,
-            assetName: asset?.name || "Unknown Asset",
-            // The screens label this "custodian", but it is the reporter, who may not hold the asset.
-            custodian: reporter ? `${reporter.first_name} ${reporter.last_name}` : "Unassigned",
-            reportedBy: reporter ? `${reporter.first_name} ${reporter.last_name}` : "Unassigned",
-            description: repair.issue_description,
-            statusLabel: progressTextOf(repair),
-            progressStatus: progressTextOf(repair),
-            // TODO(H-07): every ticket shows the same priority. Batch 5 shows the issue type instead.
-            priority: "Medium",
-            // There is no "acknowledged" column, so any status but the starting one counts as acknowledged.
-            acknowledged: repair.status !== asset_maintenance_status.PENDING_RECEIPT,
-            submittedAt,
-            createdAt: repair.reported_at.toISOString(),
-        };
+/**
+ * One repair ticket in the list's shape. Also the shape a loan receipt answers with when it opens a Return Damage
+ * ticket (features/loans).
+ *
+ * @param repair the asset_maintenance row
+ * @param asset its asset's tag and name, if found
+ * @param reporter its reporter's name, if found
+ */
+export function repairListItemOf(
+    repair: asset_maintenance,
+    asset: { asset_tag: string; name: string } | undefined,
+    reporter: { first_name: string; last_name: string } | undefined,
+): RepairListItem {
+    const submittedAt = repair.reported_at.toLocaleString("en-US", {
+        month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit"
     });
+
+    return {
+        id: `MNT-${repair.maintenance_id}`,
+        repairId: repair.maintenance_id,
+        _source: "db",
+        _repairId: repair.maintenance_id,
+        assetId: asset?.asset_tag || `EQ-2024-${String(repair.asset_id).padStart(3, "0")}`,
+        assetName: asset?.name || "Unknown Asset",
+        // The screens label this "custodian", but it is the reporter, who may not hold the asset.
+        custodian: reporter ? `${reporter.first_name} ${reporter.last_name}` : "Unassigned",
+        reportedBy: reporter ? `${reporter.first_name} ${reporter.last_name}` : "Unassigned",
+        description: repair.issue_description,
+        statusLabel: progressTextOf(repair),
+        progressStatus: progressTextOf(repair),
+        // TODO(H-07): every ticket shows the same priority. Batch 5 shows the issue type instead.
+        priority: "Medium",
+        // There is no "acknowledged" column, so any status but the starting one counts as acknowledged.
+        acknowledged: repair.status !== asset_maintenance_status.PENDING_RECEIPT,
+        submittedAt,
+        createdAt: repair.reported_at.toISOString(),
+    };
 }
 
 // The statuses of a ticket whose asset TSG has received. Moving a ticket into one of them receives the asset.

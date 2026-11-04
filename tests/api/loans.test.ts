@@ -1,8 +1,10 @@
 /**
  * Loans API: the loan request, cancel, the Lab Head's approve and decline, and the old loan list.
- * Covers POST /api/assets/:tag/loans, PUT /api/loans/:id/cancel, /approve, /decline, /release, and GET /api/loans.
+ * Covers POST /api/assets/:tag/loans, PUT /api/loans/:id/cancel, /approve, /decline, /release, /return-request,
+ * /receive, and GET /api/loans.
  * Workflow: borrowing (a Researcher requests, the home lab's Head approves or declines, the borrower may cancel while
- * the loan waits, TSG releases it with a Loan Release inspection).
+ * the loan waits, TSG releases it with a Loan Release inspection, the borrower asks to return, and TSG receives it
+ * with a Return inspection).
  * Fixtures: the seeded loans (LOAN-1 On Loan on TEST-0002, LOAN-2 Pending Approval on TEST-0005), the seeded assets
  * in each state, and the accounts (USERS). The list tests run first. The write tests use their own extra assets
  * (TEST-0101 onward, see extraAssets.ts) and change no seeded row; the H-08 test puts LOAN-2 back to pending.
@@ -565,9 +567,195 @@ describe("PUT /api/loans/:id/release", () => {
   });
 });
 
+/** A new asset with a loan of Custodian A released by TSG, so it is On Loan and held by Custodian A. */
+async function onLoanOn(tag: string) {
+  const { asset, loanId } = await pendingReleaseOn(tag);
+  expect((await asStaff.put(`/api/loans/${loanId}/release`, inspectionBody())).status).toBe(200);
+  return { asset, loanId };
+}
+
+describe("PUT /api/loans/:id/return-request", () => {
+  it("the borrower asks to return: Return Requested with the time and the remarks; the asset stays On Loan, held by the borrower", async () => {
+    const { asset, loanId } = await onLoanOn("TEST-0501");
+
+    const res = await asCustodian.put(`/api/loans/${loanId}/return-request`, { remarks: "  Test: done with it  " });
+
+    expect(res.status).toBe(200);
+    expect(res.body.loan).toMatchObject({ status: "RETURN_REQUESTED", statusLabel: "Return Requested", remarks: "Test: done with it", closedAt: null });
+    expect(res.body.loan.returnRequestedAt).not.toBeNull();
+    expect(await assetStatus(asset.assetId)).toBe("ON_LOAN");
+    expect(await listedAsset(asset.tag)).toMatchObject({ holder: { userId: USERS.custodianA.userId }, currentLocation: `${LAB.shortCode}, Test Room 1` });
+  });
+
+  it("answers 403 to someone who is not the borrower, and leaves the loan as it was", async () => {
+    const { loanId } = await onLoanOn("TEST-0502");
+
+    const res = await asCustodianB.put(`/api/loans/${loanId}/return-request`, {});
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("Only the borrower can ask to return this loan.");
+    expect((await loanRow(loanId)).status).toBe("ON_LOAN");
+  });
+
+  it("answers 409 for a loan that is not On Loan, and leaves it as it was", async () => {
+    const { loanId } = await pendingReleaseOn("TEST-0503");
+
+    const res = await asCustodian.put(`/api/loans/${loanId}/return-request`, {});
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(`Loan ${loanId} is Pending Release, so a return cannot be requested.`);
+    expect((await loanRow(loanId)).status).toBe("PENDING_RELEASE");
+  });
+
+  it("answers 400 for remarks over 255 characters, and leaves the loan as it was", async () => {
+    const { loanId } = await onLoanOn("TEST-0504");
+
+    const res = await asCustodian.put(`/api/loans/${loanId}/return-request`, { remarks: "x".repeat(256) });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Remarks must be at most 255 characters.");
+    expect((await loanRow(loanId)).status).toBe("ON_LOAN");
+  });
+});
+
+describe("PUT /api/loans/:id/receive", () => {
+  const maintenanceOf = (assetId: number) => db.asset_maintenance.findMany({ where: { asset_id: assetId } });
+
+  it("receives a Return Requested loan: a Return inspection by TSG, the loan Returned and closed, the asset Available at home", async () => {
+    const { asset, loanId } = await onLoanOn("TEST-0601");
+    expect((await asCustodian.put(`/api/loans/${loanId}/return-request`, {})).status).toBe(200);
+
+    const res = await asStaff.put(`/api/loans/${loanId}/receive`, inspectionBody({ condition: "MINOR_DRIFT", remarks: "Test: a small scratch" }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.maintenance).toBeUndefined();
+    expect(res.body.loan).toMatchObject({
+      status: "RETURNED",
+      receivedBy: { userId: USERS.staffTsg.userId },
+      returnInspection: { type: "RETURN", condition: "MINOR_DRIFT", remarks: "Test: a small scratch", inspectedBy: { userId: USERS.staffTsg.userId } },
+      isOverdue: false,
+    });
+    expect(res.body.loan.closedAt).not.toBeNull();
+    expect(res.body.loan.returnRequestedAt).not.toBeNull();
+    const [inspection] = await inspectionsOf(asset.assetId, "RETURN");
+    expect((await loanRow(loanId)).return_inspection_id).toBe(inspection.inspection_id);
+    expect(await assetStatus(asset.assetId)).toBe("AVAILABLE");
+    expect(await listedAsset(asset.tag)).toMatchObject({ holder: null, currentLocation: LAB.shortCode, condition: "MINOR_DRIFT" });
+    expect(await maintenanceOf(asset.assetId)).toHaveLength(0);
+  });
+
+  it("receives a walk-in return straight from On Loan, with no return request recorded", async () => {
+    const { asset, loanId } = await onLoanOn("TEST-0602");
+
+    const res = await asStaff.put(`/api/loans/${loanId}/receive`, inspectionBody());
+
+    expect(res.status).toBe(200);
+    expect(res.body.loan).toMatchObject({ status: "RETURNED", returnRequestedAt: null });
+    expect(await assetStatus(asset.assetId)).toBe("AVAILABLE");
+  });
+
+  it("with return damage: a Return Damage ticket in Inspecting, received by TSG and triggered by the Return inspection; the asset in Maintenance", async () => {
+    const { asset, loanId } = await onLoanOn("TEST-0603");
+
+    const res = await asStaff.put(`/api/loans/${loanId}/receive`, {
+      ...inspectionBody({ condition: "DEGRADED" }),
+      returnDamage: { issueTypeId: 1, issueDescription: "Test: the screen is cracked" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.loan.status).toBe("RETURNED");
+    const [ticket] = await maintenanceOf(asset.assetId);
+    const [inspection] = await inspectionsOf(asset.assetId, "RETURN");
+    expect(ticket).toMatchObject({
+      type: "RETURN_DAMAGE",
+      status: "INSPECTING",
+      reported_by_id: USERS.staffTsg.userId,
+      received_by_id: USERS.staffTsg.userId,
+      trigger_inspection_id: inspection.inspection_id,
+      issue_type_id: 1,
+      issue_description: "Test: the screen is cracked",
+    });
+    expect(ticket.received_at).not.toBeNull();
+    expect(res.body.maintenance).toMatchObject({ repairId: ticket.maintenance_id, assetId: asset.tag, statusLabel: "Inspection Phase", acknowledged: true });
+    expect(await assetStatus(asset.assetId)).toBe("MAINTENANCE");
+    expect(await listedAsset(asset.tag)).toMatchObject({ holder: null, currentLocation: "TSG Office" });
+  });
+
+  it("answers 400 for an unknown issue type, and writes nothing", async () => {
+    const { asset, loanId } = await onLoanOn("TEST-0604");
+
+    const res = await asStaff.put(`/api/loans/${loanId}/receive`, { ...inspectionBody(), returnDamage: { issueTypeId: 999, issueDescription: "Test damage" } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Pick an issue type from the list.");
+    expect((await loanRow(loanId)).status).toBe("ON_LOAN");
+    expect(await inspectionsOf(asset.assetId, "RETURN")).toHaveLength(0);
+    expect(await maintenanceOf(asset.assetId)).toHaveLength(0);
+    expect(await assetStatus(asset.assetId)).toBe("ON_LOAN");
+  });
+
+  it.each([
+    ["no issue type", { issueDescription: "Test damage" }, "Pick an issue type from the list."],
+    ["no description", { issueTypeId: 1, issueDescription: " " }, "Describe the damage."],
+  ])("answers 400 for return damage with %s, and changes nothing", async (_what, returnDamage, message) => {
+    const res = await asStaff.put(`/api/loans/${SEEDED_ROWS.approvedLoanId}/receive`, { ...inspectionBody(), returnDamage });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(message);
+    expect((await loanRow(SEEDED_ROWS.approvedLoanId)).status).toBe("ON_LOAN");
+  });
+
+  it.each([
+    ["Pending Release", "TEST-0611"],
+    ["Returned", "TEST-0612"],
+  ])("answers 409 for a loan in %s, and writes nothing", async (label, tag) => {
+    const { asset, loanId } = label === "Returned" ? await onLoanOn(tag) : await pendingReleaseOn(tag);
+    if (label === "Returned") expect((await asStaff.put(`/api/loans/${loanId}/receive`, inspectionBody())).status).toBe(200);
+    const inspectionsBefore = (await inspectionsOf(asset.assetId, "RETURN")).length;
+
+    const res = await asStaff.put(`/api/loans/${loanId}/receive`, inspectionBody());
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(`Loan ${loanId} is ${label}, so it cannot be received.`);
+    expect(await inspectionsOf(asset.assetId, "RETURN")).toHaveLength(inspectionsBefore);
+  });
+
+  it("gives one receipt to two at the same moment: one 200, one 409, and one Return inspection", async () => {
+    const { asset, loanId } = await onLoanOn("TEST-0605");
+    const asStaffIts = as(USERS.staffIts);
+    await asStaffIts.get("/api/auth/me");
+
+    const results = await Promise.all([
+      asStaff.put(`/api/loans/${loanId}/receive`, inspectionBody()),
+      asStaffIts.put(`/api/loans/${loanId}/receive`, inspectionBody()),
+    ]);
+
+    expect(results.map(r => r.status).sort()).toEqual([200, 409]);
+    expect(await inspectionsOf(asset.assetId, "RETURN")).toHaveLength(1);
+  });
+
+  it.each([USERS.custodianA, USERS.labHead, USERS.secretary, USERS.admin])("answers 403 to $lastName, and writes nothing", async (user) => {
+    const before = await db.asset_inspections.count({ where: { type: "RETURN" } });
+
+    const res = await as(user).put(`/api/loans/${SEEDED_ROWS.approvedLoanId}/receive`, inspectionBody());
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe(FORBIDDEN);
+    expect((await loanRow(SEEDED_ROWS.approvedLoanId)).status).toBe("ON_LOAN");
+    expect(await db.asset_inspections.count({ where: { type: "RETURN" } })).toBe(before);
+  });
+
+  it("answers 404 for an unknown loan", async () => {
+    expect((await asStaff.put("/api/loans/999999/receive", inspectionBody())).status).toBe(404);
+  });
+});
+
 describe("the replaced loan routes", () => {
-  it("answer 404: POST /api/assets/:tag/borrow and PUT /api/loans/:id/decision", async () => {
+  it("answer 404: POST /api/assets/:tag/borrow, PUT /api/loans/:id/decision, POST /api/assets/:tag/return, and GET /api/asset_returns", async () => {
     expect((await asCustodian.post(`/api/assets/${ASSETS.available.tag}/borrow`, { purpose: "Test", dueDate: inDays(5) })).status).toBe(404);
     expect((await asLabHead.put(`/api/loans/${SEEDED_ROWS.pendingLoanId}/decision`, { decision: "approve" })).status).toBe(404);
+    expect((await asStaff.post(`/api/assets/${ASSETS.onLoan.tag}/return`, { condition: "OPERATIONAL" })).status).toBe(404);
+    expect((await asStaff.get("/api/asset_returns")).status).toBe(404);
+    expect((await loanRow(SEEDED_ROWS.approvedLoanId)).status).toBe("ON_LOAN");
   });
 });

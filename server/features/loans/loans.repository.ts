@@ -153,3 +153,21 @@ export function createLoan(tx: Prisma.TransactionClient, data: Prisma.asset_loan
 export function updateLoan(tx: Prisma.TransactionClient, loanId: number, data: Prisma.asset_loansUncheckedUpdateInput) {
     return tx.asset_loans.update({ where: { loan_id: loanId }, data });
 }
+
+/** Whether an issue type with this id exists. */
+export async function issueTypeExists(issueTypeId: number): Promise<boolean> {
+    return (await prisma.issue_types.count({ where: { issue_type_id: issueTypeId } })) > 0;
+}
+
+/** Inserts an asset_maintenance row inside the caller's transaction and returns it. */
+export function createMaintenance(tx: Prisma.TransactionClient, data: Prisma.asset_maintenanceUncheckedCreateInput) {
+    return tx.asset_maintenance.create({ data });
+}
+
+/** The maintenance ticket with its asset's tag and name and its reporter's name, for the repair list's shape. */
+export function findMaintenanceForList(maintenanceId: number) {
+    return prisma.asset_maintenance.findUniqueOrThrow({
+        where: { maintenance_id: maintenanceId },
+        include: { assets: { select: { asset_tag: true, name: true } }, users: { select: { first_name: true, last_name: true } } },
+    });
+}

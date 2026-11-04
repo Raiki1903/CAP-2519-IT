@@ -1,6 +1,7 @@
 /**
  * Request and response shapes of the return endpoints.
- * Layer: shared. Imported by server/features/returns/ and web/api/returns.api.ts. Imports nothing.
+ * Layer: shared. Imported by web/api/returns.api.ts, until Batch 3 commit 8 moves Record Return to PUT /api/loans/:loanId/receive.
+ * Imports nothing.
  * Used by: Staff return finalization.
  */
 

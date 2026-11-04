@@ -3,8 +3,10 @@
  * one builder of the Loan shape.
  * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, features/assets/assets.repository.ts,
  * shared/services/lifecycleGuard.ts, shared/services/permissions.ts (the approver), shared/services/assetState.ts, and,
- * inside the step's transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts.
- * Used by: Researcher loan requests, Lab Head approval, TSG release, and the screens that list loans.
+ * inside the step's transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts;
+ * features/maintenance/maintenance.service.ts for the shape of a Return Damage ticket.
+ * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, and the screens
+ * that list loans.
  */
 import { asset_loans_status } from '@prisma/client';
 import type { Loan, LoanListItem, LoanRequestBody } from '@shared/types/loans';
@@ -14,7 +16,8 @@ import type { SessionIdentity } from '@shared/types/auth';
 import * as loansRepository from './loans.repository';
 import type { LoanInspectionRow, LoanRow, LoanRows } from './loans.repository';
 import * as assetsRepository from '../assets/assets.repository';
-import { LOAN_STATUS_LABELS, WAITING_LOAN_STATUSES } from '@shared/constants/loanStatuses';
+import type { RepairListItem } from '@shared/types/maintenance';
+import { HELD_LOAN_STATUSES, LOAN_STATUS_LABELS, WAITING_LOAN_STATUSES } from '@shared/constants/loanStatuses';
 import { INSPECTION_TYPE_LABELS } from '@shared/constants/inspectionTypes';
 import { ASSET_CONDITION_LABELS } from '@shared/enums/assetCondition';
 import { CAMPUS_LABELS } from '@shared/constants/campuses';
@@ -25,7 +28,8 @@ import { NO_LAB_HEAD_MESSAGE, requireHomeLabHead, resolveLoanApprover } from '..
 import { isOverdue, serverToday } from '../../shared/services/assetState';
 import { writeInspection } from '../../shared/services/inspections';
 import { setAssetStatus } from '../../shared/services/assetStatus';
-import { PICK_OWN_LAB_MESSAGE } from './loans.validation';
+import { PICK_OWN_LAB_MESSAGE, type ReturnDamage } from './loans.validation';
+import { repairListItemOf } from '../maintenance/maintenance.service';
 
 /** The 403 message when the account that heads a lab asks to borrow: it is the lab's office account. */
 export const PERSONAL_ACCOUNT_MESSAGE = "Use your personal account to borrow.";
@@ -382,4 +386,100 @@ export async function releaseLoan(loanId: number, inspection: InspectionInput, r
         await setAssetStatus(tx, loan.asset_id, "ON_LOAN");
     });
     return loanById(loanId, releaser);
+}
+
+/**
+ * The borrower asks to return the asset. The loan becomes Return Requested; the asset stays On Loan and the borrower
+ * stays accountable until TSG receives it. (#87)
+ *
+ * @param loanId the loan
+ * @param remarks the borrower's remarks, or null
+ * @param actor the session user, who must be the borrower
+ * @returns the loan, Return Requested
+ * @throws AppError 404 if no loan has this id
+ * @throws AppError 403 if the session user is not the borrower
+ * @throws AppError 409 if the loan is not On Loan
+ */
+export async function requestReturn(loanId: number, remarks: string | null, actor: SessionIdentity): Promise<Loan> {
+    const loan = await existingLoan(loanId);
+    if (loan.borrower_id !== actor.userId) throw new AppError(403, "Only the borrower can ask to return this loan.");
+
+    await loansRepository.withAssetLock(loan.asset_id, async (tx) => {
+        const current = await loansRepository.findLoanIn(tx, loanId);
+        if (current.status !== asset_loans_status.ON_LOAN) {
+            throw new AppError(409, `Loan ${loanId} is ${LOAN_STATUS_LABELS[current.status]}, so a return cannot be requested.`);
+        }
+        assertActionAllowed(await loansRepository.findAssetIn(tx, loan.asset_id), "REQUEST_RETURN");
+        await loansRepository.updateLoan(tx, loanId, { status: asset_loans_status.RETURN_REQUESTED, return_requested_at: new Date(), remarks });
+    });
+    return loanById(loanId, actor);
+}
+
+/**
+ * TSG receives the asset back, in one transaction: a Return inspection by the session user, and the loan Returned
+ * and closed with who received it. A walk-in return straight from On Loan is taken too and recorded as is (no
+ * return_requested_at). With no damage the asset is Available again, back at its home lab and room. With damage the
+ * step also opens a Return Damage ticket in Inspecting, received by TSG now and triggered by the Return inspection,
+ * and the asset goes to Maintenance. (#87)
+ *
+ * @param loanId the loan
+ * @param inspection the checked Return inspection; TSG's notes are its remarks
+ * @param damage the issue type and description of the damage found, or null
+ * @param receiver the session user, TSG (the route checks it)
+ * @returns the loan, Returned, and the new ticket in the repair list's shape, or null
+ * @throws AppError 404 if no loan has this id
+ * @throws AppError 400 if the issue type does not exist, or a metric does not apply to the asset; nothing is written
+ * @throws AppError 409 if the loan is not On Loan or Return Requested, or the asset is not On Loan
+ */
+export async function receiveReturn(
+    loanId: number,
+    inspection: InspectionInput,
+    damage: ReturnDamage | null,
+    receiver: SessionIdentity,
+): Promise<{ loan: Loan; maintenance: RepairListItem | null }> {
+    const loan = await existingLoan(loanId);
+    if (damage && !(await loansRepository.issueTypeExists(damage.issueTypeId))) {
+        throw new AppError(400, "Pick an issue type from the list.");
+    }
+
+    const maintenanceId = await loansRepository.withAssetLock(loan.asset_id, async (tx) => {
+        const current = await loansRepository.findLoanIn(tx, loanId);
+        if (!HELD_LOAN_STATUSES.includes(current.status)) {
+            throw new AppError(409, `Loan ${loanId} is ${LOAN_STATUS_LABELS[current.status]}, so it cannot be received.`);
+        }
+        assertActionAllowed(await loansRepository.findAssetIn(tx, loan.asset_id), "RECEIVE_RETURN");
+
+        const row = await writeInspection(tx, { assetId: loan.asset_id, type: "RETURN", input: inspection, inspectorId: receiver.userId });
+        const now = new Date();
+        await loansRepository.updateLoan(tx, loanId, {
+            status: asset_loans_status.RETURNED,
+            received_by_id: receiver.userId,
+            return_inspection_id: row.inspection_id,
+            closed_at: now,
+        });
+        if (!damage) {
+            await setAssetStatus(tx, loan.asset_id, "AVAILABLE");
+            return null;
+        }
+        const ticket = await loansRepository.createMaintenance(tx, {
+            asset_id: loan.asset_id,
+            type: "RETURN_DAMAGE",
+            status: "INSPECTING",
+            reported_by_id: receiver.userId,
+            received_by_id: receiver.userId,
+            received_at: now,
+            trigger_inspection_id: row.inspection_id,
+            issue_type_id: damage.issueTypeId,
+            issue_description: damage.issueDescription,
+        });
+        await setAssetStatus(tx, loan.asset_id, "MAINTENANCE");
+        return ticket.maintenance_id;
+    });
+
+    let maintenance: RepairListItem | null = null;
+    if (maintenanceId !== null) {
+        const ticket = await loansRepository.findMaintenanceForList(maintenanceId);
+        maintenance = repairListItemOf(ticket, ticket.assets, ticket.users);
+    }
+    return { loan: await loanById(loanId, receiver), maintenance };
 }

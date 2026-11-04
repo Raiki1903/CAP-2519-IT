@@ -488,13 +488,11 @@ describe("GET /api/analytics/lab-head", () => {
     }
   });
 
-  it("no longer counts a loan as delinquent once the asset is returned through the return route (issue #99, H-04 fixed)", async () => {
+  it("no longer counts a loan as delinquent once TSG receives it back (issue #99, H-04 fixed)", async () => {
     const overdue = await addOverdueLoan("TEST-0727", 5);
     try {
-      const returned = await asStaff.post(`/api/assets/${overdue.asset.tag}/return`, {
-        returnedBy: USERS.custodianA.fullName,
-        condition: "OPERATIONAL",
-        comments: "Test return comment",
+      const returned = await asStaff.put(`/api/loans/${overdue.loan.loan_id}/receive`, {
+        inspection: { condition: "OPERATIONAL", remarks: "Test return comment" },
       });
       expect(returned.status).toBe(200);
 

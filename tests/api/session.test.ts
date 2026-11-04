@@ -41,7 +41,7 @@ const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.
  * Row 8, POST /api/auth/register, was deleted with its route (issue #70). Rows 29 to 32 (transfers) and 41 (the custodian
  * list) were deleted with their routes in Batch 1. Rows 3 to 5 (the Lab Head's sign-up routes) were deleted with their
  * routes in Batch 2b; rows 42 to 44 are the IT Admin's sign-up routes that replace them. In Batch 3, row 22 became
- * approve and rows 45 on are the new loan steps. Row 21 (the loan request) is tested in api/loans.test.ts, because
+ * approve, row 27 (the old return) was deleted with its route, and rows 45 on are the new loan steps. Row 21 (the loan request) is tested in api/loans.test.ts, because
  * it refuses the account that heads a lab with its own sentence.
  * The Staff account is TSG.
  */
@@ -64,11 +64,12 @@ const ROUTES: [number, string, string, Role[]][] = [
   [45, "PUT", "/api/loans/999999/decline", [L]],
   [46, "PUT", "/api/loans/999999/cancel", [C]],
   [47, "PUT", "/api/loans/999999/release", [S]],
+  [48, "PUT", "/api/loans/999999/return-request", [C]],
+  [49, "PUT", "/api/loans/999999/receive", [S]],
   [23, "POST", "/api/assets/NOPE-9999/maintenance", [C, L, S]],
   [24, "GET", "/api/maintenance", ANY],
   [25, "PUT", "/api/maintenance/999999", [S]],
   [26, "PUT", "/api/maintenance/999999/status", [S]],
-  [27, "POST", "/api/assets/NOPE-9999/return", [S]],
   [33, "GET", "/api/analytics/director", [D]],
   [34, "GET", "/api/analytics/lab-head", [L]],
   [35, "GET", "/api/analytics/tsg", [S]],

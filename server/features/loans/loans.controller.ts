@@ -2,13 +2,14 @@
  * Loan controller: unpacks loan requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by loans.routes.ts. Calls loans.validation.ts, loans.service.ts, and shared/middleware/requireAuth.ts
  * (sessionUserOf: who is acting).
- * Used by: Researcher loan requests, Lab Head approval, TSG release, and the screens that list loans.
+ * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, and the screens
+ * that list loans.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as loansService from './loans.service';
-import { readDecisionRemarks, readLoanId, readLoanRequest, readReleaseBody } from './loans.validation';
+import { readDecisionRemarks, readLoanId, readLoanRequest, readReceiveBody, readReleaseBody, readReturnRequest } from './loans.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
@@ -86,4 +87,36 @@ export async function releaseLoan(req: Request<{ loanId: string }>, res: Respons
 
     console.log(`Loan ${loanId} released by user ${releaser.userId}`);
     res.json({ success: true, loan });
+}
+
+/**
+ * Handles PUT /api/loans/:loanId/return-request: the borrower asks to return an asset they hold.
+ * Answers `{ success, loan }`, or the AppError's status and message (400, 403, 404, 409), or 500.
+ */
+export async function requestReturn(req: Request<{ loanId: string }>, res: Response): Promise<void> {
+    const loanId = readLoanId(req.params.loanId);
+    const remarks = readReturnRequest(req.body);
+    const actor = sessionUserOf(req);
+    const loan = await loansService.requestReturn(loanId, remarks, actor);
+
+    console.log(`Loan ${loanId} return requested by user ${actor.userId}`);
+    res.json({ success: true, loan });
+}
+
+/**
+ * Handles PUT /api/loans/:loanId/receive: TSG receives the asset back with a Return inspection, and opens a Return
+ * Damage ticket when damage is reported.
+ * Answers `{ success, loan }`, plus `maintenance` when a ticket was opened, or the AppError's status and message
+ * (400, 403, 404, 409), or 500.
+ */
+export async function receiveReturn(req: Request<{ loanId: string }>, res: Response): Promise<void> {
+    const loanId = readLoanId(req.params.loanId);
+    const { inspection, returnDamage } = readReceiveBody(req.body);
+    const receiver = sessionUserOf(req);
+    const { loan, maintenance } = await loansService.receiveReturn(loanId, inspection, returnDamage, receiver);
+
+    console.log(maintenance
+        ? `Loan ${loanId} received by user ${receiver.userId}, with maintenance ${maintenance.repairId}`
+        : `Loan ${loanId} received by user ${receiver.userId}`);
+    res.json({ success: true, loan, ...(maintenance ? { maintenance } : {}) });
 }

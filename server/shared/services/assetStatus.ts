@@ -1,9 +1,8 @@
 /**
  * The status setter: the only code that writes assets.status.
  * Layer: shared service (runs inside the caller's transaction). Called by features/loans/loans.service.ts and the
- * repositories of features/returns, maintenance, and retirements, inside the transaction of the step that changes the
- * status. Calls Prisma through the
- * transaction it is given.
+ * repositories of features/maintenance and retirements, inside the transaction of the step that changes the
+ * status. Calls Prisma through the transaction it is given.
  * Used by: every workflow step that moves an asset to another status.
  */
 import type { Prisma, assets_status } from '@prisma/client';

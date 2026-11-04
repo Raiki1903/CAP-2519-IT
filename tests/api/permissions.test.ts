@@ -59,7 +59,8 @@ describe("the Head of the asset's home lab decides its loans", () => {
 
 describe("the IT Admin has no asset steps", () => {
   it.each([
-    ["POST", `/api/assets/${ASSETS.onLoan.tag}/return`, { condition: "OPERATIONAL" }],
+    ["PUT", "/api/loans/1/receive", { inspection: { condition: "OPERATIONAL" } }],
+    ["PUT", "/api/loans/1/return-request", {}],
     ["POST", `/api/assets/${ASSETS.available.tag}/maintenance`, { description: "Test fault from the IT Admin" }],
     ["PUT", "/api/maintenance/1", { progressStatus: "Inspection Phase" }],
     ["POST", `/api/assets/${ASSETS.available.tag}/retirement`, { breakdownReasons: "Test", disposalPathway: "Test" }],
