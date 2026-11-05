@@ -1,7 +1,7 @@
 /**
  * Staff Inventory: every asset, in gallery or table view, with search, filters, sorting, and the active and decommissioned sub-tabs.
  * Layer: page. Called by app/routes.tsx at /staff/inventory.
- * Calls: features/assets (useStaffAssets, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx,
+ * Calls: features/assets (useStaffAssets, assetSearch, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx,
  * features/lookups/useLookups.ts (the funding filter), state/serverData.tsx syncFromDb().
  * Used by: Staff asset editing, deletion, and disposal requests.
  */
@@ -15,6 +15,7 @@ import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDe
 import { EditAssetDialog } from "@web/features/assets/EditAssetDialog";
 import { DeleteAssetDialog } from "@web/features/assets/DeleteAssetDialog";
 import { statusBadgeClass, ConditionState, assetStatusLabel } from "@web/features/assets/assetBadges";
+import { ASSET_SEARCH_PLACEHOLDER, matchesAssetSearch } from "@web/features/assets/assetSearch";
 import { DisposalFormDialog } from "@web/features/disposals/DisposalFormDialog";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -59,7 +60,7 @@ export function InventoryPage() {
   });
 
   const filtered = displayedAssets.filter(eq => {
-    const matchSearch = eq.name.toLowerCase().includes(search.toLowerCase()) || eq.serial.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = matchesAssetSearch(eq, search);
     const matchFunding = filterFunding === "All" || eq.funding === filterFunding;
     const matchLoc = filterLoc === "All" || eq.location === filterLoc;
 
@@ -105,7 +106,7 @@ export function InventoryPage() {
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-5">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={13} />
-          <Input className="pl-8" placeholder="Search by name or serial..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="pl-8" placeholder={ASSET_SEARCH_PLACEHOLDER} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select value={filterFunding} onChange={e => setFilterFunding(e.target.value)}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

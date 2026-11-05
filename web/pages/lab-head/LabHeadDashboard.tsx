@@ -1,7 +1,7 @@
 /**
  * Lab Head screen: Requests, Lab Inventory, and Analytics, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /lab-head/* (the tab comes from the URL).
- * Calls: api/assets.api.ts, api/loans.api.ts, features/assets/AssetDetailModal.tsx,
+ * Calls: api/assets.api.ts, api/loans.api.ts, features/assets/AssetDetailModal.tsx, features/assets/assetSearch.ts,
  * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (the loan list and repairs).
  * Used by: Lab Head (loan decisions, the lab inventory report).
  */
@@ -12,6 +12,7 @@ import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, P
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
+import { ASSET_SEARCH_PLACEHOLDER, matchesAssetSearch } from "@web/features/assets/assetSearch";
 import { LabHeadAnalyticsView } from "@web/features/analytics/labHead/LabHeadAnalyticsView";
 import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
@@ -545,7 +546,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   }
 
   // ── Lab Inventory ──────────────────────────────────────────────────────
-  const filtered = branchInventory.filter(eq => eq.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = branchInventory.filter(eq => matchesAssetSearch(eq, search));
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -572,7 +573,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
       <div className="relative mb-4">
         <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search branch assets…" className="pl-8" />
+        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={ASSET_SEARCH_PLACEHOLDER} className="pl-8" />
       </div>
 
       {viewMode === "gallery" && (
