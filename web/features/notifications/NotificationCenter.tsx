@@ -1,8 +1,8 @@
 /**
  * Notification bell: a floating panel listing requests and reminders for the signed-in role.
  * Layer: feature component. Called by app/layouts/RootLayout.tsx, on every signed-in screen.
- * Calls: api/notifications.api.ts getMyNotifications(), api/retirements.api.ts decideDisposal(), and state/serverData.tsx
- * (the shared lists, authorizeLoan).
+ * Calls: api/notifications.api.ts getMyNotifications(), features/disposals/DisposalDecisionControls.tsx and
+ * CompleteDisposalDialog.tsx (api/retirements.api.ts), and state/serverData.tsx (the shared lists, authorizeLoan).
  * Used by: every role.
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
@@ -10,7 +10,9 @@ import { useNavigate } from "react-router";
 import { useSession, roleToSlug, roleDefaultPath, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import * as notificationsApi from "@web/api/notifications.api";
-import * as retirementsApi from "@web/api/retirements.api";
+import { DisposalDecisionControls } from "@web/features/disposals/DisposalDecisionControls";
+import { CompleteDisposalDialog } from "@web/features/disposals/CompleteDisposalDialog";
+import type { Retirement } from "@shared/types/retirements";
 import { labMatches } from "@web/features/labs/labMatches";
 import type { Role } from "@shared/enums/role";
 import type { Notification } from "@shared/types/notifications";
@@ -54,14 +56,13 @@ interface ReminderCard {
 }
 
 /**
- * Shows the role's notifications and offers the decisions that role may make from the bell: the Director authorizes
- * or rejects disposals, Lab Heads approve or decline loans. A repair ticket waiting for receipt is a card for Staff and
+ * Shows the role's notifications and offers the decisions that role may make from the bell: the Director and the
+ * Secretary approve or deny disposals they did not request, TSG completes an approved disposal, Lab Heads approve or decline loans. A repair ticket waiting for receipt is a card for Staff and
  * the Director that leads to the Repairs page, where TSG receives the asset.
  * The loan, return, due-soon and overdue cards come from the server (GET /api/notifications/mine), matched there by
  * user id; the repair, disposal and health cards come from the shared lists. Each decision calls the API and then
  * reloads the shared lists. Clicking a card opens the matching tab. Takes no props.
  */
-// TODO(H-16): a failed disposal decision is written to the console only; the card stays and the user is not told why. The bell rewrite (01D section 8).
 export function NotificationCenter() {
   const { role, currentUser } = useSession();
   const {
@@ -69,7 +70,7 @@ export function NotificationCenter() {
     assetsVersion,
     tickets,
     dbLoans,
-    pendingDisposals,
+    retirements,
     authorizeLoan,
     syncFromDb
   } = useServerData();
@@ -78,6 +79,8 @@ export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"requests" | "reminders">("requests");
   const panelRef = useRef<HTMLDivElement>(null);
+  // The approved disposal TSG is completing from a card.
+  const [completing, setCompleting] = useState<Retirement | null>(null);
 
   // The name is shown in the panel header only. No card is matched by it.
   const currentUserName = currentUser
@@ -230,36 +233,36 @@ export function NotificationCenter() {
       }
     });
 
-    // C. Decommission Disposals (AdRIC Director Approvals)
-    pendingDisposals.forEach(disp => {
-      let isRelevant = false;
-      let actionRequired = false;
-
-      if (role === "AdRICDirector") {
-        isRelevant = true;
-        actionRequired = true; // Director sign-off needed
-      } else if (role === "Staff") {
-        isRelevant = true;
-      } else if (role === "LabHead") {
-        // Only disposals of the Lab Head's own lab's assets. (F-31)
-        isRelevant = labMatches(currentUser?.headOf?.code, assets.find(a => a.id === disp.assetId)?.lab);
-      }
-
-      if (isRelevant) {
-        // The list sends one packed `reason` text (M-13), so the pathway and the justification are read out of it
-        // by the labels the server writes. A reason without the labels is shown whole.
-        const pathway = disp.reason.match(/Disposal Pathway:\s*(.+)/i)?.[1].trim() || "Not stated";
-        const justification = (disp.reason.match(/Breakdown Justification:\s*([\s\S]+)/i)?.[1] ?? disp.reason).replace(/\s+/g, " ").trim();
+    // C. Disposals. The Director and the Secretary (the Staff view of the ITS account) decide the Pending ones they did
+    // not request; TSG completes the Approved ones; a Lab Head sees its lab's Pending ones (the server scopes the list).
+    // The cards come from GET /api/retirements, matched by user id, so they do not depend on the notifications list.
+    const isTsgStaff = role === "Staff" && currentUser?.staffUnit === "TSG";
+    const isDecider = role === "AdRICDirector" || (role === "Staff" && currentUser?.staffUnit === "ITS");
+    retirements.forEach(r => {
+      const requestedByMe = !("hidden" in r.requestedBy) && r.requestedBy.userId === currentUser?.userId;
+      const requester = "hidden" in r.requestedBy ? "TSG" : r.requestedBy.name;
+      const base = {
+        id: `DISP-${r.retirementId}`,
+        type: "disposal" as const,
+        title: `Disposal Request: ${r.asset.name}`,
+        date: r.requestedAt,
+        targetTab: "disposals",
+        meta: r,
+      };
+      if (r.status === "PENDING") {
         requests.push({
-          id: disp.id,
-          type: "disposal",
-          title: `Disposal Request: ${disp.assetName}`,
-          description: `Decommission request: "${justification}". Pathway: ${pathway}. Requested by: ${disp.requestedBy}.`,
-          date: disp.requestedAt,
-          needsAction: actionRequired,
+          ...base,
+          description: `Reason: "${r.reason.replace(/\s+/g, " ").trim()}". Pathway: ${r.pathwayLabel ?? "Not named yet"}. Requested by: ${requester}.`,
+          needsAction: isDecider && !requestedByMe,
           badge: "Pending Approval",
-          targetTab: "disposals",
-          meta: disp
+        });
+      } else if (r.status === "APPROVED" && isTsgStaff) {
+        requests.push({
+          ...base,
+          description: `Approved${r.decisionRemarks ? `: "${r.decisionRemarks}"` : ""}. Complete it with the pathway and the disposition reference.`,
+          date: r.decidedAt ?? r.requestedAt,
+          needsAction: true,
+          badge: "Complete Disposal",
         });
       }
     });
@@ -337,23 +340,9 @@ export function NotificationCenter() {
       remindersBadge: remBadge,
       totalBadgeCount: rBadge + remBadge
     };
-  }, [role, currentUser, assets, tickets, dbLoans, notifications, pendingDisposals]);
+  }, [role, currentUser, assets, tickets, dbLoans, notifications, retirements]);
 
   if (!role) return null;
-
-  const decideDisposalFromBell = async (disp: any, decision: "approve" | "reject") => {
-    if (disp?.disposalId === undefined) {
-      console.error("Disposal decision skipped: this row has no database id.", disp);
-      return;
-    }
-    try {
-      const data = await retirementsApi.decideDisposal(disp.disposalId, decision);
-      if (!data.success) console.error("Failed to decide disposal:", data.error);
-    } catch (err) {
-      console.error("Failed to decide disposal:", err);
-    }
-    await syncFromDb();
-  };
 
   /**
    * Resolves the target URL for a notification card based on the role and card type.
@@ -608,28 +597,17 @@ export function NotificationCenter() {
                             </div>
                           )}
 
-                          {/* Authorize Decommission Disposal Buttons */}
-                          {item.type === "disposal" && role === "AdRICDirector" && (
-                            <div className="flex gap-1">
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await decideDisposalFromBell(item.meta, "approve");
-                                }}
-                                className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                Approve Disposal
-                              </button>
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await decideDisposalFromBell(item.meta, "reject");
-                                }}
-                                className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                              >
-                                Decline
-                              </button>
-                            </div>
+                          {/* Disposal decision (Director, Secretary) or completion (TSG) */}
+                          {item.type === "disposal" && item.meta.status === "PENDING" && (
+                            <DisposalDecisionControls retirement={item.meta} onDecided={syncFromDb} />
+                          )}
+                          {item.type === "disposal" && item.meta.status === "APPROVED" && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setCompleting(item.meta); }}
+                              className="text-[10px] font-bold text-white bg-red-700 hover:bg-red-800 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                            >
+                              Complete Disposal
+                            </button>
                           )}
 
                           {item.type === "return" && (
@@ -706,6 +684,7 @@ export function NotificationCenter() {
           </motion.div>
         )}
       </AnimatePresence>
+      {completing && <CompleteDisposalDialog retirement={completing} onClose={() => setCompleting(null)} onDone={syncFromDb} />}
     </div>
   );
 }

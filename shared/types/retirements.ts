@@ -56,29 +56,3 @@ export interface Retirement {
   dispositionReference: string | null;
   assessmentInspection: Inspection | null;
 }
-
-/** The body today's disposal form sends. The server reads RetirementRequestBody instead. */
-export interface DisposalRequestInput {
-  breakdownReasons: string;
-  disposalPathway: string;
-  /** Decommission date as yyyy-mm-dd. */
-  decommissionDate?: string;
-}
-
-/** One row of GET /api/retirements's `disposals`, the shape today's screens read, next to the new `retirements`. */
-export interface DisposalListItem {
-  /** Display id, "DISP-<retirement_id>". */
-  id: string;
-  disposalId: number;
-  /** The asset's tag. */
-  assetId: string;
-  assetName: string;
-  /** The requester's full name. */
-  requestedBy: string;
-  /** ISO timestamp. */
-  requestedAt: string;
-  /** The reason as written. */
-  reason: string;
-  /** Pending; Approved for Approved and Completed; Rejected for Denied. */
-  status: "Pending" | "Approved" | "Rejected";
-}

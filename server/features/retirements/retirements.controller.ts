@@ -29,14 +29,13 @@ export async function requestRetirement(req: Request<{ assetTag: string }>, res:
 }
 
 /**
- * Handles GET /api/retirements: the disposals the session user may see, newest first, as
- * `{ success, retirements, disposals }`: `retirements` in the Retirement shape, `disposals` the same disposals in the
- * row shape today's screens read. Answers 400 for an unknown `?status=`.
+ * Handles GET /api/retirements: the disposals the session user may see, newest first, as `{ success, retirements }` in
+ * the Retirement shape. Answers 400 for an unknown `?status=`.
  */
 export async function listRetirements(req: Request, res: Response): Promise<void> {
     const statuses = readStatusFilter(req.query.status);
-    const { retirements, disposals } = await retirementsService.listRetirements(statuses, sessionUserOf(req));
-    res.json({ success: true, retirements, disposals });
+    const retirements = await retirementsService.listRetirements(statuses, sessionUserOf(req));
+    res.json({ success: true, retirements });
 }
 
 /**

@@ -2,7 +2,8 @@
  * Asset detail modal: one asset's facts, QR tag, history, and the request forms each role may open from it.
  * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and pages/staff/InventoryPage.tsx.
  * Calls: api/assets.api.ts getAssetHistory(), api/maintenance.api.ts reportIssue() (TSG's flag), features/lookups/useLookups.ts,
- * state/serverData.tsx reloadLoans(), and the loan, return, and repair forms.
+ * features/assets/AssetTsgSteps.tsx (Missing, Found, complete a disposal), state/serverData.tsx reloadLoans(), and the loan,
+ * return, and repair forms.
  * Used by: Custodian requests, Lab Head custody review, TSG maintenance flagging and Record Return.
  */
 import { useState, useEffect } from "react";
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { assetStatusLabel } from "./assetBadges";
+import { AssetTsgSteps } from "./AssetTsgSteps";
 import { ReturnForm } from "@web/features/returns/ReturnForm";
 import { RepairForm } from "@web/features/repairs/RepairForm";
 import { LoanForm } from "@web/features/loans/LoanForm";
@@ -608,6 +610,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                               </div>
                             )}
                           </div>
+                          {role === "Staff" && currentUser?.staffUnit === "TSG" && <AssetTsgSteps asset={asset} />}
                         </>
                       )}
                     </motion.div>

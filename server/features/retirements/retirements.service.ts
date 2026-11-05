@@ -10,7 +10,7 @@
  */
 import { asset_retirements_status, type Prisma } from '@prisma/client';
 import type { SessionIdentity } from '@shared/types/auth';
-import type { DisposalListItem, Retirement } from '@shared/types/retirements';
+import type { Retirement } from '@shared/types/retirements';
 import { RETIREMENT_PATHWAY_LABELS, RETIREMENT_STATUS_LABELS, type RetirementStatus } from '@shared/constants/retirementStatuses';
 import { ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
 import * as retirementsRepository from './retirements.repository';
@@ -78,43 +78,20 @@ async function retirementById(retirementId: number, viewer: SessionIdentity): Pr
     return retirementsOf(await retirementsRepository.findRetirements({ retirement_id: retirementId }), viewer)[0];
 }
 
-/** The word today's screens compare against for each disposal status. */
-const SCREEN_DISPOSAL_WORDS: Record<RetirementStatus, DisposalListItem['status']> = {
-    PENDING: "Pending",
-    APPROVED: "Approved",
-    COMPLETED: "Approved",
-    DENIED: "Rejected",
-};
-
-/** One disposal in the row shape today's screens read (`disposals`). */
-function disposalListItemOf(row: RetirementRow): DisposalListItem {
-    return {
-        id: `DISP-${row.retirement_id}`,
-        disposalId: row.retirement_id,
-        assetId: row.assets.asset_tag,
-        assetName: row.assets.name,
-        requestedBy: `${row.users.first_name} ${row.users.last_name}`,
-        requestedAt: row.requested_at.toISOString(),
-        reason: row.reason,
-        status: SCREEN_DISPOSAL_WORDS[row.status],
-    };
-}
-
 /**
  * The disposals the session user may see, newest request first: TSG, the Director and the Secretary see every one;
  * the account that heads a lab sees its lab's assets' disposals. Other roles are refused at the route.
  *
  * @param statuses a status filter, or null for every status
  * @param viewer the session user
- * @returns the disposals in the Retirement shape, and the same disposals in the row shape today's screens read
+ * @returns the disposals in the Retirement shape
  */
-export async function listRetirements(statuses: RetirementStatus[] | null, viewer: SessionIdentity): Promise<{ retirements: Retirement[]; disposals: DisposalListItem[] }> {
+export async function listRetirements(statuses: RetirementStatus[] | null, viewer: SessionIdentity): Promise<Retirement[]> {
     const where: Prisma.asset_retirementsWhereInput = statuses ? { status: { in: statuses } } : {};
     if (!hasAccessRole(viewer, ["TSG_STAFF", "ADRIC_DIRECTOR", "ADRIC_SECRETARY"]) && viewer.headOfCenterId !== null) {
         where.assets = { center_id: viewer.headOfCenterId };
     }
-    const found = await retirementsRepository.findRetirements(where);
-    return { retirements: retirementsOf(found, viewer), disposals: found.rows.map(disposalListItemOf) };
+    return retirementsOf(await retirementsRepository.findRetirements(where), viewer);
 }
 
 /** The disposal with this id, or a 404. */

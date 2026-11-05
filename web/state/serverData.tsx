@@ -2,7 +2,7 @@
  * Server data state: the lists that several screens share, loaded from the server and kept in memory.
  * Layer: shared (web state). Called by App.tsx (the provider) and by screens through useServerData().
  * Calls the web/api files and session.tsx (the role). Never reads or writes localStorage itself.
- * Used by: every role (asset lists, the notification bell, maintenance tickets, loan approvals).
+ * Used by: every role (asset lists, the notification bell, maintenance tickets, disposals, loan approvals).
  *
  * Temporary home. 01D gives each page its own data loading; these lists move out as the
  * dashboards are split in step 8 and the notification bell is rewritten.
@@ -18,6 +18,7 @@ import { useSession } from "./session";
 import type { Role } from "@shared/enums/role";
 import type { AssetLabRef } from "@shared/types/assets";
 import type { Maintenance } from "@shared/types/maintenance";
+import type { Retirement } from "@shared/types/retirements";
 
 // The lists only some roles may read (the 13b role table). Asking with another role answers 403,
 // so those lists are not requested for it. The other lists are open to every signed-in role.
@@ -108,20 +109,6 @@ export interface Asset {
   specs?: string;
 }
 
-/** A disposal request waiting for the Director's decision. */
-export interface PendingDisposal {
-  /** Display id, for example "DISP-12". */
-  id: string;
-  /** Numeric id, the one the decision endpoint needs. */
-  disposalId?: number;
-  assetId: string;
-  assetName: string;
-  /** The server's packed reason text: "Disposal Pathway:", optional custodian and date lines, then "Breakdown Justification:". (M-13) */
-  reason: string;
-  requestedBy: string;
-  requestedAt: string;
-}
-
 interface ServerDataContextType {
   assets: Asset[];
   assetsVersion: number;
@@ -129,7 +116,8 @@ interface ServerDataContextType {
   tickets: Maintenance[];
   /** How many tickets wait for TSG to receive the asset. */
   pendingReceiptCount: number;
-  pendingDisposals: PendingDisposal[];
+  /** The disposals the session user may see (contract 7.5), newest request first: Pending ones wait for a decision, Approved ones for TSG to complete. */
+  retirements: Retirement[];
   dbReports: any[];
   dbLoans: any[];
   isDbLoading: boolean;
@@ -153,7 +141,7 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  *   `authorizeLoan(loanId, decision, remarks)`: loansApi.approveLoan or loansApi.declineLoan; answers the server's
  *   sentence when it refuses, or null.
  * - `dbReports`: inspectionsApi.listReportSummaries.
- * - `pendingDisposals`: retirementsApi.listDisposals, pending ones only.
+ * - `retirements`: retirementsApi.listRetirements, every status; each screen keeps the ones it needs.
  * - `isDbLoading`: true while a reload is running. `syncFromDb()`: runs one.
  * - `refreshSharedLists()`: runs one too, unless one is running or started in the last few seconds.
  *   For a screen that opens, not for a save (a save needs the lists as they are after it).
@@ -170,7 +158,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   const [assetsVersion, setAssetsVersion] = useState(0);
   const [dbReports, setDbReports] = useState<any[]>([]);
   const [dbLoans, setDbLoans] = useState<any[]>([]);
-  const [pendingDisposals, setPendingDisposals] = useState<PendingDisposal[]>([]);
+  const [retirements, setRetirements] = useState<Retirement[]>([]);
   // When the last reload started, and how many are running. Refs, because only refreshSharedLists reads them.
   const lastSyncStartedAt = useRef(0);
   const runningSyncs = useRef(0);
@@ -221,20 +209,8 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
       if (role && DISPOSAL_READERS.includes(role)) {
         try {
-          const jsonD: any = await retirementsApi.listDisposals();
-          if (jsonD.success && Array.isArray(jsonD.disposals)) {
-            // The endpoint returns decided disposals too. Only pending ones are kept,
-            // so one that was just approved or rejected leaves the bell. (H-01)
-            setPendingDisposals(jsonD.disposals.filter((d: any) => d.status === "Pending").map((d: any) => ({
-              id: String(d.id || d.disposalId),
-              disposalId: d.disposalId,
-              assetId: d.assetId || `EQ-2024-${String(d.asset_id || 0).padStart(3, "0")}`,
-              assetName: d.assetName || "Asset Scheduled for Decommissioning",
-              requestedBy: d.requestedBy || "Staff",
-              requestedAt: d.requestedAt || new Date().toISOString(),
-              reason: d.reason || d.disposal_reason || "Obsolescence",
-            })));
-          }
+          const data = await retirementsApi.listRetirements();
+          if (data.success && Array.isArray(data.retirements)) setRetirements(data.retirements);
         } catch (e) {}
       }
 
@@ -272,7 +248,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       setTickets([]);
       setDbReports([]);
       setDbLoans([]);
-      setPendingDisposals([]);
+      setRetirements([]);
       setIsDbLoading(false);
       return;
     }
@@ -307,7 +283,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       value={{
         assets, assetsVersion,
         tickets, pendingReceiptCount,
-        pendingDisposals,
+        retirements,
         dbReports, dbLoans,
         isDbLoading,
         syncFromDb, refreshSharedLists, reloadLoans, authorizeLoan

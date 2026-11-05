@@ -46,7 +46,7 @@ async function listedAsset(tag: string) {
 }
 
 describe("GET /api/retirements", () => {
-  it("lists the seeded disposal in the Retirement shape and in the row shape today's screens read", async () => {
+  it("lists the seeded disposal in the Retirement shape", async () => {
     const res = await asDirector.get("/api/retirements");
 
     expect(res.status).toBe(200);
@@ -67,14 +67,7 @@ describe("GET /api/retirements", () => {
       dispositionReference: "TEST-REF-0001",
       assessmentInspection: null,
     });
-    expect(res.body.disposals[0]).toMatchObject({
-      id: `DISP-${SEEDED_ROWS.disposalId}`,
-      disposalId: SEEDED_ROWS.disposalId,
-      assetId: ASSETS.disposed.tag,
-      requestedBy: USERS.staffTsg.fullName,
-      reason: "Test breakdown: the board is burnt",
-      status: "Approved",
-    });
+    expect(res.body).not.toHaveProperty("disposals");
   });
 
   it("shows a Lab Head only its lab's disposals, and filters by ?status= (400 for an unknown status)", async () => {
