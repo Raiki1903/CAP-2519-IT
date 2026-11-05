@@ -17,6 +17,8 @@ import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { Switch } from "@web/components/ui/switch";
+import { Textarea } from "@web/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import { InspectionStep, type InspectionStepValue } from "@web/features/inspections/InspectionStep";
 import { useFormLookups } from "@web/features/lookups/useLookups";
 import { receiveLoan } from "@web/api/loans.api";
@@ -217,17 +219,21 @@ export function LoanReceiveDialog({
                 <Label className="text-xs font-bold text-foreground">
                   Issue Type <span className="text-destructive">*</span>
                 </Label>
-                <select
+                <Select
                   value={issueTypeId ? String(issueTypeId) : ""}
-                  onChange={(e) => setIssueTypeId(parseInt(e.target.value, 10) || null)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onValueChange={(v) => setIssueTypeId(parseInt(v, 10) || null)}
                 >
-                  {(lookups?.issueTypes ?? []).map((it) => (
-                    <option key={it.issueTypeId} value={String(it.issueTypeId)}>
-                      {it.name} - suggested action: {it.suggestedAction}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Select an issue type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(lookups?.issueTypes ?? []).map((it) => (
+                      <SelectItem key={it.issueTypeId} value={String(it.issueTypeId)}>
+                        {it.name} - suggested action: {it.suggestedAction}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {selectedIssueType && (
                   <p className="text-[11px] text-muted-foreground">
                     Action: {selectedIssueType.suggestedAction}
@@ -239,12 +245,12 @@ export function LoanReceiveDialog({
                 <Label className="text-xs font-bold text-foreground">
                   Damage Description <span className="text-destructive">*</span>
                 </Label>
-                <textarea
+                <Textarea
                   rows={2}
                   value={issueDescription}
                   onChange={(e) => setIssueDescription(e.target.value)}
                   placeholder="Describe the defect, damage, or operational failure found during return..."
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                  className="text-xs"
                 />
               </div>
             </div>
@@ -268,9 +274,8 @@ export function LoanReceiveDialog({
             type="button"
             onClick={handleReceive}
             disabled={!isFormValid || submitting}
-            className="bg-[#005A36] text-white hover:bg-[#005A36]/90 font-bold"
           >
-            {submitting ? "Receiving..." : "Confirm & Receive Asset"}
+            {submitting ? "Receiving..." : "Confirm Receipt"}
           </Button>
         </DialogFooter>
       </DialogContent>

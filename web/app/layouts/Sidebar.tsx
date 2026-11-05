@@ -17,6 +17,7 @@ import { useSession, roleToSlug, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { usePendingSignUps } from "@web/state/pendingSignUps";
 import type { Role } from "@shared/enums/role";
+import { PAGE_TITLES } from "@shared/constants/pageTitles";
 import { Button } from "@web/components/ui/button";
 import { Separator } from "@web/components/ui/separator";
 import {
@@ -40,7 +41,7 @@ const roleConfig: Record<Role, {
       { id: "inventory",   label: "Asset Inventory",      icon: ClipboardList },
       { id: "repairs",     label: "Repairs",              icon: Wrench        },
       { id: "inspections", label: "Inspections",          icon: ClipboardCheck },
-      { id: "loans",       label: "Asset Loaning and Return", icon: ArrowLeftRight },
+      { id: "loans",       label: PAGE_TITLES.loans,          icon: ArrowLeftRight },
       { id: "qrtags",      label: "QR Tags",               icon: QrCode        },
       { id: "health",      label: "Analytics",             icon: BarChart3     },
     ],

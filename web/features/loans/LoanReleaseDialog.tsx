@@ -190,9 +190,8 @@ export function LoanReleaseDialog({
             type="button"
             onClick={handleRelease}
             disabled={!tagMatches || submitting}
-            className="bg-[#005A36] text-white hover:bg-[#005A36]/90 font-bold"
           >
-            {submitting ? "Releasing..." : "Confirm & Release Asset"}
+            {submitting ? "Releasing..." : "Confirm Release"}
           </Button>
         </DialogFooter>
       </DialogContent>
