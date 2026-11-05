@@ -128,13 +128,13 @@ describe("Who acted, where the body used to say", () => {
     expect(res.body.repair.reported_by_id).toBe(USERS.staffTsg.userId);
   });
 
-  it("records the Staff member who finalizes a return as the one who received it, and the borrower as the returner", async () => {
+  it("records the Staff member who receives a return as the one who received it, and keeps the borrower", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0851", status: "ON_LOAN", custodianId: USERS.custodianB.userId });
 
-    const res = await asStaff.post(`/api/assets/${asset.tag}/return`, { condition: "OPERATIONAL", returnedBy: USERS.custodianA.fullName });
+    const res = await asStaff.put(`/api/loans/${asset.loanId}/receive`, { inspection: { condition: "OPERATIONAL" }, returnedBy: USERS.custodianA.fullName });
 
     expect(res.status).toBe(200);
-    expect(res.body.loan.borrower_id).toBe(USERS.custodianB.userId);
+    expect(res.body.loan.borrower.userId).toBe(USERS.custodianB.userId);
     expect((await db.asset_loans.findUniqueOrThrow({ where: { loan_id: asset.loanId! } })).received_by_id).toBe(USERS.staffTsg.userId);
   });
 });

@@ -73,3 +73,34 @@ export interface InspectionReportItem {
   reportRemarks: string | null;
   reportImg: string | null;
 }
+
+/** One metric value of an Inspection. */
+export interface InspectionMetricValue {
+  metricId: number;
+  metricKey: string;
+  name: string;
+  unit: string;
+  value: number;
+  /** Whether the value breaks its flag rule (shared/constants/metricFlagRules.ts), against the asset's first recorded value. */
+  flagged: boolean;
+}
+
+/** An inspection in an answer (docs/contracts/lifecycle.md, Inspection). */
+export interface Inspection {
+  inspectionId: number;
+  /** One of INSPECTION_TYPES. */
+  type: string;
+  typeLabel: string;
+  /** `{ hidden: true }` for a Researcher when someone else inspected it. */
+  inspectedBy: { userId: number; name: string } | { hidden: true };
+  /** ISO date-time. */
+  inspectedAt: string;
+  /** One of ASSET_CONDITIONS. */
+  condition: string;
+  conditionLabel: string;
+  healthScore: number | null;
+  missingAccessories: string | null;
+  remarks: string | null;
+  photo: string | null;
+  metrics: InspectionMetricValue[];
+}

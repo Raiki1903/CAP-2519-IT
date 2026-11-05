@@ -1,10 +1,10 @@
 /**
  * Borrow request form shown to a Custodian from the asset detail modal.
  * Layer: feature component. Called by features/assets/AssetDetailModal.tsx.
- * Calls: api/loans.api.ts requestLoan(), then state/serverData.tsx syncFromDb(); features/lookups/useLookups.ts (the labs).
- * Used by: Custodian borrow request (a Lab Head decides it).
+ * Calls: api/loans.api.ts requestLoan(), then state/serverData.tsx syncFromDb(); state/session.tsx (the borrower's labs).
+ * Used by: Custodian borrow request (the Head of the asset's lab decides it).
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { motion, AnimatePresence } from "motion/react";
@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import type { AssetDetail } from "@web/features/assets/AssetDetailModal";
 import * as loansApi from "@web/api/loans.api";
-import { useFormLookups, withCurrentOption } from "@web/features/lookups/useLookups";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
@@ -84,11 +83,10 @@ interface Props {
 }
 
 /**
- * Collects destination lab, purpose, and due date, then submits a borrow request through
- * loansApi.requestLoan(). The borrower is the logged-in user, shown read-only: the server takes it
- * from the session (issue #32). A refusal (for example a pending request already on the
- * asset, H-05) shows the server's message under the form. The reference shown on the
- * success screen is made up in the browser; it is not the loan's id in asset_loans.
+ * Collects the destination lab (one of the borrower's own labs), an optional room, purpose, and return-by date, then
+ * submits a loan request through loansApi.requestLoan(). The borrower is the logged-in user, shown read-only: the
+ * server takes it from the session (issue #32). A refusal (for example a loan already waiting on the asset, H-05)
+ * shows the server's sentence under the form. The reference on the success screen is the new loan's id.
  *
  * @param asset the asset being requested, for the tag and the header
  * @param onBack returns to the asset detail view
@@ -98,19 +96,16 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
   const { currentUser } = useSession();
   const { syncFromDb } = useServerData();
   const borrower = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "";
-  const [selectedLab, setSelectedLab] = useState("CITe4D");
-  const { lookups, failed: lookupsFailed } = useFormLookups();
-  // The research centers' short codes, CITe4D first when it is one, as the list was before. (issue #12)
-  const labCodes = (lookups?.labs.map(l => l.code) ?? []).sort((a, b) => Number(b === "CITe4D") - Number(a === "CITe4D"));
-  useEffect(() => {
-    if (labCodes.length > 0 && !labCodes.includes(selectedLab)) setSelectedLab(labCodes[0]);
-  }, [lookups]);
+  // Only the borrower's own labs can be the destination; the server refuses any other.
+  const myLabs = currentUser?.labs ?? [];
+  const [selectedLabId, setSelectedLabId] = useState<number | null>(myLabs[0]?.centerId ?? null);
+  const [room, setRoom] = useState("");
   const [purpose, setPurpose] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [refId] = useState(`LOAN-${Date.now().toString().slice(-6)}`);
+  const [refId, setRefId] = useState("");
 
   const pipelineSteps: PipelineStep[] = [
     { label: "Request Sent", sublabel: "By you", status: submitted ? "done" : "active" },
@@ -121,18 +116,24 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
   const today = localToday();
   // The picker's min stops a click on a past day, but a typed date still gets through, so it is checked here too.
   const dueDateInPast = !!dueDate && dueDate < today;
-  const canSubmit = selectedLab && purpose && dueDate && !dueDateInPast;
+  const canSubmit = selectedLabId !== null && purpose && dueDate && !dueDateInPast;
 
   const handleSubmit = async () => {
-    if (!canSubmit) return;
+    if (!canSubmit || selectedLabId === null) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const result = await loansApi.requestLoan(asset.id, { lab: selectedLab, purpose, dueDate });
+      const result = await loansApi.requestLoan(asset.id, {
+        destinationCenterId: selectedLabId,
+        destinationRoom: room.trim() || null,
+        returnBy: dueDate,
+        purpose,
+      });
       if (!result.success) {
         throw new Error(result.error || "Loan request failed");
       }
 
+      setRefId(`LOAN-${result.loan.loanId}`);
       syncFromDb();
       setSubmitted(true);
     } catch (err: any) {
@@ -215,16 +216,30 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
               </Label>
               <div className="relative">
                 <select
-                  value={selectedLab}
-                  onChange={e => setSelectedLab(e.target.value)}
+                  value={selectedLabId ?? ""}
+                  onChange={e => setSelectedLabId(Number(e.target.value))}
+                  disabled={myLabs.length === 0}
                   className="w-full h-9 rounded-lg border border-input bg-background px-3 py-1.5 text-xs shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {withCurrentOption(labCodes, selectedLab).map(l => (
-                    <option key={l} value={l}>{l}</option>
+                  {myLabs.map(l => (
+                    <option key={l.centerId} value={l.centerId}>{l.code}</option>
                   ))}
                 </select>
               </div>
-              {lookupsFailed && <p className="text-[10px] text-red-600 mt-1">Could not load the options. Reload the page.</p>}
+              {myLabs.length === 0 && <p className="text-[10px] text-red-600 mt-1">You are not in any lab yet, so you cannot request a loan.</p>}
+            </div>
+
+            <div>
+              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-1.5">
+                <MapPin size={10} /> Room (optional)
+              </Label>
+              <Input
+                value={room}
+                maxLength={100}
+                onChange={e => setRoom(e.target.value)}
+                placeholder="e.g. Room 301"
+                className="h-9 text-xs"
+              />
             </div>
 
             <div>
@@ -241,7 +256,7 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
 
             <div>
               <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-1.5">
-                <Calendar size={10} /> Due Date
+                <Calendar size={10} /> Return By
               </Label>
               <Input
                 type="date"
@@ -251,7 +266,7 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
                 className="h-9 text-xs"
               />
               {dueDateInPast && (
-                <p className="text-xs text-red-600 mt-1">The due date cannot be in the past.</p>
+                <p className="text-xs text-red-600 mt-1">The return-by date cannot be in the past.</p>
               )}
             </div>
 

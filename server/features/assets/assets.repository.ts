@@ -1,7 +1,7 @@
 /**
  * Asset row access: every database read and write the asset registry endpoints make, plus the asset reads other
  * features need (an asset by tag or by id, its lab, and its state).
- * Layer: repository. Called by assets.service.ts, the services of features/loans, returns, retirements, maintenance,
+ * Layer: repository. Called by assets.service.ts, the services of features/loans, retirements, maintenance,
  * and inspections, and shared/services/permissions.ts. Calls config/prisma.ts, shared/services/assetState.ts (with the
  * shared client), shared/services/rowLocks.ts, and shared/services/activityLog.ts.
  * Used by: every role's inventory view, Staff registration, editing, and deletion, and every workflow that starts from an asset tag.

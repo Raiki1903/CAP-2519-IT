@@ -2,53 +2,22 @@
  * Asset request checks: the list's filters, the shape of a registration and of a master data edit, and whether a
  * picture is an image.
  * Layer: validation. Called by assets.controller.ts (the filters and the two bodies) and assets.service.ts (the image
- * check). Calls shared/errors/AppError.ts and @shared (statuses, categories, and conditions).
+ * check). Calls shared/errors/AppError.ts, shared/validation/ (the field and inspection readers), and @shared (statuses
+ * and categories).
  * Used by: every role's asset list and search, Staff registration, and Edit Asset (TSG and the Secretary).
  */
-import type { AssetCreateInput, AssetListFilters, AssetMasterData, AssetUpdateInput, InspectionInput } from '@shared/types/assets';
+import type { AssetCreateInput, AssetListFilters, AssetMasterData, AssetUpdateInput } from '@shared/types/assets';
 import { ASSET_STATUSES } from '@shared/enums/assetStatus';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
-import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
 import { AppError } from '../../shared/errors/AppError';
+import { readDate, readId, readText } from '../../shared/validation/fields';
+import { readInspectionInput } from '../../shared/validation/inspectionInput';
 
 /** The 400 message when an edit sends a field that is worked out or changed by its own step. */
 export const NOT_MASTER_DATA_MESSAGE = "Edit Asset changes master data only. Status, holder, location, and condition change through their own steps.";
 
 /** Body fields an edit refuses: the worked-out values and their older names. */
 const REFUSED_EDIT_FIELDS = ["status", "holder", "custodian", "custodianId", "location", "currentLocation", "condition", "assetCondition", "reportCondition"];
-
-/** Reads a whole number id, or null when it is null; undefined when not sent. */
-function readId(body: Record<string, unknown>, field: string): number | null | undefined {
-    const value = body[field];
-    if (value === undefined) return undefined;
-    if (value === null) return null;
-    if (!Number.isInteger(value) || (value as number) < 1) {
-        throw new AppError(400, `${field} must be an id.`);
-    }
-    return value as number;
-}
-
-/** Reads a text field: trimmed, empty as null; undefined when not sent. */
-function readText(body: Record<string, unknown>, field: string, maxLength: number): string | null | undefined {
-    const value = body[field];
-    if (value === undefined) return undefined;
-    if (value === null) return null;
-    if (typeof value !== 'string') throw new AppError(400, `${field} must be text.`);
-    const text = value.trim();
-    if (text.length > maxLength) throw new AppError(400, `${field} can be at most ${maxLength} characters.`);
-    return text === "" ? null : text;
-}
-
-/** Reads a yyyy-mm-dd date, or null; undefined when not sent. */
-function readDate(body: Record<string, unknown>, field: string): string | null | undefined {
-    const value = body[field];
-    if (value === undefined) return undefined;
-    if (value === null || value === "") return null;
-    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || isNaN(new Date(value).getTime())) {
-        throw new AppError(400, `${field} must be a date as yyyy-mm-dd.`);
-    }
-    return value;
-}
 
 /**
  * The stored category for any spelling ("Dev Kit" becomes DEV_KIT).
@@ -101,32 +70,6 @@ function readMasterData(body: Record<string, unknown>): AssetMasterData {
         data.imageUrl = (image as string | null) || null;
     }
     return data;
-}
-
-/**
- * Checks one inspection inside a body: a known condition, and an optional health score from 0 to 100.
- *
- * @param value the body's inspection object
- * @param field its name, for the message
- * @throws AppError 400 if it is missing or a value is wrong
- */
-export function readInspectionInput(value: unknown, field: string): InspectionInput {
-    if (!value || typeof value !== 'object') throw new AppError(400, `Missing required field: ${field}.`);
-    const body = value as Record<string, unknown>;
-    if (typeof body.condition !== 'string' || !ASSET_CONDITIONS.includes(body.condition)) {
-        throw new AppError(400, `Pick the condition of the ${field} from the list.`);
-    }
-    const score = body.healthScore;
-    if (score !== undefined && score !== null && (!Number.isInteger(score) || (score as number) < 0 || (score as number) > 100)) {
-        throw new AppError(400, "healthScore must be a whole number from 0 to 100.");
-    }
-    return {
-        condition: body.condition,
-        healthScore: (score as number | null | undefined) ?? null,
-        missingAccessories: readText(body, "missingAccessories", 255) ?? null,
-        remarks: readText(body, "remarks", 255) ?? null,
-        photo: typeof body.photo === 'string' && body.photo ? body.photo : null,
-    };
 }
 
 /**

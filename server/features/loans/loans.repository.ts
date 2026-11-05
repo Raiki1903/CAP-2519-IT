@@ -1,18 +1,56 @@
 /**
  * Loan row access: every database read and write the loan endpoints make.
- * Layer: repository. Called by loans.service.ts. Calls server/config/prisma.ts, shared/services/assetStatus.ts, and
- * shared/services/rowLocks.ts.
- * Used by: Custodian borrow request, Lab Head approval, and the screens that list loans.
+ * Layer: repository. Called by loans.service.ts. Calls server/config/prisma.ts, shared/services/rowLocks.ts,
+ * shared/services/assetState.ts (the open loan, read inside the lock, and clearance), and shared/services/activityLog.ts.
+ * Used by: Researcher loan requests, Lab Head approval, TSG release and receipt, the loan lists, the Accountability
+ * Form, and the clearance record.
  */
-import { asset_loans_status, type Prisma, type asset_loans } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
-import { setAssetStatus } from '../../shared/services/assetStatus';
 import { lockAsset } from '../../shared/services/rowLocks';
+import { isCleared, openLoanOf, type Db } from '../../shared/services/assetState';
+import { logActivity } from '../../shared/services/activityLog';
 
-/** Every asset_loans row, newest request first. */
+/** The person fields every loan answer names. */
+const PERSON = { select: { user_id: true, first_name: true, last_name: true } } as const;
+
+/** What an inspection in a loan answer includes: its inspector and its metric values with their definitions. */
+const INSPECTION_INCLUDE = {
+    users: PERSON,
+    metrics: { include: { metric_definitions: true }, orderBy: { metric_id: 'asc' } },
+} satisfies Prisma.asset_inspectionsInclude;
+
+/** What a loan read for the Loan shape includes. */
+const LOAN_INCLUDE = {
+    assets: { select: { asset_id: true, asset_tag: true, name: true } },
+    users: PERSON,
+    decided_by: PERSON,
+    released_by: PERSON,
+    received_by: PERSON,
+    projects: { select: { project_id: true, project_code: true, project_name: true } },
+    destination_center: { select: { center_id: true, short_code: true } },
+    release_inspection: { include: INSPECTION_INCLUDE },
+    return_inspection: { include: INSPECTION_INCLUDE },
+} satisfies Prisma.asset_loansInclude;
+
+/** A loan row with everything the Loan shape names. */
+export type LoanRow = Prisma.asset_loansGetPayload<{ include: typeof LOAN_INCLUDE }>;
+
+/** An inspection row as a loan answer includes it. */
+export type LoanInspectionRow = NonNullable<LoanRow['release_inspection']>;
+
+/** Loan rows for the Loan shape, with the metric baselines their inspections are flagged against. */
+export interface LoanRows {
+    rows: LoanRow[];
+    /** The asset's first recorded value of each metric, keyed "<assetId>:<metricId>". */
+    baselines: Map<string, number>;
+}
+
+/** Every asset_loans row, newest request first, with its destination lab's code. */
 export function findAllNewestFirst() {
     return prisma.asset_loans.findMany({
-        orderBy: { requested_at: 'desc' }
+        orderBy: { requested_at: 'desc' },
+        include: { destination_center: { select: { short_code: true } } },
     });
 }
 
@@ -28,42 +66,140 @@ export function findListLookups() {
     ]);
 }
 
-/** Inserts an asset_loans row and returns it. */
-export function create(data: Prisma.asset_loansUncheckedCreateInput) {
-    return prisma.asset_loans.create({ data });
+/**
+ * Loan rows in the Loan shape's detail, and the metric baselines of their inspections, in two queries whatever the
+ * number of loans.
+ *
+ * @param where which loans
+ * @param orderBy their order
+ */
+export async function findRows(where: Prisma.asset_loansWhereInput, orderBy: Prisma.asset_loansOrderByWithRelationInput[]): Promise<LoanRows> {
+    const rows = await prisma.asset_loans.findMany({ where, orderBy, include: LOAN_INCLUDE });
+    return { rows, baselines: await metricBaselines(prisma, rows) };
 }
 
-/** The loan with this id, or null. */
+/**
+ * The asset's first recorded value of each metric its loans' inspections measured, in one query. A flag rule that
+ * needs a baseline compares against it (shared/constants/metricFlagRules.ts).
+ */
+async function metricBaselines(db: Db, rows: LoanRow[]): Promise<Map<string, number>> {
+    const inspections = rows.flatMap(r => [r.release_inspection, r.return_inspection]).filter(i => i !== null);
+    const metricIds = [...new Set(inspections.flatMap(i => i.metrics.map(m => m.metric_id)))];
+    if (metricIds.length === 0) return new Map();
+    const assetIds = [...new Set(inspections.map(i => i.asset_id))];
+    const values = await db.asset_inspection_metrics.findMany({
+        where: { metric_id: { in: metricIds }, asset_inspections: { asset_id: { in: assetIds } } },
+        include: { asset_inspections: { select: { asset_id: true } } },
+        orderBy: [{ asset_inspections: { inspected_at: 'asc' } }, { inspection_id: 'asc' }],
+    });
+    const baselines = new Map<string, number>();
+    for (const v of values) {
+        const key = `${v.asset_inspections.asset_id}:${v.metric_id}`;
+        if (!baselines.has(key)) baselines.set(key, Number(v.value));
+    }
+    return baselines;
+}
+
+/** The loan with this id, or null. Its asset never changes, so a step reads it first to know which asset to lock. */
 export function findById(loanId: number) {
     return prisma.asset_loans.findUnique({ where: { loan_id: loanId } });
 }
 
+/** Whether the person belongs to the lab (user_centers). */
+export async function isMemberOf(userId: number, centerId: number): Promise<boolean> {
+    return (await prisma.user_centers.count({ where: { user_id: userId, center_id: centerId } })) > 0;
+}
+
+/** Whether a project with this id exists. */
+export async function projectExists(projectId: number): Promise<boolean> {
+    return (await prisma.projects.count({ where: { project_id: projectId } })) > 0;
+}
+
 /**
- * Saves a decision in one transaction: the loan's status, who decided and when, and, for an approval, the asset's
- * status. A decline also closes the loan. The asset row is locked first, so a decision and another step on the same
- * asset run one after the other.
+ * Runs one loan step in a transaction that locks the asset row first. The step then reads the loan and the asset
+ * again inside the lock and checks them, so two steps on one asset run one after the other and the second sees what
+ * the first wrote. Every step locks the asset before anything else, so no two steps wait on each other. (H-05)
  *
- * @param loan the loan in Pending Approval
- * @param newStatus ON_LOAN or DECLINED
- * @param deciderId the session user who decides
- * @returns the updated asset_loans row
+ * @param assetId the loan's asset
+ * @param step the reads, checks, and writes, given the transaction
+ * @returns what the step returns
  */
-export function saveDecision(loan: asset_loans, newStatus: asset_loans_status, deciderId: number) {
+export function withAssetLock<T>(assetId: number, step: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     return prisma.$transaction(async (tx) => {
-        await lockAsset(tx, loan.asset_id);
-        const now = new Date();
-        const updated = await tx.asset_loans.update({
-            where: { loan_id: loan.loan_id },
-            data: {
-                status: newStatus,
-                decided_by_id: deciderId,
-                decided_at: now,
-                ...(newStatus === asset_loans_status.DECLINED ? { closed_at: now } : {}),
-            },
-        });
-        if (newStatus === asset_loans_status.ON_LOAN) {
-            await setAssetStatus(tx, loan.asset_id, "ON_LOAN");
-        }
-        return updated;
+        await lockAsset(tx, assetId);
+        return step(tx);
     });
+}
+
+/** The asset row, read inside the caller's transaction. */
+export function findAssetIn(tx: Prisma.TransactionClient, assetId: number) {
+    return tx.assets.findUniqueOrThrow({ where: { asset_id: assetId } });
+}
+
+/** The loan row, read inside the caller's transaction. */
+export function findLoanIn(tx: Prisma.TransactionClient, loanId: number) {
+    return tx.asset_loans.findUniqueOrThrow({ where: { loan_id: loanId } });
+}
+
+/** The asset's open loan, read inside the caller's transaction. */
+export function findOpenLoanIn(tx: Prisma.TransactionClient, assetId: number) {
+    return openLoanOf(tx, assetId);
+}
+
+/** Inserts an asset_loans row inside the caller's transaction and returns it. */
+export function createLoan(tx: Prisma.TransactionClient, data: Prisma.asset_loansUncheckedCreateInput) {
+    return tx.asset_loans.create({ data });
+}
+
+/** Changes a loan row inside the caller's transaction and returns it. */
+export function updateLoan(tx: Prisma.TransactionClient, loanId: number, data: Prisma.asset_loansUncheckedUpdateInput) {
+    return tx.asset_loans.update({ where: { loan_id: loanId }, data });
+}
+
+/** Whether an issue type with this id exists. */
+export async function issueTypeExists(issueTypeId: number): Promise<boolean> {
+    return (await prisma.issue_types.count({ where: { issue_type_id: issueTypeId } })) > 0;
+}
+
+/** Inserts an asset_maintenance row inside the caller's transaction and returns it. */
+export function createMaintenance(tx: Prisma.TransactionClient, data: Prisma.asset_maintenanceUncheckedCreateInput) {
+    return tx.asset_maintenance.create({ data });
+}
+
+/** The maintenance ticket with its asset's tag and name and its reporter's name, for the repair list's shape. */
+export function findMaintenanceForList(maintenanceId: number) {
+    return prisma.asset_maintenance.findUniqueOrThrow({
+        where: { maintenance_id: maintenanceId },
+        include: { assets: { select: { asset_tag: true, name: true } }, users: { select: { first_name: true, last_name: true } } },
+    });
+}
+
+/** A person's name, ID number, email, and labs, or null when there is no such account. */
+export function findPerson(userId: number) {
+    return prisma.users.findUnique({
+        where: { user_id: userId },
+        select: {
+            user_id: true,
+            first_name: true,
+            last_name: true,
+            id_number: true,
+            email: true,
+            user_centers: { select: { research_centers: { select: { center_id: true, short_code: true } } }, orderBy: { center_id: 'asc' } },
+        },
+    });
+}
+
+/** Whether the person has no loan in Pending Release, On Loan, or Return Requested. */
+export function findCleared(userId: number) {
+    return isCleared(prisma, userId);
+}
+
+/**
+ * Writes the CLEARANCE_RECORD_PRINTED row: TSG as the actor, the person as the target, no details.
+ *
+ * @param actorId the session user, TSG
+ * @param targetUserId the person whose record was printed
+ */
+export function logClearancePrinted(actorId: number, targetUserId: number) {
+    return prisma.$transaction(tx => logActivity(tx, { eventType: 'CLEARANCE_RECORD_PRINTED', actorId, targetUserId }));
 }
