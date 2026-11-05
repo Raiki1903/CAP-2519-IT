@@ -203,4 +203,14 @@ describe("GET /api/notifications/mine, the Batch 5 kinds", () => {
     expect(of(await mine(USERS.director), "DISPOSAL_DECISION_WAITING")).toEqual([]);
     expect(of(await mine(USERS.secretary), "DISPOSAL_DECISION_WAITING").map(n => n.retirementId)).toEqual([own.retirement_id]);
   });
+
+  it("gives TSG no MAINTENANCE_OPEN for a ticket it filed itself, only the RECEIPT_WAITING card", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0331" });
+    const report = await as(USERS.staffTsg).post(`/api/assets/${asset.tag}/maintenance`, { issueTypeId: 1, issueDescription: "Test: TSG found a fault" });
+    expect(report.status).toBe(201);
+
+    const notifications = await mine(USERS.staffTsg);
+    expect(of(notifications, "RECEIPT_WAITING").map(n => n.maintenanceId)).toContain(report.body.maintenance.maintenanceId);
+    expect(of(notifications, "MAINTENANCE_OPEN")).toEqual([]);
+  });
 });

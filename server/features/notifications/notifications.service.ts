@@ -68,7 +68,8 @@ function ticketNotificationOf(kind: NotificationKind, ticket: NotificationTicket
  * - a borrower: for each of their On Loan or Return Requested loans, LOAN_OVERDUE once the return-by date has passed,
  *   or LOAN_DUE_SOON when it is today or within DUE_SOON_DAYS days; and STATUS_CHECK_DUE when the asset's newest
  *   inspection of any type is older than STATUS_CHECK_DAYS days, or it has none (a Self Report clears it);
- * - a reporter: MAINTENANCE_OPEN for each open ticket they reported, with its status label.
+ * - a reporter who is not TSG: MAINTENANCE_OPEN for each open ticket they reported, with its status label. TSG sees its
+ *   own tickets as RECEIPT_WAITING and on the Repairs page, so it gets no second card.
  * Anyone else gets none. Each kind's list is oldest first.
  *
  * @param viewer the session user
@@ -83,7 +84,7 @@ export async function myNotifications(viewer: SessionIdentity): Promise<Notifica
         isTsg ? notificationsRepository.findTicketsInStatuses(["PENDING_RECEIPT"]) : [],
         decides ? notificationsRepository.findPendingRetirementsNotBy(viewer.userId) : [],
         notificationsRepository.findBorrowerLoans(viewer.userId, [...HELD_LOAN_STATUSES]),
-        notificationsRepository.findReporterTickets(viewer.userId, [...OPEN_MAINTENANCE_STATUSES]),
+        isTsg ? [] : notificationsRepository.findReporterTickets(viewer.userId, [...OPEN_MAINTENANCE_STATUSES]),
     ]);
     const lastInspected = await notificationsRepository.findLastInspections(held.map(l => l.asset_id));
 
