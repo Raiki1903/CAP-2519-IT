@@ -315,7 +315,7 @@ describe("GET /api/analytics/lab-head", () => {
     }
   });
 
-  it("lists the lab's loans newest first, with the destination lab moved out of the purpose", async () => {
+  it("lists the lab's loans newest first, with the destination lab from destination_center_id", async () => {
     const res = await labHead(TEST_LAB_QUERY);
 
     expect(res.status).toBe(200);
@@ -475,26 +475,37 @@ describe("GET /api/analytics/lab-head", () => {
     }
   });
 
-  it("leaves out returned and declined loans past due, but counts a pending request past its due date as overdue (new)", async () => {
+  it("leaves out returned and declined loans past due, and a Pending Approval request past its return-by date (H-04 fixed)", async () => {
     const returned = await addOverdueLoan("TEST-0724", 5, "RETURNED");
     const declined = await addOverdueLoan("TEST-0725", 5, "DECLINED");
     const pending = await addOverdueLoan("TEST-0726", 5, "PENDING_APPROVAL");
     try {
       const res = await labHead(TEST_LAB_QUERY);
 
-      expect(res.body.data.delinquencies.map((d: { id: number }) => d.id)).toEqual([pending.loan.loan_id]);
+      expect(res.body.data.delinquencies).toEqual([]);
     } finally {
       await removeExtraAssets(db, [returned.asset.assetId, declined.asset.assetId, pending.asset.assetId]);
     }
   });
 
-  it("no longer counts a loan as delinquent once the asset is returned through the return route (issue #99, H-04 fixed)", async () => {
+  it("counts On Loan and Return Requested loans past their return-by date, and not a Pending Release one", async () => {
+    const onLoan = await addOverdueLoan("TEST-0728", 3, "ON_LOAN");
+    const returnRequested = await addOverdueLoan("TEST-0729", 3, "RETURN_REQUESTED");
+    const waiting = await addOverdueLoan("TEST-0730", 3, "PENDING_RELEASE");
+    try {
+      const res = await labHead(TEST_LAB_QUERY);
+
+      expect(res.body.data.delinquencies.map((d: { id: number }) => d.id).sort()).toEqual([onLoan.loan.loan_id, returnRequested.loan.loan_id].sort());
+    } finally {
+      await removeExtraAssets(db, [onLoan.asset.assetId, returnRequested.asset.assetId, waiting.asset.assetId]);
+    }
+  });
+
+  it("no longer counts a loan as delinquent once TSG receives it back (issue #99, H-04 fixed)", async () => {
     const overdue = await addOverdueLoan("TEST-0727", 5);
     try {
-      const returned = await asStaff.post(`/api/assets/${overdue.asset.tag}/return`, {
-        returnedBy: USERS.custodianA.fullName,
-        condition: "OPERATIONAL",
-        comments: "Test return comment",
+      const returned = await asStaff.put(`/api/loans/${overdue.loan.loan_id}/receive`, {
+        inspection: { condition: "OPERATIONAL", remarks: "Test return comment" },
       });
       expect(returned.status).toBe(200);
 

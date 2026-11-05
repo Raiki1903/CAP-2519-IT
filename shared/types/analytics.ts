@@ -37,9 +37,9 @@ export interface LabHeadLoanItem {
   /** The asset's name. */
   asset: string;
   borrower: string;
-  /** The purpose without its "Destination Lab:" first line. */
+  /** The purpose as stored. */
   purpose: string;
-  /** Read from the purpose's first line, or undefined. (H-19) */
+  /** The destination lab's short code, from destination_center_id, or undefined when the loan names none. */
   destinationLab: string | undefined;
   /** YYYY-MM-DD. */
   requestedOn: string;

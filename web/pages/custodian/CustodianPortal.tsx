@@ -1,7 +1,7 @@
 /**
  * Custodian screen: My Assets, Available Equipment, QR Scan, and the condition report form, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /custodian/* (the tab comes from the URL).
- * Calls: api/assets.api.ts listAssets(), api/inspections.api.ts submitInspectionRaw(), features/assets/AssetDetailModal.tsx,
+ * Calls: api/assets.api.ts listAssets(), api/inspections.api.ts submitInspectionRaw(), features/assets/AssetDetailModal.tsx, features/assets/assetSearch.ts,
  * state/serverData.tsx (assets, addRepairRequest, syncFromDb).
  * Used by: Custodian.
  */
@@ -12,6 +12,7 @@ import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholde
 import { ResearcherMyLoans } from "@web/features/loans/ResearcherMyLoans";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
+import { ASSET_SEARCH_PLACEHOLDER, matchesAssetSearch } from "@web/features/assets/assetSearch";
 import { useSession } from "@web/state/session";
 import { useServerData, holderLabel } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
@@ -414,7 +415,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
       (filterCategory === "All" || a.category === filterCategory) &&
       (filterLoc === "All" || a.location === filterLoc) &&
       (filterLab === "All" || a.lab === filterLab) &&
-      (a.name.toLowerCase().includes(search.toLowerCase()) || a.id.toLowerCase().includes(search.toLowerCase()))
+      matchesAssetSearch(a, search)
     );
 
     return (
@@ -439,7 +440,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
           <div className="relative col-span-1 md:col-span-1">
-            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or ID…" />
+            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={ASSET_SEARCH_PLACEHOLDER} />
           </div>
           <Select value={filterCategory} onValueChange={setFilterCategory}>
             <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>

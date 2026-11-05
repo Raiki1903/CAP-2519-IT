@@ -1,15 +1,15 @@
 /**
- * Return form: a Custodian asks to hand an asset back, and Staff finalize the return.
+ * Return form: a Custodian asks to hand an asset back, and TSG record the return.
  * Layer: feature component. Called by features/assets/AssetDetailModal.tsx (Custodian return request, Staff Record Return)
  * and pages/staff/ReturnsPage.tsx (Staff pending returns).
- * Calls: api/returns.api.ts finalizeReturn(), api/maintenance.api.ts requestRepair(), state/browserOnly.tsx (the request list).
+ * Calls: api/loans.api.ts requestReturn() and receiveLoan(), api/maintenance.api.ts requestRepair(), state/serverData.tsx
+ * syncFromDb().
  * Used by: Custodian return request, Staff return finalization, Staff Record Return.
  */
 import { useState } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
-import { useBrowserOnly, type ReturnRequest } from "@web/state/browserOnly";
-import * as returnsApi from "@web/api/returns.api";
+import * as loansApi from "@web/api/loans.api";
 import * as maintenanceApi from "@web/api/maintenance.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -17,6 +17,7 @@ import {
   User, Calendar, ClipboardCheck, ToggleLeft, Hash, FileText, Wrench
 } from "lucide-react";
 import type { AssetDetail } from "@web/features/assets/AssetDetailModal";
+import type { Loan } from "@shared/types/loans";
 import { ASSET_CONDITIONS } from "@shared/enums/assetCondition";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -30,35 +31,32 @@ const BRAND = "#005A36";
 
 interface Props {
   asset: AssetDetail;
-  /** The browser request Staff are finalizing, from the Pending Returns row clicked. None from the asset modal. */
-  request?: ReturnRequest;
+  /** The loan Staff are receiving, from the Pending Returns row clicked. None from the asset modal: the form finds it. */
+  loan?: Loan;
   onBack: () => void;
   onClose: () => void;
 }
 
 /**
  * Does one of two things, by role.
- * - Custodian: saves a return request in this browser (useBrowserOnly().addReturnRequest)
- *   and, if "flag for repair" is on, files a repair through maintenanceApi.requestRepair().
- *   Nothing about the return itself reaches the server at this stage.
- * - Staff: records the condition and calls returnsApi.finalizeReturn(), then marks the
- *   request passed in (the row clicked) finalized and reloads the shared lists. The success
- *   screen shows the server's reference number. From the asset modal (Record Return) there is
- *   no request: the return is recorded on the server alone.
+ * - Custodian: asks to return the asset (loansApi.requestReturn) with the turn-in comments as the remarks and, if
+ *   "flag for repair" is on, files a repair through maintenanceApi.requestRepair(). The request is saved on the server,
+ *   so TSG see it on any computer.
+ * - Staff (TSG): records the condition and calls loansApi.receiveLoan(), which closes the loan as Returned with a Return
+ *   inspection and puts the asset back to Available. The success screen shows the loan's reference. From the asset
+ *   modal (Record Return) no loan is passed in, so the form finds the asset's open loan first.
  *
- * If the server refuses a Staff finalize or cannot be reached, the form stays open with the reason
- * in red, and nothing in the browser is marked. A Custodian's request is saved even if its repair
- * ticket fails; the success screen then says so in an amber line.
+ * If the server refuses or cannot be reached, the form stays open with the reason in red. A Custodian's request is kept
+ * even if its repair ticket fails; the success screen then says so in an amber line.
  *
  * @param asset the asset being returned
- * @param request the Pending Returns request being finalized, if any; only this one is marked
+ * @param loan the Pending Returns loan being received, if any
  * @param onBack returns to the asset detail view
  * @param onClose closes the modal from the success screen
  */
-export function ReturnForm({ asset, request, onBack, onClose }: Props) {
+export function ReturnForm({ asset, loan, onBack, onClose }: Props) {
   const { role } = useSession();
   const { syncFromDb } = useServerData();
-  const { addReturnRequest, finalizeReturn } = useBrowserOnly();
 
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
   const [condition, setCondition] = useState("");
@@ -68,80 +66,81 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [flagForRepair, setFlagForRepair] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [repairError, setRepairError] = useState<string | null>(null);
   const [dbReferenceNumber, setDbReferenceNumber] = useState<string | null>(null);
 
   const isCustodian = role === "Custodian";
-  const canSubmit = isCustodian ? !!returnDate : (!!returnDate && !!condition);
+  const canSubmit = isCustodian || (!!returnDate && !!condition);
+
+  // The open loan on this asset: the one passed in, or the first match in the caller's list (a Custodian's own loans,
+  // or TSG's On Loan and Return Requested loans, which also holds walk-in returns).
+  const findLoan = async (): Promise<Loan | null> => {
+    if (loan) return loan;
+    const data = isCustodian ? await loansApi.listMyLoans() : await loansApi.listLoansByStatus(["RETURN_REQUESTED", "ON_LOAN"]);
+    if (!data.success) throw new Error(data.error || "The loan could not be loaded.");
+    const open = isCustodian ? ["ON_LOAN"] : ["RETURN_REQUESTED", "ON_LOAN"];
+    return (data.loans as Loan[]).find(l => l.asset.tag === asset.id && open.includes(l.status)) ?? null;
+  };
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     setSubmitError(null);
+    setRepairError(null);
 
-    if (isCustodian) {
-      addReturnRequest({
-        id: `RET-${Date.now().toString().slice(-6)}`,
-        assetId: asset.id,
-        assetName: asset.name,
-        custodian: asset.custodian || "Active Custodian",
-        returnDate,
-        comments: inspection,
-        status: "Pending"
-      });
-
-      // Custodian flagged the device as needing repair on turn-in — log it to
-      // the same repair queue RepairForm writes to, so it shows up on the Staff Repairs page.
-      if (flagForRepair) {
-        try {
-          const data = await maintenanceApi.requestRepair(asset.id, {
-            description: inspection || "Flagged for repair assessment during asset return.",
-          });
-          if (!data.success) {
-            setSubmitError(data.error || "Failed to log repair request to the database.");
-          }
-        } catch (err: any) {
-          setSubmitError(err.message || "Failed to reach the server.");
-        }
-      }
-    } else {
-      // The database write: the server closes the asset's loan as Returned with a Return inspection, and the
-      // asset is Available again. The custodian's request stays in the browser only until Batch 3. (H-02)
-      let notRecorded: string | null = null;
-      try {
-        const data = await returnsApi.finalizeReturn(asset.id, {
-          condition,
-          comments: inspection,
-        });
-        if (data.success) {
-          setDbReferenceNumber(data.referenceNumber);
-        } else {
-          notRecorded = data.error ? `The return was not recorded: ${data.error}` : "The return was not recorded. Please try again.";
-        }
-      } catch {
-        notRecorded = "The return was not recorded: the server could not be reached. Please try again.";
-      }
-
-      // The lists reload either way: after a refusal for an asset that is no longer out, they show it back in the pool.
-      syncFromDb();
-
-      if (notRecorded) {
-        setSubmitError(notRecorded);
+    // Nothing is shown as done until the server has accepted the step.
+    try {
+      const found = await findLoan();
+      if (!found) {
+        setSubmitError(isCustodian
+          ? "This asset is not out on loan to you."
+          : "This asset has no open loan, so there is nothing to receive.");
         setSubmitting(false);
         return;
       }
 
-      // Only the row Staff clicked is marked: with two requests for one asset, the other stays as it was.
-      if (request) {
-        finalizeReturn(
-          request.id,
-          condition,
-          [],
-          inspection,
-          clearanceIssued
-        );
+      if (isCustodian) {
+        const data = await loansApi.requestReturn(found.loanId, inspection);
+        if (!data.success) {
+          setSubmitError(data.error ? `The return request was not sent: ${data.error}` : "The return request was not sent. Please try again.");
+          setSubmitting(false);
+          return;
+        }
+      } else {
+        const data = await loansApi.receiveLoan(found.loanId, {
+          inspection: { condition, remarks: inspection || null },
+        });
+        if (!data.success) {
+          setSubmitError(data.error ? `The return was not recorded: ${data.error}` : "The return was not recorded. Please try again.");
+          // The lists reload after a refusal too: for an asset that is no longer out, they show it back in the pool.
+          syncFromDb();
+          setSubmitting(false);
+          return;
+        }
+        setDbReferenceNumber(`LOAN-${data.loan.loanId}`);
+      }
+    } catch (err: any) {
+      setSubmitError(`${isCustodian ? "The return request was not sent" : "The return was not recorded"}: ${err.message || "the server could not be reached"}. Please try again.`);
+      setSubmitting(false);
+      return;
+    }
+
+    // Custodian flagged the device as needing repair on turn-in: log it to the same repair queue RepairForm
+    // writes to, so it shows up on the Staff Repairs page.
+    if (isCustodian && flagForRepair) {
+      try {
+        const data = await maintenanceApi.requestRepair(asset.id, {
+          description: inspection || "Flagged for repair assessment during asset return.",
+        });
+        if (!data.success) {
+          setRepairError(data.error || "Failed to log repair request to the database.");
+        }
+      } catch (err: any) {
+        setRepairError(err.message || "Failed to reach the server.");
       }
     }
 
+    syncFromDb();
     setSubmitting(false);
     setSubmitted(true);
   };
@@ -179,9 +178,9 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
                 : "Asset return has been finalized and registry status set to Available."}
             </p>
           </div>
-          {isCustodian && submitError && (
+          {isCustodian && repairError && (
             <div className="w-full rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs px-3 py-2 text-left">
-              Return logged locally, but the repair ticket couldn't reach the database: {submitError}
+              Return request sent, but the repair ticket could not reach the database: {repairError}
             </div>
           )}
           <div className="w-full rounded-xl bg-[#F3F4F6] border border-border p-4 text-left space-y-2">
@@ -189,12 +188,12 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
               <p className="text-[9px] font-extrabold text-muted-foreground tracking-[2px] uppercase">Asset</p>
               <p className="text-xs font-semibold text-foreground">{asset.name} ({asset.id})</p>
             </div>
-            <div>
-              <p className="text-[9px] font-extrabold text-muted-foreground tracking-[2px] uppercase">Return Date</p>
-              <p className="text-xs font-semibold text-foreground">{returnDate}</p>
-            </div>
             {!isCustodian && (
               <>
+                <div>
+                  <p className="text-[9px] font-extrabold text-muted-foreground tracking-[2px] uppercase">Return Date</p>
+                  <p className="text-xs font-semibold text-foreground">{returnDate}</p>
+                </div>
                 <div>
                   <p className="text-[9px] font-extrabold text-muted-foreground tracking-[2px] uppercase">Condition</p>
                   <p className={cn("text-xs font-bold", conditionColor[condition] ?? "")}>{condition.replace(/_/g, " ")}</p>
@@ -253,11 +252,11 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
           <Separator />
 
           {/* Pending return info for Staff */}
-          {!isCustodian && request && (
+          {!isCustodian && loan?.status === "RETURN_REQUESTED" && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-1">
               <p className="font-extrabold uppercase tracking-wider text-[9px] text-blue-700">Custodian Turn-in Comments</p>
-              <p><strong>Proposed Date:</strong> {request.returnDate}</p>
-              <p className="italic">"{request.comments || "No comments."}"</p>
+              {loan.returnRequestedAt && <p><strong>Asked to return on:</strong> {new Date(loan.returnRequestedAt).toLocaleDateString("en-CA")}</p>}
+              <p className="italic">"{loan.remarks || "No comments."}"</p>
             </div>
           )}
 
@@ -279,13 +278,15 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
             />
           </div>
 
-          {/* Return Date */}
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-[10px] font-extrabold tracking-[1.5px] text-muted-foreground uppercase flex items-center gap-1.5">
-              <Calendar size={10} /> Return Date
-            </Label>
-            <Input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} />
-          </div>
+          {/* Return Date (Staff; the Custodian's request is dated by the server) */}
+          {!isCustodian && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-[10px] font-extrabold tracking-[1.5px] text-muted-foreground uppercase flex items-center gap-1.5">
+                <Calendar size={10} /> Return Date
+              </Label>
+              <Input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} />
+            </div>
+          )}
 
           {/* Role-Based Forms Partitioning */}
           {isCustodian ? (
@@ -299,6 +300,7 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
                   value={inspection}
                   onChange={e => setInspection(e.target.value)}
                   rows={3}
+                  maxLength={255}
                   placeholder="List accessories returned, state of the device, or turn-in justification..."
                   className="w-full rounded-md border border-input bg-input-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
                 />
@@ -421,7 +423,7 @@ export function ReturnForm({ asset, request, onBack, onClose }: Props) {
             </>
           )}
 
-          {!isCustodian && submitError && (
+          {submitError && (
             <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{submitError}</div>
           )}
 

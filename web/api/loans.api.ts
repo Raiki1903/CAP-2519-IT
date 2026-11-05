@@ -5,48 +5,36 @@
  * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, the loan lists, the
  * Accountability Form, and the clearance record.
  */
-import type { LoanRequestInput } from "@shared/types/loans";
 import type { InspectionInput } from "@shared/types/assets";
-import type { LoanReceiveBody, LoanInspectionInput } from "@web/features/loans/loanTypes";
+import type { LoanReceiveBody, LoanRequestBody } from "@shared/types/loans";
 import { apiGet, apiPost, apiPut, type ApiResult } from "./client";
 
 /**
- * Files a pending borrow request for an asset.
+ * Files a loan request for an asset. The borrower is the session user.
  *
  * @param assetTag the asset's tag, for example from the asset detail modal
- * @param input destination lab, purpose, and due date (the borrower is the session user)
- * @returns `success`, and `error` when the asset or a required field is missing
+ * @param body the destination lab (one of the borrower's own), return-by date, and purpose
+ * @returns `success` and the new `loan` (Pending Approval); or `error` with the server's sentence
  */
-export function requestLoan(assetTag: string, input: LoanRequestInput | any): Promise<ApiResult> {
-  return apiPost(`/api/assets/${encodeURIComponent(assetTag)}/borrow`, input);
+export function requestLoan(assetTag: string, body: LoanRequestBody): Promise<ApiResult> {
+  return apiPost(`/api/assets/${encodeURIComponent(assetTag)}/loans`, body);
 }
 
 /**
- * Lists loan requests.
+ * Lists every loan in the old row shape that today's screens read.
+ * TODO(M-02): this still sends every loan to every caller. It goes when Joel's loan screens move to the lists below.
  *
- * @returns `success` and `loans`, an array of loan rows
+ * @returns `success` and `loans`
  */
 export function listLoans(): Promise<ApiResult> {
   return apiGet("/api/loans");
 }
 
 /**
- * Approves or declines a pending loan.
- * The server accepts only "approve" or "decline" and refuses anything else.
- *
- * @param loanId numeric loan id, without the "LOAN-" prefix
- * @param decision "approve" or "decline"
- * @returns `success`, and `error` when the loan is missing or not pending
- */
-export function decideLoan(loanId: number | string, decision: string): Promise<ApiResult> {
-  return apiPut(`/api/loans/${loanId}/decision`, { decision });
-}
-
-/**
  * Lists the loans in the given statuses, oldest request first. TSG only.
  *
  * @param statuses loan statuses, for example ["RETURN_REQUESTED", "ON_LOAN"]
- * @returns `success` and `loans`, each a Loan; or `error` (403 for anyone but TSG)
+ * @returns `success` and `loans`, each a Loan from @shared/types/loans; or `error` (403 for anyone but TSG)
  */
 export function listLoansByStatus(statuses: string[]): Promise<ApiResult> {
   return apiGet(`/api/loans?status=${encodeURIComponent(statuses.join(","))}`);
@@ -119,7 +107,7 @@ export function declineLoan(loanId: number | string, decisionRemarks: string): P
  * @param inspection the condition and measurements TSG found when handing the asset over
  * @returns `success` and the `loan` (now On Loan); or `error`
  */
-export function releaseLoan(loanId: number | string, inspection: LoanInspectionInput | InspectionInput): Promise<ApiResult> {
+export function releaseLoan(loanId: number | string, inspection: InspectionInput): Promise<ApiResult> {
   return apiPut(`/api/loans/${loanId}/release`, { inspection });
 }
 

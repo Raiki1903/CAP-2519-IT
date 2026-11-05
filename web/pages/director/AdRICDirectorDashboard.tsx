@@ -2,7 +2,7 @@
  * Director screen: Overview, Analytics, Disposal Approvals, and the Inventory Report, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
  * Calls: api/retirements.api.ts listDisposals() and decideDisposal(), features/lookups/useLookups.ts (the labs and their campus),
- * features/assets/campusCounts.ts, features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
+ * features/assets/campusCounts.ts, features/assets/assetSearch.ts (the search placeholder), features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
  * Used by: AdRIC Director (disposal decisions, inventory reports).
  */
 import { useState, useEffect } from "react";
@@ -12,6 +12,7 @@ import { useSession } from "@web/state/session";
 import { useServerData, type Asset } from "@web/state/serverData";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { countAssetsByCampus } from "@web/features/assets/campusCounts";
+import { ASSET_SEARCH_PLACEHOLDER } from "@web/features/assets/assetSearch";
 import { useFormLookups } from "@web/features/lookups/useLookups";
 import * as retirementsApi from "@web/api/retirements.api";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
@@ -629,7 +630,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
                   <Input
-                    placeholder="Search ID, name, serial..."
+                    placeholder={ASSET_SEARCH_PLACEHOLDER}
                     className="pl-9 text-xs bg-muted/40 border-border text-foreground focus-visible:ring-[#005A36] h-9"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}

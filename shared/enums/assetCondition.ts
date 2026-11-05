@@ -1,6 +1,6 @@
 /**
  * The five asset condition values, best to worst, their labels, and the health score each one suggests.
- * Layer: shared. Imported by the server (assets, returns, inspections, maintenance), shared/types/returns.ts, and web/
+ * Layer: shared. Imported by the server (assets, loans, inspections, maintenance), shared/types/returns.ts, and web/
  * (EditAssetDialog, ReturnForm, the inspection forms). Imports nothing.
  * Used by: every inspection, and every screen that shows an asset's condition.
  */
