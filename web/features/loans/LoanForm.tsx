@@ -16,11 +16,10 @@ import * as loansApi from "@web/api/loans.api";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import { Badge } from "@web/components/ui/badge";
 import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
-
-const BRAND = "#005A36";
 
 /** Today as yyyy-mm-dd in the browser's time zone. toISOString() would give the UTC date, a day early before 8 AM in Manila. */
 function localToday(): string {
@@ -49,8 +48,8 @@ function ApprovalPipeline({ steps }: { steps: PipelineStep[] }) {
             <div className="flex flex-col items-center flex-1">
               <div className={cn(
                 "w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold flex-shrink-0",
-                step.status === "done" ? "border-emerald-500 bg-emerald-500 text-white" :
-                  step.status === "active" ? "border-[#005A36] bg-white text-[#005A36]" :
+                step.status === "done" ? "border-primary bg-primary text-primary-foreground" :
+                  step.status === "active" ? "border-primary bg-background text-primary" :
                     "border-border bg-muted/40 text-muted-foreground"
               )}>
                 {step.status === "done" ? <CheckCircle size={14} /> : i + 1}
@@ -65,8 +64,8 @@ function ApprovalPipeline({ steps }: { steps: PipelineStep[] }) {
             </div>
             {i < steps.length - 1 && (
               <div className="flex-shrink-0 mt-3.5 mx-0.5" style={{ width: 28 }}>
-                <div className={cn("h-0.5", step.status === "done" ? "bg-emerald-400" : "bg-border")} />
-                <ChevronRight size={10} className={cn("mx-auto -mt-1.5", step.status === "done" ? "text-emerald-400" : "text-muted-foreground")} />
+                <div className={cn("h-0.5", step.status === "done" ? "bg-primary" : "bg-border")} />
+                <ChevronRight size={10} className={cn("mx-auto -mt-1.5", step.status === "done" ? "text-primary" : "text-muted-foreground")} />
               </div>
             )}
           </div>
@@ -153,8 +152,8 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
           animate={{ opacity: 1, scale: 1 }}
           className="flex flex-col items-center gap-4 py-8 text-center"
         >
-          <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center">
-            <CheckCircle size={32} className="text-emerald-500" />
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+            <CheckCircle size={32} className="text-primary" />
           </div>
           <div>
             <h3 className="font-extrabold text-foreground mb-1" style={{ fontFamily: "'Montserrat', sans-serif" }}>
@@ -164,20 +163,20 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
               Your request went to the Lab Head for approval.
             </p>
           </div>
-          <div className="w-full rounded-xl bg-[#F3F4F6] border border-border p-4 text-left">
+          <div className="w-full rounded-xl bg-muted/40 border border-border p-4 text-left">
             <p className="text-[9px] font-extrabold text-muted-foreground tracking-[2px] uppercase mb-2">Loan Reference</p>
             <p className="text-sm font-bold text-primary font-mono">{refId}</p>
             <p className="text-[11px] text-muted-foreground mt-1">{asset.name} → {borrower}</p>
           </div>
           <ApprovalPipeline steps={pipelineSteps} />
-          <Button size="sm" onClick={onClose} className="mt-2" style={{ background: BRAND, color: "#fff" }}>
+          <Button size="sm" onClick={onClose} className="mt-2">
             Close
           </Button>
         </motion.div>
       ) : (
         <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="flex items-center gap-2 mb-4">
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-[#005A36] hover:bg-emerald-50" onClick={onBack}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10" onClick={onBack}>
               <ArrowLeft size={16} />
             </Button>
             <div>
@@ -187,8 +186,8 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-[#F9FAFB] p-3 mb-5 flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-primary flex-shrink-0">
+          <div className="rounded-xl border border-border bg-muted/40 p-3 mb-5 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
               <Bookmark size={15} />
             </div>
             <div className="flex-1 min-w-0">
@@ -214,19 +213,21 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
               <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-1.5">
                 <MapPin size={10} /> Research Lab Destination
               </Label>
-              <div className="relative">
-                <select
-                  value={selectedLabId ?? ""}
-                  onChange={e => setSelectedLabId(Number(e.target.value))}
-                  disabled={myLabs.length === 0}
-                  className="w-full h-9 rounded-lg border border-input bg-background px-3 py-1.5 text-xs shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
+              <Select
+                value={selectedLabId !== null ? String(selectedLabId) : ""}
+                onValueChange={v => setSelectedLabId(Number(v))}
+                disabled={myLabs.length === 0}
+              >
+                <SelectTrigger className="text-xs">
+                  <SelectValue placeholder="Select a lab" />
+                </SelectTrigger>
+                <SelectContent>
                   {myLabs.map(l => (
-                    <option key={l.centerId} value={l.centerId}>{l.code}</option>
+                    <SelectItem key={l.centerId} value={String(l.centerId)}>{l.code}</SelectItem>
                   ))}
-                </select>
-              </div>
-              {myLabs.length === 0 && <p className="text-[10px] text-red-600 mt-1">You are not in any lab yet, so you cannot request a loan.</p>}
+                </SelectContent>
+              </Select>
+              {myLabs.length === 0 && <p className="text-[10px] text-destructive mt-1">You are not in any lab yet, so you cannot request a loan.</p>}
             </div>
 
             <div>
@@ -266,14 +267,14 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
                 className="h-9 text-xs"
               />
               {dueDateInPast && (
-                <p className="text-xs text-red-600 mt-1">The return-by date cannot be in the past.</p>
+                <p className="text-xs text-destructive mt-1">The return-by date cannot be in the past.</p>
               )}
             </div>
 
             <Separator className="my-2" />
 
             {submitError && (
-              <p className="text-xs text-red-600 -mt-2">{submitError}</p>
+              <p className="text-xs text-destructive -mt-2">{submitError}</p>
             )}
 
             <div className="flex gap-2 justify-end">
@@ -284,8 +285,6 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
                 size="sm"
                 onClick={handleSubmit}
                 disabled={!canSubmit || submitting}
-                className="font-bold text-white shadow-md transition-all duration-200"
-                style={{ background: BRAND }}
               >
                 {submitting ? "Submitting..." : "Submit Request"}
               </Button>
