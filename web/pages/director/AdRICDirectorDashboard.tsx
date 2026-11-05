@@ -104,7 +104,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const { currentUser } = useSession();
   const {
     assets,
-    repairRequests = [],
+    tickets = [],
     isDbLoading: isGlobalDbLoading,
     syncFromDb,
     refreshSharedLists
@@ -123,7 +123,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const exportLifecycleCSV = (asset: any) => {
     if (!asset) return;
 
-    const assetRepairs = (repairRequests || []).filter(r => r.assetId === asset.id);
+    const assetRepairs = tickets.filter(t => t.asset.tag === asset.id);
 
     // Only the reports saved in asset_inspections, the same ones the Staff inspection log shows. (F-28)
     const assetReports = asset.asset_reports || [];
@@ -144,10 +144,10 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n`;
 
     csvContent += `\nREPAIR & MAINTENANCE LOGS\n`;
-    csvContent += `Repair ID,Priority,Status,Description,Custodian,Submitted At\n`;
+    csvContent += `Repair ID,Issue Type,Status,Description,Reported By,Reported At\n`;
     if (assetRepairs.length > 0) {
-      assetRepairs.forEach((r: any) => {
-        csvContent += `"${r.id}","${r.priority}","${r.statusLabel}","${(r.description || "").replace(/"/g, '""')}","${r.custodian}","${r.submittedAt}"\n`;
+      assetRepairs.forEach(r => {
+        csvContent += `"MNT-${r.maintenanceId}","${r.issueType?.name ?? r.typeLabel}","${r.statusLabel}","${r.issueDescription.replace(/"/g, '""')}","${"hidden" in r.reportedBy ? "Not shown" : r.reportedBy.name}","${r.reportedAt}"\n`;
       });
     } else {
       csvContent += `No technical repair logs registered.\n`;
@@ -843,16 +843,16 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <Wrench size={13} className="text-[#005A36]" />
                     Repair &amp; Maintenance Logs
                   </h4>
-                  {(repairRequests || []).filter(r => r.assetId === selectedAssetForAudit.id).length > 0 ? (
+                  {tickets.filter(t => t.asset.tag === selectedAssetForAudit.id).length > 0 ? (
                     <div className="space-y-2">
-                      {(repairRequests || []).filter(r => r.assetId === selectedAssetForAudit.id).map(r => (
-                        <div key={r.id} className="p-3 bg-muted/30 border border-border rounded-lg text-xs space-y-1.5">
+                      {tickets.filter(t => t.asset.tag === selectedAssetForAudit.id).map(r => (
+                        <div key={r.maintenanceId} className="p-3 bg-muted/30 border border-border rounded-lg text-xs space-y-1.5">
                           <div className="flex justify-between items-center">
-                            <span className="font-bold text-foreground">{r.id} · Priority: <span className="text-amber-600">{r.priority}</span></span>
+                            <span className="font-bold text-foreground">MNT-{r.maintenanceId} · Issue: <span className="text-amber-600">{r.issueType?.name ?? r.typeLabel}</span></span>
                             <Badge className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9px] font-bold uppercase">{r.statusLabel}</Badge>
                           </div>
-                          <p className="text-muted-foreground leading-relaxed">{r.description}</p>
-                          <p className="text-[9px] text-muted-foreground/60">Reported By: {r.custodian} · Submitted At: {new Date(r.submittedAt).toLocaleDateString()}</p>
+                          <p className="text-muted-foreground leading-relaxed">{r.issueDescription}</p>
+                          <p className="text-[9px] text-muted-foreground/60">Reported By: {"hidden" in r.reportedBy ? "Not shown" : r.reportedBy.name} · Reported At: {new Date(r.reportedAt).toLocaleDateString()}</p>
                         </div>
                       ))}
                     </div>

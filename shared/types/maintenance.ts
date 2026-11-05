@@ -21,6 +21,22 @@ export interface MaintenanceReceiveBody {
   inspection: InspectionInput;
 }
 
+/** The body of PUT /api/maintenance/:maintenanceId/start and /stage. */
+export interface MaintenanceStageBody {
+  stage: "REPAIRING" | "EXTERNAL_SERVICE";
+  /** Required for External Service: the warranty holder or the repair shop. */
+  provider?: string | null;
+  /** Required to repair an asset under warranty in house (Repairing). */
+  warrantyOverrideReason?: string | null;
+}
+
+/** The body of PUT /api/maintenance/:maintenanceId/complete. */
+export interface MaintenanceCompleteBody {
+  outcome: "RESOLVED" | "BEYOND_REPAIR";
+  resolutionRemarks: string;
+  inspection: InspectionInput;
+}
+
 /** The body of PUT /api/maintenance/:maintenanceId/cancel. */
 export interface MaintenanceCancelBody {
   /** Stored as the ticket's resolution remarks. */
@@ -56,46 +72,4 @@ export interface Maintenance {
   resolutionRemarks: string | null;
   triggerInspection: Inspection | null;
   completionInspection: Inspection | null;
-}
-
-/** The body today's screens send to POST /api/assets/:assetTag/maintenance. The server reads MaintenanceReportBody instead. */
-export interface RepairRequestInput {
-  description: string;
-}
-
-/** The body today's screens send to the removed PUT /api/maintenance/:repairId. */
-export interface RepairUpdateInput {
-  progressStatus: string;
-  assetCondition?: string;
-  assetRemarks?: string;
-}
-
-/** One row of GET /api/maintenance's `repairs`, the shape today's screens read, next to the new `tickets`. */
-export interface RepairListItem {
-  /** Display id, "MNT-<maintenance_id>". */
-  id: string;
-  repairId: number;
-  /** Always "db". Kept for screens that once mixed in browser-only tickets. */
-  _source: "db";
-  /** Same as repairId. */
-  _repairId: number;
-  /** The asset's tag. */
-  assetId: string;
-  assetName: string;
-  /** The reporter's full name, not the asset's custodian. Same value as reportedBy. */
-  custodian: string;
-  /** The reporter's full name. */
-  reportedBy: string;
-  description: string;
-  /** The status label, from MAINTENANCE_STATUS_LABELS. Same as progressStatus. */
-  statusLabel: string;
-  progressStatus: string;
-  // TODO(H-07): today's screens still show a priority. The field goes with these rows when the screens read `tickets` (Batch 5, commit 9).
-  priority: "Medium";
-  /** False only while the ticket is Pending Receipt. */
-  acknowledged: boolean;
-  /** The creation time as "Oct 9, 2026, 02:15 PM", in the server's time zone. */
-  submittedAt: string;
-  /** ISO timestamp. */
-  createdAt: string;
 }

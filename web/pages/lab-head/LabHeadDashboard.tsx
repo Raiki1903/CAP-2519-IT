@@ -179,7 +179,7 @@ interface LoanRequest {
  */
 export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const { currentUser } = useSession();
-  const { assets, repairRequests, dbLoans, reloadLoans } = useServerData();
+  const { assets, tickets, dbLoans, reloadLoans } = useServerData();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "gallery">("gallery");
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
@@ -432,7 +432,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const branchLoanRequests: LoanRequest[] = dbLoans.filter(l => matchesBranch(l.lab) && l.status !== "Cancelled");
 
   const branchAssetIds = new Set(displayedAssets.filter(a => matchesBranch(a.lab)).map(a => a.id));
-  const branchRepairs = repairRequests.filter(r => branchAssetIds.has(r.assetId));
+  const branchRepairs = tickets.filter(t => branchAssetIds.has(t.asset.tag));
 
   // ── Custody ───────────────────────────────────────────────────────────────
   if (activeTab === "custody") {
@@ -760,7 +760,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                 <Table className="min-w-full text-[11px]">
                   <TableHeader>
                     <TableRow className="bg-emerald-50/30">
-                      {["Ticket ID", "Asset ID", "Asset Name", "Issue Description", "Submitted At", "Priority", "Acknowledged"].map(h => (
+                      {["Ticket ID", "Asset ID", "Asset Name", "Issue Description", "Reported At", "Issue Type", "Status"].map(h => (
                         <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
                       ))}
                     </TableRow>
@@ -770,14 +770,14 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                       <TableRow><TableCell colSpan={7} className="text-center text-gray-400 py-4 font-sans">No repair tickets for {userLab}.</TableCell></TableRow>
                     ) : (
                       branchRepairs.map(r => (
-                        <TableRow key={r.id}>
-                          <TableCell className="font-bold text-emerald-800">{r.id}</TableCell>
-                          <TableCell className="font-mono">{r.assetId}</TableCell>
-                          <TableCell className="font-semibold">{r.assetName}</TableCell>
-                          <TableCell className="italic max-w-[200px] truncate" title={r.description}>"{r.description}"</TableCell>
-                          <TableCell>{r.submittedAt}</TableCell>
-                          <TableCell className="font-bold">{r.priority}</TableCell>
-                          <TableCell className="font-medium">{r.acknowledged ? "Yes" : "Not yet"}</TableCell>
+                        <TableRow key={r.maintenanceId}>
+                          <TableCell className="font-bold text-emerald-800">MNT-{r.maintenanceId}</TableCell>
+                          <TableCell className="font-mono">{r.asset.tag}</TableCell>
+                          <TableCell className="font-semibold">{r.asset.name}</TableCell>
+                          <TableCell className="italic max-w-[200px] truncate" title={r.issueDescription}>"{r.issueDescription}"</TableCell>
+                          <TableCell>{new Date(r.reportedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</TableCell>
+                          <TableCell className="font-bold">{r.issueType?.name ?? r.typeLabel}</TableCell>
+                          <TableCell className="font-medium">{r.statusLabel}</TableCell>
                         </TableRow>
                       ))
                     )}

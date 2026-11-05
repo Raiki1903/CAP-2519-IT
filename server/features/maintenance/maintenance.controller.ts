@@ -26,14 +26,13 @@ export async function reportIssue(req: Request<{ assetTag: string }>, res: Respo
 }
 
 /**
- * Handles GET /api/maintenance: the tickets the session user may see, newest first, as `{ success, tickets, repairs }`:
- * `tickets` in the Maintenance shape, `repairs` the same tickets in the row shape today's screens read.
- * Answers 400 for an unknown `?status=` or `?type=`.
+ * Handles GET /api/maintenance: the tickets the session user may see, newest first, as `{ success, tickets }` in the
+ * Maintenance shape. Answers 400 for an unknown `?status=` or `?type=`.
  */
 export async function listTickets(req: Request, res: Response): Promise<void> {
     const filters = readListFilters(req.query as Record<string, unknown>);
-    const { tickets, repairs } = await maintenanceService.listTickets(filters, sessionUserOf(req));
-    res.json({ success: true, tickets, repairs });
+    const tickets = await maintenanceService.listTickets(filters, sessionUserOf(req));
+    res.json({ success: true, tickets });
 }
 
 /**

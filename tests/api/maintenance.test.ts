@@ -46,7 +46,7 @@ async function listedAsset(tag: string) {
 }
 
 describe("GET /api/maintenance", () => {
-  it("lists the seeded ticket in the Maintenance shape and in the row shape today's screens read", async () => {
+  it("lists the seeded ticket in the Maintenance shape, with no priority", async () => {
     const res = await asStaff.get("/api/maintenance");
 
     expect(res.status).toBe(200);
@@ -66,15 +66,7 @@ describe("GET /api/maintenance", () => {
       completedBy: null,
       triggerInspection: null,
     });
-    expect(res.body.repairs[0]).toMatchObject({
-      id: "MNT-1",
-      repairId: SEEDED_ROWS.repairId,
-      assetId: ASSETS.inRepair.tag,
-      reportedBy: USERS.custodianA.fullName,
-      progressStatus: "Inspecting",
-      statusLabel: "Inspecting",
-      acknowledged: true,
-    });
+    expect(res.body).not.toHaveProperty("repairs");
   });
 
   it("shows each role only its tickets: all for TSG, the Director and the Secretary, the lab's for its Head, the reporter's own for a Researcher", async () => {
@@ -85,7 +77,6 @@ describe("GET /api/maintenance", () => {
     }
     const other = await as(USERS.custodianB).get("/api/maintenance");
     expect(other.body.tickets).toEqual([]);
-    expect(other.body.repairs).toEqual([]);
   });
 
   it("answers 403 to the IT Admin", async () => {

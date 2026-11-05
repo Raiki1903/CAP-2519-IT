@@ -24,9 +24,7 @@ export function OverviewPage() {
   // The count is only the loans whose borrower asked to return; walk-ins on the Pending Returns page are not counted.
   const { requested: pendingReturns } = usePendingReturns();
   const { displayedAssets } = useStaffAssets();
-  const { combinedRepairs } = useRepairTickets();
-
-  const unacknowledged = combinedRepairs.filter(r => !r.acknowledged);
+  const { openTickets, pendingReceiptCount } = useRepairTickets();
 
   const overviewSlug = roleToSlug.Staff;
 
@@ -64,10 +62,10 @@ export function OverviewPage() {
         </Card>
         <Card className="border border-border bg-card shadow-sm rounded-xl">
           <CardContent className="pt-4 pb-4">
-            <p className={cn("text-3xl font-extrabold font-mono", unacknowledged.length > 0 ? "text-red-600 animate-pulse" : "text-foreground")}>
-              {combinedRepairs.length}
+            <p className={cn("text-3xl font-extrabold font-mono", pendingReceiptCount > 0 ? "text-red-600 animate-pulse" : "text-foreground")}>
+              {openTickets.length}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5 font-medium">Maintenance Requests</p>
+            <p className="text-xs text-muted-foreground mt-0.5 font-medium">Open Maintenance Tickets</p>
           </CardContent>
         </Card>
         <Card className="border border-border bg-card shadow-sm rounded-xl">
@@ -150,13 +148,13 @@ export function OverviewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {unacknowledged.length > 0 ? (
+            {pendingReceiptCount > 0 ? (
               <div className="p-3 bg-red-50/70 dark:bg-red-950/30 border border-red-200 rounded-xl flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-red-600 animate-pulse shrink-0" />
                   <div>
-                    <span className="font-extrabold text-red-800 dark:text-red-300 block">{unacknowledged.length} Unacknowledged Repair Tickets</span>
-                    <span className="text-[11px] text-red-700 dark:text-red-400">Requires technician assignment &amp; progress update</span>
+                    <span className="font-extrabold text-red-800 dark:text-red-300 block">{pendingReceiptCount} Repair {pendingReceiptCount === 1 ? "Ticket" : "Tickets"} Waiting for Receipt</span>
+                    <span className="text-[11px] text-red-700 dark:text-red-400">TSG receives the asset and checks it</span>
                   </div>
                 </div>
                 <Button size="sm" variant="outline" onClick={() => navigate(`/${overviewSlug}/repairs`)} className="text-[11px] font-bold border-red-300 text-red-700 hover:bg-red-100 shrink-0">

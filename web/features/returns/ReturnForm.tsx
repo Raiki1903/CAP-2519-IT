@@ -2,8 +2,8 @@
  * Return form: a Custodian asks to hand an asset back, and TSG record the return.
  * Layer: feature component. Called by features/assets/AssetDetailModal.tsx (Custodian return request, Staff Record Return)
  * and pages/staff/ReturnsPage.tsx (Staff pending returns).
- * Calls: api/loans.api.ts requestReturn() and receiveLoan(), api/maintenance.api.ts requestRepair(), state/serverData.tsx
- * syncFromDb().
+ * Calls: api/loans.api.ts requestReturn() and receiveLoan(), api/maintenance.api.ts reportIssue(),
+ * features/lookups/useLookups.ts (the issue types), state/serverData.tsx syncFromDb().
  * Used by: Custodian return request, Staff return finalization, Staff Record Return.
  */
 import { useState } from "react";
@@ -11,6 +11,7 @@ import { useSession } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import * as loansApi from "@web/api/loans.api";
 import * as maintenanceApi from "@web/api/maintenance.api";
+import { useFormLookups } from "@web/features/lookups/useLookups";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, ArrowLeft, CheckCircle, CornerUpLeft,
@@ -40,7 +41,7 @@ interface Props {
 /**
  * Does one of two things, by role.
  * - Custodian: asks to return the asset (loansApi.requestReturn) with the turn-in comments as the remarks and, if
- *   "flag for repair" is on, files a repair through maintenanceApi.requestRepair(). The request is saved on the server,
+ *   "flag for repair" is on, reports an issue (the picked issue type and the comments) through maintenanceApi.reportIssue(). The request is saved on the server,
  *   so TSG see it on any computer.
  * - Staff (TSG): records the condition and calls loansApi.receiveLoan(), which closes the loan as Returned with a Return
  *   inspection and puts the asset back to Available. The success screen shows the loan's reference. From the asset
@@ -65,12 +66,15 @@ export function ReturnForm({ asset, loan, onBack, onClose }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [flagForRepair, setFlagForRepair] = useState(false);
+  const { lookups } = useFormLookups();
+  const [repairIssueTypeId, setRepairIssueTypeId] = useState<number | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [repairError, setRepairError] = useState<string | null>(null);
   const [dbReferenceNumber, setDbReferenceNumber] = useState<string | null>(null);
 
   const isCustodian = role === "Custodian";
-  const canSubmit = isCustodian || (!!returnDate && !!condition);
+  // A flagged repair needs an issue type and a text, because the ticket is filed from the comments.
+  const canSubmit = isCustodian ? !flagForRepair || (repairIssueTypeId !== null && inspection.trim().length > 0) : (!!returnDate && !!condition);
 
   // The open loan on this asset: the one passed in, or the first match in the caller's list (a Custodian's own loans,
   // or TSG's On Loan and Return Requested loans, which also holds walk-in returns).
@@ -129,8 +133,9 @@ export function ReturnForm({ asset, loan, onBack, onClose }: Props) {
     // writes to, so it shows up on the Staff Repairs page.
     if (isCustodian && flagForRepair) {
       try {
-        const data = await maintenanceApi.requestRepair(asset.id, {
-          description: inspection || "Flagged for repair assessment during asset return.",
+        const data = await maintenanceApi.reportIssue(asset.id, {
+          issueTypeId: repairIssueTypeId!,
+          issueDescription: inspection.trim(),
         });
         if (!data.success) {
           setRepairError(data.error || "Failed to log repair request to the database.");
@@ -313,7 +318,7 @@ export function ReturnForm({ asset, loan, onBack, onClose }: Props) {
                     Flag for Repair Assessment
                   </p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Notifies Staff the device needs inspection — logs a repair ticket using the comments above, alongside this return.
+                    Notifies Staff the device needs inspection: reports an issue using the comments above, alongside this return.
                   </p>
                 </div>
                 <Switch
@@ -322,6 +327,28 @@ export function ReturnForm({ asset, loan, onBack, onClose }: Props) {
                   className="data-[state=checked]:bg-amber-600"
                 />
               </div>
+              {flagForRepair && (
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-[10px] font-extrabold tracking-[1.5px] text-muted-foreground uppercase">Issue Type</Label>
+                  <select
+                    value={repairIssueTypeId ?? ""}
+                    onChange={e => setRepairIssueTypeId(e.target.value ? Number(e.target.value) : null)}
+                    disabled={!lookups}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-bold"
+                  >
+                    <option value="">{lookups ? "Pick an issue type" : "Loading…"}</option>
+                    {(lookups?.issueTypes ?? []).map(t => <option key={t.issueTypeId} value={t.issueTypeId}>{t.name}</option>)}
+                  </select>
+                  {lookups?.issueTypes.find(t => t.issueTypeId === repairIssueTypeId) && (
+                    <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                      <strong>Suggested first step:</strong> {lookups.issueTypes.find(t => t.issueTypeId === repairIssueTypeId)!.suggestedAction}
+                    </p>
+                  )}
+                  {inspection.trim().length === 0 && (
+                    <p className="text-[11px] text-amber-700">Write the comments above: they describe the issue.</p>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             /* Staff view: full inspection checklist and diagnostics */

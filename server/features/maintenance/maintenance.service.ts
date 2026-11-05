@@ -10,7 +10,7 @@
 import { asset_loans_status, asset_maintenance_status, type Prisma } from '@prisma/client';
 import type { InspectionInput } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
-import type { Maintenance, MaintenanceReportBody, RepairListItem } from '@shared/types/maintenance';
+import type { Maintenance, MaintenanceReportBody } from '@shared/types/maintenance';
 import { MAINTENANCE_STATUS_LABELS, MAINTENANCE_TYPE_LABELS, RECEIVED_MAINTENANCE_STATUSES } from '@shared/constants/maintenanceStatuses';
 import * as maintenanceRepository from './maintenance.repository';
 import type { TicketRow, TicketRows } from './maintenance.repository';
@@ -107,43 +107,15 @@ export async function maintenanceById(maintenanceId: number, viewer: SessionIden
 }
 
 /**
- * One ticket in the row shape today's screens read (`repairs`), built from the new statuses: the progress text is
- * the status label.
- *
- * @param row the ticket with its asset and reporter
- */
-function repairListItemOf(row: TicketRow): RepairListItem {
-    const reporter = `${row.users.first_name} ${row.users.last_name}`;
-    const label = MAINTENANCE_STATUS_LABELS[row.status];
-    return {
-        id: `MNT-${row.maintenance_id}`,
-        repairId: row.maintenance_id,
-        _source: "db",
-        _repairId: row.maintenance_id,
-        assetId: row.assets.asset_tag,
-        assetName: row.assets.name,
-        custodian: reporter,
-        reportedBy: reporter,
-        description: row.issue_description,
-        statusLabel: label,
-        progressStatus: label,
-        priority: "Medium",
-        acknowledged: row.status !== asset_maintenance_status.PENDING_RECEIPT,
-        submittedAt: row.reported_at.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-        createdAt: row.reported_at.toISOString(),
-    };
-}
-
-/**
  * The tickets the session user may see, newest report first, optionally filtered (contract 7.4): TSG, the Director and
  * the Secretary see every ticket; the account that heads a lab sees its lab's assets' tickets; a Researcher sees only the
  * tickets they reported. The IT Admin is refused at the route.
  *
  * @param filters the status and type filters, already checked
  * @param viewer the session user
- * @returns the tickets in the Maintenance shape, and the same tickets in the row shape today's screens read
+ * @returns the tickets in the Maintenance shape
  */
-export async function listTickets(filters: MaintenanceListFilters, viewer: SessionIdentity): Promise<{ tickets: Maintenance[]; repairs: RepairListItem[] }> {
+export async function listTickets(filters: MaintenanceListFilters, viewer: SessionIdentity): Promise<Maintenance[]> {
     const where: Prisma.asset_maintenanceWhereInput = {
         ...(filters.statuses ? { status: { in: filters.statuses } } : {}),
         ...(filters.types ? { type: { in: filters.types } } : {}),
@@ -152,8 +124,7 @@ export async function listTickets(filters: MaintenanceListFilters, viewer: Sessi
         if (viewer.headOfCenterId !== null) where.assets = { center_id: viewer.headOfCenterId };
         else where.reported_by_id = viewer.userId;
     }
-    const found = await maintenanceRepository.findTickets(where);
-    return { tickets: ticketsOf(found, viewer), repairs: found.rows.map(repairListItemOf) };
+    return ticketsOf(await maintenanceRepository.findTickets(where), viewer);
 }
 
 /** The ticket with this id, or a 404. */

@@ -2,7 +2,7 @@
  * Notification bell: a floating panel listing requests and reminders for the signed-in role.
  * Layer: feature component. Called by app/layouts/RootLayout.tsx, on every signed-in screen.
  * Calls: api/notifications.api.ts getMyNotifications(), api/retirements.api.ts decideDisposal(), and state/serverData.tsx
- * (the shared lists, authorizeLoan, acknowledgeRepair).
+ * (the shared lists, authorizeLoan).
  * Used by: every role.
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
@@ -35,7 +35,6 @@ interface RequestCard {
   title: string;
   description: string;
   date: string;
-  priority?: string;
   needsAction: boolean;
   /** The red tag on a card that needs action. */
   badge?: string;
@@ -56,7 +55,8 @@ interface ReminderCard {
 
 /**
  * Shows the role's notifications and offers the decisions that role may make from the bell: the Director authorizes
- * or rejects disposals, Lab Heads approve or decline loans, Staff acknowledge repair tickets.
+ * or rejects disposals, Lab Heads approve or decline loans. A repair ticket waiting for receipt is a card for Staff and
+ * the Director that leads to the Repairs page, where TSG receives the asset.
  * The loan, return, due-soon and overdue cards come from the server (GET /api/notifications/mine), matched there by
  * user id; the repair, disposal and health cards come from the shared lists. Each decision calls the API and then
  * reloads the shared lists. Clicking a card opens the matching tab. Takes no props.
@@ -67,10 +67,9 @@ export function NotificationCenter() {
   const {
     assets,
     assetsVersion,
-    repairRequests,
+    tickets,
     dbLoans,
     pendingDisposals,
-    acknowledgeRepair,
     authorizeLoan,
     syncFromDb
   } = useServerData();
@@ -168,36 +167,25 @@ export function NotificationCenter() {
     // REQUESTS TAB (Repairs, Equipment Loans, Returns, Disposals)
     const requests: RequestCard[] = [];
 
-    // A. Repair Tickets (Staff and AdRIC Director only, NOT shown to Lab Head)
-    // A Researcher's own repair cards come back in Batch 5, found by user id.
-    repairRequests.forEach(rep => {
-      const isOverdueOrActive = rep.statusLabel !== "Fixed & Completed";
-      if (isOverdueOrActive) {
-        let isRelevant = false;
-        let actionRequired = false;
-
-        if (role === "Staff") {
-          isRelevant = true;
-          actionRequired = !rep.acknowledged;
-        } else if (role === "AdRICDirector") {
-          isRelevant = rep.priority === "Critical" || !rep.acknowledged;
-        }
-
-        if (isRelevant) {
-          requests.push({
-            id: rep.id,
-            type: "repair",
-            title: `Repair Ticket: ${rep.assetName}`,
-            description: `Reported by ${rep.custodian}: "${rep.description}" (Priority: ${rep.priority})`,
-            date: rep.submittedAt,
-            priority: rep.priority,
-            needsAction: actionRequired,
-            targetTab: "repairs",
-            meta: rep
-          });
-        }
-      }
-    });
+    // A. Repair tickets waiting for TSG to receive the asset (Staff and AdRIC Director only, NOT shown to Lab Head).
+    // Only TSG can receive, so only TSG's card needs action. A Researcher's own ticket cards come with the server's
+    // MAINTENANCE_OPEN notification.
+    if (role === "Staff" || role === "AdRICDirector") {
+      tickets.filter(t => t.status === "PENDING_RECEIPT").forEach(t => {
+        const reporter = "hidden" in t.reportedBy ? "a researcher" : t.reportedBy.name;
+        requests.push({
+          id: `MNT-${t.maintenanceId}`,
+          type: "repair",
+          title: `Repair Ticket: ${t.asset.name}`,
+          description: `Reported by ${reporter}: "${t.issueDescription}" (${t.issueType?.name ?? t.typeLabel})`,
+          date: t.reportedAt,
+          needsAction: role === "Staff" && currentUser?.staffUnit === "TSG",
+          badge: "Waiting for Receipt",
+          targetTab: "repairs",
+          meta: t
+        });
+      });
+    }
 
     // B. Loan cards, one per server notification. Only the Head, TSG and the borrower get any, so there is no role check.
     notifications.forEach(n => {
@@ -349,7 +337,7 @@ export function NotificationCenter() {
       remindersBadge: remBadge,
       totalBadgeCount: rBadge + remBadge
     };
-  }, [role, currentUser, assets, repairRequests, dbLoans, notifications, pendingDisposals]);
+  }, [role, currentUser, assets, tickets, dbLoans, notifications, pendingDisposals]);
 
   if (!role) return null;
 
@@ -547,17 +535,11 @@ export function NotificationCenter() {
                           className="flex items-center justify-end gap-1.5 border-t border-dashed border-border/60 pt-2 mt-1"
                           onClick={e => e.stopPropagation()}
                         >
-                          {/* Acknowledge Repair Ticket Button */}
-                          {item.type === "repair" && (role === "Staff") && (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                await acknowledgeRepair(item.id);
-                              }}
-                              className="text-[10px] font-bold text-white bg-primary hover:bg-primary/90 px-3 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                            >
-                              <CheckCircle size={10} /> Acknowledge Repair
-                            </button>
+                          {/* TSG receives the asset on the Repairs page, where the inspection is filled in. */}
+                          {item.type === "repair" && (
+                            <span className="text-[9px] text-primary font-bold flex items-center gap-1 cursor-pointer hover:underline">
+                              Receive on the Repairs page <ExternalLink size={9} />
+                            </span>
                           )}
 
                           {/* Equipment Loan Decision Buttons */}
