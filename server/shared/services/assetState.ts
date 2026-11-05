@@ -1,7 +1,7 @@
 /**
  * The derive helpers: an asset's holder, current location, condition, overdue flag, and open loan, and a person's
  * open loans (clearance), worked out from the loan and inspection rows instead of being stored a second time.
- * Layer: shared service. Called by the repositories and services of features/assets, loans, returns, maintenance,
+ * Layer: shared service. Called by the repositories and services of features/assets, loans, maintenance,
  * retirements, and analytics. Calls Prisma through the client it is given (the shared client or the caller's
  * transaction); it never imports config/prisma.ts, so the tests can hand it their own client.
  * Used by: every asset list and detail, every rule that asks who holds an asset or whether it is free, and clearance.
@@ -79,10 +79,10 @@ export function isHeld(loan: Pick<OpenLoan, 'status'> | null): boolean {
  * Whether a held loan's return-by date has passed. A loan still waiting for approval or release is never overdue:
  * nothing was handed over. (H-04)
  *
- * @param loan the asset's open loan, or null
+ * @param loan the asset's open loan, or any loan's status and return-by date, or null
  * @param today yyyy-mm-dd, for tests
  */
-export function isOverdue(loan: OpenLoan | null, today: string = serverToday()): boolean {
+export function isOverdue(loan: Pick<OpenLoan, 'status' | 'returnBy'> | null, today: string = serverToday()): boolean {
     return isHeld(loan) && dateOnly(loan!.returnBy) < today;
 }
 

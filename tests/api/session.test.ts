@@ -40,7 +40,10 @@ const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.
  * The approved 13b role table: [row, method, path, roles]. Paths use ids and tags no row has.
  * Row 8, POST /api/auth/register, was deleted with its route (issue #70). Rows 29 to 32 (transfers) and 41 (the custodian
  * list) were deleted with their routes in Batch 1. Rows 3 to 5 (the Lab Head's sign-up routes) were deleted with their
- * routes in Batch 2b; rows 42 to 44 are the IT Admin's sign-up routes that replace them.
+ * routes in Batch 2b; rows 42 to 44 are the IT Admin's sign-up routes that replace them. In Batch 3, row 22 became
+ * approve, row 27 (the old return) was deleted with its route, and rows 45 on are the new loan steps and lists. Row 21
+ * (the loan request) and GET /api/loans/lab-requests are tested in api/loans.test.ts and api/loanLists.test.ts, because
+ * they refuse with sentences of their own.
  * The Staff account is TSG.
  */
 const ROUTES: [number, string, string, Role[]][] = [
@@ -58,13 +61,21 @@ const ROUTES: [number, string, string, Role[]][] = [
   [18, "GET", "/api/inspections", [S, D]],
   [19, "GET", "/api/inspections/log", [S]],
   [20, "GET", "/api/loans", ANY],
-  [21, "POST", "/api/assets/NOPE-9999/borrow", [C]],
-  [22, "PUT", "/api/loans/999999/decision", [L]],
+  [22, "PUT", "/api/loans/999999/approve", [L]],
+  [45, "PUT", "/api/loans/999999/decline", [L]],
+  [46, "PUT", "/api/loans/999999/cancel", [C]],
+  [47, "PUT", "/api/loans/999999/release", [S]],
+  [48, "PUT", "/api/loans/999999/return-request", [C]],
+  [49, "PUT", "/api/loans/999999/receive", [S]],
+  [50, "GET", "/api/loans?status=PENDING_RELEASE", [S]],
+  [51, "GET", "/api/loans/mine", ANY],
+  [52, "GET", "/api/loans/999999/accountability-form", ANY],
+  [53, "POST", "/api/users/999999/clearance-record", [S]],
+  [54, "GET", "/api/notifications/mine", ANY],
   [23, "POST", "/api/assets/NOPE-9999/maintenance", [C, L, S]],
   [24, "GET", "/api/maintenance", ANY],
   [25, "PUT", "/api/maintenance/999999", [S]],
   [26, "PUT", "/api/maintenance/999999/status", [S]],
-  [27, "POST", "/api/assets/NOPE-9999/return", [S]],
   [33, "GET", "/api/analytics/director", [D]],
   [34, "GET", "/api/analytics/lab-head", [L]],
   [35, "GET", "/api/analytics/tsg", [S]],

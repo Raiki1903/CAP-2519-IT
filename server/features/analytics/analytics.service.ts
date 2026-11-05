@@ -1,6 +1,6 @@
 /**
  * Analytics service: turns the rows the repository reads into the figures each analytics view draws.
- * Layer: service. Called by analytics.controller.ts. Calls analytics.repository.ts.
+ * Layer: service. Called by analytics.controller.ts. Calls analytics.repository.ts and shared/services/assetState.ts (overdue).
  * Used by: the Director, Lab Head, and Staff analytics views (the idle and loan recommender figures have no live caller).
  * An asset's status is assets.status and its lab and campus its home lab (assets.center_id). Every status count uses all
  * six statuses, named by the shared constants. A figure with no data behind it is empty or left out, never invented.
@@ -16,7 +16,6 @@ import type {
     StaffAnalyticsData,
     StatusCounts,
 } from '@shared/types/analytics';
-import { asset_loans_status } from '@prisma/client';
 import { CAMPUSES, CAMPUS_LABELS } from '@shared/constants/campuses';
 import { ASSET_STATUSES, ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
 import * as analyticsRepository from './analytics.repository';
@@ -25,6 +24,7 @@ import { legacyLoanStatusLabel } from '../loans/loans.service';
 import type { DirectorFilters, LabHeadFilters } from './analytics.validation';
 import type { SessionIdentity } from '@shared/types/auth';
 import { AppError } from '../../shared/errors/AppError';
+import { isOverdue, serverToday } from '../../shared/services/assetState';
 
 /** A count of zero for each of the six asset statuses. */
 function emptyStatusCounts(): StatusCounts {
@@ -310,19 +310,13 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
     const rawLoans = await analyticsRepository.findLoansForLabHead(prefixFilter, startDate, endDate);
 
     const loans = rawLoans.map(l => {
-        // The borrow form's destination lab is stored as the first line of the purpose, so it is read back
-        // from there and cut from the purpose shown. (H-19)
-        const destLabMatch = l.purpose?.match(/^Destination Lab:\s*(.+?)\s*(?:\n|$)/);
-        const destinationLab = destLabMatch ? destLabMatch[1] : undefined;
-        const cleanPurpose = destLabMatch ? l.purpose.replace(/^Destination Lab:\s*.+?\n\n?/, "") : l.purpose;
-
         return {
             loanId: l.loan_id,
             assetId: l.assets?.asset_tag || `ASSET-${l.asset_id}`,
             asset: l.assets?.name || "Equipment",
             borrower: l.users ? `${l.users.first_name} ${l.users.last_name}` : "Borrower",
-            purpose: cleanPurpose,
-            destinationLab,
+            purpose: l.purpose,
+            destinationLab: l.destination_center?.short_code,
             requestedOn: l.requested_at.toISOString().split('T')[0],
             dueDate: l.return_by.toISOString().split('T')[0],
             status: legacyLoanStatusLabel(l.status)
@@ -383,10 +377,11 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
 
     const allLoansForDelinquency = await analyticsRepository.findLoansForDelinquency(prefixFilter);
 
-    // TODO(H-04): a loan counts as overdue unless it is returned or declined, so a pending request past its due date counts, although nothing was handed over. Batch 3.
+    // The same rule as the asset list's overdue flag: only a handed-over loan (On Loan or Return Requested) whose
+    // return-by date has passed. A request still waiting for approval or release is never overdue. (H-04)
+    const today = serverToday(now);
     const overdueLoans = allLoansForDelinquency.filter(l => {
-        const dueDate = new Date(l.return_by);
-        return dueDate.getTime() < now.getTime() && l.status !== asset_loans_status.RETURNED && l.status !== asset_loans_status.DECLINED;
+        return isOverdue({ status: l.status, returnBy: l.return_by }, today);
     });
 
     const delinquencies = overdueLoans.map(l => {

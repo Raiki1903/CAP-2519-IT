@@ -10,12 +10,12 @@ A web app for DLSU CCS AdRIC (research labs) to register, tag, lend, return, rep
 
 | Path | What lives there |
 |---|---|
-| `server/features/<feature>/` | One folder per workflow (loans, returns, maintenance, retirements, inspections, auth, users, assets, analytics, lookups), five layers each: `routes`, `validation`, `controller`, `service`, `repository` |
-| `server/shared/` | `errors/AppError.ts`, `middleware/` (`requireAuth`, `requireRole`, `permissions`, `errorHandler`), `services/` (session, mailer, `lifecycleGuard`, `assetStatus` (the only writer of `assets.status`), `assetState` (holder, location, condition), `activityLog`, `rowLocks`, `loginLimiter`, `permissions`), `utils/` |
+| `server/features/<feature>/` | One folder per workflow (loans, notifications, maintenance, retirements, inspections, auth, users, assets, analytics, lookups), five layers each: `routes`, `validation`, `controller`, `service`, `repository` |
+| `server/shared/` | `errors/AppError.ts`, `middleware/` (`requireAuth`, `requireRole`, `permissions`, `errorHandler`), `services/` (session, mailer, `lifecycleGuard`, `assetStatus` (the only writer of `assets.status`), `assetState` (holder, location, condition), `activityLog`, `rowLocks`, `loginLimiter`, `permissions`, `inspections` (the one writer of an inspection)), `validation/` (`fields.ts` and `inspectionInput.ts`, readers several features share), `utils/` |
 | `web/pages/<role>/` | Screens per role (staff, lab-head, custodian, director, it-admin, auth) |
 | `web/features/<feature>/` | Forms, dialogs, and parts used by the screens |
 | `web/api/` | Every call to the server. Screens never call `fetch` directly |
-| `web/state/` | `session.tsx`, `serverData.tsx` (shared lists), `browserOnly.tsx` (temporary, do not add to it) |
+| `web/state/` | `session.tsx`, `serverData.tsx` (shared lists), `pendingSignUps.tsx` (the IT Admin's list) |
 | `shared/` | `enums/`, `constants/`, `types/` used by web and server |
 | `prisma/` | `schema.prisma`, `migrations/` (`0_init` is the baseline), `seed.ts` |
 | `tests/` | API tests (Vitest), run against a local MySQL test database |
@@ -30,7 +30,7 @@ A web app for DLSU CCS AdRIC (research labs) to register, tag, lend, return, rep
 | `npm run dev:all` | Web on port 5173 and API on port 4000. Uses the database in `.env` (CCS Cloud) |
 | `npm run typecheck` | TypeScript check. **Today: 25 errors** (old ones). The count must not go up |
 | `npm run build` | Production build. Must pass |
-| `npm test` | API tests on the local test database. **Today: 569 passed** |
+| `npm test` | API tests on the local test database. **Today: 631 passed** |
 
 Run typecheck, build, and test before every pull request, and report the three results.
 

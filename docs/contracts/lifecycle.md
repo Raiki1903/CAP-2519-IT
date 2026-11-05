@@ -8,6 +8,8 @@ Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges
 
 **Batch 2b built (2026-11-04):** sign-ups are `users` rows with status Pending (no more `pending_registrations.json`); the IT Admin approves or rejects them on its own view (`/it-admin`, app role "ITAdmin"); login answers by account status, writes LOGIN_SUCCESS and LOGIN_FAILURE rows, and stops after 5 failed tries (429). The endpoints marked "live (Batch 2b)" in 7.1 and 7.7 exist. **Removed in Batch 2b:** `GET /api/auth/pending-registrations`, `POST /api/auth/approve-registration`, `POST /api/auth/reject-registration`, and the Lab Head's "Account Approvals" tab. Where Batch 2b's brief and an earlier line here differed, this file now says what Batch 2b built.
 
+**Batch 3 built (2026-11-05):** the loan chain on the server. The endpoints marked "live (Batch 3)" in 7.3 and 7.10 exist: request, cancel, approve, decline, release (a Loan Release inspection), return request, receive (a Return inspection, and a Return Damage ticket when TSG found damage), the loan lists, the Accountability Form data, the clearance record, and `GET /api/notifications/mine`. Every loan step locks the asset first, so two requests, an approve and a cancel, two releases or two receives at once give one winner and one 409. The guard gained approve, release, ask-to-return and receive. **Removed in Batch 3:** `POST /api/assets/:assetTag/borrow`, `PUT /api/loans/:loanId/decision` and `POST /api/assets/:assetTag/return` (they answer 404), and the browser-stored return requests. Today's loan screens use the new steps; the new loan screens are Joel's (#116).
+
 ---
 
 ## 1. Data model
@@ -90,6 +92,10 @@ The server checks this table before every step. A refused step answers **409** w
 | Action | Available | On Loan | Maintenance | Pending Retirement | Retired | Missing |
 |---|---|---|---|---|---|---|
 | Request a loan | yes (1) | no | no | no | no | no |
+| Approve a loan | yes | no | no | no | no | no |
+| Release a loan to the borrower | yes | no | no | no | no | no |
+| Ask to return | no | yes | no | no | no | no |
+| Receive a return | no | yes | no | no | no | no |
 | Report an issue (open a maintenance ticket) | yes | yes | no | no | no | no |
 | Receive for maintenance | yes | yes (2) | no | no | no | no |
 | Request retirement | yes | no | yes (3) | no | no | yes |
@@ -105,6 +111,8 @@ The server checks this table before every step. A refused step answers **409** w
 3. After maintenance ends Beyond Repair.
 4. Only once the retirement is Approved. Completing it sets the asset to Retired.
 5. Marking missing ends the open loan (Ended by Loss) in the same step.
+
+Decline and cancel do not check the asset's status, so a loan on an asset that went to Maintenance can still be declined or cancelled. Approve and release need the asset Available: approving does not take the asset, it stays Available until release.
 
 ---
 
@@ -262,7 +270,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 - **A person is cleared** when they have no loan in Pending Release, On Loan or Return Requested.
 - **The clearance record** (manuscript OUT5) is a printable page for one person: each of their loans with its release and return verification (who released it and when, who received it back and when, the condition at each), and then either "No unreturned equipment" or the list of open loans.
 - TSG prints it. Each print writes a CLEARANCE_RECORD_PRINTED row in the activity log.
-- Endpoint: section 7.3, planned (Batch 3).
+- Endpoint: section 7.3, live (Batch 3). Older loans handed over before the release step existed (moved to On Loan by the Batch 1 migration, with no `releasedAt`) count by their status.
 
 ---
 
@@ -314,7 +322,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 
 `InspectionInput` (a body part): `{ condition, healthScore?, missingAccessories?, remarks?, photo?, metrics?: [{ metricId, value }] }`.
 
-`Loan`: `{ loanId, asset: { assetId, tag, name }, borrower: { userId, name }, status, statusLabel, purpose, project, destinationLab: { centerId, code }, destinationRoom, returnBy, requestedAt, decidedBy, decidedAt, decisionRemarks, releasedBy, releasedAt, releaseInspection, returnRequestedAt, receivedBy, returnInspection, closedAt, remarks, isOverdue }`. People are `{ userId, name }` or null.
+`Loan`: `{ loanId, asset: { assetId, tag, name }, borrower: { userId, name }, status, statusLabel, purpose, project, destinationLab: { centerId, code }, destinationRoom, returnBy, requestedAt, decidedBy, decidedAt, decisionRemarks, releasedBy, releasedAt, releaseInspection, returnRequestedAt, receivedBy, returnInspection, closedAt, remarks, isOverdue }`. People are `{ userId, name }`, `{ hidden: true }` (a Researcher looking at a person who is not them), or null.
 
 `Maintenance`: `{ maintenanceId, asset, type, typeLabel, status, statusLabel, issueType: { issueTypeId, key, name }, issueDescription, reportedBy, reportedAt, receivedBy, receivedAt, underWarranty, warrantyOverrideReason, provider, completedBy, completedAt, resolutionRemarks, triggerInspection, completionInspection }`.
 
@@ -354,21 +362,27 @@ Registration writes the Initial inspection and an ASSET_REGISTERED log row; an e
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| Request a loan | `POST /api/assets/:assetTag/loans` | Researcher with at least one lab, whose account heads no lab | `{ destinationCenterId, destinationRoom?, projectId?, returnBy, purpose }`; `destinationCenterId` must be one of the borrower's labs | `{ loan: Loan }` | 400 (return-by before today, lab not theirs); 403; 403 "Use your personal account to borrow." when the account heads a lab; 404; 409 asset not Available or already has a waiting loan; 409 the lab has no Head | planned (Batch 3) |
-| Cancel my request | `PUT /api/loans/:loanId/cancel` | the borrower | | `{ loan: Loan }` | 403 not theirs; 404; 409 not Pending Approval or Pending Release | planned (Batch 3) |
-| Approve | `PUT /api/loans/:loanId/approve` | Head of the asset's home lab | `{ decisionRemarks? }` | `{ loan: Loan }` | 403 not the Head of that lab; 404; 409 not Pending Approval; 409 the lab has no Head | planned (Batch 3) |
-| Decline | `PUT /api/loans/:loanId/decline` | Head of the asset's home lab | `{ decisionRemarks }` | `{ loan: Loan }` | 400 no remarks; 403; 404; 409 | planned (Batch 3) |
-| Release to the borrower | `PUT /api/loans/:loanId/release` | TSG | `{ inspection: InspectionInput }` | `{ loan: Loan }` | 400; 403; 404; 409 not Pending Release | planned (Batch 3) |
-| Ask to return | `PUT /api/loans/:loanId/return-request` | the borrower | `{ remarks? }` | `{ loan: Loan }` | 403; 404; 409 not On Loan | planned (Batch 3) |
-| Receive the return | `PUT /api/loans/:loanId/receive` | TSG | `{ inspection: InspectionInput, remarks?, returnDamage?: { issueTypeId, issueDescription } }` | `{ loan: Loan, maintenance?: Maintenance }` | 400; 403; 404; 409 not On Loan or Return Requested | planned (Batch 3) |
-| Finalize a return (today's step) | `POST /api/assets/:assetTag/return` | TSG | `{ condition, comments? }` | `{ loan, referenceNumber }`: the loan closed as Returned, with a Return inspection, and "LOAN-<id>" | 400; 403; 404; 409 the asset is not On Loan with a loan to close | live (Batch 1); replaced by receive in Batch 3 |
-| Loan list | `GET /api/loans` | logged in; a Researcher sees names only on their own loans | | `{ loans: [...] }`, today's fields | | live (Batch 1), renamed from `/api/asset_loans`; the `Loan` shape from Batch 3 |
-| Approve or decline (today's step) | `PUT /api/loans/:loanId/decision` | Head of the asset's home lab | `{ decision: "approve" or "decline" }` | `{ loan }` | 403; 404; 409 | live (Batch 1), renamed from `/api/asset_loans/:loanId/decision`; replaced by approve and decline in Batch 3 |
-| Loans by status (TSG Releases and Returns tabs) | `GET /api/loans?status=` | TSG | `?status=PENDING_RELEASE`, `?status=RETURN_REQUESTED`, or several separated by commas | `{ loans: Loan[] }` in the new shape | 400 unknown status; 403 | planned (Batch 3) |
-| My loans | `GET /api/loans/mine` | logged in | `?status=` optional | `{ loans: Loan[] }` | | planned (Batch 3) |
-| My lab's requests | `GET /api/loans/lab-requests` | a Lab Head | `?status=` optional | `{ loans: Loan[] }` for assets of the lab they head | 403 heads no lab | planned (Batch 3) |
-| Accountability Form data | `GET /api/loans/:loanId/accountability-form` | the borrower, the Head of the home lab, TSG | | `{ loan: Loan, asset: Asset, borrower: { userId, name, idNumber, labs }, releaseInspection: Inspection }` | 403; 404; 409 not yet released | planned (Batch 3) |
-| Clearance record | `POST /api/users/:userId/clearance-record` | TSG | | `{ person: { userId, name, idNumber, labs }, cleared, loans: Loan[] }`; writes CLEARANCE_RECORD_PRINTED | 403; 404 | planned (Batch 3) |
+| Request a loan | `POST /api/assets/:assetTag/loans` | Researcher with at least one lab, whose account heads no lab | `{ destinationCenterId, destinationRoom?, projectId?, returnBy, purpose }`; `destinationCenterId` must be one of the borrower's labs | `{ loan: Loan }` (201) | 400 (no lab picked or a lab that is not theirs, return-by before today, no purpose); 403 Staff or IT Admin; 403 "Use your personal account to borrow." when the account heads a lab; 404; 409 asset not Available or already has a waiting loan; 409 the lab has no Head | live (Batch 3) |
+| Cancel my request | `PUT /api/loans/:loanId/cancel` | the borrower | | `{ loan: Loan }` | 403 not theirs; 404; 409 not Pending Approval or Pending Release | live (Batch 3) |
+| Approve | `PUT /api/loans/:loanId/approve` | Head of the asset's home lab | `{ decisionRemarks? }` | `{ loan: Loan }` | 403 not the Head of that lab; 404; 409 not Pending Approval; 409 the lab has no Head | live (Batch 3) |
+| Decline | `PUT /api/loans/:loanId/decline` | Head of the asset's home lab | `{ decisionRemarks }` | `{ loan: Loan }` | 400 no remarks; 403; 404; 409 | live (Batch 3) |
+| Release to the borrower | `PUT /api/loans/:loanId/release` | TSG | `{ inspection: InspectionInput }` | `{ loan: Loan }` | 400; 403; 404; 409 not Pending Release | live (Batch 3) |
+| Ask to return | `PUT /api/loans/:loanId/return-request` | the borrower | `{ remarks? }` | `{ loan: Loan }` | 403; 404; 409 not On Loan | live (Batch 3) |
+| Receive the return | `PUT /api/loans/:loanId/receive` | TSG | `{ inspection: InspectionInput, returnDamage?: { issueTypeId, issueDescription } }`; TSG's notes go in `inspection.remarks`, there is no top-level `remarks` | `{ loan: Loan, maintenance?: Maintenance }` | 400 (also an unknown issue type, or no description for the damage); 403; 404; 409 not On Loan or Return Requested | live (Batch 3) |
+| Loan list (old shape) | `GET /api/loans` | logged in; a Researcher sees names only on their own loans | | `{ loans: [...] }`, today's row shape: `destinationLab` from `destination_center_id`, `purpose` as stored | | live (Batch 1), renamed from `/api/asset_loans`. **With no query it still sends every loan to every caller (M-02)**; it goes when Joel's loan screens move to the lists below |
+| Loans by status (TSG Releases and Returns tabs) | `GET /api/loans?status=` | TSG | `?status=PENDING_RELEASE`, `?status=RETURN_REQUESTED`, or several separated by commas | `{ loans: Loan[] }` in the new shape, oldest request first | 400 unknown status; 403 | live (Batch 3) |
+| My loans | `GET /api/loans/mine` | logged in | `?status=` optional | `{ loans: Loan[] }` | | live (Batch 3) |
+| My lab's requests | `GET /api/loans/lab-requests` | a Lab Head | `?status=` optional | `{ loans: Loan[] }` for assets of the lab they head | 403 heads no lab | live (Batch 3) |
+| Accountability Form data | `GET /api/loans/:loanId/accountability-form` | the borrower, the Head of the home lab, TSG | | `{ loan: Loan, asset: Asset, borrower: { userId, name, idNumber, email, labs }, releaseInspection: Inspection or null }`; `releaseInspection` is null only for a loan handed over before the release step existed; the email goes only to the people who may open this | 403; 404; 409 "This loan has not been released yet." | live (Batch 3) |
+| Clearance record | `POST /api/users/:userId/clearance-record` | TSG | | `{ person: { userId, name, idNumber, labs }, cleared, loans: Loan[] }`: the person's loans that were released or still wait in Pending Release, newest first; a loan cancelled after approval is left out, nothing was handed over; writes CLEARANCE_RECORD_PRINTED | 403; 404 | live (Batch 3) |
+
+Notes on the Batch 3 endpoints:
+
+- Request lets a Researcher and a Lab Head account through the route, so that an account that heads a lab is told "Use your personal account to borrow." instead of a bare role refusal. Cancel and ask-to-return are for a Researcher who heads no lab; a borrower who later heads a lab can no longer cancel or ask to return their own loan, and TSG can still receive it as a walk-in.
+- Approve and decline: the Head of the asset's home lab only; another lab's Head gets 403 and the loan is unchanged. A decision on a loan that is not Pending Approval answers 409, not 400. Remarks are limited to 2000 characters, as are the purpose and a damage description; a return request's remarks to 255.
+- Receive works on On Loan too, so TSG can take back an asset whose borrower never asked (a walk-in). With `returnDamage` the asset goes to Maintenance and the answer carries `maintenance`, the new Return Damage ticket in the maintenance list's row shape.
+- `GET /api/loans/mine` and `/lab-requests` take `?status=` as well; `/lab-requests` is the server's scoping of a Lab Head's requests (M-02) and answers 403 "You do not head a lab." to any other account.
+- A Researcher sees `{ hidden: true }` for every person on a loan that is not theirs.
 
 ### 7.4 Maintenance
 
@@ -450,7 +464,7 @@ Replace-soon, most-requested and the weekly counts are worked out on the server 
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| My notifications | `GET /api/notifications/mine` | logged in | | `{ notifications: [{ kind, label, loanId?, assetTag?, centerId?, date? }] }` | | planned (Batch 3) |
+| My notifications | `GET /api/notifications/mine` | logged in | | `{ notifications: [{ kind, label, loanId?, assetTag?, centerId?, date? }] }` | | live (Batch 3), except `STATUS_CHECK_DUE` (Batch 5) |
 
 Worked out on each call from loans and the inspection schedule; there is no notifications table. Each person gets only the kinds that apply to them:
 
@@ -459,11 +473,11 @@ Worked out on each call from loans and the inspection schedule; there is no noti
 | `LOAN_AWAITING_APPROVAL` | the account that heads the asset's home lab | a loan on its lab's asset is Pending Approval |
 | `RELEASE_WAITING` | TSG | a loan is Pending Release |
 | `RETURN_WAITING` | TSG | a loan is Return Requested |
-| `LOAN_DUE_SOON` | the borrower | their open loan's return-by date is within 3 days |
-| `LOAN_OVERDUE` | the borrower | their open loan's return-by date has passed |
+| `LOAN_DUE_SOON` | the borrower | their On Loan or Return Requested loan's return-by date is today or within the next 3 days |
+| `LOAN_OVERDUE` | the borrower | their On Loan or Return Requested loan's return-by date has passed |
 | `STATUS_CHECK_DUE` | members of a lab | the routine inspection cycle of their lab starts (sent once the schedule exists, Batch 5) |
 
-People are matched by user id, never by display name. This replaces the notification bell's name matching (#131).
+People are matched by user id, never by display name. This replaced the notification bell's name matching (#131): the bell's loan, return, due-soon and overdue cards come only from this endpoint. A Researcher's repair cards come back in Batch 5.
 
 ---
 

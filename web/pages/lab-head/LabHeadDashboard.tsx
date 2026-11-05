@@ -1,7 +1,7 @@
 /**
  * Lab Head screen: Requests, Lab Inventory, and Analytics, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /lab-head/* (the tab comes from the URL).
- * Calls: api/assets.api.ts, api/loans.api.ts, features/assets/AssetDetailModal.tsx,
+ * Calls: api/assets.api.ts, api/loans.api.ts, features/assets/AssetDetailModal.tsx, features/assets/assetSearch.ts,
  * features/analytics/labHead/LabHeadAnalyticsView.tsx, state/serverData.tsx (the loan list and repairs).
  * Used by: Lab Head (loan decisions, the lab inventory report).
  */
@@ -12,6 +12,7 @@ import { AlertTriangle, Search, Package, MapPin, Calendar, LayoutGrid, Table2, P
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
+import { ASSET_SEARCH_PLACEHOLDER, matchesAssetSearch } from "@web/features/assets/assetSearch";
 import { LabHeadAnalyticsView } from "@web/features/analytics/labHead/LabHeadAnalyticsView";
 import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
@@ -44,6 +45,9 @@ const statusClass: Record<string, string> = {
 const txnBadgeClass: Record<string, string> = {
   Pending: "bg-amber-50  text-amber-700  border-amber-200",
   Approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  // Approved by the Head, waiting for TSG to hand the asset over; and approved with the borrower asking to return it.
+  "Pending release": "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "Return requested": "bg-blue-50   text-blue-700   border-blue-200",
   // A loan whose asset came back: the server closes it when the return is finalized. (issue #99)
   Returned: "bg-emerald-50 text-emerald-700 border-emerald-200",
   Declined: "bg-red-50    text-red-700    border-red-200",
@@ -86,18 +90,22 @@ function ConditionState({ value }: { value?: string }) {
 function VisualTimeline({ status: shownStatus }: { status: string }) {
   // A returned loan went through every step, so its timeline is drawn as an approved one.
   const status = shownStatus === "Returned" ? "Approved" : shownStatus;
+  // The Head's approval is done once the loan waits for release, is out, or is coming back; the hand-over is done only
+  // from On Loan on ("Approved" is the word for On Loan).
+  const approvedByHead = status === "Approved" || status === "Pending release" || status === "Return requested";
+  const handedOver = status === "Approved" || status === "Return requested";
   const steps = [
     { label: "Initiated", completed: true, active: false, failed: false },
     {
       label: status === "Declined" ? "Declined" : "Pending Approval",
-      completed: status === "Approved",
+      completed: approvedByHead,
       active: status === "Pending",
       failed: status === "Declined"
     },
     {
       label: "Handed Over",
-      completed: status === "Approved",
-      active: false,
+      completed: handedOver,
+      active: status === "Pending release",
       failed: status === "Declined"
     }
   ];
@@ -116,11 +124,11 @@ function VisualTimeline({ status: shownStatus }: { status: string }) {
         }
 
         let lineColor = "bg-muted";
-        if (idx === 0 && (status === "Approved" || status === "Pending")) {
+        if (idx === 0 && (approvedByHead || status === "Pending")) {
           lineColor = "bg-emerald-500";
         } else if (idx === 0 && status === "Declined") {
           lineColor = "bg-red-500";
-        } else if (idx === 1 && status === "Approved") {
+        } else if (idx === 1 && approvedByHead) {
           lineColor = "bg-emerald-500";
         } else if (idx === 1 && status === "Declined") {
           lineColor = "bg-red-300";
@@ -154,15 +162,16 @@ interface LoanRequest {
   destinationLab?: string;
   requestedOn: string;
   dueDate: string;
-  status: "Pending" | "Approved" | "Returned" | "Declined";
+  /** The word GET /api/loans sends: "Pending", "Pending release", "Approved" (On Loan), "Return requested", "Returned", or "Declined". */
+  status: string;
   location: string;
   lab: string;
 }
 
 /**
  * Shows one Lab Head tab, scoped to the Lab Head's own branch.
- * - custody: the branch's loan requests, with approve and decline
- *   (the shared loan list, reloaded through reloadLoans, and loansApi.decideLoan).
+ * - custody: the branch's loan requests, with approve and decline (a decline asks for the reason)
+ *   (the shared loan list, reloaded through reloadLoans, and loansApi.approveLoan and declineLoan).
  * - inventory: the branch's assets, decommissioned assets, repairs, custody trail, and a printable inventory report.
  * - health: the Lab Head analytics view for the branch.
  *
@@ -247,15 +256,23 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
   const [loanActionId, setLoanActionId] = useState<number | null>(null);
 
+  // The loan whose Decline box is open, and the reason written in it. The server refuses a decline with no reason.
+  const [decliningLoanId, setDecliningLoanId] = useState<number | null>(null);
+  const [declineRemarks, setDeclineRemarks] = useState("");
+
   const decideLoan = async (loanId: number, decision: "approve" | "decline") => {
     setLoanActionId(loanId);
     setLoanError(null);
     try {
-      const data = await loansApi.decideLoan(loanId, decision);
+      const data = decision === "approve"
+        ? await loansApi.approveLoan(loanId)
+        : await loansApi.declineLoan(loanId, declineRemarks);
       if (!data.success) {
         setLoanError(data.error || `Failed to ${decision} loan.`);
         return;
       }
+      setDecliningLoanId(null);
+      setDeclineRemarks("");
       await fetchLoanRequests();
     } catch (err: any) {
       setLoanError(err.message || `Failed to ${decision} loan.`);
@@ -411,7 +428,8 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   const branchInventory = displayedAssets.filter(a => matchesBranch(a.lab) && a.status !== "RETIRED");
   const decommissionedAssets = displayedAssets.filter(a => matchesBranch(a.lab) && a.status === "RETIRED");
 
-  const branchLoanRequests: LoanRequest[] = dbLoans.filter(l => matchesBranch(l.lab));
+  // A cancelled request is gone: nothing is left to decide or hand over, so it is not listed.
+  const branchLoanRequests: LoanRequest[] = dbLoans.filter(l => matchesBranch(l.lab) && l.status !== "Cancelled");
 
   const branchAssetIds = new Set(displayedAssets.filter(a => matchesBranch(a.lab)).map(a => a.id));
   const branchRepairs = repairRequests.filter(r => branchAssetIds.has(r.assetId));
@@ -419,7 +437,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   // ── Custody ───────────────────────────────────────────────────────────────
   if (activeTab === "custody") {
     const pendingCount = branchLoanRequests.filter(l => l.status === "Pending").length;
-    const approvedCount = branchLoanRequests.filter(l => l.status === "Approved" || l.status === "Returned").length;
+    const approvedCount = branchLoanRequests.filter(l => ["Approved", "Pending release", "Return requested", "Returned"].includes(l.status)).length;
     const declinedCount = branchLoanRequests.filter(l => l.status === "Declined").length;
     return (
       <div>
@@ -452,7 +470,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
               const isPending = loan.status === "Pending";
               const isActing = loanActionId === loan.loanId;
               return (
-                <Card key={loan.id} className={cn("border-l-4", loan.status === "Approved" || loan.status === "Returned" ? "border-l-emerald-500" : loan.status === "Declined" ? "border-l-red-500" : "border-l-amber-500")} style={{ borderLeftWidth: 4 }}>
+                <Card key={loan.id} className={cn("border-l-4", ["Approved", "Pending release", "Return requested", "Returned"].includes(loan.status) ? "border-l-emerald-500" : loan.status === "Declined" ? "border-l-red-500" : "border-l-amber-500")} style={{ borderLeftWidth: 4 }}>
                   <CardContent className="pt-4 pb-4">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="flex-1 min-w-[16rem]">
@@ -478,7 +496,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                           </div>
                           <div className="ml-auto text-right">
                             {/* A declined or returned loan has no due date that matters any more. */}
-                            {(loan.status === "Pending" || loan.status === "Approved") && (
+                            {["Pending", "Pending release", "Approved", "Return requested"].includes(loan.status) && (
                               <p><Calendar size={10} className="inline mr-1" />Due {loan.dueDate}</p>
                             )}
                             <p>Requested {loan.requestedOn}</p>
@@ -489,7 +507,25 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                       {isPending && (
                         <div className="flex gap-2 flex-shrink-0">
                           <Button size="sm" className="text-xs" disabled={isActing} onClick={() => decideLoan(loan.loanId, "approve")}><CheckCircle size={11} />{isActing ? "Working…" : "Approve"}</Button>
-                          <Button size="sm" variant="outline" className="text-xs border-red-200 text-red-600 hover:bg-red-50" disabled={isActing} onClick={() => decideLoan(loan.loanId, "decline")}><XCircle size={11} />{isActing ? "Working…" : "Decline"}</Button>
+                          <Button size="sm" variant="outline" className="text-xs border-red-200 text-red-600 hover:bg-red-50" disabled={isActing} onClick={() => { setDecliningLoanId(loan.loanId); setDeclineRemarks(""); }}><XCircle size={11} />Decline</Button>
+                        </div>
+                      )}
+                      {isPending && decliningLoanId === loan.loanId && (
+                        <div className="basis-full flex flex-col gap-2 border-t border-dashed border-border pt-3">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground" htmlFor={`decline-${loan.loanId}`}>Reason for declining</label>
+                          <textarea
+                            id={`decline-${loan.loanId}`}
+                            value={declineRemarks}
+                            onChange={e => setDeclineRemarks(e.target.value)}
+                            rows={2}
+                            maxLength={2000}
+                            placeholder="Tell the borrower why the request is declined"
+                            className="w-full rounded-md border border-input bg-input-background px-3 py-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <Button size="sm" variant="outline" className="text-xs" disabled={isActing} onClick={() => setDecliningLoanId(null)}>Cancel</Button>
+                            <Button size="sm" className="text-xs bg-red-600 text-white hover:bg-red-700" disabled={isActing || !declineRemarks.trim()} onClick={() => decideLoan(loan.loanId, "decline")}>{isActing ? "Working…" : "Send decline"}</Button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -510,7 +546,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
   }
 
   // ── Lab Inventory ──────────────────────────────────────────────────────
-  const filtered = branchInventory.filter(eq => eq.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = branchInventory.filter(eq => matchesAssetSearch(eq, search));
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -537,7 +573,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
       <div className="relative mb-4">
         <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search branch assets…" className="pl-8" />
+        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={ASSET_SEARCH_PLACEHOLDER} className="pl-8" />
       </div>
 
       {viewMode === "gallery" && (

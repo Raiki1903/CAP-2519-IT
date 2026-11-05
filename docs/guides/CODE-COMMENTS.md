@@ -163,15 +163,15 @@ export function requestLoan(assetTag: string, input: CreateLoanInput) {
 /**
  * Loan controller: unpacks HTTP requests and formats loan responses.
  * Layer: controller. Called by loans.routes.ts. Calls loans.service.ts.
- * Used by: Custodian borrow request, Lab Head approval.
+ * Used by: Researcher loan requests, Lab Head approval, TSG release and receipt.
  */
 
 /**
- * Handles POST /api/assets/:assetTag/borrow.
+ * Handles POST /api/assets/:assetTag/loans.
  * Errors are passed to next() so errorHandler picks the status code
  * and no raw database message reaches the browser. (H-16)
  */
-export async function createLoanRequest(req, res, next) {
+export async function requestLoan(req, res, next) {
 ```
 
 ### Service (`server/features/loans/loans.service.ts`)

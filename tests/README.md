@@ -117,7 +117,7 @@ Put API tests in `tests/api/<feature>.test.ts`. Start from [api/smoke.test.ts](a
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { ASSETS, USERS } from "../setup/fixtures";
+import { ASSETS, LAB, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
 const { db, as } = useApiHarness();   // fresh data and a fresh server for this file
@@ -125,8 +125,8 @@ const asCustodian = as(USERS.custodianA);   // logs in once, then sends that ses
 
 describe("loans", () => {
   it("refuses a second request on an asset that already has a pending loan, with 409 (issue #25)", async () => {
-    const res = await asCustodian.post(`/api/assets/${ASSETS.pendingLoan.tag}/borrow`, {
-      purpose: "Test purpose", dueDate: "2030-01-01",
+    const res = await asCustodian.post(`/api/assets/${ASSETS.pendingLoan.tag}/loans`, {
+      destinationCenterId: LAB.centerId, returnBy: "2030-01-01", purpose: "Test purpose",
     });
     expect(res.status).toBe(409);
     expect(await db.asset_loans.count({ where: { asset_id: ASSETS.pendingLoan.assetId, status: "PENDING_APPROVAL" } })).toBe(1);
