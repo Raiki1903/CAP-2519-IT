@@ -89,19 +89,15 @@ export async function listAssets(viewer: SessionIdentity, filters: AssetListFilt
             daysLeft = Math.ceil((loan.returnBy.getTime() - Date.now()) / MS_PER_DAY);
         }
 
-        // The disposal details of a retired asset, from its newest completed retirement.
-        // TODO(M-13): the justification and the last custodian are parsed back out of the packed reason text. Batch 5 stores them in columns.
+        // The disposal details of a retired asset, from its newest completed retirement. A disposal is never requested
+        // while the asset is on loan, so there is no last custodian to name.
         const disposal = asset.status === "RETIRED" ? retirements.find(r => r.asset_id === asset.asset_id) : undefined;
         let disposalDetails: AssetListItem['disposalDetails'];
         if (disposal) {
-            const reasonText = disposal.reason || "";
-            const pathwayMatch = reasonText.match(/Disposal Pathway:\s*(.+)/i);
-            const justificationMatch = reasonText.match(/Breakdown Justification:\s*([\s\S]+)/i);
-            const lastCustodianMatch = reasonText.match(/Last Custodian:\s*(.+)/i);
             disposalDetails = {
-                lastCustodian: viewer.role === "Custodian" ? undefined : (lastCustodianMatch ? lastCustodianMatch[1].trim() : "No Custodian"),
-                breakdownReasons: (justificationMatch ? justificationMatch[1].trim() : reasonText) || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
-                disposalPathway: disposal.pathway ? RETIREMENT_PATHWAY_LABELS[disposal.pathway] : (pathwayMatch ? pathwayMatch[1].trim() : "Not recorded"),
+                lastCustodian: viewer.role === "Custodian" ? undefined : "No Custodian",
+                breakdownReasons: disposal.reason,
+                disposalPathway: disposal.pathway ? RETIREMENT_PATHWAY_LABELS[disposal.pathway] : "Not recorded",
                 decommissionDate: displayDate(disposal.completed_at ?? disposal.requested_at),
                 decommissionedBy: shownName(personFor(viewer, disposal.users)),
             };

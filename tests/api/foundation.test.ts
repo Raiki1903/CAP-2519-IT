@@ -38,12 +38,12 @@ describe("the lifecycle guard", () => {
     expect(LIFECYCLE_ACTIONS).toHaveLength(15);
   });
 
-  it("refuses a second loan or a retirement request while a loan waits, and says which loan", () => {
+  it("refuses a second loan while a loan waits, and says which loan; a waiting loan blocks no retirement request or ticket (Batch 5, 3.7)", () => {
     const asset = { asset_tag: "TEST-0001", status: "AVAILABLE" as const };
     const waiting = { loanId: 7, status: "PENDING_RELEASE" as const };
 
     expect(refusalFor(asset, "REQUEST_LOAN", waiting)).toBe("TEST-0001 already has a loan in Pending Release (LOAN-7).");
-    expect(refusalFor(asset, "REQUEST_RETIREMENT", waiting)).toBe("TEST-0001 already has a loan in Pending Release (LOAN-7).");
+    expect(refusalFor(asset, "REQUEST_RETIREMENT", waiting)).toBeNull();
     expect(refusalFor(asset, "START_MAINTENANCE", waiting)).toBeNull();
   });
 });

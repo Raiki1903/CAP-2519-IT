@@ -1,185 +1,306 @@
 /**
- * Disposals service: the business rules for disposal requests, the Director's decisions, and the disposal list.
+ * Disposals service: the business rules for disposal requests, the decision by someone other than the requester,
+ * TSG's completion, the disposal lists, the emails, and the one builder of the Retirement shape.
  * Layer: service. Called by retirements.controller.ts. Calls retirements.repository.ts, features/assets/assets.repository.ts,
- * features/auth/auth.repository.ts, shared/services/lifecycleGuard.ts, shared/services/assetState.ts, and shared/services/mailer.ts.
- * Used by: Staff disposal filing (DisposalFormDialog), Director approval (Approvals & Holds tab and the bell).
+ * features/auth/auth.repository.ts (the emails), shared/services/lifecycleGuard.ts, shared/services/permissions.ts
+ * (notSameActor), shared/services/inspectionShape.ts, shared/services/mailer.ts, shared/utils/html.ts, and, inside the
+ * step's transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts.
+ * Used by: TSG disposal requests and completion (DisposalFormDialog), the Director's and the Secretary's decisions,
+ * and the screens that list disposals.
  */
-import { asset_retirements_status, type asset_retirements, type assets } from '@prisma/client';
-import type { DisposalDecision, DisposalListItem, DisposalRequestInput } from '@shared/types/retirements';
+import { asset_retirements_status, type Prisma } from '@prisma/client';
+import type { SessionIdentity } from '@shared/types/auth';
+import type { DisposalListItem, Retirement } from '@shared/types/retirements';
+import { RETIREMENT_PATHWAY_LABELS, RETIREMENT_STATUS_LABELS, type RetirementStatus } from '@shared/constants/retirementStatuses';
+import { ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
 import * as retirementsRepository from './retirements.repository';
+import type { RetirementRow, RetirementRows } from './retirements.repository';
+import type { CompleteBody, DecisionBody, RequestBody } from './retirements.validation';
 import * as assetsRepository from '../assets/assets.repository';
 import * as authRepository from '../auth/auth.repository';
-import { RETIREMENT_STATUS_LABELS } from '@shared/constants/retirementStatuses';
 import { AppError } from '../../shared/errors/AppError';
-import { assertActionAllowed, isActionAllowed } from '../../shared/services/lifecycleGuard';
-import { holderOf } from '../../shared/services/assetState';
+import { hasAccessRole } from '../../shared/middleware/permissions';
+import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
 import { notSameActor } from '../../shared/services/permissions';
+import { inspectionOf, personFor } from '../../shared/services/inspectionShape';
+import { writeInspection } from '../../shared/services/inspections';
+import { setAssetStatus } from '../../shared/services/assetStatus';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
+import { escapeHtml } from '../../shared/utils/html';
+
+/** The 409 message when an asset in Maintenance is not ready for disposal. (Contract section 3, note 3) */
+export const NOT_BEYOND_REPAIR_MESSAGE = "Finish the maintenance ticket first. Only an asset found beyond repair can be disposed of from Maintenance.";
+
+/** The 403 message when the requester tries to decide their own disposal. */
+export const OWN_REQUEST_MESSAGE = "You requested this disposal, so someone else must decide it.";
+
+/** A date-time as ISO 8601, or null. */
+const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
 
 /**
- * Files a disposal request for an asset, in Pending: the asset_retirements row, with the asset's status before it,
- * and the asset set to Pending Retirement, in one transaction. A denial gives the asset that status back.
- * The lifecycle guard takes a request only on an asset that is Available, in Maintenance, or Missing, with no open
- * loan in the way. (H-05, issue #54)
+ * Builds the contract's Retirement from a disposal row. A Researcher never calls the disposal routes, so every
+ * person is named; personFor still applies the rule. (D2)
+ *
+ * @param row the disposal with its asset, people, and assessment inspection
+ * @param baselines the metric baselines of its inspection
+ * @param viewer the session user
+ */
+export function retirementOf(row: RetirementRow, baselines: Map<string, number>, viewer: SessionIdentity): Retirement {
+    return {
+        retirementId: row.retirement_id,
+        asset: { assetId: row.assets.asset_id, tag: row.assets.asset_tag, name: row.assets.name },
+        status: row.status,
+        statusLabel: RETIREMENT_STATUS_LABELS[row.status],
+        reason: row.reason,
+        pathway: row.pathway,
+        pathwayLabel: row.pathway ? RETIREMENT_PATHWAY_LABELS[row.pathway] : null,
+        previousStatus: row.previous_status,
+        previousStatusLabel: row.previous_status ? ASSET_STATUS_LABELS[row.previous_status] : null,
+        requestedBy: personFor(viewer, row.users)!,
+        requestedAt: row.requested_at.toISOString(),
+        decidedBy: personFor(viewer, row.decided_by),
+        decidedAt: isoOrNull(row.decided_at),
+        decisionRemarks: row.decision_remarks,
+        completedBy: personFor(viewer, row.completed_by),
+        completedAt: isoOrNull(row.completed_at),
+        dispositionReference: row.disposition_reference,
+        assessmentInspection: inspectionOf(row.assessment_inspection, baselines, viewer),
+    };
+}
+
+/** Every disposal of some rows in the Retirement shape. */
+function retirementsOf({ rows, baselines }: RetirementRows, viewer: SessionIdentity): Retirement[] {
+    return rows.map(row => retirementOf(row, baselines, viewer));
+}
+
+/** One disposal in the Retirement shape, read after the step that changed it. */
+async function retirementById(retirementId: number, viewer: SessionIdentity): Promise<Retirement> {
+    return retirementsOf(await retirementsRepository.findRetirements({ retirement_id: retirementId }), viewer)[0];
+}
+
+/** The word today's screens compare against for each disposal status. */
+const SCREEN_DISPOSAL_WORDS: Record<RetirementStatus, DisposalListItem['status']> = {
+    PENDING: "Pending",
+    APPROVED: "Approved",
+    COMPLETED: "Approved",
+    DENIED: "Rejected",
+};
+
+/** One disposal in the row shape today's screens read (`disposals`). */
+function disposalListItemOf(row: RetirementRow): DisposalListItem {
+    return {
+        id: `DISP-${row.retirement_id}`,
+        disposalId: row.retirement_id,
+        assetId: row.assets.asset_tag,
+        assetName: row.assets.name,
+        requestedBy: `${row.users.first_name} ${row.users.last_name}`,
+        requestedAt: row.requested_at.toISOString(),
+        reason: row.reason,
+        status: SCREEN_DISPOSAL_WORDS[row.status],
+    };
+}
+
+/**
+ * The disposals the session user may see, newest request first: TSG, the Director and the Secretary see every one;
+ * the account that heads a lab sees its lab's assets' disposals. Other roles are refused at the route.
+ *
+ * @param statuses a status filter, or null for every status
+ * @param viewer the session user
+ * @returns the disposals in the Retirement shape, and the same disposals in the row shape today's screens read
+ */
+export async function listRetirements(statuses: RetirementStatus[] | null, viewer: SessionIdentity): Promise<{ retirements: Retirement[]; disposals: DisposalListItem[] }> {
+    const where: Prisma.asset_retirementsWhereInput = statuses ? { status: { in: statuses } } : {};
+    if (!hasAccessRole(viewer, ["TSG_STAFF", "ADRIC_DIRECTOR", "ADRIC_SECRETARY"]) && viewer.headOfCenterId !== null) {
+        where.assets = { center_id: viewer.headOfCenterId };
+    }
+    const found = await retirementsRepository.findRetirements(where);
+    return { retirements: retirementsOf(found, viewer), disposals: found.rows.map(disposalListItemOf) };
+}
+
+/** The disposal with this id, or a 404. */
+async function existingRetirement(retirementId: number) {
+    const retirement = await retirementsRepository.findById(retirementId);
+    if (!retirement) throw new AppError(404, `No disposal request found with id ${retirementId}.`);
+    return retirement;
+}
+
+/** The 409 message when a disposal's status does not allow the step. */
+function wrongStatus(retirement: { retirement_id: number; status: asset_retirements_status }, step: string): AppError {
+    return new AppError(409, `DISP-${retirement.retirement_id} is ${RETIREMENT_STATUS_LABELS[retirement.status]}, so it ${step}.`);
+}
+
+/**
+ * Files a disposal request, in Pending, in one transaction that locks the asset first: the asset_retirements row with
+ * the asset's status before it, the pathway in its own column when TSG names it, a Retirement inspection when TSG
+ * assessed the asset, and the asset set to Pending Retirement. The guard takes an asset that is Available, Missing, or
+ * in Maintenance, and one in Maintenance only when its newest ticket ended Beyond Repair and none is open. One open
+ * disposal per asset. A loan still waiting for approval or release is left as it is (Batch 5, section 3.7).
  *
  * @param assetTag the asset's tag, from the URL
- * @param data the checked disposal body: pathway, justification, optional date. A last custodian in the body is ignored:
- *   the reason names the asset's holder, if it has one (issue #12)
- * @param disposedById the session user, who requests the disposal; any requester name in the body is ignored (issue #32)
- * @returns the created row, plus the asset for the email the controller sends after answering
+ * @param data the checked body: reason, pathway, assessment inspection
+ * @param requester the session user, TSG (the route checks it); a requester name in the body is ignored (issue #32)
+ * @returns the new disposal in the Retirement shape
  * @throws AppError 404 if no asset has this tag
- * @throws AppError 409 if the guard refuses the request
+ * @throws AppError 400 if a metric of the assessment does not apply to the asset; nothing is written
+ * @throws AppError 409 if a disposal is already open, the guard refuses, or the asset in Maintenance is not beyond repair
  */
-export async function requestDisposal(
-    assetTag: string,
-    data: DisposalRequestInput,
-    disposedById: number,
-): Promise<{ disposal: asset_retirements; asset: assets }> {
+export async function requestRetirement(assetTag: string, data: RequestBody, requester: SessionIdentity): Promise<Retirement> {
     const existing = await assetsRepository.findByTag(assetTag);
-    if (!existing) {
-        throw new AppError(404, `No asset found with tag ${assetTag}.`);
-    }
+    if (!existing) throw new AppError(404, `No asset found with tag ${assetTag}.`);
 
-    const openLoan = await assetsRepository.findOpenLoan(existing.asset_id);
-    assertActionAllowed(existing, "REQUEST_RETIREMENT", openLoan);
-    const holder = holderOf(openLoan);
+    const retirement = await retirementsRepository.withAssetLock(existing.asset_id, async (tx) => {
+        const asset = await retirementsRepository.findAssetIn(tx, existing.asset_id);
+        const open = await retirementsRepository.findOpenRetirementIn(tx, asset.asset_id);
+        if (open) throw new AppError(409, `${asset.asset_tag} already has an open disposal request (DISP-${open.retirement_id}).`);
+        assertActionAllowed(asset, "REQUEST_RETIREMENT");
+        if (asset.status === "MAINTENANCE") {
+            const tickets = await retirementsRepository.findTicketStateIn(tx, asset.asset_id);
+            if (tickets.openTicketId !== null || tickets.latestStatus !== "BEYOND_REPAIR") throw new AppError(409, NOT_BEYOND_REPAIR_MESSAGE);
+        }
 
-    // asset_retirements has one text column for all of this, so the fields are written as labelled
-    // lines. GET /api/assets parses them back out for a retired asset's details.
-    // TODO(M-13): pathway, last custodian, and date are packed into one text column and parsed back with regex. Batch 5 sends the pathway as its own field.
-    const reason = [
-        `Disposal Pathway: ${data.disposalPathway}`,
-        holder ? `Last Custodian: ${holder.name}` : null,
-        data.decommissionDate ? `Target Decommission Date: ${data.decommissionDate}` : null,
-        "",
-        "Breakdown Justification:",
-        data.breakdownReasons,
-    ].filter(line => line !== null).join("\n");
-
-    const disposal = await retirementsRepository.createRequest({
-        asset_id: existing.asset_id,
-        requested_by_id: disposedById,
-        reason,
-        status: asset_retirements_status.PENDING,
-        previous_status: existing.status,
+        const assessment = data.assessmentInspection
+            ? await writeInspection(tx, { assetId: asset.asset_id, type: "RETIREMENT", input: data.assessmentInspection, inspectorId: requester.userId })
+            : null;
+        const row = await retirementsRepository.createRetirement(tx, {
+            asset_id: asset.asset_id,
+            requested_by_id: requester.userId,
+            reason: data.reason,
+            pathway: data.pathway,
+            status: asset_retirements_status.PENDING,
+            previous_status: asset.status,
+            assessment_inspection_id: assessment?.inspection_id ?? null,
+        });
+        await setAssetStatus(tx, asset.asset_id, "PENDING_RETIREMENT");
+        return row;
     });
-
-    return { disposal, asset: existing };
+    return retirementById(retirement.retirement_id, requester);
 }
 
 /**
- * Emails every holder of the ADRIC_DIRECTOR role that a disposal was filed, naming the requester. With nobody in
- * the role, or mail off, the mailer logs and skips it.
+ * The Director or the Secretary decides a Pending disposal, never the person who requested it. Approve: Approved, and
+ * the asset stays Pending Retirement until TSG completes the disposal. Deny (remarks required): Denied, and the asset
+ * gets back its status from before the request. The disposal and the asset are read again inside the asset lock, so two
+ * decisions at once give one 200 and one 409.
  *
- * @param requesterId the session user who filed it; "Staff" is named if that account is gone
- * @returns when the send was attempted or skipped; the controller does not wait for it
- */
-// TODO(H-20): the asset name, requester, and pathway go into the email HTML unescaped. Step 13 (shared escaping).
-export function notifyDirector(asset: assets, assetTag: string, data: DisposalRequestInput, requesterId: number): Promise<void> {
-    return Promise.all([
-        authRepository.getRoleEmails("ADRIC_DIRECTOR"),
-        authRepository.findUserById(requesterId),
-    ]).then(([emails, requester]) => sendEmail(
-        emails,
-        `New Disposal Request — ${asset.name} (${assetTag})`,
-        emailTemplate("New Disposal Approval Request", `
-                <p><strong>${requester ? `${requester.first_name} ${requester.last_name}` : "Staff"}</strong> has requested to decommission <strong>${asset.name}</strong> (${assetTag}).</p>
-                <p><strong>Disposal Pathway:</strong> ${data.disposalPathway}</p>
-                <p>Please review this request in the Clearance & Disposal tab of your dashboard.</p>
-            `)
-    )).catch(error => {
-        // Only the error's name: a mail error can quote the recipient's address.
-        console.error(`Failed to send disposal request notification email for asset ${assetTag}:`, error?.name || 'Error');
-    });
-}
-
-/**
- * Lists every disposal request, newest first, shaped for the screens.
- * Every status is included; the bell keeps only the pending ones.
- *
- * @returns one DisposalListItem per asset_retirements row
- */
-export async function listDisposals(): Promise<DisposalListItem[]> {
-    const [dbDisposals, dbAssets, dbUsers] = await retirementsRepository.findListLookups();
-
-    return dbDisposals.map(d => {
-        const asset = dbAssets.find(a => a.asset_id === d.asset_id);
-        const requester = dbUsers.find(u => u.user_id === d.requested_by_id);
-
-        let status: "Pending" | "Approved" | "Rejected" = "Pending";
-        if (d.status === asset_retirements_status.APPROVED || d.status === asset_retirements_status.COMPLETED) status = "Approved";
-        else if (d.status === asset_retirements_status.DENIED) status = "Rejected";
-
-        return {
-            id: `DISP-${d.retirement_id}`,
-            disposalId: d.retirement_id,
-            assetId: asset?.asset_tag || "",
-            assetName: asset?.name || "Unknown Asset",
-            requestedBy: requester ? `${requester.first_name} ${requester.last_name}` : "Unknown",
-            requestedAt: d.requested_at.toISOString(),
-            reason: d.reason,
-            status,
-        };
-    });
-}
-
-/**
- * Approves or rejects a pending disposal request, in one transaction.
- * Approval retires the asset at once: there is no completion step yet, so the request goes straight to Completed and the
- * asset to Retired. Rejection (Denied) gives the asset back its status from before the request.
- * The Director or the Secretary decides (the route), never the person who requested it.
- * An approval needs the asset still in Pending Retirement. A rejection is never refused, so stale requests can be
- * cleared; it changes the asset only while the asset is in Pending Retirement. (issue #28)
- *
- * @param disposalId the numeric disposal id
- * @param decision "approve" or "reject"
- * @param deciderId the session user who decides
- * @returns the updated asset_retirements row
+ * @param retirementId the disposal
+ * @param body the checked decision and remarks
+ * @param decider the session user, the Director or the Secretary (the route checks it)
+ * @returns the decided disposal in the Retirement shape
  * @throws AppError 404 if no disposal has this id
- * @throws AppError 403 if the session user requested it
- * @throws AppError 400 if the disposal is not pending any more
- * @throws AppError 409 if an approval finds the asset no longer in Pending Retirement
+ * @throws AppError 403 OWN_REQUEST_MESSAGE if the session user requested it
+ * @throws AppError 409 if the disposal is not Pending, or the asset is not Pending Retirement
  */
-// TODO(H-07): approval skips Approved and the TSG completion step. Batch 5 adds them.
-export async function decideDisposal(disposalId: number, decision: DisposalDecision, deciderId: number): Promise<asset_retirements> {
-    const disposal = await retirementsRepository.findById(disposalId);
-    if (!disposal) {
-        throw new AppError(404, `No disposal request found with id ${disposalId}.`);
-    }
-    notSameActor(disposal.requested_by_id, deciderId, "You requested this retirement, so someone else must decide it.");
-    if (disposal.status !== asset_retirements_status.PENDING) {
-        throw new AppError(400, `Disposal #${disposalId} is ${RETIREMENT_STATUS_LABELS[disposal.status]}, so it can no longer be decided.`);
-    }
-    const asset = await assetsRepository.findById(disposal.asset_id);
-    if (!asset) {
-        throw new AppError(404, `No asset found for disposal ${disposalId}.`);
-    }
-    if (decision === "approve") {
-        assertActionAllowed(asset, "DECIDE_RETIREMENT");
-    }
+export async function decide(retirementId: number, body: DecisionBody, decider: SessionIdentity): Promise<Retirement> {
+    const retirement = await existingRetirement(retirementId);
+    notSameActor(retirement.requested_by_id, decider.userId, OWN_REQUEST_MESSAGE);
 
-    return retirementsRepository.saveDecision(disposal, decision === "approve", deciderId, isActionAllowed(asset.status, "DECIDE_RETIREMENT"));
+    await retirementsRepository.withAssetLock(retirement.asset_id, async (tx) => {
+        const current = await retirementsRepository.findRetirementIn(tx, retirementId);
+        if (current.status !== asset_retirements_status.PENDING) throw wrongStatus(current, "can no longer be decided");
+        assertActionAllowed(await retirementsRepository.findAssetIn(tx, retirement.asset_id), "DECIDE_RETIREMENT");
+
+        await retirementsRepository.updateRetirement(tx, retirementId, {
+            status: body.approve ? asset_retirements_status.APPROVED : asset_retirements_status.DENIED,
+            decided_by_id: decider.userId,
+            decided_at: new Date(),
+            decision_remarks: body.decisionRemarks,
+        });
+        if (!body.approve) await setAssetStatus(tx, retirement.asset_id, current.previous_status ?? "AVAILABLE");
+    });
+    return retirementById(retirementId, decider);
 }
 
 /**
- * Emails the requester that their disposal was approved or rejected.
+ * TSG completes an Approved disposal: Completed, with the pathway the asset left by, the disposition reference, who
+ * completed it and when, and the asset Retired. Nothing more happens to a Retired asset.
  *
- * @param disposedById the disposal's requested_by_id; nothing is sent if that user has no email
+ * @param retirementId the disposal
+ * @param body the checked pathway and reference
+ * @param actor the session user, TSG (the route checks it)
+ * @returns the completed disposal in the Retirement shape
+ * @throws AppError 404 if no disposal has this id
+ * @throws AppError 409 if the disposal is not Approved, or the asset is not Pending Retirement
+ */
+export async function complete(retirementId: number, body: CompleteBody, actor: SessionIdentity): Promise<Retirement> {
+    const retirement = await existingRetirement(retirementId);
+
+    await retirementsRepository.withAssetLock(retirement.asset_id, async (tx) => {
+        const current = await retirementsRepository.findRetirementIn(tx, retirementId);
+        if (current.status !== asset_retirements_status.APPROVED) throw wrongStatus(current, "cannot be completed");
+        assertActionAllowed(await retirementsRepository.findAssetIn(tx, retirement.asset_id), "COMPLETE_RETIREMENT");
+
+        await retirementsRepository.updateRetirement(tx, retirementId, {
+            status: asset_retirements_status.COMPLETED,
+            pathway: body.pathway,
+            disposition_reference: body.dispositionReference,
+            completed_by_id: actor.userId,
+            completed_at: new Date(),
+        });
+        await setAssetStatus(tx, retirement.asset_id, "RETIRED");
+    });
+    return retirementById(retirementId, actor);
+}
+
+/** A disposal row for an email, or null when it is gone. */
+async function emailRow(retirementId: number): Promise<RetirementRow | null> {
+    return (await retirementsRepository.findRetirements({ retirement_id: retirementId })).rows[0] ?? null;
+}
+
+/**
+ * Emails the Director and the Secretary, who decide disposals, that one was requested. Every value is escaped. (H-20)
+ * With nobody in those roles, or mail off, the mailer logs and skips it.
+ *
+ * @param retirementId the new disposal
  * @returns when the send was attempted or skipped; the controller does not wait for it
  */
-export function notifyDecision(disposalId: number, disposedById: number, decision: DisposalDecision): Promise<void> {
-    return authRepository.getUserEmail(disposedById).then(email => {
-        if (!email) return;
-        const approved = decision === "approve";
+export function notifyDeciders(retirementId: number): Promise<void> {
+    return Promise.all([
+        emailRow(retirementId),
+        authRepository.getRoleEmails("ADRIC_DIRECTOR"),
+        authRepository.getRoleEmails("ADRIC_SECRETARY"),
+    ]).then(([row, directors, secretaries]) => {
+        if (!row) return;
+        const requester = `${row.users.first_name} ${row.users.last_name}`;
         return sendEmail(
-            email,
-            `Disposal Request ${approved ? "Approved" : "Rejected"} — Disposal #${disposalId}`,
-            emailTemplate(`Disposal Request ${approved ? "Approved" : "Rejected"}`, `
-                    <p>Your decommission request has been <strong>${approved ? "approved" : "rejected"}</strong> by the AdRIC Director.</p>
-                    ${approved ? `<p>The asset is now marked Disposed in the registry.</p>` : `<p>The asset remains active — you may revise and resubmit if needed.</p>`}
-                `)
+            [...new Set([...directors, ...secretaries])],
+            `New disposal request DISP-${row.retirement_id} (${row.assets.asset_tag})`,
+            emailTemplate("New disposal request", `
+                <p><strong>${escapeHtml(requester)}</strong> asked to dispose of <strong>${escapeHtml(row.assets.name)}</strong> (${escapeHtml(row.assets.asset_tag)}), request DISP-${row.retirement_id}.</p>
+                <p><strong>Reason:</strong> ${escapeHtml(row.reason)}</p>
+                <p><strong>Pathway:</strong> ${escapeHtml(row.pathway ? RETIREMENT_PATHWAY_LABELS[row.pathway] : "Not named yet")}</p>
+                <p>The Director or the Secretary approves or denies it in AdRIC Asset Management. The person who requested it cannot decide it.</p>
+            `),
         );
     }).catch(error => {
-        console.error(`Failed to send disposal #${disposalId} decision notification email:`, error?.name || 'Error');
+        // Only the error's name: a mail error can quote the recipient's address.
+        console.error(`Failed to send the disposal request email for disposal ${retirementId}:`, error?.name || 'Error');
+    });
+}
+
+/**
+ * Emails the requester that their disposal was approved (TSG completes it next) or denied (with the remarks, and the
+ * status the asset is back in). Every value is escaped. (H-20)
+ *
+ * @param retirementId the decided disposal
+ * @returns when the send was attempted or skipped; the controller does not wait for it
+ */
+export function notifyDecision(retirementId: number): Promise<void> {
+    return emailRow(retirementId).then(async row => {
+        if (!row) return;
+        const email = await authRepository.getUserEmail(row.requested_by_id);
+        if (!email) return;
+        const approved = row.status === asset_retirements_status.APPROVED;
+        const what = `Your disposal request DISP-${row.retirement_id} for <strong>${escapeHtml(row.assets.name)}</strong> (${escapeHtml(row.assets.asset_tag)})`;
+        const body = approved
+            ? `<p>${what} was approved.</p><p>TSG completes the disposal with its pathway and reference. Until then the asset stays Pending Retirement.</p>`
+            : `<p>${what} was denied. The asset is back to ${escapeHtml(row.previous_status ? ASSET_STATUS_LABELS[row.previous_status] : ASSET_STATUS_LABELS.AVAILABLE)}.</p>
+               <p><strong>Remarks:</strong> ${escapeHtml(row.decision_remarks ?? "")}</p>`;
+        return sendEmail(
+            email,
+            `Disposal request DISP-${row.retirement_id} ${approved ? "approved" : "denied"}`,
+            emailTemplate(`Disposal request ${approved ? "approved" : "denied"}`, body),
+        );
+    }).catch(error => {
+        console.error(`Failed to send the decision email for disposal ${retirementId}:`, error?.name || 'Error');
     });
 }

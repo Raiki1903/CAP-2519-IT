@@ -106,19 +106,20 @@ export interface BlockingLoan {
 
 /**
  * Says why the asset may not take this action, or null when it may.
- * An open loan in Pending Approval or Pending Release keeps the asset Available but blocks a second loan request and
- * a retirement request, because approving both would promise one item twice. (H-05)
+ * An open loan in Pending Approval or Pending Release keeps the asset Available but blocks a second loan request,
+ * because approving both would promise one item twice. (H-05) It does not block maintenance, Missing, or a retirement
+ * request: the waiting loan is left as it is, and the guard then refuses its approval and release (Batch 5, section 3.7).
  *
  * @param asset the asset's tag and status
  * @param action the step being asked for
- * @param openLoan the asset's open loan, when the caller read it; only REQUEST_LOAN and REQUEST_RETIREMENT look at it
+ * @param openLoan the asset's open loan, when the caller read it; only REQUEST_LOAN looks at it
  * @returns the message for a 409 answer, or null
  */
 export function refusalFor(asset: GuardedAsset, action: LifecycleAction, openLoan: BlockingLoan | null = null): string | null {
     if (!isActionAllowed(asset.status, action)) {
         return `${asset.asset_tag} is ${ASSET_STATUS_LABELS[asset.status]} and cannot ${ACTION_WORDS[action]}.`;
     }
-    if ((action === "REQUEST_LOAN" || action === "REQUEST_RETIREMENT") && openLoan) {
+    if (action === "REQUEST_LOAN" && openLoan) {
         return `${asset.asset_tag} already has a loan in ${LOAN_STATUS_LABELS[openLoan.status]} (LOAN-${openLoan.loanId}).`;
     }
     return null;
@@ -130,7 +131,7 @@ export function refusalFor(asset: GuardedAsset, action: LifecycleAction, openLoa
  *
  * @param asset the asset's tag and status
  * @param action the step being asked for
- * @param openLoan the asset's open loan, for REQUEST_LOAN and REQUEST_RETIREMENT
+ * @param openLoan the asset's open loan, for REQUEST_LOAN
  * @throws AppError 409 with the reason
  */
 export function assertActionAllowed(asset: GuardedAsset, action: LifecycleAction, openLoan: BlockingLoan | null = null): void {

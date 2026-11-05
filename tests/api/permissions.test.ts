@@ -65,8 +65,9 @@ describe("the IT Admin has no asset steps", () => {
     ["PUT", "/api/maintenance/1/receive", { inspection: { condition: "OPERATIONAL" } }],
     ["PUT", "/api/maintenance/1/cancel", {}],
     ["PUT", "/api/maintenance/1/complete", { outcome: "RESOLVED", resolutionRemarks: "Test", inspection: { condition: "OPERATIONAL" } }],
-    ["POST", `/api/assets/${ASSETS.available.tag}/retirement`, { breakdownReasons: "Test", disposalPathway: "Test" }],
-    ["PUT", "/api/retirements/1/decision", { decision: "reject" }],
+    ["POST", `/api/assets/${ASSETS.available.tag}/retirement`, { reason: "Test" }],
+    ["PUT", "/api/retirements/1/decision", { decision: "deny", decisionRemarks: "Test" }],
+    ["PUT", "/api/retirements/1/complete", { pathway: "RECYCLE", dispositionReference: "Test" }],
     ["POST", `/api/assets/${ASSETS.available.tag}/inspection`, { reportCondition: "PERFECT" }],
     ["POST", `/api/assets/${ASSETS.available.tag}/loans`, { destinationCenterId: 1, returnBy: "2030-01-01", purpose: "Test" }],
     ["PUT", "/api/loans/2/cancel", {}],
@@ -116,7 +117,7 @@ describe("the person who requested a retirement does not decide it", () => {
 
     const own = await as(USERS.secretary).put(`/api/retirements/${disposal.retirement_id}/decision`, { decision: "approve" });
     expect(own.status).toBe(403);
-    expect(own.body.error).toBe("You requested this retirement, so someone else must decide it.");
+    expect(own.body.error).toBe("You requested this disposal, so someone else must decide it.");
     expect((await db.asset_retirements.findUniqueOrThrow({ where: { retirement_id: disposal.retirement_id } })).status).toBe("PENDING");
 
     const other = await as(USERS.director).put(`/api/retirements/${disposal.retirement_id}/decision`, { decision: "approve" });
@@ -125,9 +126,9 @@ describe("the person who requested a retirement does not decide it", () => {
 
   it("lets the Secretary decide someone else's request", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0902" });
-    const filed = await as(USERS.staffTsg).post(`/api/assets/${asset.tag}/retirement`, { breakdownReasons: "Test", disposalPathway: "Test" });
+    const filed = await as(USERS.staffTsg).post(`/api/assets/${asset.tag}/retirement`, { reason: "Test" });
 
-    const res = await as(USERS.secretary).put(`/api/retirements/${filed.body.disposal.retirement_id}/decision`, { decision: "reject" });
+    const res = await as(USERS.secretary).put(`/api/retirements/${filed.body.retirement.retirementId}/decision`, { decision: "deny", decisionRemarks: "Test: still useful" });
 
     expect(res.status).toBe(200);
     expect((await db.assets.findUniqueOrThrow({ where: { asset_id: asset.assetId } })).status).toBe("AVAILABLE");
