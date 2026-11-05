@@ -248,6 +248,12 @@ Made by Raiki at Stop 0 (2026-11-05). Where they differ from the sections above,
 2. **A metric recorded before the asset's category changed is still listed,** so no recorded value disappears.
 3. **A category with metrics never flags a health score** (only a category with no metrics flags a score below `HEALTH_SCORE_FLAG_BELOW`).
 
+**Accepted after Stop 2 (the merge of `main` with Joel's loan screens):**
+
+1. **Q1: A.** The Researcher's My Loans screen gets a "Report an issue" button on each On Loan and Return Requested row. It opens the existing asset detail, whose Request Repair button opens the same report form the old My Assets cards opened. No new form, no new types. Commit `6268233e`, in Joel's `web/features/loans/ResearcherMyLoans.tsx` (approved by Raiki).
+2. **Q2: A.** My Loans History also lists loans Ended by Maintenance and Ended by Loss, with the status label the server sends. Commit `ad051ef5`, same file.
+3. **Q3: left for after Nov 9.** The asset detail offers the report form only to Staff and Researcher views, so a Lab Head cannot report an issue from the screen, although the server allows it (the Head of the asset's home lab). It was like this before the merge. 5-H17 checks the Lab Head's report by console only.
+
 **Run order:** commits 1 to 5, then Stop 1. After Raiki's go: 9 and 10 (P1 web), then 6, 7 and 11 (P2), then 8 (P3), then 12 (docs), then Stop 2. If time runs short, cut from the bottom (8, then 11, 7, 6) and say so.
 
 **Issues:** the pull request also closes #65 (the 8-second repair guard) and #66 (the board statuses). The results in this file name both.
@@ -304,7 +310,7 @@ Written for Raiki, to run by hand. The agent did not run them. Every check uses 
    - **W1**: an Available asset of CITe4D whose warranty date is **after** today (Nov 5, 2026). In the seed data `CITe4D-0002` qualifies.
    - **N1**, **N2** and **N3**: three Available assets, any lab, whose warranty date is **before** today. In the seed data `CITe4D-0003`, `CeHCI-0002`, `GAME-0004`, `GAME-0005`, `Bio-0004` and `Bio-0009` qualify. Check the date, the copy may differ.
 4. **Two loans (setup, writes two loans).** As UAT Custodian One: Available Equipment, open A1, Request Loan, any destination lab, Return By 14 days from today (a past date is refused, and the database refuses a return-by before the request date), purpose `Batch 5 setup`, Submit Request. Write the number in `LOAN-<number>` as **L1**. Do the same for M1 and write **L2**. As UAT LabHead CITe4D One: the Requests tab, Approve both. Both now show "Pending release".
-5. **A picture of A1's QR tag (setup, for 5-H15).** As UAT Staff One: QR Tags, tick A1, and save a screenshot of the QR preview as an image file. The Researcher's screen no longer has a way into an asset from My Loans, so 5-H15 opens A1 through the QR Scan tab (see question Q1 in the report).
+5. **A picture of A1's QR tag (optional, only for the extra step in 5-H15).** As UAT Staff One: QR Tags, tick A1, and save a screenshot of the QR preview as an image file.
 6. **Console commands.** Open DevTools (F12), Console, on a page of `http://localhost:5173` while logged in as the account the check names. The first time the browser may ask you to type `allow pasting`. Replace `<T1>`, `<N1>` and so on before sending. Each command prints the server's answer. The commands that report an issue use `issueTypeId:1`. If one answers "Pick an issue type from the list.", open `http://localhost:4000/api/lookups` and use an `issueTypeId` from `issueTypes`.
 7. **To read the database**, SELECT only, never a `password` column. PowerShell, it asks for the root password: `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "<SELECT>"`. One check (5-H14) runs a single UPDATE on `adric_uat_check`, and says so.
 8. These checks leave loans, tickets, disposals, inspections and activity rows in `adric_uat_check`. The next UAT reset removes them.
@@ -376,6 +382,7 @@ fetch("http://localhost:4000/api/assets/<R1>/inspection",{method:"POST",credenti
 - M1's Asset History has "Marked missing".
 - Click "Mark Found". "Condition when found": Operational. "Where it was found (optional)": `Stock room`. Click "Mark Found". Expect M1 is Available, at its home lab, with no holder. The history has "Found".
 - Database: `SELECT i.type FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<M1>' ORDER BY i.inspection_id DESC LIMIT 1` shows RECOVERY. The loan stays ENDED_BY_LOSS.
+- As UAT Custodian One: My Loans, History tab. LOAN-<L2> is listed with the badge "Ended by Loss" (before the fix it was on no tab).
 
 **5-H10. TSG's own account cannot decide the disposal it asked for.** Role: UAT Staff One. Screen: the bell. Database: `adric_uat_check` (writes nothing).
 - Bell, Requests tab: "Disposal Request: <N1 name>" (D1) with the badge "Pending Approval". Instead of Deny and "Approve Disposal" buttons it reads "You requested this disposal, so someone else decides it."
@@ -420,16 +427,17 @@ fetch("http://localhost:4000/api/assets/<N1>/maintenance",{method:"POST",credent
 - As UAT Staff One, Asset Inventory, open A1: the condition is **still** Operational (a Self Report never changes it).
 - Database: `SELECT type, condition FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<A1>' ORDER BY inspection_id DESC LIMIT 1` shows SELF_REPORT and MINOR_DRIFT.
 
-**5-H15. The holder reports an issue on A1; a second report is refused; TSG receives it and the loan ends.** Roles: UAT Custodian One, then UAT Staff One. Screen: QR Scan, then Repairs. Database: `adric_uat_check` (writes ticket **T5**, ends L1).
-- As UAT Custodian One: QR Scan tab, use the upload box with the picture of A1's tag from setup step 5. Expect "Asset Found" and A1's detail. Click "Request Repair".
+**5-H15. The holder reports an issue on A1; a second report is refused; TSG receives it and the loan ends.** Roles: UAT Custodian One, then UAT Staff One. Screen: My Loans, then Repairs. Database: `adric_uat_check` (writes ticket **T5**, ends L1).
+- As UAT Custodian One: My Loans, Out tab. On L1's row (A1) click "Report an issue". Expect A1's detail to open. Click "Request Repair".
 - "Report an Issue" says "The asset stays with you until TSG receives it." Pick the issue type "Display" (or any): a green "Suggested first step:" line shows that type's suggested action. Type a description, click "Report Issue". Expect a ticket reference `MNT-<number>`. Write it as **T5**.
-- A1 still reads On Loan and still shows UAT Custodian One as the holder (open it again from QR Scan). My Loans still lists L1 on the Out tab.
+- A1 still reads On Loan and still shows UAT Custodian One as the holder (open its detail again from "Report an issue"). My Loans still lists L1 on the Out tab.
 - Bell: "Your maintenance ticket: <A1 name>" with "MNT-<T5> is Pending Receipt." It has no action badge.
-- Report again: scan A1, "Request Repair", any type, any description, click "Report Issue". Expect the red line `<A1> already has an open maintenance ticket (MNT-<T5>).` and no second ticket.
+- Report again: L1's "Report an issue", "Request Repair", any type, any description, click "Report Issue". Expect the red line `<A1> already has an open maintenance ticket (MNT-<T5>).` and no second ticket.
 - As UAT Staff One (another window): Repairs lists T5 with "Reported by UAT Custodian One", status Pending Receipt. The bell has the card "Repair Ticket: <A1 name>" with "Waiting for Receipt". Click Receive, pick a condition, click "Receive the asset".
 - Expect: T5 reads Inspecting. Asset Inventory: A1 is Maintenance, at the TSG Office, and no longer held by UAT Custodian One.
 - Database: `SELECT status FROM asset_loans WHERE loan_id=<L1>` shows ENDED_BY_MAINTENANCE. `SELECT status FROM assets WHERE asset_tag='<A1>'` shows MAINTENANCE.
-- As UAT Custodian One, My Loans: L1 is in none of Waiting, Out or History (Joel's History lists only Returned, Declined and Cancelled). See question Q2 in the report; this is expected today.
+- As UAT Custodian One, My Loans: L1 has left the Out tab and is in the History tab with the badge "Ended by Maintenance" (before the fix it was on no tab).
+- Extra, optional: the same form is reachable from the QR Scan tab. Upload the picture of A1's tag from setup step 5, expect "Asset Found" and A1's detail, which has the same "Request Repair" button.
 
 **5-H16. Each bell card reaches only its person.** Roles: UAT Custodian One, UAT Staff One, UAT LabHead CITe4D Two, UAT LabHead CITe4D One, UAT Director One, UAT Custodian Three. Screen: the bell, both tabs. Database: `adric_uat_check` (writes nothing). Run it right after 5-H15, while T5 is open.
 - UAT Custodian One (the reporter and holder of A1 until 5-H15): "Your maintenance ticket: <A1 name>" for T5, no action badge. No "Repair Ticket" card with "Waiting for Receipt". No "Status check due" for A1 (5-H14 cleared it).
