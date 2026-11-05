@@ -61,8 +61,9 @@ describe("the IT Admin has no asset steps", () => {
   it.each([
     ["PUT", "/api/loans/1/receive", { inspection: { condition: "OPERATIONAL" } }],
     ["PUT", "/api/loans/1/return-request", {}],
-    ["POST", `/api/assets/${ASSETS.available.tag}/maintenance`, { description: "Test fault from the IT Admin" }],
-    ["PUT", "/api/maintenance/1", { progressStatus: "Inspection Phase" }],
+    ["POST", `/api/assets/${ASSETS.available.tag}/maintenance`, { issueTypeId: 1, issueDescription: "Test fault from the IT Admin" }],
+    ["PUT", "/api/maintenance/1/receive", { inspection: { condition: "OPERATIONAL" } }],
+    ["PUT", "/api/maintenance/1/cancel", {}],
     ["POST", `/api/assets/${ASSETS.available.tag}/retirement`, { breakdownReasons: "Test", disposalPathway: "Test" }],
     ["PUT", "/api/retirements/1/decision", { decision: "reject" }],
     ["POST", `/api/assets/${ASSETS.available.tag}/inspection`, { reportCondition: "PERFECT" }],

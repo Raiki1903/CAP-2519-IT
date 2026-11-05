@@ -1,243 +1,295 @@
 /**
- * Repairs service: the business rules for repair tickets, their progress, and the asset status that follows them.
- * Layer: service. Called by maintenance.controller.ts. Calls maintenance.repository.ts, features/assets/assets.repository.ts,
- * shared/services/lifecycleGuard.ts, shared/services/assetState.ts, and @shared (conditions and labels).
- * Used by: Custodian repair request (RepairForm, and ReturnForm's "flag for repair"), Staff repair queue,
- * repair dialog, and the Staff analytics board.
+ * Maintenance service: the business rules for reporting an issue, TSG's receipt, cancelling a ticket, and the ticket
+ * lists, and the one builder of the Maintenance shape.
+ * Layer: service. Called by maintenance.controller.ts and features/loans/loans.service.ts (the Return Damage ticket in a
+ * receive answer). Calls maintenance.repository.ts, features/assets/assets.repository.ts, shared/services/lifecycleGuard.ts,
+ * shared/services/assetState.ts (holder and today's date), shared/services/inspectionShape.ts, and, inside the step's
+ * transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts.
+ * Used by: a holder's, a Lab Head's or TSG's issue report, TSG receipt, cancelling, and every role's ticket list.
  */
-import { asset_maintenance_status, type asset_condition, type asset_maintenance } from '@prisma/client';
-import type { RepairListItem, RepairRequestInput } from '@shared/types/maintenance';
-import { ASSET_CONDITIONS } from '@shared/enums/assetCondition';
+import { asset_loans_status, asset_maintenance_status, type Prisma } from '@prisma/client';
+import type { InspectionInput } from '@shared/types/assets';
+import type { SessionIdentity } from '@shared/types/auth';
+import type { Maintenance, MaintenanceReportBody, RepairListItem } from '@shared/types/maintenance';
+import { MAINTENANCE_STATUS_LABELS, MAINTENANCE_TYPE_LABELS } from '@shared/constants/maintenanceStatuses';
 import * as maintenanceRepository from './maintenance.repository';
+import type { TicketRow, TicketRows } from './maintenance.repository';
+import type { MaintenanceListFilters } from './maintenance.validation';
+import { PICK_ISSUE_TYPE_MESSAGE } from './maintenance.validation';
 import * as assetsRepository from '../assets/assets.repository';
-import { MAINTENANCE_STATUS_LABELS } from '@shared/constants/maintenanceStatuses';
 import { AppError } from '../../shared/errors/AppError';
+import { hasAccessRole } from '../../shared/middleware/permissions';
 import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
+import { holderOf, isHeld, serverToday } from '../../shared/services/assetState';
+import { inspectionOf, personFor } from '../../shared/services/inspectionShape';
+import { writeInspection } from '../../shared/services/inspections';
+import { setAssetStatus } from '../../shared/services/assetStatus';
 
-/**
- * The progress texts the screens send (the repair dialog's and the Staff analytics board's), and the status each
- * stands for. The two outside services share one status; which one has the asset is kept as the provider.
- */
-// TODO(H-07): the screens still send and show these texts. Batch 5 replaces them with the statuses and their labels.
-const PROGRESS_TEXTS: Record<string, { status: asset_maintenance_status; provider?: string }> = {
-    "Pending TSG Review": { status: asset_maintenance_status.PENDING_RECEIPT },
-    "Awaiting Immediate Dispatch": { status: asset_maintenance_status.PENDING_RECEIPT },
-    "Reported": { status: asset_maintenance_status.PENDING_RECEIPT },
-    "Inspection Phase": { status: asset_maintenance_status.INSPECTING },
-    "Diagnosing": { status: asset_maintenance_status.INSPECTING },
-    "Waiting for Parts": { status: asset_maintenance_status.REPAIRING },
-    "Warranty Holder Possession": { status: asset_maintenance_status.EXTERNAL_SERVICE, provider: "Warranty holder" },
-    "Third-Party Repairer Possession": { status: asset_maintenance_status.EXTERNAL_SERVICE, provider: "Third-party repairer" },
-    "Fixed & Completed": { status: asset_maintenance_status.RESOLVED },
-    "Resolved": { status: asset_maintenance_status.RESOLVED },
-};
+/** The 403 message when a Researcher reports an issue on an asset they do not hold. */
+export const NOT_THE_HOLDER_MESSAGE = "Only the person who holds this asset can report an issue on it.";
 
-/**
- * Reads a progress text the screens sent.
- *
- * @param progressText the text as sent
- * @returns the status it stands for, and the provider for an outside service
- * @throws AppError 400 for any other text: the status is an enum, so free text is no longer saved (H-07)
- */
-function readProgressText(progressText: string): { status: asset_maintenance_status; provider?: string } {
-    const read = Object.prototype.hasOwnProperty.call(PROGRESS_TEXTS, progressText) ? PROGRESS_TEXTS[progressText] : undefined;
-    if (!read) {
-        throw new AppError(400, `Unknown progress status: ${progressText}.`);
-    }
-    return read;
+/** The 403 message when a Lab Head reports an issue on another lab's asset. */
+export const NOT_YOUR_LAB_REPORT_MESSAGE = "This asset belongs to another lab. Only that lab's Head can report an issue on it.";
+
+/** A DATE column as yyyy-mm-dd. Prisma reads a DATE as midnight UTC, so the UTC date is the stored one. */
+const dateOnly = (d: Date) => d.toISOString().slice(0, 10);
+
+/** A date-time as ISO 8601, or null. */
+const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
+
+/** Whether the session user is TSG. */
+function isTsg(viewer: SessionIdentity): boolean {
+    return hasAccessRole(viewer, ["TSG_STAFF"]);
 }
 
 /**
- * The progress text the screens show for a ticket, the reverse of PROGRESS_TEXTS. A status the screens have no
- * text of their own for shows its label.
+ * Whether the asset is under warranty for this ticket: its warranty expiry is on or after the day TSG received it,
+ * or, before receipt, on or after today. An asset under warranty goes to the warranty holder unless TSG writes why it
+ * repairs it itself. (CAP1DEF 5)
  *
- * @param ticket the ticket's status, urgency, and provider
- * @returns the text, for example "Inspection Phase"
+ * @param warrantyExpiry the asset's warranty expiry, or null when it has none
+ * @param receivedAt when TSG received the asset, or null before receipt
  */
-export function progressTextOf(ticket: Pick<asset_maintenance, 'status' | 'provider'>): string {
-    switch (ticket.status) {
-        case asset_maintenance_status.PENDING_RECEIPT: return "Pending TSG Review";
-        case asset_maintenance_status.INSPECTING: return "Inspection Phase";
-        case asset_maintenance_status.REPAIRING: return "Waiting for Parts";
-        case asset_maintenance_status.EXTERNAL_SERVICE: return ticket.provider === "Warranty holder" ? "Warranty Holder Possession" : "Third-Party Repairer Possession";
-        case asset_maintenance_status.RESOLVED: return "Fixed & Completed";
-        case asset_maintenance_status.BEYOND_REPAIR:
-        case asset_maintenance_status.CANCELLED:
-            return MAINTENANCE_STATUS_LABELS[ticket.status];
-    }
-}
-
-// A safety net against the same ticket arriving twice within a few seconds (same tag, same
-// description), from when RepairForm posted every ticket twice. The form posts once since step 8 part 2.
-// If "🛑 Duplicate repair request blocked" shows in the log, a client is still sending twice.
-// TODO(M-07): in memory and per server process, never emptied, and checked before the tag lookup, so an unknown tag sent twice answers 409, not 404. Kept in step 12 as decided; 01D deletes it, in its own behavior-change commit.
-const recentRepairSubmissions = new Map<string, number>();
-const DUPLICATE_WINDOW_MS = 8000;
-
-/**
- * Opens a repair ticket for an asset. Only the asset_maintenance row is written: the asset keeps its
- * status until Staff receive it (a maintenance status in updateRepair).
- * The lifecycle guard takes a ticket only on an asset that is Available or On Loan.
- *
- * @param assetTag the asset's tag, from the URL
- * @param data the checked body: the description
- * @param reporterId the session user, who reports the fault; any reporter name in the body is ignored (issue #32)
- * @returns the created asset_maintenance row
- * @throws AppError 409 if the same tag and description arrived less than 8 seconds ago (M-07)
- * @throws AppError 404 if no asset has this tag
- * @throws AppError 409 if the asset's status takes no ticket (in maintenance, pending retirement, retired, or missing)
- */
-// TODO(H-05): a second open ticket on the same asset is still taken. Batch 5 refuses it.
-export async function requestRepair(assetTag: string, data: RepairRequestInput, reporterId: number): Promise<asset_maintenance> {
-    const dedupeKey = `${assetTag}::${data.description}`;
-    const lastSeen = recentRepairSubmissions.get(dedupeKey);
-    if (lastSeen && Date.now() - lastSeen < DUPLICATE_WINDOW_MS) {
-        console.warn(`Duplicate maintenance request for ${assetTag} refused (same description within ${DUPLICATE_WINDOW_MS / 1000}s)`);
-        throw new AppError(409, "This exact repair request was just submitted — please wait a few seconds before retrying.");
-    }
-    recentRepairSubmissions.set(dedupeKey, Date.now());
-
-    const existing = await assetsRepository.findByTag(assetTag);
-    if (!existing) {
-        throw new AppError(404, `No asset found with tag ${assetTag}.`);
-    }
-    assertActionAllowed(existing, "START_MAINTENANCE");
-
-    return maintenanceRepository.create({
-        asset_id: existing.asset_id,
-        reported_by_id: reporterId,
-        issue_description: data.description,
-        status: asset_maintenance_status.PENDING_RECEIPT,
-    });
+export function isUnderWarranty(warrantyExpiry: Date | null, receivedAt: Date | null): boolean {
+    if (!warrantyExpiry) return false;
+    return dateOnly(warrantyExpiry) >= serverToday(receivedAt ?? new Date());
 }
 
 /**
- * Lists every repair ticket, newest first, shaped for the screens.
+ * Builds the contract's Maintenance from a ticket row. A Researcher gets no other person's name or id. (D2)
  *
- * @returns one RepairListItem per asset_maintenance row
+ * @param row the ticket with its asset, people, issue type, and inspections
+ * @param baselines the metric baselines of its inspections
+ * @param viewer the session user
  */
-export async function listRepairs(): Promise<RepairListItem[]> {
-    const [dbRepairs, dbAssets, dbUsers] = await maintenanceRepository.findListLookups();
-
-    return dbRepairs.map(repair => repairListItemOf(
-        repair,
-        dbAssets.find(a => a.asset_id === repair.asset_id),
-        dbUsers.find(u => u.user_id === repair.reported_by_id),
-    ));
-}
-
-/**
- * One repair ticket in the list's shape. Also the shape a loan receipt answers with when it opens a Return Damage
- * ticket (features/loans).
- *
- * @param repair the asset_maintenance row
- * @param asset its asset's tag and name, if found
- * @param reporter its reporter's name, if found
- */
-export function repairListItemOf(
-    repair: asset_maintenance,
-    asset: { asset_tag: string; name: string } | undefined,
-    reporter: { first_name: string; last_name: string } | undefined,
-): RepairListItem {
-    const submittedAt = repair.reported_at.toLocaleString("en-US", {
-        month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit"
-    });
-
+export function maintenanceOf(row: TicketRow, baselines: Map<string, number>, viewer: SessionIdentity): Maintenance {
+    const asset = row.assets;
     return {
-        id: `MNT-${repair.maintenance_id}`,
-        repairId: repair.maintenance_id,
-        _source: "db",
-        _repairId: repair.maintenance_id,
-        assetId: asset?.asset_tag || `EQ-2024-${String(repair.asset_id).padStart(3, "0")}`,
-        assetName: asset?.name || "Unknown Asset",
-        // The screens label this "custodian", but it is the reporter, who may not hold the asset.
-        custodian: reporter ? `${reporter.first_name} ${reporter.last_name}` : "Unassigned",
-        reportedBy: reporter ? `${reporter.first_name} ${reporter.last_name}` : "Unassigned",
-        description: repair.issue_description,
-        statusLabel: progressTextOf(repair),
-        progressStatus: progressTextOf(repair),
-        // TODO(H-07): every ticket shows the same priority. Batch 5 shows the issue type instead.
-        priority: "Medium",
-        // There is no "acknowledged" column, so any status but the starting one counts as acknowledged.
-        acknowledged: repair.status !== asset_maintenance_status.PENDING_RECEIPT,
-        submittedAt,
-        createdAt: repair.reported_at.toISOString(),
+        maintenanceId: row.maintenance_id,
+        asset: { assetId: asset.asset_id, tag: asset.asset_tag, name: asset.name, warrantyExpiry: asset.warranty_expiry ? dateOnly(asset.warranty_expiry) : null },
+        type: row.type,
+        typeLabel: MAINTENANCE_TYPE_LABELS[row.type],
+        status: row.status,
+        statusLabel: MAINTENANCE_STATUS_LABELS[row.status],
+        issueType: row.issue_types
+            ? { issueTypeId: row.issue_types.issue_type_id, key: row.issue_types.key, name: row.issue_types.name, suggestedAction: row.issue_types.suggested_action }
+            : null,
+        issueDescription: row.issue_description,
+        reportedBy: personFor(viewer, row.users)!,
+        reportedAt: row.reported_at.toISOString(),
+        receivedBy: personFor(viewer, row.received_by),
+        receivedAt: isoOrNull(row.received_at),
+        underWarranty: isUnderWarranty(asset.warranty_expiry, row.received_at),
+        warrantyOverrideReason: row.warranty_override_reason,
+        provider: row.provider,
+        completedBy: personFor(viewer, row.completed_by),
+        completedAt: isoOrNull(row.completed_at),
+        resolutionRemarks: row.resolution_remarks,
+        triggerInspection: inspectionOf(row.trigger_inspection, baselines, viewer),
+        completionInspection: inspectionOf(row.completion_inspection, baselines, viewer),
     };
 }
 
-// The statuses of a ticket whose asset TSG has received. Moving a ticket into one of them receives the asset.
-const RECEIVED_STATUSES: asset_maintenance_status[] = [
-    asset_maintenance_status.INSPECTING,
-    asset_maintenance_status.REPAIRING,
-    asset_maintenance_status.EXTERNAL_SERVICE,
-];
-
-/**
- * Sets a ticket's progress status and moves the asset to match, in one transaction
- * (Acknowledge & Assign Technician, and the repair dialog's Update Progress).
- * - A received status (Inspection Phase, Waiting for Parts, an outside service) receives the asset the first time:
- *   the lifecycle guard must allow it, the asset goes to Maintenance (at the TSG Office), and a held loan ends as
- *   Ended by Maintenance. Moving between received statuses changes only the ticket.
- * - "Fixed & Completed" closes the ticket as Resolved, files a Maintenance inspection under the Staff member with the
- *   condition picked, and puts an asset that was in Maintenance back to Available.
- * - Any other text changes only the ticket.
- *
- * @param repairId the numeric ticket id
- * @param progressStatus the new status, already checked to be present
- * @param assetCondition the condition after a completed repair; anything not in ASSET_CONDITIONS keeps the current one
- * @param assetRemarks remarks for the completed repair; a default sentence when empty
- * @param staffId the session user, who receives the asset or completes the repair
- * @returns the updated asset_maintenance row
- * @throws AppError 400 if the progress text is not one the screens send
- * @throws AppError 404 if no ticket has this id
- * @throws AppError 409 if receiving the asset is refused by its status (retired, pending retirement, or missing)
- */
-// TODO(H-07): "Pending TSG Review" does not take the asset out of maintenance, and "Fixed & Completed" files an inspection even for a ticket that was never received. Batch 5 gives the statuses their allowed moves.
-export async function updateRepair(
-    repairId: number,
-    progressStatus: string,
-    assetCondition: string | undefined,
-    assetRemarks: string | undefined,
-    staffId: number,
-): Promise<asset_maintenance> {
-    const existing = await maintenanceRepository.findById(repairId);
-    if (!existing) {
-        throw new AppError(404, `No repair ticket found with id ${repairId}.`);
-    }
-
-    const progress = readProgressText(progressStatus);
-    const asset = await assetsRepository.findDetailById(existing.asset_id);
-    if (!asset) {
-        throw new AppError(404, `No asset found for repair ticket ${repairId}.`);
-    }
-
-    if (RECEIVED_STATUSES.includes(progress.status) && asset.status !== "MAINTENANCE") {
-        assertActionAllowed(asset, "RECEIVE_FOR_MAINTENANCE");
-        return maintenanceRepository.saveReceipt(existing, progress, staffId);
-    }
-
-    if (progress.status === asset_maintenance_status.RESOLVED) {
-        const current = (await assetsRepository.findState(asset)).condition;
-        const condition = (ASSET_CONDITIONS.includes(assetCondition as string)
-            ? assetCondition
-            : current?.condition ?? "PERFECT") as asset_condition;
-        const remarks = String(assetRemarks || "Repair completed & verified fixed by technical staff.").trim();
-        return maintenanceRepository.saveCompletion(existing, progress, staffId, condition, remarks, asset.status === "MAINTENANCE");
-    }
-
-    return maintenanceRepository.updateProgressStatus(repairId, progress);
+/** Every ticket of some rows in the Maintenance shape. */
+function ticketsOf({ rows, baselines }: TicketRows, viewer: SessionIdentity): Maintenance[] {
+    return rows.map(row => maintenanceOf(row, baselines, viewer));
 }
 
 /**
- * Sets only a ticket's status, for the Staff analytics board. The asset's status is not
- * changed, whatever the new status is, and no report is filed.
+ * One ticket in the Maintenance shape, read after the step that changed it. Also the ticket a loan receipt answers
+ * with when it opens a Return Damage ticket (features/loans).
  *
- * @param repairId the id from the URL, unchecked (NaN if it was not a number)
- * @param progressStatus the progress text the board sent
- * @returns the updated asset_maintenance row
- * @throws AppError 400 if the progress text is not one the screens send
+ * @param maintenanceId the ticket
+ * @param viewer the session user
  */
-// TODO(H-06): a second way to change a ticket's status, without updateRepair's asset changes. Kept in step 12 as decided; merging the two endpoints is its own behavior-change commit.
-export function updateRepairStatus(repairId: number, progressStatus: string): Promise<asset_maintenance> {
-    return maintenanceRepository.updateProgressStatus(repairId, readProgressText(String(progressStatus)));
+export async function maintenanceById(maintenanceId: number, viewer: SessionIdentity): Promise<Maintenance> {
+    return ticketsOf(await maintenanceRepository.findTickets({ maintenance_id: maintenanceId }), viewer)[0];
+}
+
+/**
+ * One ticket in the row shape today's screens read (`repairs`), built from the new statuses: the progress text is
+ * the status label.
+ *
+ * @param row the ticket with its asset and reporter
+ */
+function repairListItemOf(row: TicketRow): RepairListItem {
+    const reporter = `${row.users.first_name} ${row.users.last_name}`;
+    const label = MAINTENANCE_STATUS_LABELS[row.status];
+    return {
+        id: `MNT-${row.maintenance_id}`,
+        repairId: row.maintenance_id,
+        _source: "db",
+        _repairId: row.maintenance_id,
+        assetId: row.assets.asset_tag,
+        assetName: row.assets.name,
+        custodian: reporter,
+        reportedBy: reporter,
+        description: row.issue_description,
+        statusLabel: label,
+        progressStatus: label,
+        priority: "Medium",
+        acknowledged: row.status !== asset_maintenance_status.PENDING_RECEIPT,
+        submittedAt: row.reported_at.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+        createdAt: row.reported_at.toISOString(),
+    };
+}
+
+/**
+ * The tickets the session user may see, newest report first, optionally filtered (contract 7.4): TSG, the Director and
+ * the Secretary see every ticket; the account that heads a lab sees its lab's assets' tickets; a Researcher sees only the
+ * tickets they reported. The IT Admin is refused at the route.
+ *
+ * @param filters the status and type filters, already checked
+ * @param viewer the session user
+ * @returns the tickets in the Maintenance shape, and the same tickets in the row shape today's screens read
+ */
+export async function listTickets(filters: MaintenanceListFilters, viewer: SessionIdentity): Promise<{ tickets: Maintenance[]; repairs: RepairListItem[] }> {
+    const where: Prisma.asset_maintenanceWhereInput = {
+        ...(filters.statuses ? { status: { in: filters.statuses } } : {}),
+        ...(filters.types ? { type: { in: filters.types } } : {}),
+    };
+    if (!hasAccessRole(viewer, ["TSG_STAFF", "ADRIC_DIRECTOR", "ADRIC_SECRETARY"])) {
+        if (viewer.headOfCenterId !== null) where.assets = { center_id: viewer.headOfCenterId };
+        else where.reported_by_id = viewer.userId;
+    }
+    const found = await maintenanceRepository.findTickets(where);
+    return { tickets: ticketsOf(found, viewer), repairs: found.rows.map(repairListItemOf) };
+}
+
+/** The ticket with this id, or a 404. */
+async function existingTicket(maintenanceId: number) {
+    const ticket = await maintenanceRepository.findById(maintenanceId);
+    if (!ticket) throw new AppError(404, `No maintenance ticket found with id ${maintenanceId}.`);
+    return ticket;
+}
+
+/** The 409 message when a ticket's status does not allow the step. */
+function wrongStatus(ticket: { maintenance_id: number; status: asset_maintenance_status }, step: string): AppError {
+    return new AppError(409, `MNT-${ticket.maintenance_id} is ${MAINTENANCE_STATUS_LABELS[ticket.status]}, so it cannot be ${step}.`);
+}
+
+/**
+ * Reports an issue on an asset: a ticket in Pending Receipt, with the issue type and description. The asset and its
+ * loan do not change: the holder keeps the asset until TSG receives it. A TSG report is a TSG Maintenance ticket,
+ * anyone else's a Borrower Report. Inside the asset lock: who may report, the lifecycle guard (Available or On Loan),
+ * and one open ticket per asset, so two reports at once give one ticket. (H-05)
+ *
+ * @param assetTag the asset's tag, from the URL
+ * @param data the checked body: issue type and description
+ * @param reporter the session user: the holder, the Head of the asset's home lab, or TSG
+ * @returns the new ticket in the Maintenance shape
+ * @throws AppError 400 if the issue type does not exist
+ * @throws AppError 404 if no asset has this tag
+ * @throws AppError 403 NOT_THE_HOLDER_MESSAGE for a Researcher who does not hold it, NOT_YOUR_LAB_REPORT_MESSAGE for another lab's Head
+ * @throws AppError 409 if the guard refuses, or the asset already has an open ticket
+ */
+export async function reportIssue(assetTag: string, data: MaintenanceReportBody, reporter: SessionIdentity): Promise<Maintenance> {
+    const existing = await assetsRepository.findByTag(assetTag);
+    if (!existing) throw new AppError(404, `No asset found with tag ${assetTag}.`);
+    if (!(await maintenanceRepository.issueTypeExists(data.issueTypeId))) throw new AppError(400, PICK_ISSUE_TYPE_MESSAGE);
+    const byTsg = isTsg(reporter);
+
+    const ticket = await maintenanceRepository.withAssetLock(existing.asset_id, async (tx) => {
+        const asset = await maintenanceRepository.findAssetIn(tx, existing.asset_id);
+        if (!byTsg) {
+            if (reporter.headOfCenterId !== null) {
+                if (reporter.headOfCenterId !== asset.center_id) throw new AppError(403, NOT_YOUR_LAB_REPORT_MESSAGE);
+            } else if (holderOf(await maintenanceRepository.findOpenLoanIn(tx, asset.asset_id))?.userId !== reporter.userId) {
+                throw new AppError(403, NOT_THE_HOLDER_MESSAGE);
+            }
+        }
+        assertActionAllowed(asset, "START_MAINTENANCE");
+        const open = await maintenanceRepository.findOpenTicketIn(tx, asset.asset_id);
+        if (open) throw new AppError(409, `${asset.asset_tag} already has an open maintenance ticket (MNT-${open.maintenance_id}).`);
+
+        return maintenanceRepository.createTicket(tx, {
+            asset_id: asset.asset_id,
+            reported_by_id: reporter.userId,
+            type: byTsg ? "TSG_MAINTENANCE" : "BORROWER_REPORT",
+            status: asset_maintenance_status.PENDING_RECEIPT,
+            issue_type_id: data.issueTypeId,
+            issue_description: data.issueDescription,
+        });
+    });
+    return maintenanceById(ticket.maintenance_id, reporter);
+}
+
+/**
+ * TSG receives the asset for its ticket, in one transaction: a Maintenance inspection by the session user, the ticket
+ * Inspecting with who received it, when, and the inspection, and the asset in Maintenance (at the TSG Office). An open
+ * loan the borrower holds (On Loan or Return Requested) ends in the same step as Ended by Maintenance: the asset never
+ * goes back to that borrower. A loan still waiting for approval or release is left as it is; the guard refuses its
+ * approval and release while the asset is in Maintenance.
+ *
+ * @param maintenanceId the ticket
+ * @param inspection the checked Maintenance inspection
+ * @param receiver the session user, TSG (the route checks it)
+ * @returns the ticket, Inspecting
+ * @throws AppError 404 if no ticket has this id
+ * @throws AppError 400 if a metric does not apply to the asset; nothing is written
+ * @throws AppError 409 if the ticket is not Pending Receipt, or the asset's status cannot be received
+ */
+export async function receive(maintenanceId: number, inspection: InspectionInput, receiver: SessionIdentity): Promise<Maintenance> {
+    const ticket = await existingTicket(maintenanceId);
+
+    await maintenanceRepository.withAssetLock(ticket.asset_id, async (tx) => {
+        const current = await maintenanceRepository.findTicketIn(tx, maintenanceId);
+        if (current.status !== asset_maintenance_status.PENDING_RECEIPT) throw wrongStatus(current, "received");
+        assertActionAllowed(await maintenanceRepository.findAssetIn(tx, ticket.asset_id), "RECEIVE_FOR_MAINTENANCE");
+
+        const row = await writeInspection(tx, { assetId: ticket.asset_id, type: "MAINTENANCE", input: inspection, inspectorId: receiver.userId });
+        const now = new Date();
+        await maintenanceRepository.updateTicket(tx, maintenanceId, {
+            status: asset_maintenance_status.INSPECTING,
+            received_by_id: receiver.userId,
+            received_at: now,
+            trigger_inspection_id: row.inspection_id,
+        });
+        const loan = await maintenanceRepository.findOpenLoanIn(tx, ticket.asset_id);
+        if (isHeld(loan)) {
+            await maintenanceRepository.updateLoanIn(tx, loan!.loanId, { status: asset_loans_status.ENDED_BY_MAINTENANCE, closed_at: now });
+        }
+        await setAssetStatus(tx, ticket.asset_id, "MAINTENANCE");
+    });
+    return maintenanceById(maintenanceId, receiver);
+}
+
+/**
+ * Cancels a ticket. In Pending Receipt the reporter or TSG may cancel it, and the asset is unchanged (it never left its
+ * holder). In Inspecting only TSG may, and the asset is Available again, back at its home lab. Any later status is
+ * refused. The remarks are kept as the resolution remarks, and who cancelled it and when as completed by and at,
+ * which the asset's history shows as a cancellation.
+ *
+ * @param maintenanceId the ticket
+ * @param remarks the remarks, or null
+ * @param actor the session user
+ * @returns the ticket, Cancelled
+ * @throws AppError 404 if no ticket has this id
+ * @throws AppError 403 if the session user may not cancel it in its status
+ * @throws AppError 409 if the ticket is not Pending Receipt or Inspecting, or the asset is not in Maintenance
+ */
+export async function cancel(maintenanceId: number, remarks: string | null, actor: SessionIdentity): Promise<Maintenance> {
+    const ticket = await existingTicket(maintenanceId);
+
+    await maintenanceRepository.withAssetLock(ticket.asset_id, async (tx) => {
+        const current = await maintenanceRepository.findTicketIn(tx, maintenanceId);
+        if (current.status === asset_maintenance_status.PENDING_RECEIPT) {
+            if (!isTsg(actor) && current.reported_by_id !== actor.userId) {
+                throw new AppError(403, "Only the person who reported this issue, or TSG, can cancel it.");
+            }
+        } else if (current.status === asset_maintenance_status.INSPECTING) {
+            if (!isTsg(actor)) throw new AppError(403, "Only TSG can cancel a ticket once the asset is received.");
+            assertActionAllowed(await maintenanceRepository.findAssetIn(tx, ticket.asset_id), "WORK_ON_MAINTENANCE");
+            await setAssetStatus(tx, ticket.asset_id, "AVAILABLE");
+        } else {
+            throw wrongStatus(current, "cancelled");
+        }
+        await maintenanceRepository.updateTicket(tx, maintenanceId, {
+            status: asset_maintenance_status.CANCELLED,
+            completed_by_id: actor.userId,
+            completed_at: new Date(),
+            resolution_remarks: remarks,
+        });
+    });
+    return maintenanceById(maintenanceId, actor);
 }

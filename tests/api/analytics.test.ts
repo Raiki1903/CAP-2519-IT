@@ -532,7 +532,7 @@ describe("GET /api/analytics/tsg", () => {
         assetName: ASSETS.inRepair.name,
         reportedBy: USERS.custodianA.fullName,
         issueDescription: "Test repair: the lens does not focus",
-        progressStatus: "Inspection Phase",
+        progressStatus: "Inspecting",
         createdAt: "2026-02-09",
       },
     ]);
@@ -602,7 +602,7 @@ describe("GET /api/analytics/tsg", () => {
     }
   });
 
-  it("lists repairs newest first, with the progress text the screens show", async () => {
+  it("lists repairs newest first, with the status label as the progress text", async () => {
     const repair = await db.asset_maintenance.create({
       data: {
         asset_id: ASSETS.available.assetId,
@@ -616,7 +616,7 @@ describe("GET /api/analytics/tsg", () => {
       const res = await asStaff.get("/api/analytics/tsg");
 
       expect(res.body.data.repairs.map((r: { repairId: number }) => r.repairId)).toEqual([repair.maintenance_id, SEEDED_ROWS.repairId]);
-      expect(res.body.data.repairs[0]).toMatchObject({ reportedBy: USERS.staffTsg.fullName, progressStatus: "Pending TSG Review", createdAt: "2026-05-01" });
+      expect(res.body.data.repairs[0]).toMatchObject({ reportedBy: USERS.staffTsg.fullName, progressStatus: "Pending Receipt", createdAt: "2026-05-01" });
     } finally {
       await db.asset_maintenance.delete({ where: { maintenance_id: repair.maintenance_id } });
     }

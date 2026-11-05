@@ -122,10 +122,10 @@ describe("Who acted, where the body used to say", () => {
   it("files a ticket Staff open under the Staff member, not the asset's custodian (answer 7)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0841", custodianId: USERS.custodianA.userId });
 
-    const res = await asStaff.post(`/api/assets/${asset.tag}/maintenance`, { reportedBy: USERS.custodianA.fullName, description: "Test fault from Staff" });
+    const res = await asStaff.post(`/api/assets/${asset.tag}/maintenance`, { reportedBy: USERS.custodianA.fullName, issueTypeId: 1, issueDescription: "Test fault from Staff" });
 
-    expect(res.status).toBe(200);
-    expect(res.body.repair.reported_by_id).toBe(USERS.staffTsg.userId);
+    expect(res.status).toBe(201);
+    expect(res.body.maintenance.reportedBy.userId).toBe(USERS.staffTsg.userId);
   });
 
   it("records the Staff member who receives a return as the one who received it, and keeps the borrower", async () => {

@@ -20,7 +20,7 @@ const { db } = useApiHarness();
 const EXPECTED: Record<string, LifecycleAction[]> = {
   AVAILABLE: ["REQUEST_LOAN", "APPROVE_LOAN", "RELEASE_LOAN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "REQUEST_RETIREMENT", "MARK_MISSING", "EDIT_MASTER_DATA", "ROUTINE_INSPECTION"],
   ON_LOAN: ["REQUEST_RETURN", "RECEIVE_RETURN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "MARK_MISSING", "EDIT_MASTER_DATA"],
-  MAINTENANCE: ["REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
+  MAINTENANCE: ["WORK_ON_MAINTENANCE", "REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
   PENDING_RETIREMENT: ["DECIDE_RETIREMENT", "COMPLETE_RETIREMENT"],
   RETIRED: [],
   MISSING: ["MARK_FOUND", "REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
@@ -33,9 +33,9 @@ describe("the lifecycle guard", () => {
     }
   });
 
-  it("covers the six statuses and the fourteen actions", () => {
+  it("covers the six statuses and the fifteen actions", () => {
     expect(Object.keys(ALLOWED_ACTIONS).sort()).toEqual(Object.keys(EXPECTED).sort());
-    expect(LIFECYCLE_ACTIONS).toHaveLength(14);
+    expect(LIFECYCLE_ACTIONS).toHaveLength(15);
   });
 
   it("refuses a second loan or a retirement request while a loan waits, and says which loan", () => {

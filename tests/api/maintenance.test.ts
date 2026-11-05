@@ -1,479 +1,411 @@
 /**
- * Repairs API: the repair request, the ticket list, and the two ticket update routes.
- * Covers POST /api/assets/:tag/maintenance, GET /api/maintenance, PUT /api/maintenance/:id, PUT /api/maintenance/:id/status.
- * Workflow: maintenance (a custodian or staff member reports a fault, TSG receives the asset and moves the ticket through
- * its statuses, and the asset goes into Maintenance and back to Available when it is fixed).
- * Fixtures: the seeded ticket MNT-1 ("Inspection Phase") on TEST-0003, which is in Maintenance at the TSG Office; the
- * accounts (USERS). The list tests run first and remove the rows they add. One update test completes MNT-1 and so takes
- * TEST-0003 out of maintenance; every other write test uses its own extra asset (TEST-0401 onward, see extraAssets.ts).
+ * Maintenance API: reporting an issue, TSG's receipt, cancelling, and the ticket list.
+ * Covers POST /api/assets/:tag/maintenance, GET /api/maintenance, PUT /api/maintenance/:id/receive and /cancel, and that
+ * the old PUT /api/maintenance/:id and /:id/status are gone.
+ * Workflow: maintenance (the holder, the home lab's Head, or TSG reports an issue with an issue type; the asset stays
+ * where it is until TSG receives it with a Maintenance inspection, which ends a held loan; the reporter or TSG cancels).
+ * Fixtures: the seeded ticket MNT-1 (Inspecting, reported by Custodian A, received by Staff TSG) on TEST-0003, in
+ * Maintenance, under warranty until 2027-06-01; the issue types in LOOKUPS; LAB, headed by the Lab Head. The list tests
+ * run first. Every write test uses its own extra asset (TEST-0401 onward, see extraAssets.ts).
  */
 import { describe, expect, it } from "vitest";
 import { addExtraAsset } from "../setup/extraAssets";
-import { ASSETS, LAB, SEEDED_ROWS, USERS } from "../setup/fixtures";
+import { ASSETS, LAB, LOOKUPS, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 
 const { db, as } = useApiHarness();
 const asCustodian = as(USERS.custodianA);
 const asStaff = as(USERS.staffTsg);
 
-/** What RepairForm sends: the reporter's typed name (not read since 13c: the reporter is the session user) and the fault. */
-const repairBody = (description: string, extra: Record<string, unknown> = {}) => ({
-  reportedBy: USERS.custodianB.fullName,
-  description,
-  ...extra,
-});
+const ISSUE_TYPE = LOOKUPS.issueTypes[0];
+const NOT_THE_HOLDER = "Only the person who holds this asset can report an issue on it.";
 
-const DEFAULT_COMPLETION_REMARKS = "Repair completed & verified fixed by technical staff.";
+/** A report body with the first seeded issue type. */
+const reportBody = (issueDescription: string, extra: Record<string, unknown> = {}) => ({ issueTypeId: ISSUE_TYPE.issueTypeId, issueDescription, ...extra });
 
-const reportCount = (assetId: number) => db.asset_inspections.count({ where: { asset_id: assetId } });
+/** A receive body with a Maintenance inspection. */
+const receiveBody = (extra: Record<string, unknown> = {}) => ({ inspection: { condition: "DEGRADED", remarks: "Test: screen flickers", ...extra } });
 
-/** The status each progress text the screens send is stored as. */
-const STATUS_OF: Record<string, string> = {
-  "Pending TSG Review": "PENDING_RECEIPT",
-  "Inspection Phase": "INSPECTING",
-  "Warranty Holder Possession": "EXTERNAL_SERVICE",
-  "Third-Party Repairer Possession": "EXTERNAL_SERVICE",
-  "Fixed & Completed": "RESOLVED",
-};
+const ticketRow = (maintenanceId: number) => db.asset_maintenance.findUniqueOrThrow({ where: { maintenance_id: maintenanceId } });
+const assetStatus = async (assetId: number) => (await db.assets.findUniqueOrThrow({ where: { asset_id: assetId } })).status;
+const loanRow = (loanId: number) => db.asset_loans.findUniqueOrThrow({ where: { loan_id: loanId } });
 
-const ticketStatus = async (repairId: number) => (await db.asset_maintenance.findUniqueOrThrow({ where: { maintenance_id: repairId } })).status;
-
-/**
- * Opens a ticket through the API, signed in as Custodian B (the reporter), and answers its id. The description
- * names the tag, so no two tests send the same tag and description and trip the 8-second duplicate guard. (M-07)
- */
-async function openTicket(tag: string): Promise<number> {
-  const res = await as(USERS.custodianB).post(`/api/assets/${tag}/maintenance`, repairBody(`Test fault on ${tag}`));
-  expect(res.status, JSON.stringify(res.body)).toBe(200);
-  return res.body.repair.maintenance_id;
+/** An asset On Loan to Custodian A, with a Pending Receipt ticket Custodian A reported. */
+async function reportedOnLoan(tag: string) {
+  const asset = await addExtraAsset(db, { tag, status: "ON_LOAN", custodianId: USERS.custodianA.userId });
+  const res = await asCustodian.post(`/api/assets/${tag}/maintenance`, reportBody(`Test fault on ${tag}`));
+  expect(res.status, JSON.stringify(res.body)).toBe(201);
+  return { asset, maintenanceId: res.body.maintenance.maintenanceId as number };
 }
 
 async function listedAsset(tag: string) {
   const res = await asStaff.get("/api/assets");
-  return res.body.assets.find((a: { id: string }) => a.id === tag);
+  return res.body.assets.find((a: { tag: string }) => a.tag === tag);
 }
 
 describe("GET /api/maintenance", () => {
-  it("lists the seeded ticket with the fields the screens read", async () => {
+  it("lists the seeded ticket in the Maintenance shape and in the row shape today's screens read", async () => {
     const res = await asStaff.get("/api/maintenance");
 
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.repairs).toHaveLength(1);
+    expect(res.body.tickets).toHaveLength(1);
+    expect(res.body.tickets[0]).toMatchObject({
+      maintenanceId: SEEDED_ROWS.repairId,
+      asset: { assetId: ASSETS.inRepair.assetId, tag: ASSETS.inRepair.tag, name: ASSETS.inRepair.name, warrantyExpiry: "2027-06-01" },
+      type: "BORROWER_REPORT",
+      typeLabel: "Borrower Report",
+      status: "INSPECTING",
+      statusLabel: "Inspecting",
+      issueType: null,
+      issueDescription: "Test repair: the lens does not focus",
+      reportedBy: { userId: USERS.custodianA.userId, name: USERS.custodianA.fullName },
+      receivedBy: { userId: USERS.staffTsg.userId, name: USERS.staffTsg.fullName },
+      underWarranty: true,
+      completedBy: null,
+      triggerInspection: null,
+    });
     expect(res.body.repairs[0]).toMatchObject({
-      id: `MNT-${SEEDED_ROWS.repairId}`,
+      id: "MNT-1",
       repairId: SEEDED_ROWS.repairId,
       assetId: ASSETS.inRepair.tag,
-      assetName: ASSETS.inRepair.name,
       reportedBy: USERS.custodianA.fullName,
-      custodian: USERS.custodianA.fullName,
-      description: "Test repair: the lens does not focus",
-      progressStatus: "Inspection Phase",
-      statusLabel: "Inspection Phase",
-      priority: "Medium",
+      progressStatus: "Inspecting",
+      statusLabel: "Inspecting",
       acknowledged: true,
     });
-    expect(typeof res.body.repairs[0].submittedAt).toBe("string");
-    expect(typeof res.body.repairs[0].createdAt).toBe("string");
   });
 
-  it("lists tickets newest first, and marks a ticket not yet received as not acknowledged, with priority Medium", async () => {
-    const pending = await db.asset_maintenance.create({
-      data: {
-        asset_id: ASSETS.inspected.assetId,
-        reported_by_id: USERS.staffTsg.userId,
-        issue_description: "Test fault: pending review",
-        status: "PENDING_RECEIPT",
-        reported_at: new Date("2026-06-01T09:00:00Z"),
-      },
-    });
-    const immediate = await db.asset_maintenance.create({
-      data: {
-        asset_id: ASSETS.available.assetId,
-        reported_by_id: USERS.labHead.userId,
-        issue_description: "Test fault: immediate",
-        status: "PENDING_RECEIPT",
-        reported_at: new Date("2026-06-02T09:00:00Z"),
-      },
-    });
-    try {
-      const res = await asStaff.get("/api/maintenance");
-
-      expect(res.body.repairs.map((r: { id: string }) => r.id)).toEqual([
-        `MNT-${immediate.maintenance_id}`,
-        `MNT-${pending.maintenance_id}`,
-        `MNT-${SEEDED_ROWS.repairId}`,
-      ]);
-      expect(res.body.repairs[0]).toMatchObject({
-        assetId: ASSETS.available.tag,
-        reportedBy: USERS.labHead.fullName,
-        priority: "Medium",
-        acknowledged: false,
-        progressStatus: "Pending TSG Review",
-      });
-      expect(res.body.repairs[0]).not.toHaveProperty("isImmediate");
-      expect(res.body.repairs[1]).toMatchObject({ priority: "Medium", acknowledged: false });
-    } finally {
-      await db.asset_maintenance.deleteMany({ where: { maintenance_id: { in: [pending.maintenance_id, immediate.maintenance_id] } } });
+  it("shows each role only its tickets: all for TSG, the Director and the Secretary, the lab's for its Head, the reporter's own for a Researcher", async () => {
+    for (const user of [USERS.staffTsg, USERS.director, USERS.secretary, USERS.labHead, USERS.custodianA]) {
+      const res = await as(user).get("/api/maintenance");
+      expect(res.status, user.fullName).toBe(200);
+      expect(res.body.tickets.map((t: { maintenanceId: number }) => t.maintenanceId), user.fullName).toEqual([SEEDED_ROWS.repairId]);
     }
+    const other = await as(USERS.custodianB).get("/api/maintenance");
+    expect(other.body.tickets).toEqual([]);
+    expect(other.body.repairs).toEqual([]);
+  });
+
+  it("answers 403 to the IT Admin", async () => {
+    const res = await as(USERS.admin).get("/api/maintenance");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("hides the TSG member's name from the Researcher who reported it", async () => {
+    const res = await asCustodian.get("/api/maintenance");
+
+    expect(res.body.tickets[0].reportedBy).toEqual({ userId: USERS.custodianA.userId, name: USERS.custodianA.fullName });
+    expect(res.body.tickets[0].receivedBy).toEqual({ hidden: true });
+  });
+
+  it("filters by ?status= and ?type=, and answers 400 for an unknown value", async () => {
+    expect((await asStaff.get("/api/maintenance?status=INSPECTING,REPAIRING")).body.tickets).toHaveLength(1);
+    expect((await asStaff.get("/api/maintenance?status=PENDING_RECEIPT")).body.tickets).toHaveLength(0);
+    expect((await asStaff.get("/api/maintenance?type=TSG_MAINTENANCE")).body.tickets).toHaveLength(0);
+
+    const status = await asStaff.get("/api/maintenance?status=FIXED");
+    expect(status.status).toBe(400);
+    expect(status.body.error).toBe("Unknown maintenance status: FIXED.");
+    expect((await asStaff.get("/api/maintenance?type=URGENT")).status).toBe(400);
   });
 });
 
-describe("POST /api/assets/:tag/maintenance", () => {
-  it("opens a ticket in 'Pending TSG Review' under the session user, and leaves the asset's status alone (issue #32 fixed)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0401" });
+describe("POST /api/assets/:tag/maintenance: report an issue", () => {
+  it("lets the holder report: a Borrower Report in Pending Receipt with the issue type; the asset and the loan do not change", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0401", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
 
-    const res = await as(USERS.custodianB).post(`/api/assets/${asset.tag}/maintenance`, repairBody("Test fault: the fan is loud"));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, reportBody("Test: battery drains in an hour"));
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.repair).toMatchObject({
-      asset_id: asset.assetId,
-      reported_by_id: USERS.custodianB.userId,
-      issue_description: "Test fault: the fan is loud",
+    expect(res.status).toBe(201);
+    expect(res.body.maintenance).toMatchObject({
+      asset: { tag: asset.tag },
+      type: "BORROWER_REPORT",
       status: "PENDING_RECEIPT",
+      statusLabel: "Pending Receipt",
+      issueType: { issueTypeId: ISSUE_TYPE.issueTypeId, key: ISSUE_TYPE.key, name: ISSUE_TYPE.name, suggestedAction: ISSUE_TYPE.suggestedAction },
+      issueDescription: "Test: battery drains in an hour",
+      reportedBy: { userId: USERS.custodianA.userId },
+      receivedBy: null,
+      underWarranty: false,
     });
+    expect(await assetStatus(asset.assetId)).toBe("ON_LOAN");
+    expect((await loanRow(asset.loanId!)).status).toBe("ON_LOAN");
+    expect(await listedAsset(asset.tag)).toMatchObject({ holder: { userId: USERS.custodianA.userId } });
+  });
+
+  it("lets the Head of the asset's home lab report a Borrower Report, and TSG a TSG Maintenance ticket", async () => {
+    const byHead = await addExtraAsset(db, { tag: "TEST-0402" });
+    const byTsg = await addExtraAsset(db, { tag: "TEST-0403" });
+
+    const head = await as(USERS.labHead).post(`/api/assets/${byHead.tag}/maintenance`, reportBody("Test: fan noise"));
+    const tsg = await asStaff.post(`/api/assets/${byTsg.tag}/maintenance`, reportBody("Test: yearly cleaning"));
+
+    expect(head.status).toBe(201);
+    expect(head.body.maintenance).toMatchObject({ type: "BORROWER_REPORT", reportedBy: { userId: USERS.labHead.userId } });
+    expect(tsg.status).toBe(201);
+    expect(tsg.body.maintenance).toMatchObject({ type: "TSG_MAINTENANCE", typeLabel: "TSG Maintenance", reportedBy: { userId: USERS.staffTsg.userId } });
+    expect(await assetStatus(byTsg.assetId)).toBe("AVAILABLE");
+  });
+
+  it("files the ticket under the session user, whatever reporter the body names (issue #32)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0404" });
+
+    const res = await asStaff.post(`/api/assets/${asset.tag}/maintenance`, reportBody("Test fault", { reportedBy: USERS.labHead.fullName, reportedById: USERS.labHead.userId }));
+
+    expect(res.body.maintenance.reportedBy.userId).toBe(USERS.staffTsg.userId);
+  });
+
+  it("answers 403 to a Researcher who does not hold the asset, and writes nothing", async () => {
+    const onLoan = await addExtraAsset(db, { tag: "TEST-0405", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
+
+    for (const tag of [onLoan.tag, ASSETS.available.tag]) {
+      const res = await as(USERS.custodianB).post(`/api/assets/${tag}/maintenance`, reportBody("Test: not mine"));
+      expect(res.status, tag).toBe(403);
+      expect(res.body.error).toBe(NOT_THE_HOLDER);
+    }
+    expect(await db.asset_maintenance.count({ where: { asset_id: { in: [onLoan.assetId, ASSETS.available.assetId] } } })).toBe(0);
+  });
+
+  it("answers 403 to the Head of another lab", async () => {
+    const lab = await db.research_centers.create({ data: { name: "Test Lab MNTLAB", short_code: "MNTLAB", location: "MANILA" } });
+    const asset = await addExtraAsset(db, { tag: "MNTLAB-0001", centerId: lab.center_id });
+
+    const res = await as(USERS.labHead).post(`/api/assets/${asset.tag}/maintenance`, reportBody("Test: other lab"));
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("This asset belongs to another lab. Only that lab's Head can report an issue on it.");
+  });
+
+  it.each([
+    { body: { issueTypeId: 999, issueDescription: "Test fault" }, error: "Pick an issue type from the list.", case: "an unknown issue type" },
+    { body: { issueDescription: "Test fault" }, error: "Pick an issue type from the list.", case: "no issue type" },
+    { body: { issueTypeId: ISSUE_TYPE.issueTypeId, issueDescription: "   " }, error: "Describe the issue.", case: "a description of only spaces" },
+    { body: { issueTypeId: ISSUE_TYPE.issueTypeId, issueDescription: "x".repeat(2001) }, error: "issueDescription can be at most 2000 characters.", case: "a description over 2,000 characters" },
+  ])("answers 400 for $case, and writes nothing", async ({ body, error }) => {
+    const before = await db.asset_maintenance.count();
+
+    const res = await asStaff.post(`/api/assets/${ASSETS.available.tag}/maintenance`, body);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(error);
+    expect(await db.asset_maintenance.count()).toBe(before);
+  });
+
+  it("answers 409 to a second report while a ticket is open, naming it", async () => {
+    const { asset, maintenanceId } = await reportedOnLoan("TEST-0406");
+
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, reportBody("Test: a different fault"));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(`${asset.tag} already has an open maintenance ticket (MNT-${maintenanceId}).`);
     expect(await db.asset_maintenance.count({ where: { asset_id: asset.assetId } })).toBe(1);
-    expect((await listedAsset(asset.tag)).status).toBe("AVAILABLE");
   });
 
-  it("ignores isImmediate: the column is gone, and every new ticket is 'Pending TSG Review'", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0402" });
+  it("gives one ticket for two reports sent at once: one 201, one 409", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0407", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
 
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, repairBody("Test fault: smoke", { isImmediate: true }));
+    const results = await Promise.all([
+      asCustodian.post(`/api/assets/${asset.tag}/maintenance`, reportBody("Test: first")),
+      asCustodian.post(`/api/assets/${asset.tag}/maintenance`, reportBody("Test: second")),
+    ]);
 
-    expect(res.status).toBe(200);
-    expect(res.body.repair).toMatchObject({ status: "PENDING_RECEIPT" });
-    expect(res.body.repair).not.toHaveProperty("is_immediate");
-    expect((await asStaff.get("/api/maintenance")).body.repairs.find((r: { repairId: number }) => r.repairId === res.body.repair.maintenance_id))
-      .toMatchObject({ progressStatus: "Pending TSG Review" });
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(await db.asset_maintenance.count({ where: { asset_id: asset.assetId } })).toBe(1);
   });
 
-  it("ignores a reporter name that names someone else: the ticket is still the session user's (issue #32 fixed)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0403" });
+  it("takes the same description again once the first ticket is closed: the in-memory repeat check is gone (M-07, #65)", async () => {
+    const { asset, maintenanceId } = await reportedOnLoan("TEST-0408");
+    expect((await asCustodian.put(`/api/maintenance/${maintenanceId}/cancel`, {})).status).toBe(200);
 
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, repairBody("Test fault: no power", { reportedBy: `Dr. ${USERS.labHead.fullName}` }));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, reportBody(`Test fault on ${asset.tag}`));
 
-    expect(res.body.repair.reported_by_id).toBe(USERS.custodianA.userId);
-  });
-
-  it.each([
-    { reportedBy: "Nobody Known", case: "a typed name that matches nobody", tag: "TEST-0404" },
-    { reportedBy: undefined, case: "no name", tag: "TEST-0405" },
-  ])("files the ticket under the session user for $case, not under user 1 (H-10 fixed)", async ({ reportedBy, tag }) => {
-    const asset = await addExtraAsset(db, { tag });
-
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, repairBody("Test fault: unknown reporter", { reportedBy }));
-
-    expect(res.status).toBe(200);
-    expect(res.body.repair.reported_by_id).toBe(USERS.custodianA.userId);
+    expect(res.status).toBe(201);
   });
 
   it.each([
-    { status: "DISPOSED" as const, label: "Retired", tag: "TEST-0406" },
-    { status: "MAINTENANCE" as const, label: "Maintenance", tag: "TEST-0407" },
-  ])("answers 409 for an asset that is $label, and writes nothing (the lifecycle guard, H-05)", async ({ status, label, tag }) => {
+    { status: "DISPOSED" as const, label: "Retired", tag: "TEST-0409" },
+    { status: "MAINTENANCE" as const, label: "Maintenance", tag: "TEST-0410" },
+  ])("answers 409 for an asset that is $label (the lifecycle guard)", async ({ status, label, tag }) => {
     const asset = await addExtraAsset(db, { tag, status });
 
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, repairBody(`Test fault: on ${tag}`));
+    const res = await asStaff.post(`/api/assets/${asset.tag}/maintenance`, reportBody("Test fault"));
 
     expect(res.status).toBe(409);
     expect(res.body.error).toBe(`${tag} is ${label} and cannot take a maintenance ticket.`);
     expect(await db.asset_maintenance.count({ where: { asset_id: asset.assetId } })).toBe(0);
   });
 
-  it.each([
-    { description: undefined, case: "no description" },
-    { description: "   ", case: "a description of only spaces" },
-  ])("answers 400 for $case, and writes nothing", async ({ description }) => {
-    const before = await db.asset_maintenance.count();
-
-    const res = await asCustodian.post(`/api/assets/${ASSETS.available.tag}/maintenance`, repairBody("unused", { description }));
-
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(await db.asset_maintenance.count()).toBe(before);
-  });
-
   it("answers 404 for an unknown tag", async () => {
-    const res = await asCustodian.post("/api/assets/TEST-9999/maintenance", repairBody("Test fault: unknown tag"));
+    const res = await asStaff.post("/api/assets/TEST-9999/maintenance", reportBody("Test fault"));
 
     expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
   });
 });
 
-describe("POST /api/assets/:tag/maintenance: the 8-second duplicate guard (M-07)", () => {
-  it("rejects the same tag and description sent again within 8 seconds with 409 (M-07)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0411" });
+describe("PUT /api/maintenance/:id/receive", () => {
+  it("files a Maintenance inspection, moves the ticket to Inspecting, puts the asset in Maintenance at the TSG Office, and ends the held loan", async () => {
+    const { asset, maintenanceId } = await reportedOnLoan("TEST-0421");
 
-    const first = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, repairBody("Test fault: sent twice"));
-    expect(first.status).toBe(200);
+    const res = await asStaff.put(`/api/maintenance/${maintenanceId}/receive`, receiveBody());
 
-    const second = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, repairBody("Test fault: sent twice"));
-    expect(second.status).toBe(409);
-    expect(second.body.success).toBe(false);
-
-    expect(await db.asset_maintenance.count({ where: { asset_id: asset.assetId } })).toBe(1);
-  });
-
-  it("accepts a second ticket on the same asset with a different description", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0412" });
-
-    const first = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, repairBody("Test fault: first problem"));
-    const second = await asCustodian.post(`/api/assets/${asset.tag}/maintenance`, repairBody("Test fault: second problem"));
-
-    expect([first.status, second.status]).toEqual([200, 200]);
-    expect(await db.asset_maintenance.count({ where: { asset_id: asset.assetId } })).toBe(2);
-  });
-
-  it("accepts the same description on a different asset", async () => {
-    const one = await addExtraAsset(db, { tag: "TEST-0413" });
-    const two = await addExtraAsset(db, { tag: "TEST-0414" });
-
-    const first = await asCustodian.post(`/api/assets/${one.tag}/maintenance`, repairBody("Test fault: shared wording"));
-    const second = await asCustodian.post(`/api/assets/${two.tag}/maintenance`, repairBody("Test fault: shared wording"));
-
-    expect([first.status, second.status]).toEqual([200, 200]);
-  });
-
-  it("answers 409, not 404, when an unknown tag is sent twice, because the guard runs before the tag lookup (new finding, M-07 family)", async () => {
-    const first = await asCustodian.post("/api/assets/TEST-9998/maintenance", repairBody("Test fault: unknown tag twice"));
-    expect(first.status).toBe(404);
-
-    const second = await asCustodian.post("/api/assets/TEST-9998/maintenance", repairBody("Test fault: unknown tag twice"));
-    expect(second.status).toBe(409);
-  });
-});
-
-describe("PUT /api/maintenance/:id", () => {
-  it.each([
-    { progressStatus: "Inspection Phase", tag: "TEST-0421" },
-    { progressStatus: "Warranty Holder Possession", tag: "TEST-0422" },
-    { progressStatus: "Third-Party Repairer Possession", tag: "TEST-0423" },
-  ])(
-    "'$progressStatus': receives the asset: the ticket notes who and when, and the asset goes to Maintenance at the TSG Office",
-    async ({ progressStatus, tag }) => {
-      const asset = await addExtraAsset(db, { tag, condition: "MINOR_DRIFT" });
-      const repairId = await openTicket(asset.tag);
-
-      const res = await asStaff.put(`/api/maintenance/${repairId}`, { progressStatus });
-
-      expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ success: true, repair: { maintenance_id: repairId, status: STATUS_OF[progressStatus] } });
-      const ticket = await db.asset_maintenance.findUniqueOrThrow({ where: { maintenance_id: repairId } });
-      expect(ticket).toMatchObject({ status: STATUS_OF[progressStatus], received_by_id: USERS.staffTsg.userId });
-      expect(ticket.received_at).not.toBeNull();
-      expect(await listedAsset(asset.tag)).toMatchObject({ status: "MAINTENANCE", currentLocation: "TSG Office", condition: "MINOR_DRIFT" });
-    },
-  );
-
-  it("receiving an asset on loan ends its loan as Ended by Maintenance", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0425", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
-    const repairId = await openTicket(asset.tag);
-
-    await asStaff.put(`/api/maintenance/${repairId}`, { progressStatus: "Inspection Phase" });
-
-    const loan = await db.asset_loans.findUniqueOrThrow({ where: { loan_id: asset.loanId! } });
+    expect(res.status).toBe(200);
+    expect(res.body.maintenance).toMatchObject({
+      status: "INSPECTING",
+      receivedBy: { userId: USERS.staffTsg.userId },
+      triggerInspection: { type: "MAINTENANCE", typeLabel: "Maintenance", condition: "DEGRADED", remarks: "Test: screen flickers", inspectedBy: { userId: USERS.staffTsg.userId } },
+    });
+    expect(res.body.maintenance.receivedAt).not.toBeNull();
+    const ticket = await ticketRow(maintenanceId);
+    expect(ticket.trigger_inspection_id).toBe(res.body.maintenance.triggerInspection.inspectionId);
+    expect(await assetStatus(asset.assetId)).toBe("MAINTENANCE");
+    const loan = await loanRow(asset.loanId!);
     expect(loan.status).toBe("ENDED_BY_MAINTENANCE");
     expect(loan.closed_at).not.toBeNull();
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "MAINTENANCE", holder: null });
+    expect(await listedAsset(asset.tag)).toMatchObject({ holder: null, currentLocation: "TSG Office", condition: "DEGRADED" });
   });
 
-  it("moving between received statuses changes only the ticket", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0424" });
-    const repairId = await openTicket(asset.tag);
-    await asStaff.put(`/api/maintenance/${repairId}`, { progressStatus: "Inspection Phase" });
-    const receivedAt = (await db.asset_maintenance.findUniqueOrThrow({ where: { maintenance_id: repairId } })).received_at;
+  it("leaves a loan waiting for approval as it is: its approval is refused by the guard, and it can still be declined (section 3.7)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0422" });
+    const waiting = await db.asset_loans.create({
+      data: { asset_id: asset.assetId, borrower_id: USERS.custodianB.userId, purpose: "Test purpose: waiting", return_by: new Date(Date.now() + 14 * 86400000), status: "PENDING_APPROVAL", destination_center_id: LAB.centerId },
+    });
+    const filed = await asStaff.post(`/api/assets/${asset.tag}/maintenance`, reportBody("Test fault"));
 
-    const res = await asStaff.put(`/api/maintenance/${repairId}`, { progressStatus: "Third-Party Repairer Possession" });
+    expect((await asStaff.put(`/api/maintenance/${filed.body.maintenance.maintenanceId}/receive`, receiveBody())).status).toBe(200);
+    expect((await loanRow(waiting.loan_id)).status).toBe("PENDING_APPROVAL");
 
-    expect(res.status).toBe(200);
-    const ticket = await db.asset_maintenance.findUniqueOrThrow({ where: { maintenance_id: repairId } });
-    expect(ticket).toMatchObject({ status: "EXTERNAL_SERVICE", provider: "Third-party repairer", received_at: receivedAt });
-    expect((await listedAsset(asset.tag)).status).toBe("MAINTENANCE");
+    const approve = await as(USERS.labHead).put(`/api/loans/${waiting.loan_id}/approve`, {});
+    expect(approve.status).toBe(409);
+    expect(approve.body.error).toBe(`${asset.tag} is Maintenance and cannot have a loan approved.`);
+    const decline = await as(USERS.labHead).put(`/api/loans/${waiting.loan_id}/decline`, { decisionRemarks: "Test: the asset is in repair" });
+    expect(decline.status).toBe(200);
+    expect((await loanRow(waiting.loan_id)).status).toBe("DECLINED");
   });
 
-  it("answers 409 when the asset's status cannot be received for maintenance, and changes nothing", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0426", assetStatus: "MISSING" });
-    const ticket = await db.asset_maintenance.create({ data: { asset_id: asset.assetId, reported_by_id: USERS.custodianA.userId, issue_description: "Test old ticket" } });
-
-    const res = await asStaff.put(`/api/maintenance/${ticket.maintenance_id}`, { progressStatus: "Inspection Phase" });
+  it("answers 409 for a ticket that is not Pending Receipt", async () => {
+    const res = await asStaff.put(`/api/maintenance/${SEEDED_ROWS.repairId}/receive`, receiveBody());
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe("TEST-0426 is Missing and cannot be received for maintenance.");
-    expect(await ticketStatus(ticket.maintenance_id)).toBe("PENDING_RECEIPT");
+    expect(res.body.error).toBe("MNT-1 is Inspecting, so it cannot be received.");
   });
 
-  it("'Fixed & Completed': resolves the ticket, files a Maintenance inspection by the Staff member, and puts the asset back to Available", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0431", status: "ON_LOAN", custodianId: USERS.custodianA.userId, condition: "DEGRADED" });
-    const repairId = await openTicket(asset.tag);
-    await asStaff.put(`/api/maintenance/${repairId}`, { progressStatus: "Inspection Phase" });
+  it("answers 400 without an inspection, or with a metric the asset does not measure, and writes nothing", async () => {
+    const { asset, maintenanceId } = await reportedOnLoan("TEST-0423");
 
-    const res = await asStaff.put(`/api/maintenance/${repairId}`, {
-      progressStatus: "Fixed & Completed",
-      assetCondition: "OPERATIONAL",
-      assetRemarks: "Test repaired: fan replaced",
-    });
+    const none = await asStaff.put(`/api/maintenance/${maintenanceId}/receive`, {});
+    const metric = await asStaff.put(`/api/maintenance/${maintenanceId}/receive`, receiveBody({ metrics: [{ metricId: LOOKUPS.metrics[0].metricId, value: 60 }] }));
 
-    expect(res.status).toBe(200);
-    const ticket = await db.asset_maintenance.findUniqueOrThrow({ where: { maintenance_id: repairId } });
-    expect(ticket).toMatchObject({ status: "RESOLVED", completed_by_id: USERS.staffTsg.userId, resolution_remarks: "Test repaired: fan replaced" });
-    const inspection = await db.asset_inspections.findUniqueOrThrow({ where: { inspection_id: ticket.completion_inspection_id! } });
-    expect(inspection).toMatchObject({ type: "MAINTENANCE", inspected_by_id: USERS.staffTsg.userId, condition: "OPERATIONAL", remarks: "Test repaired: fan replaced" });
-    expect(await listedAsset(asset.tag)).toMatchObject({ status: "AVAILABLE", holder: null, condition: "OPERATIONAL", currentLocation: LAB.shortCode });
+    expect(none.status).toBe(400);
+    expect(none.body.error).toBe("Missing required field: inspection.");
+    expect(metric.status).toBe(400);
+    expect(metric.body.error).toBe("That measurement does not apply to this asset.");
+    expect((await ticketRow(maintenanceId)).status).toBe("PENDING_RECEIPT");
+    expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(0);
+    expect(await assetStatus(asset.assetId)).toBe("ON_LOAN");
   });
 
-  it("'Fixed & Completed' without a known condition or remarks keeps the asset's condition and writes the default remarks", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0432", condition: "DEGRADED" });
-    const repairId = await openTicket(asset.tag);
-    await asStaff.put(`/api/maintenance/${repairId}`, { progressStatus: "Inspection Phase" });
+  it("gives one winner when TSG receives while the reporter cancels", async () => {
+    const { asset, maintenanceId } = await reportedOnLoan("TEST-0424");
 
-    const res = await asStaff.put(`/api/maintenance/${repairId}`, { progressStatus: "Fixed & Completed", assetCondition: "Broken" });
+    const [received, cancelled] = await Promise.all([
+      asStaff.put(`/api/maintenance/${maintenanceId}/receive`, receiveBody()),
+      asCustodian.put(`/api/maintenance/${maintenanceId}/cancel`, {}),
+    ]);
 
-    expect(res.status).toBe(200);
-    expect(await db.asset_inspections.findFirstOrThrow({ where: { asset_id: asset.assetId, type: "MAINTENANCE" } })).toMatchObject({
-      condition: "DEGRADED",
-      remarks: DEFAULT_COMPLETION_REMARKS,
-    });
-    expect((await listedAsset(asset.tag)).status).toBe("AVAILABLE");
+    expect([received.status, cancelled.status].filter(s => s === 200)).toHaveLength(1);
+    const ticket = await ticketRow(maintenanceId);
+    if (received.status === 200) {
+      expect(cancelled.status).toBe(403);
+      expect(ticket.status).toBe("INSPECTING");
+      expect(await assetStatus(asset.assetId)).toBe("MAINTENANCE");
+    } else {
+      expect(received.status).toBe(409);
+      expect(ticket.status).toBe("CANCELLED");
+      expect(await assetStatus(asset.assetId)).toBe("ON_LOAN");
+    }
   });
 
-  it("'Fixed & Completed' on a ticket that was never received still files an inspection, and leaves the asset's status (known defect H-07)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0433", status: "ON_LOAN", custodianId: USERS.custodianA.userId });
-    const repairId = await openTicket(asset.tag);
+  it("answers 400 for an id that is not a number, such as MNT-1, and 404 for an unknown id", async () => {
+    const bad = await asStaff.put("/api/maintenance/MNT-1/receive", receiveBody());
+    const unknown = await asStaff.put("/api/maintenance/999999/receive", receiveBody());
 
-    const res = await asStaff.put(`/api/maintenance/${repairId}`, { progressStatus: "Fixed & Completed" });
-
-    expect(res.status).toBe(200);
-    expect(await reportCount(asset.assetId)).toBe(1);
-    expect((await listedAsset(asset.tag)).status).toBe("ON_LOAN");
-  });
-
-  it("'Fixed & Completed' on the seeded ticket brings TEST-0003 back from the TSG Office to its home lab", async () => {
-    const res = await asStaff.put(`/api/maintenance/${SEEDED_ROWS.repairId}`, { progressStatus: "Fixed & Completed" });
-
-    expect(res.status).toBe(200);
-    expect(await listedAsset(ASSETS.inRepair.tag)).toMatchObject({ status: "AVAILABLE", currentLocation: LAB.shortCode, holder: null });
-  });
-
-  it("accepts 'Pending TSG Review' and saves it on the ticket without touching the asset (known defect H-07)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0442" });
-    const repairId = await openTicket(asset.tag);
-
-    const res = await asStaff.put(`/api/maintenance/${repairId}`, { progressStatus: "Pending TSG Review" });
-
-    expect(res.status).toBe(200);
-    expect(await ticketStatus(repairId)).toBe("PENDING_RECEIPT");
-    expect((await listedAsset(asset.tag)).status).toBe("AVAILABLE");
-    expect(await reportCount(asset.assetId)).toBe(0);
-  });
-
-  it("answers 400 for a made-up progress text and leaves the ticket and the asset as they were (H-07, the status is an enum)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0441" });
-    const repairId = await openTicket(asset.tag);
-
-    const res = await asStaff.put(`/api/maintenance/${repairId}`, { progressStatus: "Test made-up status" });
-
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ success: false, error: "Unknown progress status: Test made-up status." });
-    expect(await ticketStatus(repairId)).toBe("PENDING_RECEIPT");
-    expect((await listedAsset(asset.tag)).status).toBe("AVAILABLE");
-  });
-
-  it.each([
-    { progressStatus: undefined, case: "no progressStatus" },
-    { progressStatus: "   ", case: "a progressStatus of only spaces" },
-  ])("answers 400 for $case, and leaves the ticket as it was", async ({ progressStatus }) => {
-    const before = await ticketStatus(SEEDED_ROWS.repairId);
-
-    const res = await asStaff.put(`/api/maintenance/${SEEDED_ROWS.repairId}`, { progressStatus });
-
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(await ticketStatus(SEEDED_ROWS.repairId)).toBe(before);
-  });
-
-  it("answers 400 for an id that is not a number, such as the MNT-n id the list shows", async () => {
-    const res = await asStaff.put("/api/maintenance/MNT-1", { progressStatus: "Inspection Phase" });
-
-    expect(res.status).toBe(400);
-  });
-
-  it("answers 404 for an unknown id", async () => {
-    const res = await asStaff.put("/api/maintenance/9999", { progressStatus: "Inspection Phase" });
-
-    expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toBe("Invalid maintenance id.");
+    expect(unknown.status).toBe(404);
   });
 });
 
-describe("PUT /api/maintenance/:id/status", () => {
-  it.each([
-    { progressStatus: "Inspection Phase", tag: "TEST-0451" },
-    { progressStatus: "Fixed & Completed", tag: "TEST-0452" },
-  ])(
-    "'$progressStatus': changes only the ticket, never the asset, and files no report (known defects H-06, H-07)",
-    async ({ progressStatus, tag }) => {
-      const asset = await addExtraAsset(db, { tag });
-      const repairId = await openTicket(asset.tag);
+describe("PUT /api/maintenance/:id/cancel", () => {
+  it("lets the reporter cancel a Pending Receipt ticket, with remarks; the asset stays with its holder", async () => {
+    const { asset, maintenanceId } = await reportedOnLoan("TEST-0441");
 
-      const res = await asStaff.put(`/api/maintenance/${repairId}/status`, { progressStatus });
+    const res = await asCustodian.put(`/api/maintenance/${maintenanceId}/cancel`, { remarks: "Test: it works again" });
 
-      expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ success: true, repair: { maintenance_id: repairId, status: STATUS_OF[progressStatus] } });
-      expect(await ticketStatus(repairId)).toBe(STATUS_OF[progressStatus]);
-      expect(await reportCount(asset.assetId)).toBe(0);
-      expect((await listedAsset(asset.tag)).status).toBe("AVAILABLE");
-    },
-  );
-
-  it("answers 400 for a made-up progress text, and changes nothing (H-07, the status is an enum)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0453" });
-    const repairId = await openTicket(asset.tag);
-
-    const res = await asStaff.put(`/api/maintenance/${repairId}/status`, { progressStatus: "Test made-up status" });
-
-    expect(res.status).toBe(400);
-    expect(await ticketStatus(repairId)).toBe("PENDING_RECEIPT");
+    expect(res.status).toBe(200);
+    expect(res.body.maintenance).toMatchObject({ status: "CANCELLED", statusLabel: "Cancelled", resolutionRemarks: "Test: it works again", completedBy: { userId: USERS.custodianA.userId } });
+    expect(await assetStatus(asset.assetId)).toBe("ON_LOAN");
+    expect((await loanRow(asset.loanId!)).status).toBe("ON_LOAN");
   });
 
-  it("answers 400 for a progressStatus of only spaces, as PUT /api/maintenance/:id does (H-06 family, closed by the enum)", async () => {
-    const asset = await addExtraAsset(db, { tag: "TEST-0454" });
-    const repairId = await openTicket(asset.tag);
+  it("lets TSG cancel a Pending Receipt ticket, and refuses another Researcher with 403", async () => {
+    const { maintenanceId } = await reportedOnLoan("TEST-0442");
 
-    const res = await asStaff.put(`/api/maintenance/${repairId}/status`, { progressStatus: "   " });
+    const other = await as(USERS.custodianB).put(`/api/maintenance/${maintenanceId}/cancel`, {});
+    expect(other.status).toBe(403);
+    expect(other.body.error).toBe("Only the person who reported this issue, or TSG, can cancel it.");
 
-    expect(res.status).toBe(400);
-    expect(await ticketStatus(repairId)).toBe("PENDING_RECEIPT");
+    const tsg = await asStaff.put(`/api/maintenance/${maintenanceId}/cancel`, {});
+    expect(tsg.status).toBe(200);
+    expect(tsg.body.maintenance.completedBy.userId).toBe(USERS.staffTsg.userId);
   });
 
-  it("answers 400 without progressStatus", async () => {
-    const res = await asStaff.put(`/api/maintenance/${SEEDED_ROWS.repairId}/status`, {});
+  it("refuses the reporter once TSG has received the asset (403); TSG cancels it and the asset is Available back home", async () => {
+    const { asset, maintenanceId } = await reportedOnLoan("TEST-0443");
+    await asStaff.put(`/api/maintenance/${maintenanceId}/receive`, receiveBody());
 
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
+    const reporter = await asCustodian.put(`/api/maintenance/${maintenanceId}/cancel`, {});
+    expect(reporter.status).toBe(403);
+    expect(reporter.body.error).toBe("Only TSG can cancel a ticket once the asset is received.");
+
+    const tsg = await asStaff.put(`/api/maintenance/${maintenanceId}/cancel`, { remarks: "Test: no fault found" });
+    expect(tsg.status).toBe(200);
+    expect(await assetStatus(asset.assetId)).toBe("AVAILABLE");
+    expect(await listedAsset(asset.tag)).toMatchObject({ holder: null, currentLocation: LAB.shortCode });
+    expect((await loanRow(asset.loanId!)).status).toBe("ENDED_BY_MAINTENANCE");
   });
 
-  it("answers 500 with a generic message and no database text for an unknown id (H-16 fixed)", async () => {
-    const res = await asStaff.put("/api/maintenance/9999/status", { progressStatus: "Inspection Phase" });
+  it("answers 409 for a ticket that is already Cancelled", async () => {
+    const { maintenanceId } = await reportedOnLoan("TEST-0444");
+    await asStaff.put(`/api/maintenance/${maintenanceId}/cancel`, {});
 
-    expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });
-    const text = JSON.stringify(res.body);
-    expect(text).not.toMatch(/prisma/i);
-    expect(text).not.toContain("Invalid `");
-    expect(text).not.toMatch(/[A-Za-z]:\\|\.ts\b/);
+    const res = await asStaff.put(`/api/maintenance/${maintenanceId}/cancel`, {});
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(`MNT-${maintenanceId} is Cancelled, so it cannot be cancelled.`);
   });
 
-  it("answers 500 with a generic message and no database text for an id that is not a number (H-16 fixed)", async () => {
-    const res = await asStaff.put("/api/maintenance/MNT-1/status", { progressStatus: "Inspection Phase" });
+  it("shows a cancelled ticket in the asset's history as cancelled by that person, not completed", async () => {
+    const { asset, maintenanceId } = await reportedOnLoan("TEST-0445");
+    await asStaff.put(`/api/maintenance/${maintenanceId}/cancel`, { remarks: "Test: reported by mistake" });
 
-    expect(res.status).toBe(500);
-    expect(res.body).toEqual({ success: false, error: "Something went wrong on the server. Please try again.", code: "SERVER_ERROR" });
-    const text = JSON.stringify(res.body);
-    expect(text).not.toMatch(/prisma/i);
-    expect(text).not.toContain("Invalid `");
-    expect(text).not.toMatch(/[A-Za-z]:\\|\.ts\b/);
+    const res = await asStaff.get(`/api/assets/${asset.tag}/history`);
+
+    const closing = res.body.events.filter((e: { maintenanceId?: number }) => e.maintenanceId === maintenanceId).at(-1);
+    expect(closing).toMatchObject({
+      kind: "MAINTENANCE_CANCELLED",
+      label: "Maintenance cancelled by",
+      actor: { userId: USERS.staffTsg.userId, name: USERS.staffTsg.fullName },
+      details: "Test: reported by mistake",
+    });
+    expect(res.body.events.map((e: { kind: string }) => e.kind)).not.toContain("MAINTENANCE_COMPLETED");
+  });
+});
+
+describe("the old ticket update routes", () => {
+  it("answer 404: PUT /api/maintenance/:id and PUT /api/maintenance/:id/status are gone (H-06)", async () => {
+    expect((await asStaff.put(`/api/maintenance/${SEEDED_ROWS.repairId}`, { progressStatus: "Inspection Phase" })).status).toBe(404);
+    expect((await asStaff.put(`/api/maintenance/${SEEDED_ROWS.repairId}/status`, { progressStatus: "Inspection Phase" })).status).toBe(404);
+    expect((await ticketRow(SEEDED_ROWS.repairId)).status).toBe("INSPECTING");
   });
 });

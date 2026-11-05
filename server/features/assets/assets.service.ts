@@ -225,7 +225,9 @@ export async function assetHistory(assetTag: string, viewer: SessionIdentity): P
         const ids = { maintenanceId: t.maintenance_id };
         add(t.reported_at, "MAINTENANCE_REPORTED", "Issue reported", t.users, t.issue_description, ids);
         add(t.received_at, "MAINTENANCE_RECEIVED", "Received by TSG", t.received_by, null, ids);
-        add(t.completed_at, "MAINTENANCE_COMPLETED", `Maintenance closed: ${MAINTENANCE_STATUS_LABELS[t.status]}`, t.completed_by, t.resolution_remarks, ids);
+        // A cancelled ticket keeps who cancelled it and when in completed_by and completed_at.
+        if (t.status === "CANCELLED") add(t.completed_at, "MAINTENANCE_CANCELLED", "Maintenance cancelled by", t.completed_by, t.resolution_remarks, ids);
+        else add(t.completed_at, "MAINTENANCE_COMPLETED", `Maintenance completed (${MAINTENANCE_STATUS_LABELS[t.status]}) by`, t.completed_by, t.resolution_remarks, ids);
     }
     for (const r of retirements) {
         const ids = { retirementId: r.retirement_id };

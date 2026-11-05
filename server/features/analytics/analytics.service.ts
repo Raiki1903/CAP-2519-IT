@@ -19,7 +19,7 @@ import type {
 import { CAMPUSES, CAMPUS_LABELS } from '@shared/constants/campuses';
 import { ASSET_STATUSES, ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
 import * as analyticsRepository from './analytics.repository';
-import { progressTextOf } from '../maintenance/maintenance.service';
+import { MAINTENANCE_STATUS_LABELS } from '@shared/constants/maintenanceStatuses';
 import { legacyLoanStatusLabel } from '../loans/loans.service';
 import type { DirectorFilters, LabHeadFilters } from './analytics.validation';
 import type { SessionIdentity } from '@shared/types/auth';
@@ -489,7 +489,7 @@ export async function staffDashboard(): Promise<StaffAnalyticsData> {
         assetName: r.assets?.name || "Equipment",
         reportedBy: r.users ? `${r.users.first_name} ${r.users.last_name}` : "Staff",
         issueDescription: r.issue_description,
-        progressStatus: progressTextOf(r),
+        progressStatus: MAINTENANCE_STATUS_LABELS[r.status],
         createdAt: r.reported_at.toISOString().split('T')[0]
     }));
 

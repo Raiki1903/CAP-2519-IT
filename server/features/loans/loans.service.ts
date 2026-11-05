@@ -5,7 +5,7 @@
  * shared/services/lifecycleGuard.ts, shared/services/permissions.ts (the approver), shared/services/assetState.ts, and,
  * inside the step's transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts;
  * shared/services/inspectionShape.ts (people and inspections in an answer);
- * features/maintenance/maintenance.service.ts for the shape of a Return Damage ticket; features/assets/assets.service.ts
+ * features/maintenance/maintenance.service.ts for the Maintenance shape of a Return Damage ticket; features/assets/assets.service.ts
  * for the asset on the Accountability Form.
  * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, the loan lists,
  * the Accountability Form, and the clearance record.
@@ -18,7 +18,7 @@ import * as loansRepository from './loans.repository';
 import type { LoanRow, LoanRows } from './loans.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import * as assetsService from '../assets/assets.service';
-import type { RepairListItem } from '@shared/types/maintenance';
+import type { Maintenance } from '@shared/types/maintenance';
 import { HELD_LOAN_STATUSES, LOAN_STATUS_LABELS, WAITING_LOAN_STATUSES, type LoanStatus } from '@shared/constants/loanStatuses';
 import { CAMPUS_LABELS } from '@shared/constants/campuses';
 import { AppError } from '../../shared/errors/AppError';
@@ -31,7 +31,7 @@ import { writeInspection } from '../../shared/services/inspections';
 import { setAssetStatus } from '../../shared/services/assetStatus';
 import { inspectionOf, personFor } from '../../shared/services/inspectionShape';
 import { PICK_OWN_LAB_MESSAGE, type ReturnDamage } from './loans.validation';
-import { repairListItemOf } from '../maintenance/maintenance.service';
+import { maintenanceById } from '../maintenance/maintenance.service';
 
 /** The 403 message when the account that heads a lab asks to borrow: it is the lab's office account. */
 export const PERSONAL_ACCOUNT_MESSAGE = "Use your personal account to borrow.";
@@ -385,7 +385,7 @@ export async function requestReturn(loanId: number, remarks: string | null, acto
  * @param inspection the checked Return inspection; TSG's notes are its remarks
  * @param damage the issue type and description of the damage found, or null
  * @param receiver the session user, TSG (the route checks it)
- * @returns the loan, Returned, and the new ticket in the repair list's shape, or null
+ * @returns the loan, Returned, and the new ticket in the Maintenance shape, or null
  * @throws AppError 404 if no loan has this id
  * @throws AppError 400 if the issue type does not exist, or a metric does not apply to the asset; nothing is written
  * @throws AppError 409 if the loan is not On Loan or Return Requested, or the asset is not On Loan
@@ -395,7 +395,7 @@ export async function receiveReturn(
     inspection: InspectionInput,
     damage: ReturnDamage | null,
     receiver: SessionIdentity,
-): Promise<{ loan: Loan; maintenance: RepairListItem | null }> {
+): Promise<{ loan: Loan; maintenance: Maintenance | null }> {
     const loan = await existingLoan(loanId);
     if (damage && !(await loansRepository.issueTypeExists(damage.issueTypeId))) {
         throw new AppError(400, "Pick an issue type from the list.");
@@ -435,11 +435,7 @@ export async function receiveReturn(
         return ticket.maintenance_id;
     });
 
-    let maintenance: RepairListItem | null = null;
-    if (maintenanceId !== null) {
-        const ticket = await loansRepository.findMaintenanceForList(maintenanceId);
-        maintenance = repairListItemOf(ticket, ticket.assets, ticket.users);
-    }
+    const maintenance = maintenanceId === null ? null : await maintenanceById(maintenanceId, receiver);
     return { loan: await loanById(loanId, receiver), maintenance };
 }
 

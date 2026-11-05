@@ -119,7 +119,7 @@ export async function receiveReturn(req: Request<{ loanId: string }>, res: Respo
     const { loan, maintenance } = await loansService.receiveReturn(loanId, inspection, returnDamage, receiver);
 
     console.log(maintenance
-        ? `Loan ${loanId} received by user ${receiver.userId}, with maintenance ${maintenance.repairId}`
+        ? `Loan ${loanId} received by user ${receiver.userId}, with maintenance ${maintenance.maintenanceId}`
         : `Loan ${loanId} received by user ${receiver.userId}`);
     res.json({ success: true, loan, ...(maintenance ? { maintenance } : {}) });
 }

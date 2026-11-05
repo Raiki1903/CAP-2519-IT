@@ -43,7 +43,8 @@ const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.
  * routes in Batch 2b; rows 42 to 44 are the IT Admin's sign-up routes that replace them. In Batch 3, row 22 became
  * approve, row 27 (the old return) was deleted with its route, and rows 45 on are the new loan steps and lists. Row 21
  * (the loan request) and GET /api/loans/lab-requests are tested in api/loans.test.ts and api/loanLists.test.ts, because
- * they refuse with sentences of their own.
+ * they refuse with sentences of their own. In Batch 5, rows 25 and 26 (the old ticket updates) were deleted with their
+ * routes (api/maintenance.test.ts checks the 404), row 24 lost the IT Admin, and rows 55 on are the maintenance steps.
  * The Staff account is TSG.
  */
 const ROUTES: [number, string, string, Role[]][] = [
@@ -73,9 +74,9 @@ const ROUTES: [number, string, string, Role[]][] = [
   [53, "POST", "/api/users/999999/clearance-record", [S]],
   [54, "GET", "/api/notifications/mine", ANY],
   [23, "POST", "/api/assets/NOPE-9999/maintenance", [C, L, S]],
-  [24, "GET", "/api/maintenance", ANY],
-  [25, "PUT", "/api/maintenance/999999", [S]],
-  [26, "PUT", "/api/maintenance/999999/status", [S]],
+  [24, "GET", "/api/maintenance", [S, L, C, D]],
+  [55, "PUT", "/api/maintenance/999999/receive", [S]],
+  [56, "PUT", "/api/maintenance/999999/cancel", [C, L, S]],
   [33, "GET", "/api/analytics/director", [D]],
   [34, "GET", "/api/analytics/lab-head", [L]],
   [35, "GET", "/api/analytics/tsg", [S]],

@@ -18,6 +18,7 @@ export type LifecycleAction =
     | "RECEIVE_RETURN"
     | "START_MAINTENANCE"
     | "RECEIVE_FOR_MAINTENANCE"
+    | "WORK_ON_MAINTENANCE"
     | "REQUEST_RETIREMENT"
     | "DECIDE_RETIREMENT"
     | "COMPLETE_RETIREMENT"
@@ -35,6 +36,7 @@ export const LIFECYCLE_ACTIONS: readonly LifecycleAction[] = [
     "RECEIVE_RETURN",
     "START_MAINTENANCE",
     "RECEIVE_FOR_MAINTENANCE",
+    "WORK_ON_MAINTENANCE",
     "REQUEST_RETIREMENT",
     "DECIDE_RETIREMENT",
     "COMPLETE_RETIREMENT",
@@ -47,13 +49,15 @@ export const LIFECYCLE_ACTIONS: readonly LifecycleAction[] = [
 /**
  * The actions each status allows (docs/contracts/lifecycle.md, section 3). Pending Retirement allows only the
  * decision and, once approved, the completion; Retired allows nothing; Missing allows found and a retirement request.
- * Approving and releasing a loan need the asset still Available; asking to return it and receiving it need it On Loan. Cancelling or declining a loan checks no asset status, so a loan
+ * Approving and releasing a loan need the asset still Available; asking to return it and receiving it need it On Loan.
+ * The maintenance steps after receipt (start, stage, complete, cancelling an Inspecting ticket) need it in Maintenance.
+ * Cancelling or declining a loan checks no asset status, so a loan
  * on an asset that went to maintenance can still be closed.
  */
 export const ALLOWED_ACTIONS: Record<assets_status, readonly LifecycleAction[]> = {
     AVAILABLE: ["REQUEST_LOAN", "APPROVE_LOAN", "RELEASE_LOAN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "REQUEST_RETIREMENT", "MARK_MISSING", "EDIT_MASTER_DATA", "ROUTINE_INSPECTION"],
     ON_LOAN: ["REQUEST_RETURN", "RECEIVE_RETURN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "MARK_MISSING", "EDIT_MASTER_DATA"],
-    MAINTENANCE: ["REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
+    MAINTENANCE: ["WORK_ON_MAINTENANCE", "REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
     PENDING_RETIREMENT: ["DECIDE_RETIREMENT", "COMPLETE_RETIREMENT"],
     RETIRED: [],
     MISSING: ["MARK_FOUND", "REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
@@ -68,6 +72,7 @@ const ACTION_WORDS: Record<LifecycleAction, string> = {
     RECEIVE_RETURN: "be received back from a loan",
     START_MAINTENANCE: "take a maintenance ticket",
     RECEIVE_FOR_MAINTENANCE: "be received for maintenance",
+    WORK_ON_MAINTENANCE: "have its maintenance worked on",
     REQUEST_RETIREMENT: "be requested for retirement",
     DECIDE_RETIREMENT: "have its retirement decided",
     COMPLETE_RETIREMENT: "have its retirement completed",

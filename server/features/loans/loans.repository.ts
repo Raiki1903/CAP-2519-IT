@@ -134,14 +134,6 @@ export function createMaintenance(tx: Prisma.TransactionClient, data: Prisma.ass
     return tx.asset_maintenance.create({ data });
 }
 
-/** The maintenance ticket with its asset's tag and name and its reporter's name, for the repair list's shape. */
-export function findMaintenanceForList(maintenanceId: number) {
-    return prisma.asset_maintenance.findUniqueOrThrow({
-        where: { maintenance_id: maintenanceId },
-        include: { assets: { select: { asset_tag: true, name: true } }, users: { select: { first_name: true, last_name: true } } },
-    });
-}
-
 /** A person's name, ID number, email, and labs, or null when there is no such account. */
 export function findPerson(userId: number) {
     return prisma.users.findUnique({

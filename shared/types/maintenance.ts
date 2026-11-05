@@ -1,34 +1,76 @@
 /**
- * Request and response shapes of the repair endpoints.
- * Layer: shared. Imported by server/features/maintenance/ and web/api/maintenance.api.ts. Imports nothing.
- * Used by: Custodian repair request, Staff repair queue and progress updates.
+ * Request and response shapes of the maintenance endpoints.
+ * Layer: shared. Imported by server/features/maintenance/ and web/api/maintenance.api.ts. Imports shared/types/assets.ts
+ * and shared/types/inspections.ts.
+ * Used by: reporting an issue, TSG receipt and the maintenance steps, the ticket lists.
  */
+import type { InspectionInput, PersonRef } from './assets';
+import type { Inspection } from './inspections';
 
-/** The body of POST /api/assets/:assetTag/maintenance, as RepairForm and ReturnForm send it. */
+/** The body of POST /api/assets/:assetTag/maintenance (contract 7.4). */
+export interface MaintenanceReportBody {
+  /** An issue_types row, from GET /api/lookups `issueTypes`. */
+  issueTypeId: number;
+  /** Required, at most 2,000 characters. */
+  issueDescription: string;
+}
+
+/** The body of PUT /api/maintenance/:maintenanceId/receive. */
+export interface MaintenanceReceiveBody {
+  /** The Maintenance inspection TSG files when the asset arrives. */
+  inspection: InspectionInput;
+}
+
+/** The body of PUT /api/maintenance/:maintenanceId/cancel. */
+export interface MaintenanceCancelBody {
+  /** Stored as the ticket's resolution remarks. */
+  remarks?: string | null;
+}
+
+/** A ticket in an answer (docs/contracts/lifecycle.md, Maintenance). People are `{ hidden: true }` to a Researcher who is not them. */
+export interface Maintenance {
+  maintenanceId: number;
+  /** The asset, with its warranty expiry (yyyy-mm-dd or null) for the "Under warranty until" line. */
+  asset: { assetId: number; tag: string; name: string; warrantyExpiry: string | null };
+  /** One of MAINTENANCE_TYPES. */
+  type: string;
+  typeLabel: string;
+  /** One of MAINTENANCE_STATUSES. */
+  status: string;
+  statusLabel: string;
+  /** Null only for a ticket filed before issue types existed. */
+  issueType: { issueTypeId: number; key: string; name: string; suggestedAction: string } | null;
+  issueDescription: string;
+  reportedBy: PersonRef;
+  /** ISO date-time. */
+  reportedAt: string;
+  receivedBy: PersonRef | null;
+  receivedAt: string | null;
+  /** The asset's warranty expiry is on or after the day TSG received it (before receipt: on or after today). */
+  underWarranty: boolean;
+  warrantyOverrideReason: string | null;
+  provider: string | null;
+  /** Who completed it, or who cancelled it when the status is Cancelled. */
+  completedBy: PersonRef | null;
+  completedAt: string | null;
+  resolutionRemarks: string | null;
+  triggerInspection: Inspection | null;
+  completionInspection: Inspection | null;
+}
+
+/** The body today's screens send to POST /api/assets/:assetTag/maintenance. The server reads MaintenanceReportBody instead. */
 export interface RepairRequestInput {
-  /** Required, and not only spaces. With the tag, it is also the key of the 8-second duplicate guard. (M-07) */
   description: string;
 }
 
-/** The body of PUT /api/maintenance/:repairId. Only `progressStatus` is required. */
+/** The body today's screens send to the removed PUT /api/maintenance/:repairId. */
 export interface RepairUpdateInput {
-  // TODO(H-07): free text, the server accepts any value. Phase 3 makes it an enum.
   progressStatus: string;
-  /** Condition after the repair, one of ASSET_CONDITIONS. Read only for "Fixed & Completed"; any other value keeps the current one. */
   assetCondition?: string;
-  /** Remarks for the restoring record and the report on "Fixed & Completed". */
   assetRemarks?: string;
 }
 
-/**
- * The body of PUT /api/maintenance/:repairId/status, sent by the Staff analytics board.
- * Unlike RepairUpdateInput, it changes the ticket only, never the asset. (H-06)
- */
-export interface RepairStatusInput {
-  progressStatus: string;
-}
-
-/** One row of GET /api/maintenance. */
+/** One row of GET /api/maintenance's `repairs`, the shape today's screens read, next to the new `tickets`. */
 export interface RepairListItem {
   /** Display id, "MNT-<maintenance_id>". */
   id: string;
@@ -37,20 +79,20 @@ export interface RepairListItem {
   _source: "db";
   /** Same as repairId. */
   _repairId: number;
-  /** The asset's tag, or an invented "EQ-2024-<nnn>" if the asset is gone. */
+  /** The asset's tag. */
   assetId: string;
   assetName: string;
   /** The reporter's full name, not the asset's custodian. Same value as reportedBy. */
   custodian: string;
-  /** The reporter's full name, or "Unassigned". */
+  /** The reporter's full name. */
   reportedBy: string;
   description: string;
-  /** Same as progressStatus. */
+  /** The status label, from MAINTENANCE_STATUS_LABELS. Same as progressStatus. */
   statusLabel: string;
   progressStatus: string;
-  /** Always "Medium" until Batch 5 shows the issue type. */
-  priority: "Critical" | "Medium";
-  /** False only while the status is one of the two starting values. */
+  // TODO(H-07): today's screens still show a priority. The field goes with these rows when the screens read `tickets` (Batch 5, commit 9).
+  priority: "Medium";
+  /** False only while the ticket is Pending Receipt. */
   acknowledged: boolean;
   /** The creation time as "Oct 9, 2026, 02:15 PM", in the server's time zone. */
   submittedAt: string;
