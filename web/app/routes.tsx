@@ -57,6 +57,11 @@ export const router = createBrowserRouter([
     path: "/loans/:loanId/accountability-form",
     Component: AccountabilityFormPage,
   },
+  // A print page like the Accountability Form: no sidebar. The server decides who may open it (TSG only, 403 for anyone else).
+  {
+    path: "/staff/clearance/:userId",
+    Component: ClearancePrintPage,
+  },
   { path: "/its/*", Component: OldStaffUrlRedirect },
   { path: "/tsg/*", Component: OldStaffUrlRedirect },
   {
