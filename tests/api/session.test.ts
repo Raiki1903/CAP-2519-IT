@@ -45,7 +45,7 @@ const ACCOUNT: Record<Role, TestUser> = { Staff: USERS.staffTsg, LabHead: USERS.
  * (the loan request) and GET /api/loans/lab-requests are tested in api/loans.test.ts and api/loanLists.test.ts, because
  * they refuse with sentences of their own. In Batch 5, rows 25 and 26 (the old ticket updates) were deleted with their
  * routes (api/maintenance.test.ts checks the 404), row 24 lost the IT Admin, and rows 55 on are the maintenance steps,
- * the disposal completion, Missing and Found, and the routine queue (63).
+ * the disposal completion, Missing and Found, the routine queue (63), and the benchmark data (64).
  * The Staff account is TSG.
  */
 const ROUTES: [number, string, string, Role[]][] = [
@@ -53,6 +53,7 @@ const ROUTES: [number, string, string, Role[]][] = [
   [7, "PUT", "/api/auth/account", ANY],
   [9,"GET", "/api/assets", ANY],
   [10, "GET", "/api/assets/NOPE-9999/history", ANY],
+  [64, "GET", "/api/assets/NOPE-9999/benchmarks", [S, D, L]],
   [11, "POST", "/api/assets", [S]],
   [12, "PUT", "/api/assets/NOPE-9999", [S]],
   [13, "DELETE", "/api/assets/NOPE-9999", [S]],

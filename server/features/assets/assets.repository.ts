@@ -3,13 +3,16 @@
  * features need (an asset by tag or by id, its lab, and its state).
  * Layer: repository. Called by assets.service.ts, the services of features/loans, retirements, maintenance,
  * and inspections, and shared/services/permissions.ts. Calls config/prisma.ts, shared/services/assetState.ts (with the
- * shared client), shared/services/rowLocks.ts, and shared/services/activityLog.ts.
+ * shared client), shared/services/rowLocks.ts, shared/services/activityLog.ts, and shared/services/inspectionShape.ts
+ * (the metric baselines).
  * Used by: every role's inventory view, Staff registration, editing, and deletion, and every workflow that starts from an asset tag.
  */
 import type { Prisma } from '@prisma/client';
 import type { AssetListFilters } from '@shared/types/assets';
 import { prisma } from '../../config/prisma';
 import * as assetState from '../../shared/services/assetState';
+import { INSPECTION_INCLUDE, metricBaselinesOf } from '../../shared/services/inspectionShape';
+import { TSG_INSPECTION_TYPES } from '@shared/constants/inspectionTypes';
 import { lockAsset, lockCenter } from '../../shared/services/rowLocks';
 import { logActivity, type ActivityEvent } from '../../shared/services/activityLog';
 
@@ -287,4 +290,24 @@ export function cancelPendingTicketsIn(tx: Prisma.TransactionClient, assetId: nu
 /** Writes one activity_log row inside the caller's transaction. */
 export function logActivityIn(tx: Prisma.TransactionClient, event: ActivityEvent) {
     return logActivity(tx, event);
+}
+
+/**
+ * Every row the benchmark data is built from, read together: the asset's TSG inspections (any type but Self Report),
+ * oldest first, with their metric values; the metrics of its category; and each metric's baseline, the asset's first
+ * recorded value of it (the same rule as the Inspection shape's flags).
+ *
+ * @param assetId the asset
+ * @param category the asset's category
+ */
+export async function findBenchmarkRows(assetId: number, category: Prisma.assetsGetPayload<object>['category']) {
+    const [inspections, categoryMetrics] = await Promise.all([
+        prisma.asset_inspections.findMany({
+            where: { asset_id: assetId, type: { in: [...TSG_INSPECTION_TYPES] } },
+            include: INSPECTION_INCLUDE,
+            orderBy: [{ inspected_at: 'asc' }, { inspection_id: 'asc' }],
+        }),
+        prisma.category_metrics.findMany({ where: { category }, include: { metric_definitions: true }, orderBy: { metric_id: 'asc' } }),
+    ]);
+    return { inspections, categoryMetrics, baselines: await metricBaselinesOf(prisma, inspections) };
 }

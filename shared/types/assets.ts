@@ -207,3 +207,39 @@ export interface AssetHistory {
   /** Oldest first. */
   events: AssetHistoryEvent[];
 }
+
+/** One recorded value of a metric in the benchmark data. */
+export interface BenchmarkPoint {
+  inspectionId: number;
+  /** ISO date-time. */
+  inspectedAt: string;
+  value: number;
+  /** Whether the value breaks its flag rule (shared/constants/metricFlagRules.ts), against the asset's first recorded value. */
+  flagged: boolean;
+}
+
+/** One metric of the asset's category and its values over time, oldest first. */
+export interface BenchmarkMetric {
+  metricId: number;
+  metricKey: string;
+  name: string;
+  unit: string;
+  higherIsBetter: boolean;
+  points: BenchmarkPoint[];
+}
+
+/** One health score in the benchmark data. */
+export interface BenchmarkHealthScore {
+  inspectionId: number;
+  /** ISO date-time. */
+  inspectedAt: string;
+  healthScore: number;
+  /** Below HEALTH_SCORE_FLAG_BELOW, for a category with no metrics; never for a category that has metrics. */
+  flagged: boolean;
+}
+
+/** The answer of GET /api/assets/:assetTag/benchmarks, without `success` (contract 7.6). */
+export interface AssetBenchmarks {
+  metrics: BenchmarkMetric[];
+  healthScores: BenchmarkHealthScore[];
+}

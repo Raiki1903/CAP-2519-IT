@@ -79,6 +79,15 @@ export async function deleteAsset(req: Request<{ assetTag: string }>, res: Respo
 }
 
 /**
+ * Handles GET /api/assets/:assetTag/benchmarks: the asset's metric values and health scores over time, flagged, as
+ * `{ success, metrics, healthScores }`. Answers 403 for the Head of another lab, 404 for an unknown tag, or 500.
+ */
+export async function getBenchmarks(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
+    const benchmarks = await assetsService.assetBenchmarks(req.params.assetTag, sessionUserOf(req));
+    res.json({ success: true, ...benchmarks });
+}
+
+/**
  * Handles PUT /api/assets/:assetTag/missing: TSG marks the asset missing, with a reason.
  * Answers `{ success, asset }` in the list's shape, or the AppError's status and message (400, 404, 409).
  */
