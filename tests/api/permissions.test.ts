@@ -61,17 +61,22 @@ describe("the IT Admin has no asset steps", () => {
   it.each([
     ["PUT", "/api/loans/1/receive", { inspection: { condition: "OPERATIONAL" } }],
     ["PUT", "/api/loans/1/return-request", {}],
-    ["POST", `/api/assets/${ASSETS.available.tag}/maintenance`, { description: "Test fault from the IT Admin" }],
-    ["PUT", "/api/maintenance/1", { progressStatus: "Inspection Phase" }],
-    ["POST", `/api/assets/${ASSETS.available.tag}/retirement`, { breakdownReasons: "Test", disposalPathway: "Test" }],
-    ["PUT", "/api/retirements/1/decision", { decision: "reject" }],
-    ["POST", `/api/assets/${ASSETS.available.tag}/inspection`, { reportCondition: "PERFECT" }],
+    ["POST", `/api/assets/${ASSETS.available.tag}/maintenance`, { issueTypeId: 1, issueDescription: "Test fault from the IT Admin" }],
+    ["PUT", "/api/maintenance/1/receive", { inspection: { condition: "OPERATIONAL" } }],
+    ["PUT", "/api/maintenance/1/cancel", {}],
+    ["PUT", "/api/maintenance/1/complete", { outcome: "RESOLVED", resolutionRemarks: "Test", inspection: { condition: "OPERATIONAL" } }],
+    ["POST", `/api/assets/${ASSETS.available.tag}/retirement`, { reason: "Test" }],
+    ["PUT", "/api/retirements/1/decision", { decision: "deny", decisionRemarks: "Test" }],
+    ["PUT", "/api/retirements/1/complete", { pathway: "RECYCLE", dispositionReference: "Test" }],
+    ["POST", `/api/assets/${ASSETS.available.tag}/inspection`, { condition: "PERFECT" }],
     ["POST", `/api/assets/${ASSETS.available.tag}/loans`, { destinationCenterId: 1, returnBy: "2030-01-01", purpose: "Test" }],
     ["PUT", "/api/loans/2/cancel", {}],
     ["PUT", "/api/loans/2/approve", {}],
     ["PUT", "/api/loans/2/decline", { decisionRemarks: "Test" }],
     ["PUT", "/api/loans/2/release", { inspection: { condition: "OPERATIONAL" } }],
     ["PUT", `/api/assets/${ASSETS.available.tag}`, { name: "Test name from the IT Admin" }],
+    ["PUT", `/api/assets/${ASSETS.available.tag}/missing`, { reason: "Test" }],
+    ["PUT", `/api/assets/${ASSETS.available.tag}/found`, { inspection: { condition: "OPERATIONAL" } }],
   ])("answers 403 to %s %s, and writes nothing", async (method, path, body) => {
     const client = as(USERS.admin);
     const before = await Promise.all([db.asset_loans.count(), db.asset_maintenance.count(), db.asset_retirements.count(), db.asset_inspections.count()]);
@@ -114,7 +119,7 @@ describe("the person who requested a retirement does not decide it", () => {
 
     const own = await as(USERS.secretary).put(`/api/retirements/${disposal.retirement_id}/decision`, { decision: "approve" });
     expect(own.status).toBe(403);
-    expect(own.body.error).toBe("You requested this retirement, so someone else must decide it.");
+    expect(own.body.error).toBe("You requested this disposal, so someone else must decide it.");
     expect((await db.asset_retirements.findUniqueOrThrow({ where: { retirement_id: disposal.retirement_id } })).status).toBe("PENDING");
 
     const other = await as(USERS.director).put(`/api/retirements/${disposal.retirement_id}/decision`, { decision: "approve" });
@@ -123,9 +128,9 @@ describe("the person who requested a retirement does not decide it", () => {
 
   it("lets the Secretary decide someone else's request", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0902" });
-    const filed = await as(USERS.staffTsg).post(`/api/assets/${asset.tag}/retirement`, { breakdownReasons: "Test", disposalPathway: "Test" });
+    const filed = await as(USERS.staffTsg).post(`/api/assets/${asset.tag}/retirement`, { reason: "Test" });
 
-    const res = await as(USERS.secretary).put(`/api/retirements/${filed.body.disposal.retirement_id}/decision`, { decision: "reject" });
+    const res = await as(USERS.secretary).put(`/api/retirements/${filed.body.retirement.retirementId}/decision`, { decision: "deny", decisionRemarks: "Test: still useful" });
 
     expect(res.status).toBe(200);
     expect((await db.assets.findUniqueOrThrow({ where: { asset_id: asset.assetId } })).status).toBe("AVAILABLE");

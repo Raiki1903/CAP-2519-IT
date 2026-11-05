@@ -1,15 +1,17 @@
 /**
  * Staff analytics: repair board, condition heatmap, warranty timeline, location status, and inspection progress widgets.
  * Layer: feature component. Called by pages/staff/HealthPage.tsx.
- * Calls: api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), api/maintenance.api.ts updateRepairStatus(), state/serverData.tsx.
+ * Calls: api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), features/repairs/RepairProgressDialog.tsx, state/serverData.tsx, state/session.tsx.
  * Used by: Staff.
  */
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useServerData } from "@web/state/serverData";
+import { useSession } from "@web/state/session";
+import { RepairProgressDialog } from "@web/features/repairs/RepairProgressDialog";
+import { MAINTENANCE_STATUSES, MAINTENANCE_STATUS_LABELS } from "@shared/constants/maintenanceStatuses";
 import * as assetsApi from "@web/api/assets.api";
-import * as maintenanceApi from "@web/api/maintenance.api";
 import * as analyticsApi from "@web/api/analytics.api";
 import { ASSET_STATUSES, ASSET_STATUS_LABELS } from "@shared/enums/assetStatus";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
@@ -58,8 +60,8 @@ const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#8B5CF6", "#64748B"
 
 // Maintenance & Lifecycle View (Task 3: Repairs Kanban Board, Condition Heatmap with Traffic Light Indicators, 90-day Warranty Expiry Timeline)
 /**
- * Repair board, condition heatmap, and 90-day warranty timeline. Calls analyticsApi.getTsgAnalyticsRaw(),
- * and maintenanceApi.updateRepairStatus() when a ticket is moved on the board.
+ * Repair board, condition heatmap, and 90-day warranty timeline. Calls analyticsApi.getTsgAnalyticsRaw(). The board has a
+ * column for every maintenance status; a card opens RepairProgressDialog, where the server decides which steps are allowed.
  *
  * @param startDate start of the date range, or empty for no limit
  * @param endDate end of the date range, or empty for no limit
@@ -92,21 +94,10 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
     }
   });
 
-  const [updatingRepairId, setUpdatingRepairId] = React.useState<number | null>(null);
-
-  const moveRepairStatus = async (repairId: number, newStatus: string) => {
-    setUpdatingRepairId(repairId);
-    try {
-      const json = await maintenanceApi.updateRepairStatus(repairId, newStatus);
-      if (json.success) {
-        await refetch();
-      }
-    } catch (e) {
-      console.error("Failed to update repair status:", e);
-    } finally {
-      setUpdatingRepairId(null);
-    }
-  };
+  const { tickets, syncFromDb } = useServerData();
+  const { currentUser } = useSession();
+  const [openTicketId, setOpenTicketId] = React.useState<number | null>(null);
+  const openTicket = tickets.find(t => t.maintenanceId === openTicketId) ?? null;
 
   const rawRepairs = data?.repairs || [];
   const rawConditionSummary = data?.conditionSummary || { goodCount: 0, degradedCount: 0, criticalCount: 0, conditionItems: [] };
@@ -138,12 +129,17 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
   const degradedCount = filteredConditionItems.filter((i: any) => i.trafficLight === "YELLOW").length;
   const criticalCount = filteredConditionItems.filter((i: any) => i.trafficLight === "RED").length;
 
-  const KANBAN_COLUMNS = [
-    { id: "Reported", title: "Reported", badgeColor: "bg-red-500 text-white" },
-    { id: "Diagnosing", title: "Diagnosing", badgeColor: "bg-amber-500 text-white" },
-    { id: "Waiting for Parts", title: "Waiting for Parts", badgeColor: "bg-blue-500 text-white" },
-    { id: "Resolved", title: "Resolved", badgeColor: "bg-emerald-600 text-white" }
-  ];
+  // One column per maintenance status, so no ticket is left off the board.
+  const KANBAN_BADGE_COLORS: Record<string, string> = {
+    PENDING_RECEIPT: "bg-red-500 text-white",
+    INSPECTING: "bg-amber-500 text-white",
+    REPAIRING: "bg-amber-600 text-white",
+    EXTERNAL_SERVICE: "bg-blue-500 text-white",
+    RESOLVED: "bg-emerald-600 text-white",
+    BEYOND_REPAIR: "bg-red-700 text-white",
+    CANCELLED: "bg-slate-500 text-white",
+  };
+  const KANBAN_COLUMNS = MAINTENANCE_STATUSES.map(id => ({ id, title: MAINTENANCE_STATUS_LABELS[id], badgeColor: KANBAN_BADGE_COLORS[id] }));
 
   return (
     <motion.div variants={cardAnimation} initial="hidden" animate="visible" className="space-y-6">
@@ -155,7 +151,7 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
               <Wrench className="w-5 h-5 text-[#005A36]" /> Repair Operations Kanban Board (`asset_maintenance`)
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Move repair cards across columns: "Reported", "Diagnosing", "Waiting for Parts", "Resolved" to update the repair's progress.
+              One column for each status of a maintenance ticket. Open a card to see the ticket and make its next step.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -177,14 +173,7 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
         {isKanbanOpen && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {KANBAN_COLUMNS.map(col => {
-              const columnTickets = repairs.filter((r: any) => {
-                const st = (r.progressStatus || "Reported").toLowerCase();
-                if (col.id === "Reported") return st.includes("report") || st.includes("pending");
-                if (col.id === "Diagnosing") return st.includes("diagno") || st.includes("repair") || st.includes("progress");
-                if (col.id === "Waiting for Parts") return st.includes("part") || st.includes("wait") || st.includes("third");
-                if (col.id === "Resolved") return st.includes("resolv") || st.includes("fix") || st.includes("complet");
-                return false;
-              });
+              const columnTickets = repairs.filter((r: any) => r.progressStatus === col.title);
 
               return (
                 <div key={col.id} className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col justify-between max-h-[480px]">
@@ -198,7 +187,14 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
 
                     <div className="space-y-3 overflow-y-auto pr-1 flex-1">
                       {columnTickets.map((ticket: any) => (
-                        <div key={ticket.repairId} className="bg-card border border-border rounded-lg p-3 shadow-xs space-y-2">
+                        <div
+                          key={ticket.repairId}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setOpenTicketId(ticket.repairId)}
+                          onKeyDown={e => { if (e.key === "Enter") setOpenTicketId(ticket.repairId); }}
+                          className="bg-card border border-border rounded-lg p-3 shadow-xs space-y-2 cursor-pointer hover:border-primary/50"
+                        >
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-mono font-bold text-primary">TICKET #{ticket.repairId}</span>
                             <span className="text-[10px] text-muted-foreground">{ticket.createdAt}</span>
@@ -208,18 +204,7 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
 
                           <div className="pt-2 border-t border-border flex items-center justify-between">
                             <span className="text-[10px] text-muted-foreground font-semibold">Reporter: {ticket.reportedBy}</span>
-
-                            <select
-                              value={col.id}
-                              disabled={updatingRepairId === ticket.repairId}
-                              onChange={(e) => moveRepairStatus(ticket.repairId, e.target.value)}
-                              className="text-[10px] font-bold bg-muted border border-border rounded px-1.5 py-0.5 text-foreground cursor-pointer"
-                            >
-                              <option value="Reported">Reported</option>
-                              <option value="Diagnosing">Diagnosing</option>
-                              <option value="Waiting for Parts">Waiting for Parts</option>
-                              <option value="Resolved">Resolved</option>
-                            </select>
+                            <span className="text-[10px] font-bold text-primary">Open</span>
                           </div>
                         </div>
                       ))}
@@ -237,6 +222,16 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
           </div>
         )}
       </Card>
+
+      {openTicket && (
+        <RepairProgressDialog
+          key={openTicket.maintenanceId}
+          ticket={openTicket}
+          canAct={currentUser?.staffUnit === "TSG"}
+          onClose={() => setOpenTicketId(null)}
+          onChanged={async () => { await syncFromDb(); await refetch(); }}
+        />
+      )}
 
       {/* 2 & 3. Condition Heatmap & 90-Day Warranty Expiry Timeline */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

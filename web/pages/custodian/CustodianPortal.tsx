@@ -1,8 +1,9 @@
 /**
  * Custodian screen: My Assets, Available Equipment, QR Scan, and the condition report form, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /custodian/* (the tab comes from the URL).
- * Calls: api/assets.api.ts listAssets(), api/inspections.api.ts submitInspectionRaw(), features/assets/AssetDetailModal.tsx, features/assets/assetSearch.ts,
- * state/serverData.tsx (assets, addRepairRequest, syncFromDb).
+ * Calls: api/assets.api.ts listAssets(), api/inspections.api.ts submitInspectionRaw(), api/maintenance.api.ts reportIssue(),
+ * features/lookups/useLookups.ts, features/assets/AssetDetailModal.tsx, features/assets/assetSearch.ts,
+ * state/serverData.tsx (assets, syncFromDb).
  * Used by: Custodian.
  */
 import { useState, useRef, useEffect } from "react";
@@ -17,6 +18,8 @@ import { useSession } from "@web/state/session";
 import { useServerData, holderLabel } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
 import * as inspectionsApi from "@web/api/inspections.api";
+import * as maintenanceApi from "@web/api/maintenance.api";
+import { otherIssueTypeId, useFormLookups } from "@web/features/lookups/useLookups";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
@@ -30,6 +33,7 @@ import {
 import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
+import { SUGGESTED_HEALTH_SCORE, type AssetCondition } from "@shared/enums/assetCondition";
 
 const MINT = "#10B981";
 
@@ -66,14 +70,15 @@ const statusPills = [
  * - myassets: assets whose custodian name matches the signed-in user, without Disposed ones.
  * - available: Active assets, filtered by category, campus, lab, and search, with the detail modal for a loan request.
  * - scan: reads a QR tag from the camera or an uploaded picture and opens that asset.
- * - report: a condition report, posted to asset_inspections, optionally filing a repair too.
+ * - report: a Self Report on an asset the person holds, optionally filing a repair ticket too.
  *
  * @param activeTab "myassets", "available", "scan", or "report"
  */
 // "Mine" is decided by comparing names, so two custodians with the same name see each other's assets. (issue #32)
 export function CustodianPortal({ activeTab }: { activeTab: string }) {
   const { cycleMode, currentUser } = useSession();
-  const { addRepairRequest: onRepairRequest, assets, syncFromDb } = useServerData();
+  const { assets, syncFromDb } = useServerData();
+  const { lookups } = useFormLookups();
   const currentUserName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Custodian User";
 
   const [selectedAsset, setSelectedAsset] = useState<AssetDetail | null>(null);
@@ -88,6 +93,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<null | "healthy" | "repair">(null);
   const [reportError, setReportError] = useState<string | null>(null);
+  // The server's sentence when the report was saved but the repair ticket after it was refused.
+  const [ticketError, setTicketError] = useState<string | null>(null);
   const [requestImmediate, setRequestImmediate] = useState(false);
   const [submittedRef, setSubmittedRef] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -133,9 +140,9 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   // Matched by user id, never by name (issue #32). A disposal keeps the last custodian on the DISPOSED record, so the
   // id match alone would keep listing assets that are no longer in service.
   const custodianAssets = displayedAssets.filter(a => !!currentUser && a.custodianId === currentUser.userId && a.status !== "RETIRED");
-  // Only borrowed equipment under the custodian's custody can be picked for an inspection report.
-  // Assets in Maintenance or Disposed cannot be inspected again. (issue #88)
-  const reportEligibleAssets = custodianAssets.filter(a => a.status === "ON_LOAN" || a.isOverdue);
+  // A Self Report is offered only for assets the person holds (custodianId is their own id) and that are On Loan: the
+  // server refuses anything else with 403 or 409. An asset in Maintenance is inspected through the repair steps. (issue #88)
+  const reportEligibleAssets = custodianAssets.filter(a => a.status === "ON_LOAN");
 
   useEffect(() => {
     if (activeTab === "report") {
@@ -341,9 +348,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     setSubmittedRef(ref);
     const assetObj = eligibleAsset;
     const targetTag = assetObj?.id || assetObj?.asset_tag || selectedAssetId;
-    const assetName = assetObj?.name || targetTag;
 
-    const conditionEnumMap: Record<string, string> = {
+    const conditionEnumMap: Record<string, AssetCondition> = {
       "Perfect": "PERFECT",
       "Operational": "OPERATIONAL",
       "Minor Drift": "MINOR_DRIFT",
@@ -355,13 +361,15 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     const firstImg = reportImages.length > 0 ? reportImages[0] : null;
 
     setReportError(null);
+    setTicketError(null);
 
     try {
-      // 1. Post directly to MySQL database table asset_inspections
+      // 1. File the Self Report. The inspection's remarks hold at most 255 characters; a repair ticket below gets the whole text.
       const res = await inspectionsApi.submitInspectionRaw(targetTag, {
-        reportCondition: reportConditionEnum,
-        reportRemarks: fullRemarks,
-        reportImg: firstImg,
+        condition: reportConditionEnum,
+        healthScore: SUGGESTED_HEALTH_SCORE[reportConditionEnum],
+        remarks: fullRemarks.slice(0, 255),
+        photo: firstImg,
       });
 
       if (!res.ok) {
@@ -375,19 +383,19 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
       // 2. Trigger repair request to Staff if critical fault or immediate inspection requested
       if (triggerRepair) {
-        onRepairRequest({
-          id: ref,
-          assetId: targetTag,
-          assetName: assetName,
-          custodian: currentUserName,
-          statusLabel: reportStatus,
-          description: fullRemarks,
-          imageUrl: firstImg || "",
-          submittedAt: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-          priority: requestImmediate ? "Critical" : (selectedPill?.severity === "critical" ? "Critical" : "High"),
-          acknowledged: false
-        });
-        setSubmitResult("repair");
+        // The ticket carries the "Other" issue type and the report text; TSG picks the real work when it receives the asset.
+        const issueTypeId = otherIssueTypeId(lookups);
+        const ticket = issueTypeId === null
+          ? { success: false, error: "The issue types could not be loaded." }
+          : await maintenanceApi.reportIssue(targetTag, { issueTypeId, issueDescription: fullRemarks });
+        if (ticket.success) {
+          setSubmittedRef(`MNT-${ticket.maintenance.maintenanceId}`);
+          setSubmitResult("repair");
+          syncFromDb();
+        } else {
+          setTicketError(ticket.error || "The repair ticket could not be filed.");
+          setSubmitResult("healthy");
+        }
       } else {
         setSubmitResult("healthy");
       }
@@ -401,7 +409,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     }
   };
 
-  const resetReport = () => { setReportAsset(""); setReportStatus(""); setReportDesc(""); setReportImages([]); setSubmitResult(null); setSubmittedRef(""); setRequestImmediate(false); setReportError(null); };
+  const resetReport = () => { setReportAsset(""); setReportStatus(""); setReportDesc(""); setReportImages([]); setSubmitResult(null); setSubmittedRef(""); setRequestImmediate(false); setReportError(null); setTicketError(null); };
 
   // ── My Assets / My Loans ──────────────────────────────────────────────────
   if (activeTab === "myassets" || activeTab === "myloans") {
@@ -647,8 +655,11 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               {submitResult === "healthy" ? "Report Sent" : "Repair Requested"}
             </p>
             <p className={cn("text-xs", submitResult === "healthy" ? "text-emerald-700" : "text-red-700")}>
-              {submitResult === "healthy" ? "Your report is saved." : <>Your report went to Staff as a high-priority repair request. Ref: <strong>{submittedRef}</strong></>}
+              {submitResult === "healthy" ? "Your report is saved." : <>Your report went to TSG as a repair ticket. Ref: <strong>{submittedRef}</strong></>}
             </p>
+            {submitResult === "healthy" && ticketError && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">The repair ticket was not filed: {ticketError}</p>
+            )}
             {submitResult === "repair" && (
               <div className="w-full rounded-lg bg-red-100 border border-red-200 p-3 text-left">
                 <p className="text-[10px] font-bold text-red-700 tracking-widest mb-1">STAFF NOTIFIED</p>
@@ -775,7 +786,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               </div>
               {requestImmediate && (
                 <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-xs leading-relaxed font-semibold">
-                  WARNING: This will bypass the regular trimestral cycle and route an immediate high-priority repair request to Staff.
+                  WARNING: This will bypass the regular trimestral cycle and file a repair ticket for TSG.
                 </div>
               )}
             </div>
@@ -796,7 +807,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               {submitting
                 ? <><Loader size={14} className="animate-spin" />Sending Inspection Report…</>
                 : triggerRepair
-                  ? <><Zap size={14} />Send Inspection Report &amp; Trigger Staff Repair</>
+                  ? <><Zap size={14} />Send Inspection Report &amp; File Repair Ticket</>
                   : <><Send size={14} />Send Inspection Report</>
               }
             </Button>

@@ -1,71 +1,79 @@
 /**
- * Repairs API: repair tickets and their progress.
- * Layer: api. Called by RepairForm, ReturnForm, useRepairTickets, StaffAnalyticsView, and state/serverData.tsx. Calls client.ts.
- * Used by: Custodian repair request, Staff repair queue and progress updates.
+ * Maintenance API: every maintenance request the web app sends to the server, one function per endpoint.
+ * Layer: api. Called by RepairForm, ReturnForm, AssetDetailModal, CustodianPortal, useRepairTickets, and
+ * state/serverData.tsx. Calls client.ts; types from @shared/types/maintenance.
+ * Used by: reporting an issue, TSG receipt and the maintenance steps, cancelling a ticket, and the ticket lists.
  */
-import type { RepairRequestInput, RepairUpdateInput } from "@shared/types/maintenance";
-import { apiGet, apiPost, apiPostRaw, apiPut, apiPutRaw, type ApiResult } from "./client";
+import type { MaintenanceCancelBody, MaintenanceCompleteBody, MaintenanceReceiveBody, MaintenanceReportBody, MaintenanceStageBody } from "@shared/types/maintenance";
+import { apiGet, apiPost, apiPut, type ApiResult } from "./client";
 
 /**
- * Opens a repair ticket for an asset.
+ * Reports an issue on an asset. The reporter is the session user.
  *
- * @param assetTag the asset's tag, sent as is (not URL-encoded)
- * @param input reporter, description, and urgency
- * @returns `success`, and `error` when the ticket is refused
+ * @param assetTag the asset's tag
+ * @param body the issue type (from the lookups) and the description
+ * @returns `success` and the new `maintenance` (Pending Receipt); or `error` with the server's sentence
  */
-export function requestRepair(assetTag: string, input: RepairRequestInput): Promise<ApiResult> {
-  return apiPost(`/api/assets/${assetTag}/maintenance`, input);
+export function reportIssue(assetTag: string, body: MaintenanceReportBody): Promise<ApiResult> {
+  return apiPost(`/api/assets/${encodeURIComponent(assetTag)}/maintenance`, body);
 }
 
 /**
- * Same request as `requestRepair`, but returns the untouched Response.
- * For state/serverData.tsx, which sends the request and never reads the answer.
+ * Lists the tickets the session user may see: all for TSG, the Director and the Secretary, the lab's for its Head,
+ * the reporter's own for a Researcher.
  *
- * @returns the raw Response
+ * @returns `success` and `tickets`, each a Maintenance from @shared/types/maintenance; or `error`
  */
-export function requestRepairRaw(assetTag: string, input: RepairRequestInput): Promise<Response> {
-  return apiPostRaw(`/api/assets/${assetTag}/maintenance`, input);
-}
-
-/**
- * Lists repair tickets.
- *
- * @returns `success` and `repairs`, an array of ticket rows
- */
-export function listRepairs(): Promise<ApiResult> {
+export function listTickets(): Promise<ApiResult> {
   return apiGet("/api/maintenance");
 }
 
 /**
- * Updates a repair ticket. The server also changes the asset's own status to
- * match (for example into MAINTENANCE), so callers refresh the asset list too.
+ * TSG receives the asset for a ticket in Pending Receipt, with a Maintenance inspection. A held loan ends.
  *
- * @param repairId numeric ticket id, without the "MNT-" prefix
- * @param input new progress status, and optionally the condition and remarks
- * @returns `success`, and `error` when the update is refused
+ * @param maintenanceId numeric ticket id, without the "MNT-" prefix
+ * @returns `success` and the `maintenance` (Inspecting); or `error`
  */
-export function updateRepair(repairId: number | string, input: RepairUpdateInput): Promise<ApiResult> {
-  return apiPut(`/api/maintenance/${repairId}`, input);
+export function receiveTicket(maintenanceId: number | string, body: MaintenanceReceiveBody): Promise<ApiResult> {
+  return apiPut(`/api/maintenance/${maintenanceId}/receive`, body);
 }
 
 /**
- * Same request as `updateRepair`, but returns the untouched Response.
- * For state/serverData.tsx, which sends the request and never reads the answer.
+ * TSG starts the work on an Inspecting ticket: Repairing, or External Service with a provider.
  *
- * @returns the raw Response
+ * @param maintenanceId numeric ticket id
+ * @returns `success` and the `maintenance`; or `error` (for example the warranty sentence)
  */
-export function updateRepairRaw(repairId: number | string, input: RepairUpdateInput): Promise<Response> {
-  return apiPutRaw(`/api/maintenance/${repairId}`, input);
+export function startTicket(maintenanceId: number | string, body: MaintenanceStageBody): Promise<ApiResult> {
+  return apiPut(`/api/maintenance/${maintenanceId}/start`, body);
 }
 
 /**
- * Moves a ticket to a new status through the second, separate status endpoint.
+ * TSG moves the work between Repairing and External Service.
  *
- * @param repairId numeric ticket id
- * @param progressStatus the new status text
- * @returns `success`, and `error` when the update is refused
+ * @param maintenanceId numeric ticket id
+ * @returns `success` and the `maintenance`; or `error`
  */
-// TODO(H-06): this endpoint and the one behind updateRepair have different side effects: this one never changes the asset's status. Kept in step 12 as decided; merging them is its own behavior-change commit.
-export function updateRepairStatus(repairId: number | string, progressStatus: string): Promise<ApiResult> {
-  return apiPut(`/api/maintenance/${repairId}/status`, { progressStatus });
+export function changeTicketStage(maintenanceId: number | string, body: MaintenanceStageBody): Promise<ApiResult> {
+  return apiPut(`/api/maintenance/${maintenanceId}/stage`, body);
+}
+
+/**
+ * TSG completes the work, Resolved or Beyond Repair, with a Maintenance inspection and remarks.
+ *
+ * @param maintenanceId numeric ticket id
+ * @returns `success` and the `maintenance`; or `error`
+ */
+export function completeTicket(maintenanceId: number | string, body: MaintenanceCompleteBody): Promise<ApiResult> {
+  return apiPut(`/api/maintenance/${maintenanceId}/complete`, body);
+}
+
+/**
+ * Cancels a ticket: the reporter while it is Pending Receipt, or TSG until the work starts.
+ *
+ * @param maintenanceId numeric ticket id
+ * @returns `success` and the `maintenance` (Cancelled); or `error`
+ */
+export function cancelTicket(maintenanceId: number | string, body: MaintenanceCancelBody = {}): Promise<ApiResult> {
+  return apiPut(`/api/maintenance/${maintenanceId}/cancel`, body);
 }

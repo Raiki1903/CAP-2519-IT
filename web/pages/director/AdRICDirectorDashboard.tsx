@@ -1,7 +1,7 @@
 /**
  * Director screen: Overview, Analytics, Disposal Approvals, and the Inventory Report, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
- * Calls: api/retirements.api.ts listDisposals() and decideDisposal(), features/lookups/useLookups.ts (the labs and their campus),
+ * Calls: features/disposals/DisposalDecisionControls.tsx (api/retirements.api.ts decideRetirement()), features/lookups/useLookups.ts (the labs and their campus),
  * features/assets/campusCounts.ts, features/assets/assetSearch.ts (the search placeholder), features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
  * Used by: AdRIC Director (disposal decisions, inventory reports).
  */
@@ -14,7 +14,7 @@ import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { countAssetsByCampus } from "@web/features/assets/campusCounts";
 import { ASSET_SEARCH_PLACEHOLDER } from "@web/features/assets/assetSearch";
 import { useFormLookups } from "@web/features/lookups/useLookups";
-import * as retirementsApi from "@web/api/retirements.api";
+import { DisposalDecisionControls } from "@web/features/disposals/DisposalDecisionControls";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Button } from "@web/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
@@ -92,10 +92,10 @@ export function getLatestRecordConditionScore(asset: any): number {
  * Shows one Director tab.
  * - overview: campus distribution (three campuses) and the status of every lab, with skeletons until the lists load.
  * - analytics: the Director analytics view.
- * - clearance-disposal: the pending disposal queue, authorized or rejected through retirementsApi.decideDisposal().
+ * - clearance-disposal: the pending disposal queue, approved or denied (with a reason) through DisposalDecisionControls.
  * - reports: the inventory report, with a per-asset history and CSV export.
- * Shows the shared asset list. Each time a tab opens it loads its own disposal list (retirementsApi.listDisposals)
- * and reloads the shared lists once (refreshSharedLists), so the bell and the analytics show other people's changes.
+ * Shows the shared asset list and the shared disposal list. Each time a tab opens it reloads the shared lists once
+ * (refreshSharedLists), so the bell and the analytics show other people's changes.
  *
  * @param activeTab "overview", "analytics", "clearance-disposal", or "reports"
  */
@@ -104,16 +104,12 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const { currentUser } = useSession();
   const {
     assets,
-    repairRequests = [],
+    tickets = [],
+    retirements = [],
     isDbLoading: isGlobalDbLoading,
     syncFromDb,
     refreshSharedLists
   } = useServerData();
-
-  const [dbDisposals, setDbDisposals] = useState<any[]>([]);
-  const [loadingDbDisposals, setLoadingDbDisposals] = useState(false);
-  const [dbDisposalsError, setDbDisposalsError] = useState<string | null>(null);
-  const [disposalActionId, setDisposalActionId] = useState<number | null>(null);
 
   const isDashboardLoading = isGlobalDbLoading;
   const { lookups, failed: lookupsFailed } = useFormLookups();
@@ -123,7 +119,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const exportLifecycleCSV = (asset: any) => {
     if (!asset) return;
 
-    const assetRepairs = (repairRequests || []).filter(r => r.assetId === asset.id);
+    const assetRepairs = tickets.filter(t => t.asset.tag === asset.id);
 
     // Only the reports saved in asset_inspections, the same ones the Staff inspection log shows. (F-28)
     const assetReports = asset.asset_reports || [];
@@ -144,10 +140,10 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n`;
 
     csvContent += `\nREPAIR & MAINTENANCE LOGS\n`;
-    csvContent += `Repair ID,Priority,Status,Description,Custodian,Submitted At\n`;
+    csvContent += `Repair ID,Issue Type,Status,Description,Reported By,Reported At\n`;
     if (assetRepairs.length > 0) {
-      assetRepairs.forEach((r: any) => {
-        csvContent += `"${r.id}","${r.priority}","${r.statusLabel}","${(r.description || "").replace(/"/g, '""')}","${r.custodian}","${r.submittedAt}"\n`;
+      assetRepairs.forEach(r => {
+        csvContent += `"MNT-${r.maintenanceId}","${r.issueType?.name ?? r.typeLabel}","${r.statusLabel}","${r.issueDescription.replace(/"/g, '""')}","${"hidden" in r.reportedBy ? "Not shown" : r.reportedBy.name}","${r.reportedAt}"\n`;
       });
     } else {
       csvContent += `No technical repair logs registered.\n`;
@@ -182,62 +178,14 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     document.body.removeChild(link);
   };
 
-  const fetchDbDisposals = async () => {
-    setLoadingDbDisposals(true);
-    setDbDisposalsError(null);
-    try {
-      const data = await retirementsApi.listDisposals();
-      if (data.success) {
-        setDbDisposals(data.disposals);
-      } else {
-        throw new Error(data.error || "Failed to fetch disposals from server");
-      }
-    } catch (err: any) {
-      console.error("❌ Failed to fetch database disposals:", err);
-      setDbDisposalsError(err.message || "Could not load disposal requests from DB.");
-    } finally {
-      setLoadingDbDisposals(false);
-    }
-  };
-
   // One load per tab: every tab change mounts this screen again (RootLayout keys the page by its URL).
   // The shared reload is skipped when one started moments ago, as at login. (issue #92)
   useEffect(() => {
-    fetchDbDisposals();
     refreshSharedLists();
   }, [activeTab]);
 
-  const decideDisposal = async (disposalId: number, decision: "approve" | "reject") => {
-    setDisposalActionId(disposalId);
-    try {
-      const data = await retirementsApi.decideDisposal(disposalId, decision);
-      if (!data.success) {
-        setDbDisposalsError(data.error || `Failed to ${decision} disposal.`);
-        return;
-      }
-      await fetchDbDisposals();
-      // The bell's disposal cards come from the shared lists, so it drops this one at once.
-      syncFromDb();
-    } catch (err: any) {
-      setDbDisposalsError(err.message || `Failed to ${decision} disposal.`);
-    } finally {
-      setDisposalActionId(null);
-    }
-  };
-
-  // pendingDisposals now sourced from the database, mapped onto the shape
-  // the render below already expects.
-  const pendingDisposals = dbDisposals
-    .filter(d => d.status === "Pending")
-    .map(d => ({
-      id: d.id,
-      _disposalId: d.disposalId,
-      assetId: d.assetId,
-      assetName: d.assetName,
-      requestedBy: d.requestedBy,
-      requestedAt: d.requestedAt,
-      reason: d.reason,
-    }));
+  // The disposals waiting for a decision. The Director never requests one, so each of them is theirs to decide.
+  const pendingDisposals = retirements.filter(r => r.status === "PENDING");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [fundingFilter, setFundingFilter] = useState("ALL");
@@ -479,61 +427,42 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-muted-foreground">
-              Staff asked to dispose of these assets. Each one needs your approval.
+              TSG asked to dispose of these assets. Each one needs your approval or your denial.
             </p>
 
-            {loadingDbDisposals && pendingDisposals.length === 0 && (
+            {isGlobalDbLoading && pendingDisposals.length === 0 && (
               <p className="text-xs text-muted-foreground">Loading disposal requests…</p>
-            )}
-            {dbDisposalsError && (
-              <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{dbDisposalsError}</div>
             )}
 
             <div className="space-y-3.5">
-              {pendingDisposals.map(req => {
-                const isActing = disposalActionId === req._disposalId;
-                return (
-                  <Card key={req.id} className="border-l-4 border-l-amber-500 overflow-hidden shadow-sm" style={{ borderLeftWidth: 4 }}>
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="text-xs font-bold text-foreground">{req.assetId} - {req.assetName}</h4>
-                          <p className="text-[10px] text-muted-foreground mt-1">Requested by: {req.requestedBy} · {new Date(req.requestedAt).toLocaleDateString()}</p>
-                        </div>
-                        <Badge className="bg-amber-50 border border-amber-200 text-amber-700 text-[9px] uppercase font-bold">
-                          Pending
-                        </Badge>
+              {pendingDisposals.map(req => (
+                <Card key={req.retirementId} className="border-l-4 border-l-amber-500 overflow-hidden shadow-sm" style={{ borderLeftWidth: 4 }}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="text-xs font-bold text-foreground">{req.asset.tag} - {req.asset.name}</h4>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Requested by: {"hidden" in req.requestedBy ? "Not shown" : req.requestedBy.name} · {new Date(req.requestedAt).toLocaleDateString()}
+                          {req.pathwayLabel ? ` · Pathway: ${req.pathwayLabel}` : ""}
+                        </p>
                       </div>
+                      <Badge className="bg-amber-50 border border-amber-200 text-amber-700 text-[9px] uppercase font-bold">
+                        {req.statusLabel}
+                      </Badge>
+                    </div>
 
-                      <div className="p-3 bg-muted/40 border border-border rounded-lg text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre-line">
-                        {req.reason}
-                      </div>
+                    <div className="p-3 bg-muted/40 border border-border rounded-lg text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre-line">
+                      {req.reason}
+                    </div>
 
-                      <div className="flex gap-2 justify-end pt-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={isActing}
-                          className="border-red-200 text-red-650 hover:bg-red-50 text-[10px] font-bold h-8"
-                          onClick={() => decideDisposal(req._disposalId, "reject")}
-                        >
-                          {isActing ? "Working…" : "Decline"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          disabled={isActing}
-                          className="bg-[#005A36] hover:bg-[#004225] text-white text-[10px] font-bold h-8 border-none"
-                          onClick={() => decideDisposal(req._disposalId, "approve")}
-                        >
-                          {isActing ? "Working…" : "Approve Disposal"}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                    <div className="pt-1">
+                      <DisposalDecisionControls retirement={req} onDecided={syncFromDb} />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
 
-              {!loadingDbDisposals && pendingDisposals.length === 0 && (
+              {!isGlobalDbLoading && pendingDisposals.length === 0 && (
                 <div className="flex flex-col items-center justify-center text-center py-12 border border-dashed border-border rounded-xl text-muted-foreground text-xs bg-muted/10">
                   <CheckCircle2 className="text-[#005A36]/40 mb-2.5 size-9" />
                   <p className="font-semibold text-foreground">No Disposal Requests</p>
@@ -843,16 +772,16 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <Wrench size={13} className="text-[#005A36]" />
                     Repair &amp; Maintenance Logs
                   </h4>
-                  {(repairRequests || []).filter(r => r.assetId === selectedAssetForAudit.id).length > 0 ? (
+                  {tickets.filter(t => t.asset.tag === selectedAssetForAudit.id).length > 0 ? (
                     <div className="space-y-2">
-                      {(repairRequests || []).filter(r => r.assetId === selectedAssetForAudit.id).map(r => (
-                        <div key={r.id} className="p-3 bg-muted/30 border border-border rounded-lg text-xs space-y-1.5">
+                      {tickets.filter(t => t.asset.tag === selectedAssetForAudit.id).map(r => (
+                        <div key={r.maintenanceId} className="p-3 bg-muted/30 border border-border rounded-lg text-xs space-y-1.5">
                           <div className="flex justify-between items-center">
-                            <span className="font-bold text-foreground">{r.id} · Priority: <span className="text-amber-600">{r.priority}</span></span>
+                            <span className="font-bold text-foreground">MNT-{r.maintenanceId} · Issue: <span className="text-amber-600">{r.issueType?.name ?? r.typeLabel}</span></span>
                             <Badge className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9px] font-bold uppercase">{r.statusLabel}</Badge>
                           </div>
-                          <p className="text-muted-foreground leading-relaxed">{r.description}</p>
-                          <p className="text-[9px] text-muted-foreground/60">Reported By: {r.custodian} · Submitted At: {new Date(r.submittedAt).toLocaleDateString()}</p>
+                          <p className="text-muted-foreground leading-relaxed">{r.issueDescription}</p>
+                          <p className="text-[9px] text-muted-foreground/60">Reported By: {"hidden" in r.reportedBy ? "Not shown" : r.reportedBy.name} · Reported At: {new Date(r.reportedAt).toLocaleDateString()}</p>
                         </div>
                       ))}
                     </div>

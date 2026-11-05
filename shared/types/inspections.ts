@@ -1,32 +1,10 @@
 /**
  * Request and response shapes of the inspection endpoints.
- * Layer: shared. Imported by server/features/inspections/ and web/api/inspections.api.ts. Imports nothing.
- * Used by: Custodian condition report, Staff inspection finalize, the Staff inspection log, and the Director audit.
+ * Layer: shared. Imported by server/features/inspections/ and web/api/inspections.api.ts. Imports shared/types/assets.ts.
+ * Used by: Custodian condition report, Staff inspection finalize, the Staff inspection log, the routine queue, and the
+ * Director audit.
  */
-
-/**
- * The body of POST /api/assets/:assetTag/inspection. A condition is required, in reportCondition or assetCondition;
- * every other field has a fallback.
- * The two senders (CustodianPortal, InspectionQueue) use reportCondition, reportRemarks, and reportImg; the other names
- * are older spellings the server still reads. The reporter is the session user. (issue #32)
- */
-export interface InspectionReportInput {
-  /** One of ASSET_CONDITIONS ("MINOR_DRIFT"). Anything else, or no condition at all, answers 400. (issue #53) */
-  reportCondition?: string;
-  /** Read when reportCondition is empty. */
-  assetCondition?: string;
-  /** Cut to 255 characters. Without any of the five remark fields, a default sentence is stored. */
-  reportRemarks?: string;
-  remarks?: string;
-  tsgRemarks?: string;
-  itsRemarks?: string;
-  description?: string;
-  /** One image as text (a data URL), or null. Stored as sent, with no check that it is an image. Callers send only the first image they hold. */
-  // TODO(M-17): images are stored as base64 text in the database, and only one per report. Phase 3 (at most 3 photos, kept 2 weeks).
-  reportImg?: string | null;
-  image?: string | null;
-  image_url?: string | null;
-}
+import type { AssetListItem } from './assets';
 
 /**
  * One row of GET /api/inspections, the short list (no email, no image), read by state/serverData.tsx.
@@ -103,4 +81,30 @@ export interface Inspection {
   remarks: string | null;
   photo: string | null;
   metrics: InspectionMetricValue[];
+}
+
+/** The routine queue's query (GET /api/inspections/routine-queue). */
+export interface RoutineQueueFilters {
+  /** An asset is due when TSG last inspected it more than this many days ago. */
+  days: number;
+  /** Only this home lab's assets. */
+  centerId?: number;
+}
+
+/** One asset in the routine queue. */
+export interface RoutineQueueEntry {
+  /** The asset, as the asset list shows it. */
+  asset: AssetListItem;
+  /** When TSG last inspected it (ISO date-time), or null when TSG never did. */
+  lastTsgInspectionAt: string | null;
+}
+
+/** One inspection group of the routine queue, its assets oldest inspection first. */
+export interface RoutineQueueGroup {
+  /** The group's id, "A" to "D", or "Other". */
+  group: string;
+  name: string;
+  /** The lab short codes in the group; for "Other", the codes of the labs its assets belong to. */
+  labs: string[];
+  assets: RoutineQueueEntry[];
 }

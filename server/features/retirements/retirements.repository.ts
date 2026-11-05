@@ -1,76 +1,108 @@
 /**
  * Disposal row access: every database read and write the disposal endpoints make.
- * Layer: repository. Called by retirements.service.ts. Calls server/config/prisma.ts, shared/services/assetStatus.ts,
- * and shared/services/rowLocks.ts.
- * Used by: Staff disposal filing, Director approval, and the screens that list disposals.
+ * Layer: repository. Called by retirements.service.ts. Calls server/config/prisma.ts, shared/services/rowLocks.ts, and
+ * shared/services/inspectionShape.ts (what an inspection includes, and its metric baselines).
+ * Used by: TSG disposal requests and completion, the Director's and the Secretary's decisions, and the disposal lists.
  */
-import { asset_retirements_status, type Prisma, type asset_retirements } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import { OPEN_MAINTENANCE_STATUSES } from '@shared/constants/maintenanceStatuses';
 import { prisma } from '../../config/prisma';
-import { setAssetStatus } from '../../shared/services/assetStatus';
 import { lockAsset } from '../../shared/services/rowLocks';
+import { INSPECTION_INCLUDE, PERSON, metricBaselinesOf } from '../../shared/services/inspectionShape';
+
+/** What a disposal read for the Retirement shape includes. */
+const RETIREMENT_INCLUDE = {
+    assets: { select: { asset_id: true, asset_tag: true, name: true } },
+    users: PERSON,
+    decided_by: PERSON,
+    completed_by: PERSON,
+    assessment_inspection: { include: INSPECTION_INCLUDE },
+} satisfies Prisma.asset_retirementsInclude;
+
+/** A disposal row with everything the Retirement shape names. */
+export type RetirementRow = Prisma.asset_retirementsGetPayload<{ include: typeof RETIREMENT_INCLUDE }>;
+
+/** Disposal rows for the Retirement shape, with the metric baselines of their assessment inspections. */
+export interface RetirementRows {
+    rows: RetirementRow[];
+    /** The asset's first recorded value of each metric, keyed "<assetId>:<metricId>". */
+    baselines: Map<string, number>;
+}
+
+/** The disposal statuses that are still open: a second request on the asset is refused while one is. */
+const OPEN_RETIREMENT_STATUSES = ["PENDING", "APPROVED"] as const;
 
 /**
- * Files a disposal request in one transaction: the asset_retirements row, and the asset set to Pending Retirement.
- * The asset row is locked first, so two requests on the same asset run one after the other.
+ * Disposal rows in the Retirement shape's detail, newest request first (ties by id), and the metric baselines of their
+ * assessment inspections, in two queries whatever the number of disposals.
  *
- * @param data the asset_retirements row, its previous_status included
- * @returns the created row
+ * @param where which disposals
  */
-export function createRequest(data: Prisma.asset_retirementsUncheckedCreateInput) {
-    return prisma.$transaction(async (tx) => {
-        await lockAsset(tx, data.asset_id);
-        const disposal = await tx.asset_retirements.create({ data });
-        await setAssetStatus(tx, data.asset_id, "PENDING_RETIREMENT");
-        return disposal;
+export async function findRetirements(where: Prisma.asset_retirementsWhereInput): Promise<RetirementRows> {
+    const rows = await prisma.asset_retirements.findMany({
+        where,
+        orderBy: [{ requested_at: 'desc' }, { retirement_id: 'desc' }],
+        include: RETIREMENT_INCLUDE,
     });
+    const inspections = rows.map(r => r.assessment_inspection).filter(i => i !== null);
+    return { rows, baselines: await metricBaselinesOf(prisma, inspections) };
+}
+
+/** The disposal with this id, or null. Its asset never changes, so a step reads it first to know which asset to lock. */
+export function findById(retirementId: number) {
+    return prisma.asset_retirements.findUnique({ where: { retirement_id: retirementId } });
 }
 
 /**
- * Every disposal (newest first), asset, and user, read together so the list can name
- * each disposal's asset and requester.
+ * Runs one disposal step in a transaction that locks the asset row first. The step then reads the disposal, the
+ * tickets and the asset again inside the lock and checks them, so two steps on one asset run one after the other.
+ * (H-05)
  *
- * @returns [asset_retirements, assets, users]
+ * @param assetId the disposal's asset
+ * @param step the reads, checks, and writes, given the transaction
+ * @returns what the step returns
  */
-// TODO(M-09): requested_at has one-second resolution and no tie-break, so requests filed in the same second come back in no fixed order. Phase 3, with the shared ordering rule.
-export function findListLookups() {
-    return Promise.all([
-        prisma.asset_retirements.findMany({ orderBy: { requested_at: 'desc' } }),
-        prisma.assets.findMany(),
-        prisma.users.findMany(),
+export function withAssetLock<T>(assetId: number, step: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return prisma.$transaction(async (tx) => {
+        await lockAsset(tx, assetId);
+        return step(tx);
+    });
+}
+
+/** The asset row, read inside the caller's transaction. */
+export function findAssetIn(tx: Prisma.TransactionClient, assetId: number) {
+    return tx.assets.findUniqueOrThrow({ where: { asset_id: assetId } });
+}
+
+/** The disposal row, read inside the caller's transaction. */
+export function findRetirementIn(tx: Prisma.TransactionClient, retirementId: number) {
+    return tx.asset_retirements.findUniqueOrThrow({ where: { retirement_id: retirementId } });
+}
+
+/** The asset's disposal in Pending or Approved, or null, inside the caller's transaction. */
+export function findOpenRetirementIn(tx: Prisma.TransactionClient, assetId: number) {
+    return tx.asset_retirements.findFirst({ where: { asset_id: assetId, status: { in: [...OPEN_RETIREMENT_STATUSES] } } });
+}
+
+/**
+ * The asset's newest maintenance ticket and whether any ticket is still open, inside the caller's transaction.
+ *
+ * @returns the newest ticket's status (null when it has none), and the open ticket's id (null when none is open)
+ */
+export async function findTicketStateIn(tx: Prisma.TransactionClient, assetId: number) {
+    const [latest, open] = await Promise.all([
+        tx.asset_maintenance.findFirst({ where: { asset_id: assetId }, orderBy: [{ reported_at: 'desc' }, { maintenance_id: 'desc' }], select: { status: true } }),
+        tx.asset_maintenance.findFirst({ where: { asset_id: assetId, status: { in: [...OPEN_MAINTENANCE_STATUSES] } }, select: { maintenance_id: true } }),
     ]);
+    return { latestStatus: latest?.status ?? null, openTicketId: open?.maintenance_id ?? null };
 }
 
-/** The disposal with this id, or null. */
-export function findById(disposalId: number) {
-    return prisma.asset_retirements.findUnique({ where: { retirement_id: disposalId } });
+/** Inserts an asset_retirements row inside the caller's transaction and returns it. */
+export function createRetirement(tx: Prisma.TransactionClient, data: Prisma.asset_retirementsUncheckedCreateInput) {
+    return tx.asset_retirements.create({ data });
 }
 
-/**
- * Saves a decision in one transaction. Approval: Completed, with who decided and completed it and when, and the asset
- * set to Retired. Rejection: Denied, with who decided and when, and the asset given back its status from before the
- * request (Available when none was kept). The asset row is locked first.
- *
- * @param disposal the pending disposal being decided
- * @param approve true to approve, false to reject
- * @param deciderId the session user who decides
- * @param assetIsPending whether the asset is in Pending Retirement; a rejection leaves any other status alone
- * @returns the updated asset_retirements row
- */
-export function saveDecision(disposal: asset_retirements, approve: boolean, deciderId: number, assetIsPending: boolean) {
-    return prisma.$transaction(async (tx) => {
-        await lockAsset(tx, disposal.asset_id);
-        const now = new Date();
-        const updated = await tx.asset_retirements.update({
-            where: { retirement_id: disposal.retirement_id },
-            data: approve
-                ? { status: asset_retirements_status.COMPLETED, decided_by_id: deciderId, decided_at: now, completed_by_id: deciderId, completed_at: now }
-                : { status: asset_retirements_status.DENIED, decided_by_id: deciderId, decided_at: now },
-        });
-        if (approve) {
-            await setAssetStatus(tx, disposal.asset_id, "RETIRED");
-        } else if (assetIsPending) {
-            await setAssetStatus(tx, disposal.asset_id, disposal.previous_status ?? "AVAILABLE");
-        }
-        return updated;
-    });
+/** Changes a disposal row inside the caller's transaction. */
+export function updateRetirement(tx: Prisma.TransactionClient, retirementId: number, data: Prisma.asset_retirementsUncheckedUpdateInput) {
+    return tx.asset_retirements.update({ where: { retirement_id: retirementId }, data });
 }

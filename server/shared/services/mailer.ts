@@ -1,11 +1,13 @@
 /**
- * Mailer: sends the notification emails (transfer and disposal requests and decisions) through Mailgun.
- * Layer: shared service. Called by features/transfers/transfers.service.ts and features/retirements/retirements.service.ts. Calls config/env.ts and mailgun.js.
- * Used by: every workflow that notifies a custodian, Lab Head, Staff, or the Director by email.
+ * Mailer: sends the notification emails (disposal requests and decisions) through Mailgun.
+ * Layer: shared service. Called by features/retirements/retirements.service.ts. Calls config/env.ts, mailgun.js, and
+ * shared/utils/html.ts (escaping).
+ * Used by: the disposal emails to the Director, the Secretary, and the requester.
  */
 import formData from 'form-data';
 import Mailgun from 'mailgun.js';
 import { env } from '../../config/env';
+import { escapeHtml } from '../utils/html';
 
 const MAILGUN_API_KEY = env.mailgunApiKey;
 const MAILGUN_DOMAIN = env.mailgunDomain;
@@ -57,11 +59,10 @@ export async function sendEmail(to: string | string[], subject: string, html: st
 /**
  * Wraps a notification in the shared AdRIC layout, so every email looks the same.
  *
- * @param heading the title line, inserted as HTML
- * @param bodyHtml the body, inserted as HTML
+ * @param heading the title line, plain text: it is escaped here
+ * @param bodyHtml the body, inserted as HTML: the caller escapes every value it puts in it (escapeHtml). (H-20)
  * @returns the full HTML for sendEmail
  */
-// TODO(H-20): heading and bodyHtml are inserted unescaped, and callers put asset names and typed reasons in them. Escape them (server/shared/utils/html.ts). Step 13.
 export function emailTemplate(heading: string, bodyHtml: string): string {
     return `
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
@@ -69,7 +70,7 @@ export function emailTemplate(heading: string, bodyHtml: string): string {
         <span style="color:#fff; font-weight:bold; font-size: 16px;">AdRIC Asset Management</span>
       </div>
       <div style="border: 1px solid #e5e7eb; border-top: none; padding: 24px; border-radius: 0 0 8px 8px;">
-        <h2 style="margin-top:0; font-size: 18px;">${heading}</h2>
+        <h2 style="margin-top:0; font-size: 18px;">${escapeHtml(heading)}</h2>
         ${bodyHtml}
       </div>
       <p style="color:#9ca3af; font-size: 11px; margin-top: 12px;">

@@ -1,7 +1,7 @@
 /**
  * Side navigation: the role's tab list, collapse toggle, logout, and the settings panel (theme, inspection cycle, session details).
  * Layer: shared (app shell). Called by layouts/RootLayout.tsx.
- * Calls: state/session.tsx (role, preferences, cookies), state/serverData.tsx (unacknowledged repair count),
+ * Calls: state/session.tsx (role, preferences, cookies), state/serverData.tsx (the count of tickets waiting for receipt),
  * state/pendingSignUps.tsx (the IT Admin's count of sign-ups waiting). No api calls.
  * Used by: every role.
  */
@@ -77,7 +77,7 @@ const roleConfig: Record<Role, {
 
 /**
  * Shows the signed-in role's navigation. Each entry links to `/<role slug>/<tab id>`;
- * the Repair Manager entry carries the count of unacknowledged repair tickets, and the IT Admin's Approvals entry the
+ * the Repairs entry carries the count of tickets waiting for receipt, and the IT Admin's Approvals entry the
  * count of sign-ups waiting.
  *
  * @param onLogout called by the logout button; RootLayout clears the role
@@ -86,7 +86,7 @@ const roleConfig: Record<Role, {
  */
 export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: () => void; isMobileOpen?: boolean; onCloseMobile?: () => void }) {
   const { role, sidebarCollapsed, setSidebarCollapsed, cycleMode, setCycleMode, theme, setTheme, currentUser } = useSession();
-  const { unacknowledgedCount } = useServerData();
+  const { pendingReceiptCount } = useServerData();
   const { users: pendingSignUps } = usePendingSignUps();
   const [showSettings, setShowSettings] = useState(false);
   const navigate   = useNavigate();
@@ -283,7 +283,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
 
           {cfg.nav.filter(({ id }) => !(role === "Staff" && id === "loans" && currentUser?.staffUnit !== "TSG")).map(({ id, label, icon: Icon }) => {
             const active = activeTab === id;
-            const alertCount = id === "repairs" ? unacknowledgedCount : id === "approvals" && role === "ITAdmin" ? pendingSignUps.length : 0;
+            const alertCount = id === "repairs" ? pendingReceiptCount : id === "approvals" && role === "ITAdmin" ? pendingSignUps.length : 0;
             const hasAlert   = alertCount > 0;
 
             const navBtn = (

@@ -19,8 +19,8 @@ const { db } = useApiHarness();
 /** The guard table of docs/contracts/lifecycle.md, section 3: the actions each status allows, nothing else. */
 const EXPECTED: Record<string, LifecycleAction[]> = {
   AVAILABLE: ["REQUEST_LOAN", "APPROVE_LOAN", "RELEASE_LOAN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "REQUEST_RETIREMENT", "MARK_MISSING", "EDIT_MASTER_DATA", "ROUTINE_INSPECTION"],
-  ON_LOAN: ["REQUEST_RETURN", "RECEIVE_RETURN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "MARK_MISSING", "EDIT_MASTER_DATA"],
-  MAINTENANCE: ["REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
+  ON_LOAN: ["REQUEST_RETURN", "RECEIVE_RETURN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "MARK_MISSING", "EDIT_MASTER_DATA", "SELF_REPORT_INSPECTION"],
+  MAINTENANCE: ["WORK_ON_MAINTENANCE", "REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
   PENDING_RETIREMENT: ["DECIDE_RETIREMENT", "COMPLETE_RETIREMENT"],
   RETIRED: [],
   MISSING: ["MARK_FOUND", "REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
@@ -33,17 +33,17 @@ describe("the lifecycle guard", () => {
     }
   });
 
-  it("covers the six statuses and the fourteen actions", () => {
+  it("covers the six statuses and the sixteen actions", () => {
     expect(Object.keys(ALLOWED_ACTIONS).sort()).toEqual(Object.keys(EXPECTED).sort());
-    expect(LIFECYCLE_ACTIONS).toHaveLength(14);
+    expect(LIFECYCLE_ACTIONS).toHaveLength(16);
   });
 
-  it("refuses a second loan or a retirement request while a loan waits, and says which loan", () => {
+  it("refuses a second loan while a loan waits, and says which loan; a waiting loan blocks no retirement request or ticket (Batch 5, 3.7)", () => {
     const asset = { asset_tag: "TEST-0001", status: "AVAILABLE" as const };
     const waiting = { loanId: 7, status: "PENDING_RELEASE" as const };
 
     expect(refusalFor(asset, "REQUEST_LOAN", waiting)).toBe("TEST-0001 already has a loan in Pending Release (LOAN-7).");
-    expect(refusalFor(asset, "REQUEST_RETIREMENT", waiting)).toBe("TEST-0001 already has a loan in Pending Release (LOAN-7).");
+    expect(refusalFor(asset, "REQUEST_RETIREMENT", waiting)).toBeNull();
     expect(refusalFor(asset, "START_MAINTENANCE", waiting)).toBeNull();
   });
 });

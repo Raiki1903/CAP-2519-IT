@@ -119,7 +119,7 @@ describe("GET /api/assets", () => {
     expect(listed).toMatchObject({ status: "MAINTENANCE", location: "Manila", lab: LAB.shortCode, homeLab: { code: LAB.shortCode }, currentLocation: "TSG Office" });
   });
 
-  it("gives a retired asset no current location and its disposal details, parsed back out of the reason text (known defect M-13)", async () => {
+  it("gives a retired asset no current location and its disposal details: the reason as written and the pathway's label (M-13 fixed)", async () => {
     const listed = await listedAsset(ASSETS.disposed.tag);
 
     expect(listed.status).toBe("RETIRED");
@@ -127,7 +127,7 @@ describe("GET /api/assets", () => {
     expect(listed.disposalId).toBe(`DISP-${SEEDED_ROWS.disposalId}`);
     expect(listed.disposalDetails).toMatchObject({
       lastCustodian: "No Custodian",
-      disposalPathway: "Test pathway",
+      disposalPathway: "Recycle",
       breakdownReasons: "Test breakdown: the board is burnt",
       decommissionedBy: USERS.staffTsg.fullName,
     });

@@ -3,15 +3,18 @@
  * features need (an asset by tag or by id, its lab, and its state).
  * Layer: repository. Called by assets.service.ts, the services of features/loans, retirements, maintenance,
  * and inspections, and shared/services/permissions.ts. Calls config/prisma.ts, shared/services/assetState.ts (with the
- * shared client), shared/services/rowLocks.ts, and shared/services/activityLog.ts.
+ * shared client), shared/services/rowLocks.ts, shared/services/activityLog.ts, and shared/services/inspectionShape.ts
+ * (the metric baselines).
  * Used by: every role's inventory view, Staff registration, editing, and deletion, and every workflow that starts from an asset tag.
  */
 import type { Prisma } from '@prisma/client';
 import type { AssetListFilters } from '@shared/types/assets';
 import { prisma } from '../../config/prisma';
 import * as assetState from '../../shared/services/assetState';
+import { INSPECTION_INCLUDE, metricBaselinesOf } from '../../shared/services/inspectionShape';
+import { TSG_INSPECTION_TYPES } from '@shared/constants/inspectionTypes';
 import { lockAsset, lockCenter } from '../../shared/services/rowLocks';
-import { logActivity } from '../../shared/services/activityLog';
+import { logActivity, type ActivityEvent } from '../../shared/services/activityLog';
 
 /** What every asset read for a list or a detail includes: the home lab, the owning project, and the funding source. */
 const ASSET_DETAIL_INCLUDE = {
@@ -236,4 +239,75 @@ export function deleteRegistration(assetId: number, assetTag: string, actorId: n
         await tx.assets.delete({ where });
         await logActivity(tx, { eventType: "ASSET_DELETED", actorId, details: assetTag });
     });
+}
+
+/**
+ * Runs one step on an asset in a transaction that locks the asset row first, so the step reads the asset, its loan
+ * and its tickets again inside the lock and two steps on one asset run one after the other. (H-05)
+ *
+ * @param assetId the asset
+ * @param step the reads, checks, and writes, given the transaction
+ * @returns what the step returns
+ */
+export function withAssetLock<T>(assetId: number, step: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return prisma.$transaction(async (tx) => {
+        await lockAsset(tx, assetId);
+        return step(tx);
+    });
+}
+
+/** The asset row, read inside the caller's transaction. */
+export function findAssetIn(tx: Prisma.TransactionClient, assetId: number) {
+    return tx.assets.findUniqueOrThrow({ where: { asset_id: assetId } });
+}
+
+/** The asset's open loan, read inside the caller's transaction. */
+export function findOpenLoanIn(tx: Prisma.TransactionClient, assetId: number) {
+    return assetState.openLoanOf(tx, assetId);
+}
+
+/** Changes a loan row inside the caller's transaction. */
+export function updateLoanIn(tx: Prisma.TransactionClient, loanId: number, data: Prisma.asset_loansUncheckedUpdateInput) {
+    return tx.asset_loans.update({ where: { loan_id: loanId }, data });
+}
+
+/**
+ * Cancels the asset's tickets still in Pending Receipt, inside the caller's transaction, with who cancelled them and
+ * when, and the remarks.
+ *
+ * @param tx the caller's transaction
+ * @param assetId the asset
+ * @param actorId the session user
+ * @param remarks the resolution remarks
+ */
+export function cancelPendingTicketsIn(tx: Prisma.TransactionClient, assetId: number, actorId: number, remarks: string) {
+    return tx.asset_maintenance.updateMany({
+        where: { asset_id: assetId, status: "PENDING_RECEIPT" },
+        data: { status: "CANCELLED", completed_by_id: actorId, completed_at: new Date(), resolution_remarks: remarks },
+    });
+}
+
+/** Writes one activity_log row inside the caller's transaction. */
+export function logActivityIn(tx: Prisma.TransactionClient, event: ActivityEvent) {
+    return logActivity(tx, event);
+}
+
+/**
+ * Every row the benchmark data is built from, read together: the asset's TSG inspections (any type but Self Report),
+ * oldest first, with their metric values; the metrics of its category; and each metric's baseline, the asset's first
+ * recorded value of it (the same rule as the Inspection shape's flags).
+ *
+ * @param assetId the asset
+ * @param category the asset's category
+ */
+export async function findBenchmarkRows(assetId: number, category: Prisma.assetsGetPayload<object>['category']) {
+    const [inspections, categoryMetrics] = await Promise.all([
+        prisma.asset_inspections.findMany({
+            where: { asset_id: assetId, type: { in: [...TSG_INSPECTION_TYPES] } },
+            include: INSPECTION_INCLUDE,
+            orderBy: [{ inspected_at: 'asc' }, { inspection_id: 'asc' }],
+        }),
+        prisma.category_metrics.findMany({ where: { category }, include: { metric_definitions: true }, orderBy: { metric_id: 'asc' } }),
+    ]);
+    return { inspections, categoryMetrics, baselines: await metricBaselinesOf(prisma, inspections) };
 }

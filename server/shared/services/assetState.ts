@@ -2,7 +2,7 @@
  * The derive helpers: an asset's holder, current location, condition, overdue flag, and open loan, and a person's
  * open loans (clearance), worked out from the loan and inspection rows instead of being stored a second time.
  * Layer: shared service. Called by the repositories and services of features/assets, loans, maintenance,
- * retirements, and analytics. Calls Prisma through the client it is given (the shared client or the caller's
+ * retirements, inspections, and analytics. Calls Prisma through the client it is given (the shared client or the caller's
  * transaction); it never imports config/prisma.ts, so the tests can hand it their own client.
  * Used by: every asset list and detail, every rule that asks who holds an asset or whether it is free, and clearance.
  */

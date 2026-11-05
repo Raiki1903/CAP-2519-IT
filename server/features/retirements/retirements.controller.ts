@@ -1,62 +1,70 @@
 /**
  * Disposal controller: unpacks disposal requests, calls the service, and writes the JSON answers.
- * Layer: controller. Called by retirements.routes.ts. Calls retirements.validation.ts, retirements.service.ts, and shared/middleware/requireAuth.ts
- * (sessionUserOf: who is acting).
- * Used by: Staff disposal filing, Director approval.
+ * Layer: controller. Called by retirements.routes.ts. Calls retirements.validation.ts, retirements.service.ts, and
+ * shared/middleware/requireAuth.ts (sessionUserOf: who is acting).
+ * Used by: TSG disposal requests and completion, the Director's and the Secretary's decisions, and the disposal lists.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as retirementsService from './retirements.service';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
-import { checkDisposalDecision, checkDisposalRequest } from './retirements.validation';
+import { readCompleteBody, readDecisionBody, readRequestBody, readRetirementId, readStatusFilter } from './retirements.validation';
 
 /**
- * Handles POST /api/assets/:assetTag/retirement: files a pending disposal request, then emails the Director.
- * Answers `{ success, disposal }` with the new row, or the AppError's status and message
- * (400 missing field, 404 unknown tag, 409 refused by the custody request guard), or 500.
+ * Handles POST /api/assets/:assetTag/retirement: TSG requests a disposal, then the Director and the Secretary are emailed.
+ * Answers 201 `{ success, retirement }`, or the AppError's status and message (400, 404, 409).
  */
-export async function requestDisposal(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
+export async function requestRetirement(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
-    const data = req.body;
+    const data = readRequestBody(req.body);
+    const requester = sessionUserOf(req);
+    const retirement = await retirementsService.requestRetirement(assetTag, data, requester);
 
-    checkDisposalRequest(data);
-    const requesterId = sessionUserOf(req).userId;
-    const { disposal, asset } = await retirementsService.requestDisposal(assetTag, data, requesterId);
+    console.log(`Retirement ${retirement.retirementId} on ${assetTag} requested by user ${requester.userId}`);
+    res.status(201).json({ success: true, retirement });
 
-    console.log(`Retirement ${disposal.retirement_id} on ${assetTag} requested by user ${requesterId}`);
-    res.json({ success: true, disposal });
-
-    // Sent after the answer and not awaited, so a slow mail service never delays it. sendEmail catches its own send failures.
-    retirementsService.notifyDirector(asset, assetTag, data, requesterId);
+    // Sent after the answer and not awaited, so a slow mail service never delays it. The send catches its own failures.
+    retirementsService.notifyDeciders(retirement.retirementId);
 }
 
 /**
- * Handles GET /api/retirements: every disposal request, newest first, as `{ success, disposals }`.
- * A failure answers errorHandler's generic 500.
+ * Handles GET /api/retirements: the disposals the session user may see, newest first, as `{ success, retirements }` in
+ * the Retirement shape. Answers 400 for an unknown `?status=`.
  */
-export async function listDisposals(req: Request, res: Response): Promise<void> {
-    const disposals = await retirementsService.listDisposals();
-    res.json({ success: true, disposals });
+export async function listRetirements(req: Request, res: Response): Promise<void> {
+    const statuses = readStatusFilter(req.query.status);
+    const retirements = await retirementsService.listRetirements(statuses, sessionUserOf(req));
+    res.json({ success: true, retirements });
 }
 
 /**
- * Handles PUT /api/retirements/:disposalId/decision: approves or rejects a pending disposal,
- * then emails the requester.
- * Answers `{ success, disposal }` with the updated row, or the AppError's status and message
- * (400 bad id, bad decision word, or disposal not pending; 404 unknown disposal; 409 an approval the asset no longer allows), or 500.
+ * Handles PUT /api/retirements/:retirementId/decision: the Director or the Secretary approves or denies, then the
+ * requester is emailed. Answers `{ success, retirement }`, or the AppError's status and message (400, 403, 404, 409).
  */
-export async function decideDisposal(req: Request<{ disposalId: string }>, res: Response): Promise<void> {
-    const disposalId = parseInt(req.params.disposalId, 10);
-    const { decision } = req.body as { decision?: string };
+export async function decide(req: Request<{ retirementId: string }>, res: Response): Promise<void> {
+    const retirementId = readRetirementId(req.params.retirementId);
+    const body = readDecisionBody(req.body);
+    const decider = sessionUserOf(req);
+    const retirement = await retirementsService.decide(retirementId, body, decider);
 
-    checkDisposalDecision(disposalId, decision);
-    const deciderId = sessionUserOf(req).userId;
-    const updatedDisposal = await retirementsService.decideDisposal(disposalId, decision, deciderId);
-
-    console.log(`Retirement ${disposalId} ${decision === 'approve' ? 'approved' : 'rejected'} by user ${deciderId}`);
-    res.json({ success: true, disposal: updatedDisposal });
+    console.log(`Retirement ${retirementId} ${body.approve ? 'approved' : 'denied'} by user ${decider.userId}`);
+    res.json({ success: true, retirement });
 
     // Sent after the answer and not awaited, as for the request above.
-    retirementsService.notifyDecision(disposalId, updatedDisposal.requested_by_id, decision);
+    retirementsService.notifyDecision(retirementId);
+}
+
+/**
+ * Handles PUT /api/retirements/:retirementId/complete: TSG completes an Approved disposal; the asset is Retired.
+ * Answers `{ success, retirement }`, or the AppError's status and message (400, 404, 409).
+ */
+export async function complete(req: Request<{ retirementId: string }>, res: Response): Promise<void> {
+    const retirementId = readRetirementId(req.params.retirementId);
+    const body = readCompleteBody(req.body);
+    const actor = sessionUserOf(req);
+    const retirement = await retirementsService.complete(retirementId, body, actor);
+
+    console.log(`Retirement ${retirementId} completed by user ${actor.userId}`);
+    res.json({ success: true, retirement });
 }

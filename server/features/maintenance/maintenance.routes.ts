@@ -1,21 +1,24 @@
 /**
- * Repair route table: which URL maps to which controller.
+ * Maintenance route table: which URL maps to which controller, and who may call it.
  * Layer: routes. Mounted by server/app.ts. Calls maintenance.controller.ts.
- * Used by: Custodian repair request (RepairForm, ReturnForm), Staff repair queue and repair dialog
- * (useRepairTickets), the Staff analytics board (StaffAnalyticsView), and the screens that list repairs.
+ * Used by: reporting an issue (RepairForm, ReturnForm, the asset modal, the Researcher's inspection report), the Staff
+ * repair queue and dialog, the Staff analytics board, and the screens that list tickets.
  */
 import express from 'express';
 import * as maintenanceController from './maintenance.controller';
 import { requireAuth } from '../../shared/middleware/requireAuth';
 import { requireActive, requireAnyRole, requireTsg } from '../../shared/middleware/permissions';
 
-/** The four repair endpoints. Paths are written out in full, so app.ts mounts the router at the root. */
+/** The maintenance endpoints. Paths are written out in full, so app.ts mounts the router at the root. */
 export const maintenanceRouter = express.Router();
 
-// Every route needs a session and an Active account. A Researcher, a Lab Head, or TSG reports an issue; TSG moves the
-// ticket. The IT Admin and the Secretary have no asset steps.
-maintenanceRouter.post('/api/assets/:assetTag/maintenance', requireAuth, requireActive, requireAnyRole('RESEARCHER', 'LAB_HEAD', 'TSG_STAFF'), maintenanceController.requestRepair);
-maintenanceRouter.get('/api/maintenance', requireAuth, requireActive, maintenanceController.listRepairs);
-// Two endpoints change a ticket's status, with different side effects (H-06). Both kept in step 12, as decided.
-maintenanceRouter.put('/api/maintenance/:repairId', requireAuth, requireActive, requireTsg, maintenanceController.updateRepair);
-maintenanceRouter.put('/api/maintenance/:repairId/status', requireAuth, requireActive, requireTsg, maintenanceController.updateRepairStatus);
+// Every route needs a session and an Active account. The holder (a Researcher), the home lab's Head, or TSG reports an
+// issue and the reporter or TSG cancels it (who exactly is checked in the service); TSG makes every physical step. The
+// IT Admin has no asset steps and no ticket list.
+maintenanceRouter.post('/api/assets/:assetTag/maintenance', requireAuth, requireActive, requireAnyRole('RESEARCHER', 'LAB_HEAD', 'TSG_STAFF'), maintenanceController.reportIssue);
+maintenanceRouter.get('/api/maintenance', requireAuth, requireActive, requireAnyRole('TSG_STAFF', 'ADRIC_DIRECTOR', 'ADRIC_SECRETARY', 'LAB_HEAD', 'RESEARCHER'), maintenanceController.listTickets);
+maintenanceRouter.put('/api/maintenance/:maintenanceId/receive', requireAuth, requireActive, requireTsg, maintenanceController.receive);
+maintenanceRouter.put('/api/maintenance/:maintenanceId/start', requireAuth, requireActive, requireTsg, maintenanceController.start);
+maintenanceRouter.put('/api/maintenance/:maintenanceId/stage', requireAuth, requireActive, requireTsg, maintenanceController.changeStage);
+maintenanceRouter.put('/api/maintenance/:maintenanceId/complete', requireAuth, requireActive, requireTsg, maintenanceController.complete);
+maintenanceRouter.put('/api/maintenance/:maintenanceId/cancel', requireAuth, requireActive, requireAnyRole('RESEARCHER', 'LAB_HEAD', 'TSG_STAFF'), maintenanceController.cancel);

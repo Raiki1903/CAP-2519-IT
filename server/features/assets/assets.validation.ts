@@ -1,12 +1,13 @@
 /**
- * Asset request checks: the list's filters, the shape of a registration and of a master data edit, and whether a
- * picture is an image.
+ * Asset request checks: the list's filters, the shape of a registration and of a master data edit, whether a
+ * picture is an image, and the bodies of marking an asset missing and found.
  * Layer: validation. Called by assets.controller.ts (the filters and the two bodies) and assets.service.ts (the image
  * check). Calls shared/errors/AppError.ts, shared/validation/ (the field and inspection readers), and @shared (statuses
  * and categories).
- * Used by: every role's asset list and search, Staff registration, and Edit Asset (TSG and the Secretary).
+ * Used by: every role's asset list and search, Staff registration, Edit Asset (TSG and the Secretary), and TSG's
+ * Missing and Found.
  */
-import type { AssetCreateInput, AssetListFilters, AssetMasterData, AssetUpdateInput } from '@shared/types/assets';
+import type { AssetCreateInput, AssetListFilters, AssetMasterData, AssetUpdateInput, InspectionInput } from '@shared/types/assets';
 import { ASSET_STATUSES } from '@shared/enums/assetStatus';
 import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import { AppError } from '../../shared/errors/AppError';
@@ -144,4 +145,32 @@ export function checkAssetImage(imageVal: any): void {
     if (imageVal && typeof imageVal === 'string' && !/^data:image\//i.test(imageVal) && !/\.(jpg|jpeg|png|webp|svg)$/i.test(imageVal.split('?')[0])) {
         throw new AppError(400, "Security Violation: Asset image must be a valid .jpg or .png file.");
     }
+}
+
+/** The body as an object, or an empty one when no JSON body was sent. */
+function bodyOf(body: unknown): Record<string, unknown> {
+    return body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+}
+
+/**
+ * Reads a mark-missing body: the reason, which is kept in the activity log (details hold at most 255 characters).
+ *
+ * @param body the request body, `{ reason }`
+ * @throws AppError 400 if the reason is missing or over 255 characters
+ */
+export function readMissingBody(body: unknown): string {
+    const reason = readText(bodyOf(body), "reason", 255);
+    if (!reason) throw new AppError(400, "Write why the asset is missing.");
+    return reason;
+}
+
+/**
+ * Reads a mark-found body: the Recovery inspection and optional remarks (kept in the activity log, at most 255).
+ *
+ * @param body the request body, `{ inspection, remarks? }`
+ * @throws AppError 400 if the inspection is missing or wrong, or the remarks are too long
+ */
+export function readFoundBody(body: unknown): { inspection: InspectionInput; remarks: string | null } {
+    const data = bodyOf(body);
+    return { inspection: readInspectionInput(data.inspection, "inspection"), remarks: readText(data, "remarks", 255) ?? null };
 }

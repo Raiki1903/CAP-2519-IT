@@ -1,40 +1,49 @@
 /**
- * Disposals API: disposal requests and the Director's decisions.
- * Layer: api. Called by DisposalFormDialog, AdRICDirectorDashboard, NotificationCenter, and state/serverData.tsx. Calls client.ts; types from @shared/types/retirements.
- * Used by: Staff disposal filing, Director approval.
+ * Retirements API: every disposal request the web app sends to the server, one function per endpoint.
+ * Layer: api. Called by DisposalFormDialog, DisposalDecisionControls, CompleteDisposalDialog, and state/serverData.tsx.
+ * Calls client.ts; types from @shared/types/retirements.
+ * Used by: TSG disposal requests and completion, the Director's and the Secretary's decisions, the disposal lists.
  */
-import type { DisposalRequestInput } from "@shared/types/retirements";
+import type { RetirementCompleteBody, RetirementDecisionBody, RetirementRequestBody } from "@shared/types/retirements";
 import { apiGet, apiPost, apiPut, type ApiResult } from "./client";
 
 /**
- * Files a disposal request for an asset.
+ * TSG requests the disposal of an asset. The requester is the session user.
  *
  * @param assetTag the asset's tag
- * @param input who filed it, the last custodian, reasons, pathway, and date
- * @returns `success` and `disposal` (with `retirement_id`), or `error`
+ * @param body the reason, and the pathway when TSG already knows it
+ * @returns `success` and the new `retirement` (Pending); or `error` with the server's sentence
  */
-export function requestDisposal(assetTag: string, input: DisposalRequestInput): Promise<ApiResult> {
-  return apiPost(`/api/assets/${encodeURIComponent(assetTag)}/retirement`, input);
+export function requestRetirement(assetTag: string, body: RetirementRequestBody): Promise<ApiResult> {
+  return apiPost(`/api/assets/${encodeURIComponent(assetTag)}/retirement`, body);
 }
 
 /**
- * Lists disposal requests.
+ * Lists the disposals the session user may see: all for TSG, the Director and the Secretary, the lab's for its Head.
  *
- * @returns `success` and `disposals`, an array of disposal rows
+ * @returns `success` and `retirements`, each a Retirement from @shared/types/retirements; or `error`
  */
-export function listDisposals(): Promise<ApiResult> {
+export function listRetirements(): Promise<ApiResult> {
   return apiGet("/api/retirements");
 }
 
 /**
- * Approves or rejects a pending disposal.
- * The server accepts only "approve" or "reject" here. Loans use
- * "decline" instead, so the words are not interchangeable.
+ * The Director or the Secretary approves or denies a Pending disposal. The requester is refused by the server.
  *
- * @param disposalId numeric disposal id
- * @param decision "approve" or "reject"
- * @returns `success`, and `error` when the decision is refused
+ * @param retirementId numeric disposal id, without the "DISP-" prefix
+ * @param body "approve", or "deny" with the remarks
+ * @returns `success` and the decided `retirement`; or `error`
  */
-export function decideDisposal(disposalId: number | string, decision: string): Promise<ApiResult> {
-  return apiPut(`/api/retirements/${disposalId}/decision`, { decision });
+export function decideRetirement(retirementId: number | string, body: RetirementDecisionBody): Promise<ApiResult> {
+  return apiPut(`/api/retirements/${retirementId}/decision`, body);
+}
+
+/**
+ * TSG completes an Approved disposal with the pathway and the disposition reference. The asset is Retired.
+ *
+ * @param retirementId numeric disposal id
+ * @returns `success` and the completed `retirement`; or `error`
+ */
+export function completeRetirement(retirementId: number | string, body: RetirementCompleteBody): Promise<ApiResult> {
+  return apiPut(`/api/retirements/${retirementId}/complete`, body);
 }

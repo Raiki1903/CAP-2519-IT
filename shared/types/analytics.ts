@@ -104,7 +104,7 @@ export interface LabHeadAnalyticsData {
 
 /**
  * The `data` of GET /api/analytics/tsg (the Staff dashboard). The Staff view's dates are not applied here.
- * `repairs[].progressStatus` is "Reported" when the stored status is empty; a condition item's `location` is the
+ * `repairs[].progressStatus` is the ticket's status label (MAINTENANCE_STATUS_LABELS); a condition item's `location` is the
  * asset's home lab and room; `warrantyExpiringSoon` holds warranties expired or within 90 days, soonest first. An asset
  * TSG never inspected is in no condition count and has no condition item; `notInspectedCount` says how many.
  */

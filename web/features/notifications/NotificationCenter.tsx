@@ -1,8 +1,8 @@
 /**
  * Notification bell: a floating panel listing requests and reminders for the signed-in role.
  * Layer: feature component. Called by app/layouts/RootLayout.tsx, on every signed-in screen.
- * Calls: api/notifications.api.ts getMyNotifications(), api/retirements.api.ts decideDisposal(), and state/serverData.tsx
- * (the shared lists, authorizeLoan, acknowledgeRepair).
+ * Calls: api/notifications.api.ts getMyNotifications(), features/disposals/DisposalDecisionControls.tsx and
+ * CompleteDisposalDialog.tsx (api/retirements.api.ts), and state/serverData.tsx (the shared lists, authorizeLoan).
  * Used by: every role.
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
@@ -10,7 +10,9 @@ import { useNavigate } from "react-router";
 import { useSession, roleToSlug, roleDefaultPath, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import * as notificationsApi from "@web/api/notifications.api";
-import * as retirementsApi from "@web/api/retirements.api";
+import { DisposalDecisionControls } from "@web/features/disposals/DisposalDecisionControls";
+import { CompleteDisposalDialog } from "@web/features/disposals/CompleteDisposalDialog";
+import type { Retirement } from "@shared/types/retirements";
 import { labMatches } from "@web/features/labs/labMatches";
 import type { Role } from "@shared/enums/role";
 import type { Notification } from "@shared/types/notifications";
@@ -35,7 +37,6 @@ interface RequestCard {
   title: string;
   description: string;
   date: string;
-  priority?: string;
   needsAction: boolean;
   /** The red tag on a card that needs action. */
   badge?: string;
@@ -46,7 +47,7 @@ interface RequestCard {
 /** One card on the Reminders tab. */
 interface ReminderCard {
   id: string;
-  type: "overdue" | "duesoon" | "degraded";
+  type: "overdue" | "duesoon" | "degraded" | "statuscheck";
   title: string;
   description: string;
   needsAction: boolean;
@@ -55,22 +56,23 @@ interface ReminderCard {
 }
 
 /**
- * Shows the role's notifications and offers the decisions that role may make from the bell: the Director authorizes
- * or rejects disposals, Lab Heads approve or decline loans, Staff acknowledge repair tickets.
- * The loan, return, due-soon and overdue cards come from the server (GET /api/notifications/mine), matched there by
- * user id; the repair, disposal and health cards come from the shared lists. Each decision calls the API and then
- * reloads the shared lists. Clicking a card opens the matching tab. Takes no props.
+ * Shows the role's notifications and offers the decisions that role may make from the bell: the Director and the
+ * Secretary approve or deny disposals they did not request, TSG completes an approved disposal, Lab Heads approve or decline loans. A repair ticket waiting for receipt is a card for Staff and
+ * the Director that leads to the Repairs page, where TSG receives the asset.
+ * The server (GET /api/notifications/mine, matched there by user id) decides who has something to do. It sends the
+ * loan, return, due-soon, overdue and status check cards, and RECEIPT_WAITING and DISPOSAL_DECISION_WAITING, which mark
+ * the ticket and disposal cards that need the person's action. The details of those cards come from the shared lists
+ * (tickets, retirements), and so do the health cards. MAINTENANCE_OPEN shows a Researcher or Lab Head their open tickets.
+ * Each decision calls the API and then reloads the shared lists. Clicking a card opens the matching tab. Takes no props.
  */
-// TODO(H-16): a failed disposal decision is written to the console only; the card stays and the user is not told why. The bell rewrite (01D section 8).
 export function NotificationCenter() {
   const { role, currentUser } = useSession();
   const {
     assets,
     assetsVersion,
-    repairRequests,
+    tickets,
     dbLoans,
-    pendingDisposals,
-    acknowledgeRepair,
+    retirements,
     authorizeLoan,
     syncFromDb
   } = useServerData();
@@ -79,6 +81,8 @@ export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"requests" | "reminders">("requests");
   const panelRef = useRef<HTMLDivElement>(null);
+  // The approved disposal TSG is completing from a card.
+  const [completing, setCompleting] = useState<Retirement | null>(null);
 
   // The name is shown in the panel header only. No card is matched by it.
   const currentUserName = currentUser
@@ -164,40 +168,31 @@ export function NotificationCenter() {
     }
 
     const assetNameOf = (tag?: string) => assets.find(a => a.id === tag)?.name ?? tag ?? "Unknown asset";
+    // The tickets and disposals the server says this person has to act on.
+    const receiptWaitingIds = new Set(notifications.filter(n => n.kind === "RECEIPT_WAITING").map(n => n.maintenanceId));
+    const decisionWaitingIds = new Set(notifications.filter(n => n.kind === "DISPOSAL_DECISION_WAITING").map(n => n.retirementId));
 
     // REQUESTS TAB (Repairs, Equipment Loans, Returns, Disposals)
     const requests: RequestCard[] = [];
 
-    // A. Repair Tickets (Staff and AdRIC Director only, NOT shown to Lab Head)
-    // A Researcher's own repair cards come back in Batch 5, found by user id.
-    repairRequests.forEach(rep => {
-      const isOverdueOrActive = rep.statusLabel !== "Fixed & Completed";
-      if (isOverdueOrActive) {
-        let isRelevant = false;
-        let actionRequired = false;
-
-        if (role === "Staff") {
-          isRelevant = true;
-          actionRequired = !rep.acknowledged;
-        } else if (role === "AdRICDirector") {
-          isRelevant = rep.priority === "Critical" || !rep.acknowledged;
-        }
-
-        if (isRelevant) {
-          requests.push({
-            id: rep.id,
-            type: "repair",
-            title: `Repair Ticket: ${rep.assetName}`,
-            description: `Reported by ${rep.custodian}: "${rep.description}" (Priority: ${rep.priority})`,
-            date: rep.submittedAt,
-            priority: rep.priority,
-            needsAction: actionRequired,
-            targetTab: "repairs",
-            meta: rep
-          });
-        }
-      }
-    });
+    // A. Repair tickets waiting for TSG to receive the asset (Staff and AdRIC Director only, NOT shown to Lab Head).
+    // Only TSG can receive, so only the card the server marks with RECEIPT_WAITING needs action.
+    if (role === "Staff" || role === "AdRICDirector") {
+      tickets.filter(t => t.status === "PENDING_RECEIPT").forEach(t => {
+        const reporter = "hidden" in t.reportedBy ? "a researcher" : t.reportedBy.name;
+        requests.push({
+          id: `MNT-${t.maintenanceId}`,
+          type: "repair",
+          title: `Repair Ticket: ${t.asset.name}`,
+          description: `Reported by ${reporter}: "${t.issueDescription}" (${t.issueType?.name ?? t.typeLabel})`,
+          date: t.reportedAt,
+          needsAction: receiptWaitingIds.has(t.maintenanceId),
+          badge: "Waiting for Receipt",
+          targetTab: "repairs",
+          meta: t
+        });
+      });
+    }
 
     // B. Loan cards, one per server notification. Only the Head, TSG and the borrower get any, so there is no role check.
     notifications.forEach(n => {
@@ -239,39 +234,50 @@ export function NotificationCenter() {
           targetTab: "returns",
           meta: n
         });
+      } else if (n.kind === "MAINTENANCE_OPEN") {
+        // The reporter's own open ticket (a Researcher or a Lab Head; TSG gets RECEIPT_WAITING instead). Nothing to do but read it.
+        const ticket = tickets.find(t => t.maintenanceId === n.maintenanceId);
+        requests.push({
+          id: `MNT-OPEN-${n.maintenanceId}`,
+          type: "repair",
+          title: `${n.label}: ${assetNameOf(n.assetTag)}`,
+          description: `MNT-${n.maintenanceId} is ${n.statusLabel}.${ticket ? ` ${ticket.issueType?.name ?? ticket.typeLabel}: "${ticket.issueDescription}"` : ""}`,
+          date: n.date ?? "",
+          needsAction: false,
+          targetTab: "inventory",
+          meta: n
+        });
       }
     });
 
-    // C. Decommission Disposals (AdRIC Director Approvals)
-    pendingDisposals.forEach(disp => {
-      let isRelevant = false;
-      let actionRequired = false;
-
-      if (role === "AdRICDirector") {
-        isRelevant = true;
-        actionRequired = true; // Director sign-off needed
-      } else if (role === "Staff") {
-        isRelevant = true;
-      } else if (role === "LabHead") {
-        // Only disposals of the Lab Head's own lab's assets. (F-31)
-        isRelevant = labMatches(currentUser?.headOf?.code, assets.find(a => a.id === disp.assetId)?.lab);
-      }
-
-      if (isRelevant) {
-        // The list sends one packed `reason` text (M-13), so the pathway and the justification are read out of it
-        // by the labels the server writes. A reason without the labels is shown whole.
-        const pathway = disp.reason.match(/Disposal Pathway:\s*(.+)/i)?.[1].trim() || "Not stated";
-        const justification = (disp.reason.match(/Breakdown Justification:\s*([\s\S]+)/i)?.[1] ?? disp.reason).replace(/\s+/g, " ").trim();
+    // C. Disposals. The Director and the Secretary (the Staff view of the ITS account) decide the Pending ones they did
+    // not request: the server marks those with DISPOSAL_DECISION_WAITING. TSG completes the Approved ones; a Lab Head
+    // sees its lab's Pending ones (the server scopes the list). The cards come from GET /api/retirements.
+    const isTsgStaff = role === "Staff" && currentUser?.staffUnit === "TSG";
+    retirements.forEach(r => {
+      const requester = "hidden" in r.requestedBy ? "TSG" : r.requestedBy.name;
+      const base = {
+        id: `DISP-${r.retirementId}`,
+        type: "disposal" as const,
+        title: `Disposal Request: ${r.asset.name}`,
+        date: r.requestedAt,
+        targetTab: "disposals",
+        meta: r,
+      };
+      if (r.status === "PENDING") {
         requests.push({
-          id: disp.id,
-          type: "disposal",
-          title: `Disposal Request: ${disp.assetName}`,
-          description: `Decommission request: "${justification}". Pathway: ${pathway}. Requested by: ${disp.requestedBy}.`,
-          date: disp.requestedAt,
-          needsAction: actionRequired,
+          ...base,
+          description: `Reason: "${r.reason.replace(/\s+/g, " ").trim()}". Pathway: ${r.pathwayLabel ?? "Not named yet"}. Requested by: ${requester}.`,
+          needsAction: decisionWaitingIds.has(r.retirementId),
           badge: "Pending Approval",
-          targetTab: "disposals",
-          meta: disp
+        });
+      } else if (r.status === "APPROVED" && isTsgStaff) {
+        requests.push({
+          ...base,
+          description: `Approved${r.decisionRemarks ? `: "${r.decisionRemarks}"` : ""}. Complete it with the pathway and the disposition reference.`,
+          date: r.decidedAt ?? r.requestedAt,
+          needsAction: true,
+          badge: "Complete Disposal",
         });
       }
     });
@@ -305,6 +311,18 @@ export function NotificationCenter() {
           description: `Your borrowed device is due on ${n.date}.`,
           needsAction: true,
           targetTab: "myassets",
+          meta: n
+        });
+      } else if (n.kind === "STATUS_CHECK_DUE") {
+        reminders.push({
+          id: `REM-CHK-${n.loanId}`,
+          type: "statuscheck",
+          title: `${n.label}: ${assetNameOf(n.assetTag)}`,
+          description: n.date
+            ? `Its last inspection was on ${n.date}. Send a status report on the Report tab.`
+            : "It has not been inspected yet. Send a status report on the Report tab.",
+          needsAction: true,
+          targetTab: "report",
           meta: n
         });
       }
@@ -349,23 +367,9 @@ export function NotificationCenter() {
       remindersBadge: remBadge,
       totalBadgeCount: rBadge + remBadge
     };
-  }, [role, currentUser, assets, repairRequests, dbLoans, notifications, pendingDisposals]);
+  }, [role, currentUser, assets, tickets, dbLoans, notifications, retirements]);
 
   if (!role) return null;
-
-  const decideDisposalFromBell = async (disp: any, decision: "approve" | "reject") => {
-    if (disp?.disposalId === undefined) {
-      console.error("Disposal decision skipped: this row has no database id.", disp);
-      return;
-    }
-    try {
-      const data = await retirementsApi.decideDisposal(disp.disposalId, decision);
-      if (!data.success) console.error("Failed to decide disposal:", data.error);
-    } catch (err) {
-      console.error("Failed to decide disposal:", err);
-    }
-    await syncFromDb();
-  };
 
   /**
    * Resolves the target URL for a notification card based on the role and card type.
@@ -392,8 +396,8 @@ export function NotificationCenter() {
     }
 
     if (cardRole === "Custodian") {
-      // Loans and the due-soon and overdue reminders live in myassets.
-      return "/custodian/myassets";
+      // A status check is answered on the Report tab; loans, tickets and the due-soon and overdue reminders live in myassets.
+      return targetTab === "report" ? "/custodian/report" : "/custodian/myassets";
     }
 
     if (cardRole === "Staff") {
@@ -547,17 +551,11 @@ export function NotificationCenter() {
                           className="flex items-center justify-end gap-1.5 border-t border-dashed border-border/60 pt-2 mt-1"
                           onClick={e => e.stopPropagation()}
                         >
-                          {/* Acknowledge Repair Ticket Button */}
-                          {item.type === "repair" && (role === "Staff") && (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                await acknowledgeRepair(item.id);
-                              }}
-                              className="text-[10px] font-bold text-white bg-primary hover:bg-primary/90 px-3 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                            >
-                              <CheckCircle size={10} /> Acknowledge Repair
-                            </button>
+                          {/* TSG receives the asset on the Repairs page, where the inspection is filled in. */}
+                          {item.type === "repair" && (
+                            <span className="text-[9px] text-primary font-bold flex items-center gap-1 cursor-pointer hover:underline">
+                              Receive on the Repairs page <ExternalLink size={9} />
+                            </span>
                           )}
 
                           {/* Equipment Loan Decision Buttons */}
@@ -626,28 +624,17 @@ export function NotificationCenter() {
                             </div>
                           )}
 
-                          {/* Authorize Decommission Disposal Buttons */}
-                          {item.type === "disposal" && role === "AdRICDirector" && (
-                            <div className="flex gap-1">
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await decideDisposalFromBell(item.meta, "approve");
-                                }}
-                                className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                Approve Disposal
-                              </button>
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await decideDisposalFromBell(item.meta, "reject");
-                                }}
-                                className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                              >
-                                Decline
-                              </button>
-                            </div>
+                          {/* Disposal decision (Director, Secretary) or completion (TSG) */}
+                          {item.type === "disposal" && item.meta.status === "PENDING" && (
+                            <DisposalDecisionControls retirement={item.meta} onDecided={syncFromDb} />
+                          )}
+                          {item.type === "disposal" && item.meta.status === "APPROVED" && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setCompleting(item.meta); }}
+                              className="text-[10px] font-bold text-white bg-red-700 hover:bg-red-800 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                            >
+                              Complete Disposal
+                            </button>
                           )}
 
                           {item.type === "return" && (
@@ -685,12 +672,13 @@ export function NotificationCenter() {
                       <div className="flex items-start gap-2.5 justify-between">
                         <div className="flex items-start gap-2.5">
                           <span className={`p-1.5 rounded-lg flex-shrink-0 mt-0.5 ${item.type === "overdue" ? "bg-red-50 text-red-600 border border-red-100" :
-                            item.type === "duesoon" ? "bg-amber-50 text-amber-600 border border-amber-100" :
+                            item.type === "duesoon" || item.type === "statuscheck" ? "bg-amber-50 text-amber-600 border border-amber-100" :
                               "bg-orange-50 text-orange-600 border border-orange-100"
                             }`}>
                             {item.type === "overdue" && <AlertTriangle size={14} />}
                             {item.type === "duesoon" && <Clock size={14} />}
                             {item.type === "degraded" && <Activity size={14} />}
+                            {item.type === "statuscheck" && <ClipboardCheck size={14} />}
                           </span>
                           <div>
                             <div className="flex items-center gap-1.5">
@@ -708,7 +696,7 @@ export function NotificationCenter() {
                     <div className="flex flex-col items-center justify-center text-center py-12 text-muted-foreground">
                       <CheckCircle size={32} className="text-emerald-500/50 mb-2" />
                       <p className="text-xs font-bold text-foreground">No Active Reminders</p>
-                      <p className="text-[10px] mt-0.5">No due-soon or overdue loans and no health alerts for your role.</p>
+                      <p className="text-[10px] mt-0.5">No due-soon or overdue loans, status checks or health alerts for your role.</p>
                     </div>
                   )}
                 </>
@@ -724,6 +712,7 @@ export function NotificationCenter() {
           </motion.div>
         )}
       </AnimatePresence>
+      {completing && <CompleteDisposalDialog retirement={completing} onClose={() => setCompleting(null)} onDone={syncFromDb} />}
     </div>
   );
 }

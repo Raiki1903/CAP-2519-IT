@@ -1,13 +1,17 @@
 /**
  * Asset detail modal: one asset's facts, QR tag, history, and the request forms each role may open from it.
  * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and pages/staff/InventoryPage.tsx.
- * Calls: api/assets.api.ts getAssetHistory(), state/serverData.tsx addRepairRequest() and reloadLoans(), and the loan, return, and repair forms.
- * Used by: Custodian requests, Lab Head custody review, Staff maintenance flagging and Record Return.
+ * Calls: api/assets.api.ts getAssetHistory(), api/maintenance.api.ts reportIssue() (TSG's flag), features/lookups/useLookups.ts,
+ * features/assets/AssetTsgSteps.tsx (Missing, Found, complete a disposal), state/serverData.tsx reloadLoans(), and the loan,
+ * return, and repair forms.
+ * Used by: Custodian requests, Lab Head custody review, TSG maintenance flagging and Record Return.
  */
 import { useState, useEffect } from "react";
 import { useSession } from "@web/state/session";
 import { useServerData, holderLabel, type DisposalDetails } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
+import * as maintenanceApi from "@web/api/maintenance.api";
+import { otherIssueTypeId, useFormLookups } from "@web/features/lookups/useLookups";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, Wrench, CornerUpLeft,
@@ -15,6 +19,7 @@ import {
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { assetStatusLabel } from "./assetBadges";
+import { AssetTsgSteps } from "./AssetTsgSteps";
 import { ReturnForm } from "@web/features/returns/ReturnForm";
 import { RepairForm } from "@web/features/repairs/RepairForm";
 import { LoanForm } from "@web/features/loans/LoanForm";
@@ -103,7 +108,9 @@ interface Props {
  */
 export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const { role, currentUser } = useSession();
-  const { assets, assetsVersion, addRepairRequest, dbLoans, reloadLoans } = useServerData();
+  const { assets, assetsVersion, syncFromDb, dbLoans, reloadLoans } = useServerData();
+  const { lookups } = useFormLookups();
+  const [flagError, setFlagError] = useState<string | null>(null);
   // The shared list can be older than the page's own list, so its copy is used only once it reloaded after
   // this asset was opened. Until then the modal shows the same status as the row that was clicked. (issue #89)
   const [openedUnder, setOpenedUnder] = useState({ tag: propAsset?.id, version: assetsVersion });
@@ -186,24 +193,30 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   // Every step, newest first, for the history on the detail screen.
   const newestFirstEvents = [...historyEvents].reverse();
 
-  const handleDirectMaintenance = () => {
+  // TSG flags an asset for maintenance: a ticket in Pending Receipt with the "Other" issue type. TSG then receives the
+  // asset from the Repairs page, where the loan (if any) ends. The server's refusal is shown under the button.
+  const handleDirectMaintenance = async () => {
     if (!asset) return;
-    const refId = `MNT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    addRepairRequest({
-      id: refId,
-      assetId: asset.id,
-      assetName: asset.name,
-      custodian: asset.custodian || "Unassigned",
-      statusLabel: "Under Maintenance",
-      description: `Flagged for immediate maintenance and component servicing by ${currentUser?.staffUnit ?? role}.`,
-      submittedAt: new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-      priority: "High",
-      acknowledged: true,
-      // A Staff account forwards to its own unit. The server does not store forwardedTo yet,
-      // so the unit named in the description above is the only lasting record of it.
-      forwardedTo: currentUser?.staffUnit === "ITS" ? "ITS" : "TSG"
-    });
-    resetAndClose();
+    setFlagError(null);
+    const issueTypeId = otherIssueTypeId(lookups);
+    if (issueTypeId === null) {
+      setFlagError("The issue types could not be loaded. Please try again.");
+      return;
+    }
+    try {
+      const data = await maintenanceApi.reportIssue(asset.id, {
+        issueTypeId,
+        issueDescription: `Flagged for maintenance by ${currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : "TSG"}.`,
+      });
+      if (!data.success) {
+        setFlagError(data.error || "The ticket could not be filed. Please try again.");
+        return;
+      }
+      await syncFromDb();
+      resetAndClose();
+    } catch (err: any) {
+      setFlagError(err?.message || "The server could not be reached. Please try again.");
+    }
   };
 
   // A custodian never sees who filed someone else's request, only that one exists. (D2)
@@ -487,7 +500,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 )}
 
                                 {/* Staff direct maintenance */}
-                                {role === "Staff" && (
+                                {role === "Staff" && currentUser?.staffUnit === "TSG" && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       variant="outline"
@@ -499,9 +512,10 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                         className="text-[10px] font-extrabold leading-tight text-center"
                                         style={{ fontFamily: "'Montserrat', sans-serif" }}
                                       >
-                                        Send to<br />Maintenance
+                                        Flag for<br />Maintenance
                                       </span>
                                     </Button>
+                                    {flagError && <p className="text-[10px] text-red-600 mt-1.5 text-center">{flagError}</p>}
                                   </motion.div>
                                 )}
                               </div>
@@ -537,7 +551,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 )}
 
                                 {/* 2b — Direct Send to Maintenance */}
-                                {role === "Staff" && (
+                                {role === "Staff" && currentUser?.staffUnit === "TSG" && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       variant="outline"
@@ -549,9 +563,10 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                         className="text-[10px] font-extrabold leading-tight text-center"
                                         style={{ fontFamily: "'Montserrat', sans-serif" }}
                                       >
-                                        Send to<br />Maintenance
+                                        Flag for<br />Maintenance
                                       </span>
                                     </Button>
+                                    {flagError && <p className="text-[10px] text-red-600 mt-1.5 text-center">{flagError}</p>}
                                   </motion.div>
                                 )}
 
@@ -595,6 +610,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                               </div>
                             )}
                           </div>
+                          {role === "Staff" && currentUser?.staffUnit === "TSG" && <AssetTsgSteps asset={asset} />}
                         </>
                       )}
                     </motion.div>

@@ -4,26 +4,23 @@
  * Layer: service. Called by loans.controller.ts. Calls loans.repository.ts, features/assets/assets.repository.ts,
  * shared/services/lifecycleGuard.ts, shared/services/permissions.ts (the approver), shared/services/assetState.ts, and,
  * inside the step's transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts;
- * features/maintenance/maintenance.service.ts for the shape of a Return Damage ticket; features/assets/assets.service.ts
+ * shared/services/inspectionShape.ts (people and inspections in an answer);
+ * features/maintenance/maintenance.service.ts for the Maintenance shape of a Return Damage ticket; features/assets/assets.service.ts
  * for the asset on the Accountability Form.
  * Used by: Researcher loan requests and return requests, Lab Head approval, TSG release and receipt, the loan lists,
  * the Accountability Form, and the clearance record.
  */
 import { asset_loans_status, type Prisma } from '@prisma/client';
 import type { AccountabilityForm, ClearanceRecord, Loan, LoanListItem, LoanRequestBody } from '@shared/types/loans';
-import type { Inspection } from '@shared/types/inspections';
-import type { InspectionInput, PersonRef } from '@shared/types/assets';
+import type { InspectionInput } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
 import * as loansRepository from './loans.repository';
-import type { LoanInspectionRow, LoanRow, LoanRows } from './loans.repository';
+import type { LoanRow, LoanRows } from './loans.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import * as assetsService from '../assets/assets.service';
-import type { RepairListItem } from '@shared/types/maintenance';
+import type { Maintenance } from '@shared/types/maintenance';
 import { HELD_LOAN_STATUSES, LOAN_STATUS_LABELS, WAITING_LOAN_STATUSES, type LoanStatus } from '@shared/constants/loanStatuses';
-import { INSPECTION_TYPE_LABELS } from '@shared/constants/inspectionTypes';
-import { ASSET_CONDITION_LABELS } from '@shared/enums/assetCondition';
 import { CAMPUS_LABELS } from '@shared/constants/campuses';
-import { isMetricFlagged } from '@shared/constants/metricFlagRules';
 import { AppError } from '../../shared/errors/AppError';
 import { hasAccessRole } from '../../shared/middleware/permissions';
 import { FORBIDDEN_MESSAGE } from '../../shared/middleware/requireRole';
@@ -32,8 +29,9 @@ import { NO_LAB_HEAD_MESSAGE, requireHomeLabHead, resolveLoanApprover } from '..
 import { isOverdue, serverToday } from '../../shared/services/assetState';
 import { writeInspection } from '../../shared/services/inspections';
 import { setAssetStatus } from '../../shared/services/assetStatus';
+import { inspectionOf, personFor } from '../../shared/services/inspectionShape';
 import { PICK_OWN_LAB_MESSAGE, type ReturnDamage } from './loans.validation';
-import { repairListItemOf } from '../maintenance/maintenance.service';
+import { maintenanceById } from '../maintenance/maintenance.service';
 
 /** The 403 message when the account that heads a lab asks to borrow: it is the lab's office account. */
 export const PERSONAL_ACCOUNT_MESSAGE = "Use your personal account to borrow.";
@@ -65,54 +63,11 @@ export function legacyLoanStatusLabel(status: asset_loans_status): string {
     return SCREEN_LOAN_WORDS[status];
 }
 
-/** A person row with the name fields the answers use. */
-type NamedPerson = { user_id: number; first_name: string; last_name: string };
-
-/**
- * The person as this viewer may see them: a Researcher (the "Custodian" app role) sees only their own name and id;
- * anyone else is `{ hidden: true }`. (D2)
- */
-function personFor(viewer: SessionIdentity, person: NamedPerson | null): PersonRef | null {
-    if (!person) return null;
-    if (viewer.role === "Custodian" && person.user_id !== viewer.userId) return { hidden: true };
-    return { userId: person.user_id, name: `${person.first_name} ${person.last_name}` };
-}
-
 /** A DATE column as yyyy-mm-dd. Prisma reads a DATE as midnight UTC, so the UTC date is the stored one. */
 const dateOnly = (d: Date) => d.toISOString().slice(0, 10);
 
 /** A date-time as ISO 8601, or null. */
 const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
-
-/** An inspection row in the contract's Inspection shape, its metrics flagged against the asset's first values. */
-function inspectionOf(row: LoanInspectionRow | null, baselines: Map<string, number>, viewer: SessionIdentity): Inspection | null {
-    if (!row) return null;
-    return {
-        inspectionId: row.inspection_id,
-        type: row.type,
-        typeLabel: INSPECTION_TYPE_LABELS[row.type],
-        inspectedBy: personFor(viewer, row.users)!,
-        inspectedAt: row.inspected_at.toISOString(),
-        condition: row.condition,
-        conditionLabel: ASSET_CONDITION_LABELS[row.condition],
-        healthScore: row.health_score,
-        missingAccessories: row.missing_accessories,
-        remarks: row.remarks,
-        photo: row.photo,
-        metrics: row.metrics.map(m => {
-            const value = Number(m.value);
-            const baseline = baselines.get(`${row.asset_id}:${m.metric_id}`) ?? null;
-            return {
-                metricId: m.metric_id,
-                metricKey: m.metric_definitions.metric_key,
-                name: m.metric_definitions.name,
-                unit: m.metric_definitions.unit,
-                value,
-                flagged: isMetricFlagged(m.metric_definitions.metric_key, value, baseline),
-            };
-        }),
-    };
-}
 
 /**
  * Builds the contract's Loan from a loan row. The destination lab comes from destination_center_id, never from the
@@ -430,7 +385,7 @@ export async function requestReturn(loanId: number, remarks: string | null, acto
  * @param inspection the checked Return inspection; TSG's notes are its remarks
  * @param damage the issue type and description of the damage found, or null
  * @param receiver the session user, TSG (the route checks it)
- * @returns the loan, Returned, and the new ticket in the repair list's shape, or null
+ * @returns the loan, Returned, and the new ticket in the Maintenance shape, or null
  * @throws AppError 404 if no loan has this id
  * @throws AppError 400 if the issue type does not exist, or a metric does not apply to the asset; nothing is written
  * @throws AppError 409 if the loan is not On Loan or Return Requested, or the asset is not On Loan
@@ -440,7 +395,7 @@ export async function receiveReturn(
     inspection: InspectionInput,
     damage: ReturnDamage | null,
     receiver: SessionIdentity,
-): Promise<{ loan: Loan; maintenance: RepairListItem | null }> {
+): Promise<{ loan: Loan; maintenance: Maintenance | null }> {
     const loan = await existingLoan(loanId);
     if (damage && !(await loansRepository.issueTypeExists(damage.issueTypeId))) {
         throw new AppError(400, "Pick an issue type from the list.");
@@ -480,11 +435,7 @@ export async function receiveReturn(
         return ticket.maintenance_id;
     });
 
-    let maintenance: RepairListItem | null = null;
-    if (maintenanceId !== null) {
-        const ticket = await loansRepository.findMaintenanceForList(maintenanceId);
-        maintenance = repairListItemOf(ticket, ticket.assets, ticket.users);
-    }
+    const maintenance = maintenanceId === null ? null : await maintenanceById(maintenanceId, receiver);
     return { loan: await loanById(loanId, receiver), maintenance };
 }
 

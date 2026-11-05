@@ -676,7 +676,16 @@ describe("PUT /api/loans/:id/receive", () => {
       issue_description: "Test: the screen is cracked",
     });
     expect(ticket.received_at).not.toBeNull();
-    expect(res.body.maintenance).toMatchObject({ repairId: ticket.maintenance_id, assetId: asset.tag, statusLabel: "Inspection Phase", acknowledged: true });
+    expect(res.body.maintenance).toMatchObject({
+      maintenanceId: ticket.maintenance_id,
+      asset: { tag: asset.tag },
+      type: "RETURN_DAMAGE",
+      status: "INSPECTING",
+      statusLabel: "Inspecting",
+      issueType: { issueTypeId: 1 },
+      receivedBy: { userId: USERS.staffTsg.userId },
+      triggerInspection: { inspectionId: inspection.inspection_id, type: "RETURN" },
+    });
     expect(await assetStatus(asset.assetId)).toBe("MAINTENANCE");
     expect(await listedAsset(asset.tag)).toMatchObject({ holder: null, currentLocation: "TSG Office" });
   });

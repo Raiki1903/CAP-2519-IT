@@ -3,7 +3,7 @@
  * Layer: feature component (data hook). Called by features/assets/EditAssetDialog.tsx and IntakeWizard.tsx,
  * features/loans/LoanForm.tsx, and pages/auth/Register.tsx.
  * Calls: api/lookups.api.ts.
- * Used by: Staff asset editing and registration, the Custodian borrow request, and the sign-up page.
+ * Used by: Staff asset editing and registration, the Custodian borrow request, reporting an issue, and the sign-up page.
  */
 import { useEffect, useState } from "react";
 import type { FormLookups } from "@shared/types/lookups";
@@ -50,6 +50,20 @@ export function useFormLookups() {
   }, []);
 
   return { lookups, failed };
+}
+
+/** The issue type that stands for "something else", for the screens that file a ticket with only a text. */
+export const OTHER_ISSUE_TYPE_KEY = "OTHER";
+
+/**
+ * The id of the "Other" issue type, which a ticket filed from a text alone (the TSG flag in the asset modal, the
+ * Researcher's immediate inspection) carries.
+ *
+ * @param lookups the loaded lists, or null while they load
+ * @returns the issue type id, or null when the lookups are not loaded or have no such type
+ */
+export function otherIssueTypeId(lookups: FormLookups | null): number | null {
+  return lookups?.issueTypes.find(t => t.key === OTHER_ISSUE_TYPE_KEY)?.issueTypeId ?? null;
 }
 
 /**

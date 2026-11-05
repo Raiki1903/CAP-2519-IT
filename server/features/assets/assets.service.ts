@@ -1,11 +1,16 @@
 /**
- * Assets service: the rules for the asset list and search, an asset's history, registration (with its tag), edits, and deletion.
- * Layer: service. Called by assets.controller.ts. Calls assets.repository.ts, shared/services/lifecycleGuard.ts, and
- * @shared (enums and labels).
- * Used by: every role's inventory view and the bell, the asset detail modal, Staff asset registration, editing, and deletion.
+ * Assets service: the rules for the asset list and search, an asset's history, registration (with its tag), edits,
+ * deletion, marking an asset missing and found, and its benchmark data.
+ * Layer: service. Called by assets.controller.ts and features/inspections (the routine queue). Calls assets.repository.ts,
+ * shared/services/lifecycleGuard.ts, shared/services/assetState.ts, shared/middleware/permissions.ts (hasAccessRole),
+ * and, inside the step's transaction, shared/services/inspections.ts (the inspection writer) and
+ * shared/services/assetStatus.ts, and @shared (enums, labels, and the flag rules).
+ * Used by: every role's inventory view and the bell, the asset detail modal, Staff asset registration, editing, and
+ * deletion, TSG's Missing and Found, and the benchmark data (no screen yet).
  */
 import { asset_inspections_type, type Prisma, type asset_condition, type assets } from '@prisma/client';
 import type {
+    AssetBenchmarks,
     AssetCreateInput,
     AssetHistory,
     AssetHistoryEvent,
@@ -13,6 +18,7 @@ import type {
     AssetListItem,
     AssetMasterData,
     AssetUpdateInput,
+    InspectionInput,
     PersonRef,
 } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
@@ -25,9 +31,14 @@ import { MAINTENANCE_STATUS_LABELS } from '@shared/constants/maintenanceStatuses
 import { RETIREMENT_PATHWAY_LABELS, RETIREMENT_STATUS_LABELS } from '@shared/constants/retirementStatuses';
 import { INSPECTION_TYPE_LABELS } from '@shared/constants/inspectionTypes';
 import { ACTIVITY_EVENT_LABELS } from '@shared/constants/activityEvents';
+import { isHealthScoreFlagged, isMetricFlagged } from '@shared/constants/metricFlagRules';
 import * as assetsRepository from './assets.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
+import { isHeld } from '../../shared/services/assetState';
+import { writeInspection } from '../../shared/services/inspections';
+import { setAssetStatus } from '../../shared/services/assetStatus';
+import { hasAccessRole } from '../../shared/middleware/permissions';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -89,19 +100,15 @@ export async function listAssets(viewer: SessionIdentity, filters: AssetListFilt
             daysLeft = Math.ceil((loan.returnBy.getTime() - Date.now()) / MS_PER_DAY);
         }
 
-        // The disposal details of a retired asset, from its newest completed retirement.
-        // TODO(M-13): the justification and the last custodian are parsed back out of the packed reason text. Batch 5 stores them in columns.
+        // The disposal details of a retired asset, from its newest completed retirement. A disposal is never requested
+        // while the asset is on loan, so there is no last custodian to name.
         const disposal = asset.status === "RETIRED" ? retirements.find(r => r.asset_id === asset.asset_id) : undefined;
         let disposalDetails: AssetListItem['disposalDetails'];
         if (disposal) {
-            const reasonText = disposal.reason || "";
-            const pathwayMatch = reasonText.match(/Disposal Pathway:\s*(.+)/i);
-            const justificationMatch = reasonText.match(/Breakdown Justification:\s*([\s\S]+)/i);
-            const lastCustodianMatch = reasonText.match(/Last Custodian:\s*(.+)/i);
             disposalDetails = {
-                lastCustodian: viewer.role === "Custodian" ? undefined : (lastCustodianMatch ? lastCustodianMatch[1].trim() : "No Custodian"),
-                breakdownReasons: (justificationMatch ? justificationMatch[1].trim() : reasonText) || "Decommissioned due to physical breakdown or end of servicing lifecycle.",
-                disposalPathway: disposal.pathway ? RETIREMENT_PATHWAY_LABELS[disposal.pathway] : (pathwayMatch ? pathwayMatch[1].trim() : "Not recorded"),
+                lastCustodian: viewer.role === "Custodian" ? undefined : "No Custodian",
+                breakdownReasons: disposal.reason,
+                disposalPathway: disposal.pathway ? RETIREMENT_PATHWAY_LABELS[disposal.pathway] : "Not recorded",
                 decommissionDate: displayDate(disposal.completed_at ?? disposal.requested_at),
                 decommissionedBy: shownName(personFor(viewer, disposal.users)),
             };
@@ -225,7 +232,9 @@ export async function assetHistory(assetTag: string, viewer: SessionIdentity): P
         const ids = { maintenanceId: t.maintenance_id };
         add(t.reported_at, "MAINTENANCE_REPORTED", "Issue reported", t.users, t.issue_description, ids);
         add(t.received_at, "MAINTENANCE_RECEIVED", "Received by TSG", t.received_by, null, ids);
-        add(t.completed_at, "MAINTENANCE_COMPLETED", `Maintenance closed: ${MAINTENANCE_STATUS_LABELS[t.status]}`, t.completed_by, t.resolution_remarks, ids);
+        // A cancelled ticket keeps who cancelled it and when in completed_by and completed_at.
+        if (t.status === "CANCELLED") add(t.completed_at, "MAINTENANCE_CANCELLED", "Maintenance cancelled by", t.completed_by, t.resolution_remarks, ids);
+        else add(t.completed_at, "MAINTENANCE_COMPLETED", `Maintenance completed (${MAINTENANCE_STATUS_LABELS[t.status]}) by`, t.completed_by, t.resolution_remarks, ids);
     }
     for (const r of retirements) {
         const ids = { retirementId: r.retirement_id };
@@ -407,4 +416,119 @@ export async function deleteAsset(assetTag: string, actorId: number): Promise<vo
     }
 
     await assetsRepository.deleteRegistration(existing.asset_id, assetTag, actorId);
+}
+
+/** The remarks a ticket still in Pending Receipt gets when its asset is marked missing. */
+export const MARKED_MISSING_REMARKS = "Asset marked missing.";
+
+/**
+ * TSG marks an asset missing, in one transaction that locks the asset first: the guard (Available or On Loan), a held
+ * loan Ended by Loss and closed, a ticket still in Pending Receipt cancelled ("Asset marked missing."), the asset
+ * Missing, and one ASSET_MARKED_MISSING activity row with the reason. A loan still waiting for approval or release is
+ * left as it is; the guard refuses its approval and release while the asset is Missing.
+ *
+ * @param assetTag the asset's tag, from the URL
+ * @param reason why it is missing, at most 255 characters
+ * @param actor the session user, TSG (the route checks it)
+ * @returns the asset, as the list shows it
+ * @throws AppError 404 if no asset has this tag
+ * @throws AppError 409 if the guard refuses
+ */
+export async function markMissing(assetTag: string, reason: string, actor: SessionIdentity): Promise<AssetListItem> {
+    const existing = await assetsRepository.findByTag(assetTag);
+    if (!existing) throw new AppError(404, `No asset found with tag ${assetTag}.`);
+
+    await assetsRepository.withAssetLock(existing.asset_id, async (tx) => {
+        assertActionAllowed(await assetsRepository.findAssetIn(tx, existing.asset_id), "MARK_MISSING");
+        const loan = await assetsRepository.findOpenLoanIn(tx, existing.asset_id);
+        if (isHeld(loan)) {
+            await assetsRepository.updateLoanIn(tx, loan!.loanId, { status: "ENDED_BY_LOSS", closed_at: new Date() });
+        }
+        await assetsRepository.cancelPendingTicketsIn(tx, existing.asset_id, actor.userId, MARKED_MISSING_REMARKS);
+        await setAssetStatus(tx, existing.asset_id, "MISSING");
+        await assetsRepository.logActivityIn(tx, { eventType: "ASSET_MARKED_MISSING", actorId: actor.userId, assetId: existing.asset_id, details: reason });
+    });
+    return listedAsset(actor, existing.asset_id);
+}
+
+/**
+ * TSG marks a Missing asset found, in one transaction that locks the asset first: a Recovery inspection by the session
+ * user, the asset Available (back at its home lab and room), and one ASSET_FOUND activity row with the remarks. The loan
+ * that ended by loss stays closed.
+ *
+ * @param assetTag the asset's tag, from the URL
+ * @param inspection the checked Recovery inspection
+ * @param remarks TSG's remarks, or null
+ * @param actor the session user, TSG (the route checks it)
+ * @returns the asset, as the list shows it
+ * @throws AppError 404 if no asset has this tag
+ * @throws AppError 400 if a metric does not apply to the asset; nothing is written
+ * @throws AppError 409 if the asset is not Missing
+ */
+export async function markFound(assetTag: string, inspection: InspectionInput, remarks: string | null, actor: SessionIdentity): Promise<AssetListItem> {
+    const existing = await assetsRepository.findByTag(assetTag);
+    if (!existing) throw new AppError(404, `No asset found with tag ${assetTag}.`);
+
+    await assetsRepository.withAssetLock(existing.asset_id, async (tx) => {
+        assertActionAllowed(await assetsRepository.findAssetIn(tx, existing.asset_id), "MARK_FOUND");
+        await writeInspection(tx, { assetId: existing.asset_id, type: "RECOVERY", input: inspection, inspectorId: actor.userId });
+        await setAssetStatus(tx, existing.asset_id, "AVAILABLE");
+        await assetsRepository.logActivityIn(tx, { eventType: "ASSET_FOUND", actorId: actor.userId, assetId: existing.asset_id, details: remarks });
+    });
+    return listedAsset(actor, existing.asset_id);
+}
+
+/** The 403 message when a Lab Head asks for the benchmark data of another lab's asset. */
+export const NOT_YOUR_LAB_BENCHMARKS_MESSAGE = "This asset belongs to another lab. Only that lab's Head can see its benchmark data.";
+
+/**
+ * The asset's benchmark data (contract 7.6): each metric of its category with every value TSG recorded, oldest first,
+ * flagged by METRIC_FLAG_RULES against the asset's first recorded value; and every health score, flagged below
+ * HEALTH_SCORE_FLAG_BELOW only when the category has no metrics. A metric recorded before a category change is listed
+ * too. A Self Report is left out, as it is from the condition. Reads only.
+ *
+ * @param assetTag the asset's tag, from the URL
+ * @param viewer the session user: TSG, the Director, or the account that heads a lab (the route checks it)
+ * @returns the metrics and health scores
+ * @throws AppError 404 if no asset has this tag
+ * @throws AppError 403 NOT_YOUR_LAB_BENCHMARKS_MESSAGE for the Head of another lab
+ */
+export async function assetBenchmarks(assetTag: string, viewer: SessionIdentity): Promise<AssetBenchmarks> {
+    const asset = await assetsRepository.findByTag(assetTag);
+    if (!asset) throw new AppError(404, `No asset found with tag ${assetTag}.`);
+    if (!hasAccessRole(viewer, ["TSG_STAFF", "ADRIC_DIRECTOR"]) && viewer.headOfCenterId !== asset.center_id) {
+        throw new AppError(403, NOT_YOUR_LAB_BENCHMARKS_MESSAGE);
+    }
+
+    const { inspections, categoryMetrics, baselines } = await assetsRepository.findBenchmarkRows(asset.asset_id, asset.category);
+    const definitions = new Map(categoryMetrics.map(c => [c.metric_id, c.metric_definitions]));
+    for (const i of inspections) {
+        for (const m of i.metrics) if (!definitions.has(m.metric_id)) definitions.set(m.metric_id, m.metric_definitions);
+    }
+
+    const metrics = [...definitions.values()].sort((a, b) => a.metric_id - b.metric_id).map(d => ({
+        metricId: d.metric_id,
+        metricKey: d.metric_key,
+        name: d.name,
+        unit: d.unit,
+        higherIsBetter: d.higher_is_better,
+        points: inspections.flatMap(i => i.metrics.filter(m => m.metric_id === d.metric_id).map(m => {
+            const value = Number(m.value);
+            return {
+                inspectionId: i.inspection_id,
+                inspectedAt: i.inspected_at.toISOString(),
+                value,
+                flagged: isMetricFlagged(d.metric_key, value, baselines.get(`${asset.asset_id}:${d.metric_id}`) ?? null),
+            };
+        })),
+    }));
+
+    const scoreRuleApplies = categoryMetrics.length === 0;
+    const healthScores = inspections.filter(i => i.health_score !== null).map(i => ({
+        inspectionId: i.inspection_id,
+        inspectedAt: i.inspected_at.toISOString(),
+        healthScore: i.health_score!,
+        flagged: scoreRuleApplies && isHealthScoreFlagged(i.health_score!),
+    }));
+    return { metrics, healthScores };
 }

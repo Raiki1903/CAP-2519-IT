@@ -2,7 +2,7 @@
  * Server data state: the lists that several screens share, loaded from the server and kept in memory.
  * Layer: shared (web state). Called by App.tsx (the provider) and by screens through useServerData().
  * Calls the web/api files and session.tsx (the role). Never reads or writes localStorage itself.
- * Used by: every role (asset lists, the notification bell, repairs, loan approvals).
+ * Used by: every role (asset lists, the notification bell, maintenance tickets, disposals, loan approvals).
  *
  * Temporary home. 01D gives each page its own data loading; these lists move out as the
  * dashboards are split in step 8 and the notification bell is rewritten.
@@ -17,6 +17,8 @@ import type { ApiResult } from "../api/client";
 import { useSession } from "./session";
 import type { Role } from "@shared/enums/role";
 import type { AssetLabRef } from "@shared/types/assets";
+import type { Maintenance } from "@shared/types/maintenance";
+import type { Retirement } from "@shared/types/retirements";
 
 // The lists only some roles may read (the 13b role table). Asking with another role answers 403,
 // so those lists are not requested for it. The other lists are open to every signed-in role.
@@ -25,21 +27,6 @@ const DISPOSAL_READERS: Role[] = ["Staff", "AdRICDirector", "LabHead"];
 
 // refreshSharedLists() skips a reload that started less than this long ago, or is still running.
 const RECENT_SYNC_MS = 5000;
-
-/** A repair ticket as `GET /api/maintenance` returns it, and as the repair forms build one to send. */
-export interface RepairRequest {
-  id: string;
-  assetId: string;
-  assetName: string;
-  custodian: string;
-  statusLabel: string;
-  description: string;
-  imageUrl?: string;
-  submittedAt: string;
-  priority: "Medium" | "High" | "Critical";
-  acknowledged: boolean;
-  forwardedTo?: "TSG" | "ITS" | "Both";
-}
 
 /** How and when a disposed asset left the registry. Present on an asset only once it is disposed. */
 export interface DisposalDetails {
@@ -122,29 +109,15 @@ export interface Asset {
   specs?: string;
 }
 
-/** A disposal request waiting for the Director's decision. */
-export interface PendingDisposal {
-  /** Display id, for example "DISP-12". */
-  id: string;
-  /** Numeric id, the one the decision endpoint needs. */
-  disposalId?: number;
-  assetId: string;
-  assetName: string;
-  /** The server's packed reason text: "Disposal Pathway:", optional custodian and date lines, then "Breakdown Justification:". (M-13) */
-  reason: string;
-  requestedBy: string;
-  requestedAt: string;
-}
-
 interface ServerDataContextType {
   assets: Asset[];
   assetsVersion: number;
-  repairRequests: RepairRequest[];
-  addRepairRequest: (req: RepairRequest) => void;
-  acknowledgeRepair: (id: string) => void;
-  updateRepairStatus: (id: string, statusLabel: string) => void;
-  unacknowledgedCount: number;
-  pendingDisposals: PendingDisposal[];
+  /** The maintenance tickets the session user may see (contract 7.4), newest report first. */
+  tickets: Maintenance[];
+  /** How many tickets wait for TSG to receive the asset. */
+  pendingReceiptCount: number;
+  /** The disposals the session user may see (contract 7.5), newest request first: Pending ones wait for a decision, Approved ones for TSG to complete. */
+  retirements: Retirement[];
   dbReports: any[];
   dbLoans: any[];
   isDbLoading: boolean;
@@ -163,14 +136,12 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  *
  * What it shares, and the api function behind each:
  * - `assets`: assetsApi.listAssets. `assetsVersion`: goes up by one each time a new asset list is stored.
- * - `repairRequests`, `unacknowledgedCount`: maintenanceApi.listRepairs.
- * - `addRepairRequest(req)`: maintenanceApi.requestRepairRaw. `acknowledgeRepair(id)` and
- *   `updateRepairStatus(id, status)`: maintenanceApi.updateRepairRaw. Each reloads afterwards.
+ * - `tickets`, `pendingReceiptCount`: maintenanceApi.listTickets.
  * - `dbLoans`: loansApi.listLoans. `reloadLoans()`: reloads only this list and returns the answer.
  *   `authorizeLoan(loanId, decision, remarks)`: loansApi.approveLoan or loansApi.declineLoan; answers the server's
  *   sentence when it refuses, or null.
  * - `dbReports`: inspectionsApi.listReportSummaries.
- * - `pendingDisposals`: retirementsApi.listDisposals, pending ones only.
+ * - `retirements`: retirementsApi.listRetirements, every status; each screen keeps the ones it needs.
  * - `isDbLoading`: true while a reload is running. `syncFromDb()`: runs one.
  * - `refreshSharedLists()`: runs one too, unless one is running or started in the last few seconds.
  *   For a screen that opens, not for a save (a save needs the lists as they are after it).
@@ -181,13 +152,13 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   const { role } = useSession();
   const [isDbLoading, setIsDbLoading] = useState<boolean>(true);
 
-  const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
+  const [tickets, setTickets] = useState<Maintenance[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   // Lets a screen tell whether the list reloaded after a moment it remembers (the asset detail modal). (issue #89)
   const [assetsVersion, setAssetsVersion] = useState(0);
   const [dbReports, setDbReports] = useState<any[]>([]);
   const [dbLoans, setDbLoans] = useState<any[]>([]);
-  const [pendingDisposals, setPendingDisposals] = useState<PendingDisposal[]>([]);
+  const [retirements, setRetirements] = useState<Retirement[]>([]);
   // When the last reload started, and how many are running. Refs, because only refreshSharedLists reads them.
   const lastSyncStartedAt = useRef(0);
   const runningSyncs = useRef(0);
@@ -238,30 +209,18 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
       if (role && DISPOSAL_READERS.includes(role)) {
         try {
-          const jsonD: any = await retirementsApi.listDisposals();
-          if (jsonD.success && Array.isArray(jsonD.disposals)) {
-            // The endpoint returns decided disposals too. Only pending ones are kept,
-            // so one that was just approved or rejected leaves the bell. (H-01)
-            setPendingDisposals(jsonD.disposals.filter((d: any) => d.status === "Pending").map((d: any) => ({
-              id: String(d.id || d.disposalId),
-              disposalId: d.disposalId,
-              assetId: d.assetId || `EQ-2024-${String(d.asset_id || 0).padStart(3, "0")}`,
-              assetName: d.assetName || "Asset Scheduled for Decommissioning",
-              requestedBy: d.requestedBy || "Staff",
-              requestedAt: d.requestedAt || new Date().toISOString(),
-              reason: d.reason || d.disposal_reason || "Obsolescence",
-            })));
-          }
+          const data = await retirementsApi.listRetirements();
+          if (data.success && Array.isArray(data.retirements)) setRetirements(data.retirements);
         } catch (e) {}
       }
 
       try {
-        const data = await maintenanceApi.listRepairs();
-        if (data.success && Array.isArray(data.repairs)) {
-          setRepairRequests(data.repairs);
+        const data = await maintenanceApi.listTickets();
+        if (data.success && Array.isArray(data.tickets)) {
+          setTickets(data.tickets);
         }
       } catch (e) {
-        console.error("Failed to sync repairs from database API:", e);
+        console.error("Failed to sync maintenance tickets from database API:", e);
       }
     } finally {
       runningSyncs.current -= 1;
@@ -277,46 +236,7 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   };
 
 
-  // The only post for the callers that use it (the asset modal's "Send to Maintenance"
-  // and the custodian condition report). RepairForm posts its ticket itself. (M-07)
-  const addRepairRequest = async (req: RepairRequest) => {
-    try {
-      await maintenanceApi.requestRepairRaw(req.assetId, {
-        description: req.description,
-      });
-    } catch (e) {
-      console.error("Failed to post repair request to DB API:", e);
-    }
-    await syncFromDb();
-  };
-
-  // "Inspection Phase" is the first status after a ticket is acknowledged.
-  const acknowledgeRepair = async (id: string) => {
-    // Ticket ids are shown as "MNT-<number>". The endpoint needs the number.
-    const numericId = parseInt(id.replace(/^MNT-/, ""), 10);
-    if (!isNaN(numericId)) {
-      try {
-        await maintenanceApi.updateRepairRaw(numericId, { progressStatus: "Inspection Phase" });
-      } catch (e) {
-        console.error("Failed to acknowledge repair in DB API:", e);
-      }
-    }
-    await syncFromDb();
-  };
-
-  const updateRepairStatus = async (id: string, statusLabel: string) => {
-    const numericId = parseInt(id.replace(/^MNT-/, ""), 10);
-    if (!isNaN(numericId)) {
-      try {
-        await maintenanceApi.updateRepairRaw(numericId, { progressStatus: statusLabel });
-      } catch (e) {
-        console.error("Failed to update repair status in DB API:", e);
-      }
-    }
-    await syncFromDb();
-  };
-
-  const unacknowledgedCount = repairRequests.filter(r => !r.acknowledged).length;
+  const pendingReceiptCount = tickets.filter(t => t.status === "PENDING_RECEIPT").length;
 
 
   // Every list needs a session, so nothing loads until someone is logged in (after login, or when a page load
@@ -325,10 +245,10 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!role || role === "ITAdmin") {
       setAssets([]);
-      setRepairRequests([]);
+      setTickets([]);
       setDbReports([]);
       setDbLoans([]);
-      setPendingDisposals([]);
+      setRetirements([]);
       setIsDbLoading(false);
       return;
     }
@@ -362,9 +282,8 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     <ServerDataContext.Provider
       value={{
         assets, assetsVersion,
-        repairRequests, addRepairRequest, acknowledgeRepair, updateRepairStatus,
-        unacknowledgedCount,
-        pendingDisposals,
+        tickets, pendingReceiptCount,
+        retirements,
         dbReports, dbLoans,
         isDbLoading,
         syncFromDb, refreshSharedLists, reloadLoans, authorizeLoan

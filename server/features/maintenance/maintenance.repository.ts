@@ -1,136 +1,114 @@
 /**
- * Repair row access: every database read and write the repair endpoints make.
- * Layer: repository. Called by maintenance.service.ts. Calls server/config/prisma.ts, shared/services/assetStatus.ts,
- * and shared/services/rowLocks.ts.
- * Used by: Custodian repair request, Staff repair queue and progress updates, and the screens that list repairs.
+ * Maintenance row access: every database read and write the maintenance endpoints make.
+ * Layer: repository. Called by maintenance.service.ts. Calls server/config/prisma.ts, shared/services/rowLocks.ts,
+ * shared/services/assetState.ts (the open loan, read inside the lock), and shared/services/inspectionShape.ts (what an
+ * inspection includes, and its metric baselines).
+ * Used by: reporting an issue, TSG receipt and the maintenance steps, cancelling a ticket, and the ticket lists.
  */
-import { asset_inspections_type, asset_loans_status, type Prisma, type asset_condition, type asset_maintenance, type asset_maintenance_status } from '@prisma/client';
-import { HELD_LOAN_STATUSES } from '@shared/constants/loanStatuses';
+import type { Prisma } from '@prisma/client';
+import { OPEN_MAINTENANCE_STATUSES } from '@shared/constants/maintenanceStatuses';
 import { prisma } from '../../config/prisma';
-import { setAssetStatus } from '../../shared/services/assetStatus';
 import { lockAsset } from '../../shared/services/rowLocks';
+import { openLoanOf } from '../../shared/services/assetState';
+import { INSPECTION_INCLUDE, PERSON, metricBaselinesOf } from '../../shared/services/inspectionShape';
 
-/** Inserts an asset_maintenance row and returns it. */
-export function create(data: Prisma.asset_maintenanceUncheckedCreateInput) {
-    return prisma.asset_maintenance.create({ data });
+/** What a ticket read for the Maintenance shape includes. */
+const TICKET_INCLUDE = {
+    assets: { select: { asset_id: true, asset_tag: true, name: true, warranty_expiry: true } },
+    users: PERSON,
+    received_by: PERSON,
+    completed_by: PERSON,
+    issue_types: true,
+    trigger_inspection: { include: INSPECTION_INCLUDE },
+    completion_inspection: { include: INSPECTION_INCLUDE },
+} satisfies Prisma.asset_maintenanceInclude;
+
+/** A ticket row with everything the Maintenance shape names. */
+export type TicketRow = Prisma.asset_maintenanceGetPayload<{ include: typeof TICKET_INCLUDE }>;
+
+/** Ticket rows for the Maintenance shape, with the metric baselines their inspections are flagged against. */
+export interface TicketRows {
+    rows: TicketRow[];
+    /** The asset's first recorded value of each metric, keyed "<assetId>:<metricId>". */
+    baselines: Map<string, number>;
+}
+
+/** Newest report first, for every ticket list. Tickets reported in the same second keep their id order. (M-09) */
+const NEWEST_FIRST: Prisma.asset_maintenanceOrderByWithRelationInput[] = [{ reported_at: 'desc' }, { maintenance_id: 'desc' }];
+
+/**
+ * Ticket rows in the Maintenance shape's detail, newest report first, and the metric baselines of their inspections,
+ * in two queries whatever the number of tickets.
+ *
+ * @param where which tickets
+ */
+export async function findTickets(where: Prisma.asset_maintenanceWhereInput): Promise<TicketRows> {
+    const rows = await prisma.asset_maintenance.findMany({ where, orderBy: NEWEST_FIRST, include: TICKET_INCLUDE });
+    const inspections = rows.flatMap(r => [r.trigger_inspection, r.completion_inspection]).filter(i => i !== null);
+    return { rows, baselines: await metricBaselinesOf(prisma, inspections) };
+}
+
+/** The ticket with this id, or null. Its asset never changes, so a step reads it first to know which asset to lock. */
+export function findById(maintenanceId: number) {
+    return prisma.asset_maintenance.findUnique({ where: { maintenance_id: maintenanceId } });
+}
+
+/** Whether an issue type with this id exists. */
+export async function issueTypeExists(issueTypeId: number): Promise<boolean> {
+    return (await prisma.issue_types.count({ where: { issue_type_id: issueTypeId } })) > 0;
 }
 
 /**
- * Every repair (newest first), asset, and user, read together so the list can name
- * each ticket's asset and reporter.
+ * Runs one maintenance step in a transaction that locks the asset row first. The step then reads the ticket, the loan
+ * and the asset again inside the lock and checks them, so two steps on one asset run one after the other and the
+ * second sees what the first wrote. Every step locks the asset before anything else, so no two steps wait on each
+ * other. (H-05)
  *
- * @returns [asset_maintenance, assets, users]
+ * @param assetId the ticket's asset
+ * @param step the reads, checks, and writes, given the transaction
+ * @returns what the step returns
  */
-// TODO(M-09): created_at has one-second resolution and no tie-break, so tickets filed in the same second come back in no fixed order. Phase 3, with the shared ordering rule.
-export function findListLookups() {
-    return Promise.all([
-        prisma.asset_maintenance.findMany({ orderBy: { reported_at: 'desc' } }),
-        prisma.assets.findMany(),
-        prisma.users.findMany(),
-    ]);
-}
-
-/** The repair ticket with this id, or null. */
-export function findById(repairId: number) {
-    return prisma.asset_maintenance.findUnique({ where: { maintenance_id: repairId } });
-}
-
-/** A ticket's new status, and who has the asset when an outside service has it. */
-export interface TicketProgress {
-    status: asset_maintenance_status;
-    provider?: string;
-}
-
-/** The ticket fields a progress change writes. */
-function progressData(progress: TicketProgress) {
-    return { status: progress.status, ...(progress.provider ? { provider: progress.provider } : {}) };
-}
-
-/**
- * Receives the asset for its ticket, in one transaction: the ticket's status with who received it and when, a held
- * loan of the asset ended as Ended by Maintenance, and the asset set to Maintenance. The asset row is locked first.
- *
- * @param ticket the ticket
- * @param progress the received status it moves to
- * @param staffId the session user who receives the asset
- * @returns the updated asset_maintenance row
- */
-export function saveReceipt(ticket: asset_maintenance, progress: TicketProgress, staffId: number) {
+export function withAssetLock<T>(assetId: number, step: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     return prisma.$transaction(async (tx) => {
-        await lockAsset(tx, ticket.asset_id);
-        const now = new Date();
-        const repair = await tx.asset_maintenance.update({
-            where: { maintenance_id: ticket.maintenance_id },
-            data: { ...progressData(progress), received_by_id: ticket.received_by_id ?? staffId, received_at: ticket.received_at ?? now },
-        });
-        await tx.asset_loans.updateMany({
-            where: { asset_id: ticket.asset_id, status: { in: [...HELD_LOAN_STATUSES] } },
-            data: { status: asset_loans_status.ENDED_BY_MAINTENANCE, closed_at: now },
-        });
-        await setAssetStatus(tx, ticket.asset_id, "MAINTENANCE");
-        return repair;
+        await lockAsset(tx, assetId);
+        return step(tx);
     });
 }
 
-/**
- * Completes a ticket as Resolved, in one transaction: a Maintenance inspection under the Staff member, the ticket
- * closed with who completed it, when, the remarks, and the inspection, and an asset that was in Maintenance set back to
- * Available. The asset row is locked first.
- *
- * @param ticket the ticket
- * @param progress the Resolved status
- * @param staffId the session user who completes it
- * @param condition the condition after the repair
- * @param remarks the completion remarks, cut to the inspection's 255 characters there
- * @param wasInMaintenance whether the asset is in Maintenance, so goes back to Available
- * @returns the updated asset_maintenance row
- */
-export function saveCompletion(
-    ticket: asset_maintenance,
-    progress: TicketProgress,
-    staffId: number,
-    condition: asset_condition,
-    remarks: string,
-    wasInMaintenance: boolean,
-) {
-    return prisma.$transaction(async (tx) => {
-        await lockAsset(tx, ticket.asset_id);
-        // The completed repair also appears in the asset's inspection history, and sets its condition now.
-        const inspection = await tx.asset_inspections.create({
-            data: {
-                asset_id: ticket.asset_id,
-                inspected_by_id: staffId,
-                type: asset_inspections_type.MAINTENANCE,
-                condition,
-                remarks: remarks.slice(0, 255),
-            },
-        });
-        const repair = await tx.asset_maintenance.update({
-            where: { maintenance_id: ticket.maintenance_id },
-            data: {
-                ...progressData(progress),
-                completed_by_id: staffId,
-                completed_at: new Date(),
-                resolution_remarks: remarks,
-                completion_inspection_id: inspection.inspection_id,
-            },
-        });
-        if (wasInMaintenance) {
-            await setAssetStatus(tx, ticket.asset_id, "AVAILABLE");
-        }
-        return repair;
+/** The asset row, read inside the caller's transaction. */
+export function findAssetIn(tx: Prisma.TransactionClient, assetId: number) {
+    return tx.assets.findUniqueOrThrow({ where: { asset_id: assetId } });
+}
+
+/** The ticket row, read inside the caller's transaction. */
+export function findTicketIn(tx: Prisma.TransactionClient, maintenanceId: number) {
+    return tx.asset_maintenance.findUniqueOrThrow({ where: { maintenance_id: maintenanceId } });
+}
+
+/** The asset's open loan, read inside the caller's transaction. */
+export function findOpenLoanIn(tx: Prisma.TransactionClient, assetId: number) {
+    return openLoanOf(tx, assetId);
+}
+
+/** The asset's open ticket (Pending Receipt, Inspecting, Repairing, External Service), or null, inside the caller's transaction. */
+export function findOpenTicketIn(tx: Prisma.TransactionClient, assetId: number) {
+    return tx.asset_maintenance.findFirst({
+        where: { asset_id: assetId, status: { in: [...OPEN_MAINTENANCE_STATUSES] } },
+        orderBy: { maintenance_id: 'asc' },
     });
 }
 
-/**
- * Sets only a ticket's status, for the status-only endpoint. The asset is not touched. (H-06)
- *
- * @returns the updated asset_maintenance row
- * @throws Prisma's error if the id is not a number or no ticket has it (answered as a 500, H-16)
- */
-export function updateProgressStatus(repairId: number, progress: TicketProgress) {
-    return prisma.asset_maintenance.update({
-        where: { maintenance_id: repairId },
-        data: progressData(progress),
-    });
+/** Inserts an asset_maintenance row inside the caller's transaction and returns it. */
+export function createTicket(tx: Prisma.TransactionClient, data: Prisma.asset_maintenanceUncheckedCreateInput) {
+    return tx.asset_maintenance.create({ data });
+}
+
+/** Changes a ticket row inside the caller's transaction and returns it. */
+export function updateTicket(tx: Prisma.TransactionClient, maintenanceId: number, data: Prisma.asset_maintenanceUncheckedUpdateInput) {
+    return tx.asset_maintenance.update({ where: { maintenance_id: maintenanceId }, data });
+}
+
+/** Changes a loan row inside the caller's transaction. */
+export function updateLoanIn(tx: Prisma.TransactionClient, loanId: number, data: Prisma.asset_loansUncheckedUpdateInput) {
+    return tx.asset_loans.update({ where: { loan_id: loanId }, data });
 }

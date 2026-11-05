@@ -1,9 +1,9 @@
 /**
  * The inspection writer: one asset_inspections row and its metric values, for every step that files an inspection.
- * Layer: shared service (runs inside the caller's transaction). Called by features/loans/loans.service.ts (Loan Release
- * and Return); registration and the Batch 5 steps may move to it. Calls Prisma through the transaction it is given and
- * shared/errors/AppError.ts.
- * Used by: TSG loan release and receipt.
+ * Layer: shared service (runs inside the caller's transaction). Called by the services of features/loans (Loan Release
+ * and Return), maintenance (receipt and completion), retirements (the assessment), assets (Recovery), and inspections
+ * (Routine and Self Report). Calls Prisma through the transaction it is given and shared/errors/AppError.ts.
+ * Used by: TSG loan release and receipt, the maintenance and disposal steps, Found, and inspection filing.
  */
 import type { Prisma, asset_condition, asset_inspections, asset_inspections_type } from '@prisma/client';
 import type { InspectionInput } from '@shared/types/assets';

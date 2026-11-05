@@ -2,13 +2,14 @@
  * Asset controller: unpacks asset registry requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by assets.routes.ts. Calls assets.validation.ts, assets.service.ts, and shared/middleware/requireAuth.ts
  * (sessionUserOf: who is acting).
- * Used by: every role's inventory view, the asset detail modal, TSG registration and deletion, and Edit Asset (TSG and the Secretary).
+ * Used by: every role's inventory view, the asset detail modal, TSG registration and deletion, Edit Asset (TSG and the
+ * Secretary), and TSG's Missing and Found.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as assetsService from './assets.service';
-import { readAssetCreate, readAssetListFilters, readAssetUpdate } from './assets.validation';
+import { readAssetCreate, readAssetListFilters, readAssetUpdate, readFoundBody, readMissingBody } from './assets.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
@@ -75,4 +76,41 @@ export async function deleteAsset(req: Request<{ assetTag: string }>, res: Respo
 
     console.log(`Asset ${assetTag} deleted by user ${deleterId}`);
     res.json({ success: true, deleted: assetTag });
+}
+
+/**
+ * Handles GET /api/assets/:assetTag/benchmarks: the asset's metric values and health scores over time, flagged, as
+ * `{ success, metrics, healthScores }`. Answers 403 for the Head of another lab, 404 for an unknown tag, or 500.
+ */
+export async function getBenchmarks(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
+    const benchmarks = await assetsService.assetBenchmarks(req.params.assetTag, sessionUserOf(req));
+    res.json({ success: true, ...benchmarks });
+}
+
+/**
+ * Handles PUT /api/assets/:assetTag/missing: TSG marks the asset missing, with a reason.
+ * Answers `{ success, asset }` in the list's shape, or the AppError's status and message (400, 404, 409).
+ */
+export async function markMissing(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
+    const { assetTag } = req.params;
+    const reason = readMissingBody(req.body);
+    const actor = sessionUserOf(req);
+    const asset = await assetsService.markMissing(assetTag, reason, actor);
+
+    console.log(`Asset ${asset.assetId} marked missing by user ${actor.userId}`);
+    res.json({ success: true, asset });
+}
+
+/**
+ * Handles PUT /api/assets/:assetTag/found: TSG marks a Missing asset found, with a Recovery inspection.
+ * Answers `{ success, asset }` in the list's shape, or the AppError's status and message (400, 404, 409).
+ */
+export async function markFound(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
+    const { assetTag } = req.params;
+    const { inspection, remarks } = readFoundBody(req.body);
+    const actor = sessionUserOf(req);
+    const asset = await assetsService.markFound(assetTag, inspection, remarks, actor);
+
+    console.log(`Asset ${asset.assetId} marked found by user ${actor.userId}`);
+    res.json({ success: true, asset });
 }

@@ -1,14 +1,33 @@
 /**
- * Inspection report row access: every database read and write the inspection endpoints make.
- * Layer: repository. Called by inspections.service.ts. Calls server/config/prisma.ts.
- * Used by: Custodian condition report, Staff inspection finalize, and the screens that list reports.
+ * Inspection row access: the reads the inspection endpoints make. A filing is written by shared/services/inspections.ts
+ * inside the asset lock (features/assets/assets.repository.ts).
+ * Layer: repository. Called by inspections.service.ts. Calls server/config/prisma.ts, shared/services/assetState.ts
+ * (the newest TSG inspection), and shared/services/inspectionShape.ts (the Inspection includes and baselines).
+ * Used by: Custodian condition report, Staff inspection finalize, the routine queue, and the screens that list reports.
  */
-import type { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { conditionsFor } from '../../shared/services/assetState';
+import { INSPECTION_INCLUDE, metricBaselinesOf } from '../../shared/services/inspectionShape';
 
-/** Inserts an asset_inspections row and returns it. Every report is a new row; older reports are kept. */
-export function create(data: Prisma.asset_inspectionsUncheckedCreateInput) {
-    return prisma.asset_inspections.create({ data });
+/**
+ * One inspection with its inspector and metrics, and the metric baselines its Inspection shape flags against.
+ *
+ * @param inspectionId the inspection
+ */
+export async function findInspectionWithBaselines(inspectionId: number) {
+    const row = await prisma.asset_inspections.findUniqueOrThrow({ where: { inspection_id: inspectionId }, include: INSPECTION_INCLUDE });
+    return { row, baselines: await metricBaselinesOf(prisma, [row]) };
+}
+
+/**
+ * When TSG last inspected each asset (any type but Self Report), in one query.
+ *
+ * @param assetIds the assets
+ * @returns the time by asset id; an asset TSG never inspected is not in the map
+ */
+export async function findLastTsgInspections(assetIds: number[]): Promise<Map<number, Date>> {
+    const conditions = await conditionsFor(prisma, assetIds);
+    return new Map([...conditions].map(([assetId, c]) => [assetId, c.inspectedAt]));
 }
 
 /**
