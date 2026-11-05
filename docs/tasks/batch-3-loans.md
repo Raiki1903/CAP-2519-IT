@@ -205,3 +205,178 @@ Made by Raiki at Stop 0 (2026-11-05). Where they differ from the sections above,
 - **The maintenance list item** becomes one exported function in `maintenance.service.ts`, so receive can answer with a ticket in that shape.
 
 **For Batch 5 to decide (section 7):** marking an asset missing, or requesting its retirement, while its loan is still Pending Approval or Pending Release. Batch 3 does not change it.
+
+## Results at Stop 1 and Stop 2
+
+Branch `feat/batch-3-loans`, from `main` after PR #141. Nothing pushed. No schema change, no new package, nothing run against CCS Cloud.
+
+| # | Commit | Hash | Typecheck | Tests (total) | Why the tests moved |
+|---|---|---|---|---|---|
+| 1 | `docs(tasks): save the Batch 3 brief` | `c2194652` | 25 | 569 | Docs only |
+| 2a | `refactor(inspections): move readInspectionInput and the field readers to server/shared/validation` | `700ad1f7` | 25 | 569 | Move only |
+| 2 | `feat(loans): request, cancel, approve and decline in the new loan shape` | `b5030dee` | 25 | 578 | +9: the 31 old borrow and decision tests became 41 request, cancel, approve and decline tests, permissions +2, session +1 |
+| 3 | `feat(loans): TSG release with a Loan Release inspection` | `c61d304f` | 25 | 595 | +17: release tests +15, one session row, one IT Admin row |
+| 4 | `feat(loans): return requests and TSG receipt (#87)` | `3dbc2f40` | 25 | 594 | -1: `returns.test.ts` removed (-21), return request and receipt tests +18, session +1, IT Admin +1 |
+| 5 | `feat(loans): loan lists, Accountability Form data and clearance record` | `2bf5fbe3` | 25 | 622 | +28: `loanLists.test.ts` (24) and four session rows |
+| 6 | `fix(analytics): count only handed-over loans as overdue` | `8bde111e` | 25 | 623 | +1: the analytics test for a Pending Approval loan past its return-by date |
+| 7 | `feat(notifications): notifications worked out from loans (#131)` | `43e2bbeb` | 25 | 631 | +8: `notifications.test.ts` (7) and one session row |
+| 8 | `feat(web): today's loan screens use the new loan steps` | `9a3f4c7e` | 25 | 631 | Unchanged (web only) |
+| 9 | `feat(web): the bell reads my notifications from the server (#131)` | `213beb45` | 25 | 631 | Unchanged (web only) |
+| 10 | `docs: Batch 3 contract, guide and counts` | this commit | 25 | 631 | Unchanged (docs only) |
+
+Build passes after every code commit. Typecheck stayed at 25 (the same 25 errors as `main`). `AGENTS.md` now says 631 tests.
+
+**Where the build differs from the brief or went beyond it:**
+
+- The Lab Head analytics view also read "Destination Lab:" out of the purpose, so it now reads `destination_center_id` (commit 2). The test seed's two loan purposes lost their packed line.
+- `fields.ts` (new) holds `readId`, `readText` and `readDate`, and `inspectionInput.ts` holds `readInspectionInput`, both in `server/shared/validation/` (commit 2a). Registration now answers 400 for a badly shaped `metrics` list.
+- A decision on a loan that is not Pending Approval answers 409, not 400.
+- The Accountability Form and the clearance record count a loan as handed over by its status, so loans the Batch 1 migration moved to On Loan (no `released_at`) count. For those, `releaseInspection` is null.
+- Purpose, decision remarks and a damage description are limited to 2000 characters (the columns are TEXT); a return request's remarks to 255, as the brief says.
+- `repairListItemOf` is exported from `maintenance.service.ts`, so receive can answer with the ticket in the Repairs list's shape.
+- Any account that heads a lab gets "Use your personal account to borrow.", whatever its role.
+- Web: LoanForm lists the session's `labs`, has an optional room, and shows the real loan id as the reference. It has no project picker (`projectId` is optional and not sent).
+- Web: the Researcher's return form has no Return Date any more (the server dates the request); its comments go in as the remarks, at most 255 characters.
+- Web: Record Return and the Pending Returns list are for TSG only (`staffUnit` "TSG"). The Secretary, who is on the Staff view, sees "Only TSG staff receive returns." and no Record Return button, because the server refuses her receive.
+- Web: the Lab Head Custody tab draws the new screen words ("Pending release", "Return requested") as approved loans and leaves cancelled ones out.
+- Web: the bell lost its Clearance Holds tab and banner altogether. The manual holds are gone with `browserOnly.tsx`, and the system holds were built from overdue assets matched by custodian name, which is what Q1 A removed. Staff, Director and Lab Head keep their repair, disposal and health cards; their asset-based overdue cards are replaced by the server's notifications, which only the borrower gets.
+- Web: commit 8 left `browserOnly.tsx` and `openReturnRequests.ts` in place, because the bell still read them; commit 9 removed both with the bell's rewrite. Between the two commits the bell's Decline sent no reason, so the server refused it. Only commit 9 has the reason box in the bell.
+- Browsers that used the old screens may still hold an unused `ems_returns` key in localStorage. Nothing reads it.
+
+## Recommendations notes
+
+For the Recommendations document, from Batch 3:
+
+- **A borrower who later heads a lab cannot cancel or ask to return their own loan.** Those two routes are for a Researcher who heads no lab, as agreed at Stop 0. TSG can still receive such a loan as a walk-in.
+- **`GET /api/loans` with no query still sends every loan to every caller (M-02).** Today's screens read it. It goes, with the old row shape and its bridge map of screen words, when Joel's loan screens move to `/mine`, `/lab-requests` and `?status=`.
+- **Marking an asset missing, or requesting its retirement, while its loan is still Pending Approval or Pending Release** is not handled (section 7). Batch 5 decides.
+- **The Researcher's repair cards in the bell** are gone until Batch 5 finds them by user id.
+- **Loans migrated by Batch 1 have no `released_at` and no Loan Release inspection.** Screens that show a release must allow a null.
+
+## Batch 3 hand checks
+
+Written for Raiki, to run by hand. The agent did not run them. Every check uses **`adric_uat_check` only** (the local copy), started through `C:\dev\uat-data\start-local-uat.ps1` on branch `feat/batch-3-loans`. Nothing here touches CCS Cloud. Find this section by searching the exact heading text `Batch 3 hand checks` in `docs/tasks/batch-3-loans.md`; each check below names its number (3-H1 to 3-H14).
+
+**Before the checks**
+
+1. Ports 4000 and 5173 must be free (no leftover `npm run dev:all`, which talks to CCS Cloud). `adric_uat_check` must be at the latest migrations with hashed passwords, as for the Batch 2b checks.
+2. Start the app with `C:\dev\uat-data\start-local-uat.ps1`. Accounts and passwords are in `C:\dev\uat-data\uat-passwords.txt` (do not copy them anywhere). Use a private window per account, or log out between accounts. The accounts: TSG "UAT Staff One"; the Head of the home lab "UAT LabHead CITe4D One"; the Head of another lab "UAT LabHead CAR"; the borrower "UAT Custodian One"; a second Researcher "UAT LabHead CITe4D Two"; the "UAT Director" account.
+3. Pick two **Available CITe4D assets** in UAT Staff One's Inventory and write their tags down: **A1** and **A2**. The loan ids are the numbers in `LOAN-<number>`: **L1** is the first loan (3-H1), **L2** the second (3-H10).
+4. **Console commands.** Open DevTools (F12), Console, on a page of `http://localhost:5173` while logged in as the account named in the check. The first time the browser may ask you to type `allow pasting`. Replace `<A1>`, `<L1>` and so on before sending. Each command prints the server's answer; `success` is the first thing to read.
+5. **To read the database**, SELECT only, never a `password` column. PowerShell, it asks for the root password: `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "<SELECT>"`. One check (3-H11) runs a single UPDATE on `adric_uat_check`, and says so.
+6. These checks leave loans, inspections and activity rows in `adric_uat_check`. The next `uat-reset.sql` load removes them.
+
+**3-H1. A Researcher requests an asset: the destination picker lists only their own labs.** Role: UAT Custodian One. Database: `adric_uat_check` (writes one loan).
+- Account page: note the labs listed there. Then Available Equipment, open A1, click Request Loan.
+- Expect: "Research Lab Destination" lists exactly the labs from the Account page and no other (the old bug: it listed every research center). There is a "Room (optional)" box, and the date field is named "Return By". Type a past date: "The return-by date cannot be in the past." shows and Submit Request stays disabled.
+- Pick a lab, Room `Room 301`, purpose `Batch 3 check one`, Return By 7 days from today. Click Submit Request. Expect "Loan Request Sent" and a reference `LOAN-<number>`. That number is the real loan id (it used to be made up in the browser). Write it down as **L1**.
+- Database: `SELECT loan_id, status, destination_center_id, destination_room, return_by FROM asset_loans WHERE loan_id=<L1>` shows PENDING_APPROVAL, the id of the lab you picked, `Room 301`, and the date.
+
+**3-H2. A second Researcher's request on the same asset is refused with the server's sentence.** Role: UAT LabHead CITe4D Two (a plain Researcher). Database: `adric_uat_check` (writes nothing).
+- Available Equipment, open A1. The Request Loan button is replaced by a grey "Requested by another user" tile.
+- Console:
+```js
+fetch("http://localhost:4000/api/auth/me",{credentials:"include"}).then(r=>r.json()).then(m=>fetch("http://localhost:4000/api/assets/<A1>/loans",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({destinationCenterId:m.user.labs[0].centerId,returnBy:"2030-01-01",purpose:"Second request"})})).then(r=>r.json()).then(console.log)
+```
+- Expect it to print `{success: false, error: "<A1> already has a loan in Pending Approval (LOAN-<L1>)."}`. If this account is in no lab, the command stops with an error about `undefined` before it sends anything; then run the same command as UAT Custodian One, who is refused with the same sentence.
+- Database: `SELECT COUNT(*) FROM asset_loans l JOIN assets a ON a.asset_id=l.asset_id WHERE a.asset_tag='<A1>' AND l.status='PENDING_APPROVAL'` shows 1.
+
+**3-H3. The Head of another lab does not see the request and cannot approve it.** Role: UAT LabHead CAR. Database: `adric_uat_check` (writes nothing).
+- Custody tab ("Loan Requests"): LOAN-<L1> is not listed. Open the bell: there is no "Equipment Loan Request" card for A1.
+- Console:
+```js
+fetch("http://localhost:4000/api/loans/<L1>/approve",{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:"{}"}).then(r=>r.json()).then(console.log)
+```
+- Expect `{success: false, error: "This asset belongs to another lab. Only that lab's Head can decide its loans."}`.
+- Database: `SELECT status FROM asset_loans WHERE loan_id=<L1>` still shows PENDING_APPROVAL.
+
+**3-H4. The home lab's Head sees the request and approves it.** Role: UAT LabHead CITe4D One. Database: `adric_uat_check` (writes the decision).
+- Custody tab: LOAN-<L1> is listed with the badge "Pending", borrower UAT Custodian One, the destination lab and the purpose. The bell (Requests tab) has a red "Pending Approval" card "Equipment Loan Request" with Approve Loan and Decline.
+- On the Custody tab click Approve. Expect: the badge becomes "Pending release" (green), "Loans pending" drops by one and "Loans approved" rises by one, and the timeline shows the approval step done and "Handed Over" still waiting. After a page reload the bell card is gone.
+- Lab Inventory tab: open A1. It still says Available and offers only Asset History (approval does not hand the asset over).
+- Database: `SELECT status, decided_by_id, decided_at FROM asset_loans WHERE loan_id=<L1>` shows PENDING_RELEASE, this Head's user id and a time; `SELECT status FROM assets WHERE asset_tag='<A1>'` shows AVAILABLE.
+
+**3-H5. The Lab Head's office account cannot borrow.** Role: UAT LabHead CITe4D One (stay logged in). Database: `adric_uat_check` (writes nothing).
+- Console, with A2 (a different, Available asset):
+```js
+fetch("http://localhost:4000/api/auth/me",{credentials:"include"}).then(r=>r.json()).then(m=>fetch("http://localhost:4000/api/assets/<A2>/loans",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({destinationCenterId:m.user.headOf.centerId,returnBy:"2030-01-01",purpose:"Office account"})})).then(r=>r.json()).then(console.log)
+```
+- Expect `{success: false, error: "Use your personal account to borrow."}`.
+- Database: `SELECT COUNT(*) FROM asset_loans l JOIN assets a ON a.asset_id=l.asset_id WHERE a.asset_tag='<A2>'` shows the same number as before the command.
+
+**3-H6. TSG releases the loan (console): the asset is On Loan with the borrower as holder, and the Accountability Form data comes back.** Role: UAT Staff One. Database: `adric_uat_check` (writes the release, one inspection, one activity row).
+- The bell has a red card "Loan Ready for Release: <A1 name>" with the tag "Waiting for Release". There is no release screen in this batch (Joel builds it), so release from the console:
+```js
+fetch("http://localhost:4000/api/loans/<L1>/release",{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({inspection:{condition:"OPERATIONAL",remarks:"Batch 3 release"}})}).then(r=>r.json()).then(console.log)
+```
+- Expect it to print `success: true` and a `loan` with `status: "ON_LOAN"`, `statusLabel: "On Loan"`, `releasedBy` named "UAT Staff One", `releasedAt` set, and `releaseInspection` with `type: "LOAN_RELEASE"`, `condition: "OPERATIONAL"`.
+- Inventory: A1 shows On Loan, custodian UAT Custodian One, Current Location the lab you picked in 3-H1 and `Room 301`.
+- Accountability Form data:
+```js
+fetch("http://localhost:4000/api/loans/<L1>/accountability-form",{credentials:"include"}).then(r=>r.json()).then(console.log)
+```
+- Expect `success: true`, `loan.status: "ON_LOAN"`, `asset.tag` = A1, `borrower` with `name: "UAT Custodian One"`, an `idNumber`, an `email` and `labs`, and `releaseInspection` with `typeLabel: "Loan Release"` by UAT Staff One. Write down `borrower.userId` as **U1**.
+- Clearance record while the asset is out:
+```js
+fetch("http://localhost:4000/api/users/<U1>/clearance-record",{method:"POST",credentials:"include"}).then(r=>r.json()).then(console.log)
+```
+- Expect `success: true`, `cleared: false`, and `loans` holding LOAN-<L1> as On Loan.
+- Database: `SELECT status, released_by_id, released_at FROM asset_loans WHERE loan_id=<L1>` shows ON_LOAN, this TSG's user id and a time; `SELECT status FROM assets WHERE asset_tag='<A1>'` shows ON_LOAN; `SELECT i.type, i.condition FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<A1>' ORDER BY i.inspection_id DESC LIMIT 1` shows LOAN_RELEASE and OPERATIONAL; `SELECT event_type, details FROM activity_log ORDER BY log_id DESC LIMIT 1` shows CLEARANCE_RECORD_PRINTED with `details` empty.
+
+**3-H7. The Accountability Form is closed to someone who is not the borrower, the home Head or TSG.** Role: UAT LabHead CITe4D Two. Database: `adric_uat_check` (writes nothing).
+- Console: the same Accountability Form command as 3-H6.
+- Expect `{success: false, error: "Only the borrower, the Head of the asset's lab, and TSG can see this Accountability Form."}` and no email or ID number anywhere in the answer.
+
+**3-H8. The Researcher asks to return; TSG sees it in another browser (proof it is on the server).** Roles: UAT Custodian One, then UAT Staff One in **another browser or a private window**. Database: `adric_uat_check` (writes the return request).
+- UAT Custodian One: My Assets, open A1, Return Asset. Expect no "Return Date" field. Type the comments `Batch 3 return`, click Submit Return Request. Expect "Return Initiated". Open Return Asset again and submit: the form stays open with a red "The return request was not sent: Loan <L1> is Return Requested, so a return cannot be requested."
+- In DevTools, Application, Local Storage, the `http://localhost:5173` entry has no new `ems_returns` entry from this request (old screens used it; nothing reads or writes it now).
+- UAT Staff One, in the other browser: Pending Returns lists A1 first, with Custodian UAT Custodian One, Return By = the date from 3-H1 and the comments `"Batch 3 return"`. Any rows after it with the grey "Not asked yet" mark are loans still On Loan (walk-ins TSG may receive). System Overview: "Pending Returns" counts only the asked-for returns, so it is one more than before. The bell has a "Return Request" card.
+- Database: `SELECT status, return_requested_at, remarks FROM asset_loans WHERE loan_id=<L1>` shows RETURN_REQUESTED, a time, and `Batch 3 return`; `SELECT status FROM assets WHERE asset_tag='<A1>'` still shows ON_LOAN.
+
+**3-H9. TSG records the return: Available, back home.** Role: UAT Staff One. Database: `adric_uat_check` (writes the return and one inspection).
+- Pending Returns, click Evaluate & Finalize on A1. The blue box shows the turn-in comments. Pick Operational, click Finalize Return and Close Ledger. Expect "Return Ledger Closed" with the reference `LOAN-<L1>`.
+- Inventory: A1 is Available, custodian None, Current Location back to its home lab (and home room, if it has one). Pending Returns no longer lists A1.
+- Clearance record (the 3-H6 command with U1): expect `cleared: true`, and `loans` still lists LOAN-<L1>, now Returned.
+- Database: `SELECT status, received_by_id, closed_at FROM asset_loans WHERE loan_id=<L1>` shows RETURNED, this TSG's user id and a time; `SELECT i.type FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<A1>' ORDER BY i.inspection_id DESC LIMIT 2` shows RETURN then LOAN_RELEASE.
+
+**3-H10. A second loan: Decline asks for a reason, then the Head approves it.** Roles: UAT Custodian One, then UAT LabHead CITe4D One. Database: `adric_uat_check` (writes a second loan and its approval).
+- UAT Custodian One: request A2 as in 3-H1, with Return By **2 days from today** and purpose `Batch 3 check two`. Write the new loan id down as **L2**.
+- UAT LabHead CITe4D One: Custody tab, LOAN-<L2>, click Decline. A box "Reason for declining" opens and "Send decline" stays disabled until you type. Type a reason, then click Cancel (do not send it). The loan is still Pending.
+- Console (declining with no reason is refused):
+```js
+fetch("http://localhost:4000/api/loans/<L2>/decline",{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({decisionRemarks:""})}).then(r=>r.json()).then(console.log)
+```
+- Expect `{success: false, error: "Write the reason for declining."}`.
+- Open the bell: the "Equipment Loan Request" card for A2 has Approve Loan and Decline. Click Decline there: the same reason box shows. Cancel it, then click Approve Loan. The card leaves the bell.
+- Database: `SELECT status FROM asset_loans WHERE loan_id=<L2>` shows PENDING_RELEASE.
+
+**3-H11. The bell by person: due soon, overdue, and nobody sees another person's.** Roles: UAT Staff One (console release), then UAT Custodian One, UAT LabHead CITe4D Two, UAT Staff One. Database: `adric_uat_check` (writes the release; **one UPDATE**, on `adric_uat_check` only).
+- UAT Staff One, console: the Accountability Form command for L2 first. Expect `{success: false, error: "This loan has not been released yet."}`. Then release L2 with the 3-H6 release command (use `<L2>`). Expect `success: true` and `status: "ON_LOAN"`.
+- UAT Custodian One: the bell, Reminders tab, shows a card "Return Reminder: <A2 name>" saying the device is due on the date you set (2 days from today). Its red count is one more.
+- UAT LabHead CITe4D Two: the bell shows no card about A2. UAT Staff One: no due-soon card about A2 either (TSG see only waiting releases and returns). UAT LabHead CITe4D One: no card about A2 any more.
+- Make the loan overdue (PowerShell, this one writes, to `adric_uat_check` only): `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "UPDATE asset_loans SET return_by = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE loan_id=<L2>"`. Reload as UAT Custodian One: the Reminders tab now shows "Overdue Equipment Return: <A2 name>" with "WARNING: This device was due on <yesterday>".
+- Database: `SELECT status, released_at FROM asset_loans WHERE loan_id=<L2>` shows ON_LOAN and a time.
+
+**3-H12. A return with damage: Maintenance and a ticket on the Repairs board.** Role: UAT Staff One. Database: `adric_uat_check` (writes the return, an inspection, a maintenance ticket).
+- Console (it takes the first issue type from the lookups and receives L2 with a damaged condition):
+```js
+fetch("http://localhost:4000/api/lookups").then(r=>r.json()).then(l=>fetch("http://localhost:4000/api/loans/<L2>/receive",{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({inspection:{condition:"DEGRADED",remarks:"Cracked screen"},returnDamage:{issueTypeId:l.issueTypes[0].issueTypeId,issueDescription:"Cracked screen found on return"}})})).then(r=>r.json()).then(console.log)
+```
+- Expect `success: true`, a `loan` with `status: "RETURNED"` and `closedAt` set, and a `maintenance` object with an `id` like `MNT-<number>`, `assetId` = A2's tag, `statusLabel: "Inspection Phase"` and the description.
+- Inventory: A2 shows Maintenance (not Available), at the TSG Office. Repairs: a new ticket for A2 with the description, status "Inspection Phase".
+- Nearby: a normal receive still works (3-H9). A second receive of L2 (run the command again) answers `{success: false, error: "Loan <L2> is Returned, so it cannot be received."}` (409) and adds no second ticket.
+- Database: `SELECT status FROM assets WHERE asset_tag='<A2>'` shows MAINTENANCE; `SELECT m.type, m.status FROM asset_maintenance m JOIN assets a ON a.asset_id=m.asset_id WHERE a.asset_tag='<A2>' ORDER BY m.maintenance_id DESC LIMIT 1` shows RETURN_DAMAGE and INSPECTING; `SELECT status FROM asset_loans WHERE loan_id=<L2>` shows RETURNED.
+
+**3-H13. The old routes answer 404, and the server terminal is clean.** Role: any logged-in account. Database: `adric_uat_check` (reads nothing).
+- Console:
+```js
+Promise.all([["POST","/api/assets/<A1>/borrow"],["PUT","/api/loans/<L1>/decision"],["POST","/api/assets/<A1>/return"]].map(([m,p])=>fetch("http://localhost:4000"+p,{method:m,credentials:"include",headers:{"Content-Type":"application/json"},body:"{}"}).then(r=>r.status))).then(console.log)
+```
+- Expect `[404, 404, 404]`.
+- Look at the terminal where the server runs, across all the checks above. Expect short plain lines with ids only, for example `Loan 41 requested by user 12`, `Loan 41 approved by user 6`, `Loan 41 released by user 3`, `Loan 41 return requested by user 12`, `Loan 41 received by user 3`, `Loan 42 received by user 3, with maintenance 77`, and `Clearance record of user 12 printed by user 3`. No emoji, no email address, no request body, no password.
+
+**3-H14. Nearby behavior still works.** Database: `adric_uat_check` (reads only).
+- UAT Staff One: Asset Inventory, Repairs, Inspections and System Overview load with no red error.
+- UAT Director: Overview and Analytics load with the campus and lab numbers.
+- UAT LabHead CITe4D One: the Analytics tab loads. In its loan list, A1 and A2 show the destination lab you picked (no "Destination Lab:" text packed into the purpose).
+- UAT Custodian One: My Assets loads; the bell opens and shows no Clearance Holds tab.
