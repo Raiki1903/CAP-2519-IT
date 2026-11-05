@@ -9,6 +9,7 @@ import { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
 import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
+import { ResearcherMyLoans } from "@web/features/loans/ResearcherMyLoans";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { useSession } from "@web/state/session";
@@ -401,97 +402,9 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
   const resetReport = () => { setReportAsset(""); setReportStatus(""); setReportDesc(""); setReportImages([]); setSubmitResult(null); setSubmittedRef(""); setRequestImmediate(false); setReportError(null); };
 
-  // ── My Assets ─────────────────────────────────────────────────────────────
-  if (activeTab === "myassets") {
-    return (
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-foreground mb-1">My Borrowed Assets</h1>
-            <p className="text-muted-foreground text-sm">Assets currently under your custody.</p>
-          </div>
-          <div className="flex rounded-lg overflow-hidden border border-border">
-            <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("list")} className="rounded-none text-xs gap-1.5"><List size={13} />List</Button>
-            <Button variant={viewMode === "grid" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("grid")} className="rounded-none text-xs gap-1.5"><LayoutGrid size={13} />Grid</Button>
-          </div>
-        </div>
-
-        {custodianAssets.some(a => a.isOverdue) && (
-          <div className="rounded-xl p-3.5 mb-4 flex items-center gap-3 bg-red-50 border border-red-200">
-            <AlertTriangle size={15} className="text-red-500 flex-shrink-0" />
-            <p className="text-xs text-red-700"><strong>Overdue Return:</strong> Overdue asset detected. Return immediately or contact your Lab Head.</p>
-          </div>
-        )}
-
-        {custodianAssets.length === 0 ? (
-          <Card className="text-center p-8 text-muted-foreground">No borrowed assets under your custody.</Card>
-        ) : viewMode === "grid" ? (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-            {custodianAssets.map(asset => (
-              <Card key={asset.id}
-                className={cn("overflow-hidden border-t-4 p-0 gap-0 cursor-pointer hover:shadow-md transition-shadow flex flex-col", asset.isOverdue ? "border-t-red-500" : (asset.daysLeft !== undefined && asset.daysLeft <= 5) ? "border-t-amber-500" : "border-t-primary")}
-                style={{ borderTopWidth: 4, borderLeftWidth: 0 }}
-                onClick={() => setSelectedAsset(asset)}
-              >
-                <div className="w-full aspect-[4/3] overflow-hidden flex-shrink-0 bg-muted/10"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image || (asset as any).image_url} /></div>
-                <div className="p-3 flex-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between gap-1 mb-1">
-                      <span className="text-[10px] font-bold text-primary">{asset.id}</span>
-                      <Badge className={cn("text-[9px] px-1.5 py-0.5", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{assetStatusLabel(asset.status)}</Badge>
-                    </div>
-                    <p className="text-xs font-bold text-foreground mb-1 line-clamp-1">{asset.name}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{asset.serial} · {asset.lab}</p>
-                  </div>
-                  {asset.daysLeft !== undefined && (
-                    <div className="flex justify-between items-center text-[10px] border-t pt-2 mt-2">
-                      <span className="text-muted-foreground">Due: {asset.dueDate}</span>
-                      <span className={cn("font-bold", asset.daysLeft < 0 ? "text-red-700" : asset.daysLeft <= 5 ? "text-amber-700" : "text-emerald-700")}>{Math.abs(asset.daysLeft)}d left</span>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {custodianAssets.map(asset => (
-              <Card key={asset.id}
-                className={cn("overflow-hidden border-l-4 p-0 gap-0 cursor-pointer hover:shadow-md transition-shadow", asset.isOverdue ? "border-l-red-500" : (asset.daysLeft !== undefined && asset.daysLeft <= 5) ? "border-l-amber-500" : "border-l-primary")}
-                style={{ borderLeftWidth: 4 }}
-                onClick={() => setSelectedAsset(asset)}
-              >
-                <div className="flex">
-                  <div className="w-28 flex-shrink-0"><AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image || (asset as any).image_url} /></div>
-                  <div className="flex-1 px-4 py-3 flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[11px] font-bold text-primary">{asset.id}</span>
-                        <Badge className={cn("text-[10px]", statusBadgeClass[asset.status] ?? "bg-muted text-muted-foreground")}>{assetStatusLabel(asset.status)}</Badge>
-                      </div>
-                      <p className="text-sm font-bold text-foreground mb-2">{asset.name}</p>
-                      <div className="flex gap-4 text-xs text-muted-foreground">
-                        <span>{asset.serial}</span>
-                        <span className="flex items-center gap-1"><Package size={10} />{asset.lab}</span>
-                        {asset.dueDate && <span className="flex items-center gap-1"><Calendar size={10} />Due: {asset.dueDate}</span>}
-                      </div>
-                    </div>
-                    {asset.daysLeft !== undefined && (
-                      <div className="text-right flex-shrink-0">
-                        <p className={cn("text-2xl font-extrabold", asset.daysLeft < 0 ? "text-red-700" : asset.daysLeft <= 5 ? "text-amber-700" : "text-emerald-700")}>{Math.abs(asset.daysLeft)}d</p>
-                        <p className="text-[9px] font-bold text-muted-foreground tracking-widest">{asset.daysLeft < 0 ? "OVERDUE" : "REMAINING"}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        <AssetDetailModal asset={selectedAsset} onClose={() => setSelectedAsset(null)} />
-      </div>
-    );
+  // ── My Assets / My Loans ──────────────────────────────────────────────────
+  if (activeTab === "myassets" || activeTab === "myloans") {
+    return <ResearcherMyLoans />;
   }
 
   // ── Available Equipment ───────────────────────────────────────────────────

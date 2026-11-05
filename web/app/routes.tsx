@@ -100,6 +100,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="myassets" replace /> },
           { path: "myassets",  element: <CustodianPortal activeTab="myassets" /> },
+          { path: "myloans",   element: <CustodianPortal activeTab="myassets" /> },
           { path: "inventory", element: <Navigate to="myassets" replace /> },
           { path: "available", element: <CustodianPortal activeTab="available" /> },
           { path: "scan",      element: <CustodianPortal activeTab="scan" /> },
