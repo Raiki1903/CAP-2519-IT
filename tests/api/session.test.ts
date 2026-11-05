@@ -55,6 +55,8 @@ const ROUTES: [number, string, string, Role[]][] = [
   [11, "POST", "/api/assets", [S]],
   [12, "PUT", "/api/assets/NOPE-9999", [S]],
   [13, "DELETE", "/api/assets/NOPE-9999", [S]],
+  [61, "PUT", "/api/assets/NOPE-9999/missing", [S]],
+  [62, "PUT", "/api/assets/NOPE-9999/found", [S]],
   [14, "POST", "/api/assets/NOPE-9999/retirement", [S]],
   [15, "GET", "/api/retirements", [S, D, L]],
   [16, "PUT", "/api/retirements/999999/decision", [D]],

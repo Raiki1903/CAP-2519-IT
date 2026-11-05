@@ -11,7 +11,7 @@ import type { AssetListFilters } from '@shared/types/assets';
 import { prisma } from '../../config/prisma';
 import * as assetState from '../../shared/services/assetState';
 import { lockAsset, lockCenter } from '../../shared/services/rowLocks';
-import { logActivity } from '../../shared/services/activityLog';
+import { logActivity, type ActivityEvent } from '../../shared/services/activityLog';
 
 /** What every asset read for a list or a detail includes: the home lab, the owning project, and the funding source. */
 const ASSET_DETAIL_INCLUDE = {
@@ -236,4 +236,55 @@ export function deleteRegistration(assetId: number, assetTag: string, actorId: n
         await tx.assets.delete({ where });
         await logActivity(tx, { eventType: "ASSET_DELETED", actorId, details: assetTag });
     });
+}
+
+/**
+ * Runs one step on an asset in a transaction that locks the asset row first, so the step reads the asset, its loan
+ * and its tickets again inside the lock and two steps on one asset run one after the other. (H-05)
+ *
+ * @param assetId the asset
+ * @param step the reads, checks, and writes, given the transaction
+ * @returns what the step returns
+ */
+export function withAssetLock<T>(assetId: number, step: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return prisma.$transaction(async (tx) => {
+        await lockAsset(tx, assetId);
+        return step(tx);
+    });
+}
+
+/** The asset row, read inside the caller's transaction. */
+export function findAssetIn(tx: Prisma.TransactionClient, assetId: number) {
+    return tx.assets.findUniqueOrThrow({ where: { asset_id: assetId } });
+}
+
+/** The asset's open loan, read inside the caller's transaction. */
+export function findOpenLoanIn(tx: Prisma.TransactionClient, assetId: number) {
+    return assetState.openLoanOf(tx, assetId);
+}
+
+/** Changes a loan row inside the caller's transaction. */
+export function updateLoanIn(tx: Prisma.TransactionClient, loanId: number, data: Prisma.asset_loansUncheckedUpdateInput) {
+    return tx.asset_loans.update({ where: { loan_id: loanId }, data });
+}
+
+/**
+ * Cancels the asset's tickets still in Pending Receipt, inside the caller's transaction, with who cancelled them and
+ * when, and the remarks.
+ *
+ * @param tx the caller's transaction
+ * @param assetId the asset
+ * @param actorId the session user
+ * @param remarks the resolution remarks
+ */
+export function cancelPendingTicketsIn(tx: Prisma.TransactionClient, assetId: number, actorId: number, remarks: string) {
+    return tx.asset_maintenance.updateMany({
+        where: { asset_id: assetId, status: "PENDING_RECEIPT" },
+        data: { status: "CANCELLED", completed_by_id: actorId, completed_at: new Date(), resolution_remarks: remarks },
+    });
+}
+
+/** Writes one activity_log row inside the caller's transaction. */
+export function logActivityIn(tx: Prisma.TransactionClient, event: ActivityEvent) {
+    return logActivity(tx, event);
 }
