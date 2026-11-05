@@ -49,13 +49,15 @@ const statusBadgeClasses: Record<string, string> = {
   RETURNED: "bg-slate-50 text-slate-700 border-slate-200",
   DECLINED: "bg-red-50 text-red-700 border-red-200",
   CANCELLED: "bg-slate-100 text-slate-600 border-slate-300",
+  ENDED_BY_MAINTENANCE: "bg-amber-50 text-amber-700 border-amber-200",
+  ENDED_BY_LOSS: "bg-red-50 text-red-700 border-red-200",
 };
 
 /**
  * Researcher My Loans component. Displays loans grouped by status:
  * 1. Waiting: Pending Approval and Pending Release. Supports Cancel action.
  * 2. Out: On Loan and Return Requested. Supports Ask to return, Report an issue, and Accountability Form view.
- * 3. History: Returned, Declined, and Cancelled loans.
+ * 3. History: Returned, Declined, Cancelled, and the loans ended by maintenance or by loss.
  */
 export function ResearcherMyLoans() {
   const { assets } = useServerData();
@@ -106,7 +108,7 @@ export function ResearcherMyLoans() {
     (l) => l.status === "ON_LOAN" || l.status === "RETURN_REQUESTED"
   );
   const historyLoans = loans.filter(
-    (l) => l.status === "RETURNED" || l.status === "DECLINED" || l.status === "CANCELLED"
+    (l) => l.status === "RETURNED" || l.status === "DECLINED" || l.status === "CANCELLED" || l.status === "ENDED_BY_MAINTENANCE" || l.status === "ENDED_BY_LOSS"
   );
 
   const matchesSearch = (loan: Loan) => {
