@@ -154,7 +154,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const resetAndClose = () => { setView("detail"); onClose(); };
   const goBack = () => setView("detail");
 
-  // The history loads as soon as the modal opens, so the short preview on the detail screen has it too.
+  // The history loads as soon as the modal opens, so the detail screen can show it.
   useEffect(() => {
     if (asset?.id) {
       fetchAssetHistory(asset.id);
@@ -184,8 +184,8 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [asset]);
 
-  // The newest three steps, newest first, for the preview on the detail screen.
-  const recentEvents = [...historyEvents].reverse().slice(0, 3);
+  // Every step, newest first, for the history on the detail screen.
+  const newestFirstEvents = [...historyEvents].reverse();
 
   const handleDirectMaintenance = () => {
     if (!asset) return;
@@ -402,29 +402,26 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         </p>
                       </div>
 
-                      {/* Collapsible preview of the asset's history */}
-                      <details className="mt-4 bg-white border border-slate-200 rounded-xl p-3 text-xs group">
-                        <summary className="font-extrabold text-slate-700 cursor-pointer flex items-center justify-between uppercase tracking-wider text-[10px]">
-                          <span>Asset History</span>
-                          <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-                        </summary>
-                        <div className="mt-3 pt-3 border-t border-slate-100 space-y-2 font-mono text-[11px] text-slate-600">
+                      {/* The asset's history, always shown */}
+                      <div className="mt-4 bg-white border border-slate-200 rounded-xl p-3 text-xs">
+                        <p className="font-extrabold text-slate-700 uppercase tracking-wider text-[10px]">Asset History</p>
+                        <div className="mt-3 pt-3 border-t border-slate-100 space-y-2 font-mono text-[11px] text-slate-600 max-h-56 overflow-y-auto">
                           {loadingHistory ? (
                             <p className="text-slate-400 italic py-1">Loading the history…</p>
                           ) : historyError ? (
                             <p className="text-red-500 italic py-1">{historyError}</p>
-                          ) : recentEvents.length === 0 ? (
+                          ) : newestFirstEvents.length === 0 ? (
                             <p className="text-slate-400 italic py-1">Nothing recorded yet.</p>
                           ) : (
-                            recentEvents.map((e, idx) => (
-                              <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-50 last:border-b-0">
+                            newestFirstEvents.map((e, idx) => (
+                              <div key={idx} className="flex justify-between items-center gap-2 py-1 border-b border-slate-50 last:border-b-0">
                                 <span>{e.label}{e.actor ? <>: <strong>{actorLabel(e.actor)}</strong></> : null}</span>
-                                <span className="text-[10px] text-slate-400">{new Date(e.at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                                <span className="text-[10px] text-slate-400 shrink-0">{new Date(e.at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
                               </div>
                             ))
                           )}
                         </div>
-                      </details>
+                      </div>
 
                       {/* ── Action panel conditional rendering ── */}
                       {asset.status !== "RETIRED" && (role === "Staff" || role === "Custodian" || role === "LabHead") && (
