@@ -10,7 +10,8 @@ import * as notificationsService from './notifications.service';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles GET /api/notifications/mine: the session user's notifications, worked out from loans on each call, as
+ * Handles GET /api/notifications/mine: the session user's notifications, worked out from loans, tickets, retirements,
+ * and inspections on each call, as
  * `{ success, notifications }`. A failure answers errorHandler's generic 500.
  */
 export async function listMyNotifications(req: Request, res: Response): Promise<void> {
