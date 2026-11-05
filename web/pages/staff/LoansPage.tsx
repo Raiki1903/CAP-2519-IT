@@ -1,7 +1,7 @@
 /**
- * Asset Loans page for TSG staff.
+ * Asset Loans page for TSG staff: Releases, Returns, and Clearance tabs.
  * Layer: page. Called by app/routes.tsx at /staff/loans.
- * Calls: api/loans.api.ts listLoansByStatus(), LoanReleaseDialog, LoanReceiveDialog, loans/loanStatusStyles.ts.
+ * Calls: api/loans.api.ts listLoansByStatus(), LoanReleaseDialog, LoanReceiveDialog, ClearanceTab, loans/loanStatusStyles.ts.
  * Used by: TSG Staff.
  */
 import { useEffect, useState, useMemo } from "react";
@@ -18,23 +18,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@web/components/ui/utils";
 import { LoanReleaseDialog } from "@web/features/loans/LoanReleaseDialog";
 import { LoanReceiveDialog } from "@web/features/loans/LoanReceiveDialog";
+import { ClearanceTab } from "@web/features/loans/ClearanceTab";
+import { CLEARANCE_LOAN_STATUSES, buildClearanceRows } from "@web/features/loans/clearanceRows";
 import { loanStatusBadgeClass } from "@web/features/loans/loanStatusStyles";
 import type { Loan } from "@shared/types/loans";
 
 /**
- * Main Asset Loans management screen with Releases and Returns tabs.
+ * Main Asset Loans management screen with Releases, Returns, and Clearance tabs.
  */
 export function LoansPage() {
   const { role, currentUser } = useSession();
 
   const [activeTab, setActiveTab] = useState<"releases" | "returns" | "clearance">("releases");
-  const [clearanceUserId, setClearanceUserId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [releases, setReleases] = useState<Loan[]>([]);
   const [returns, setReturns] = useState<Loan[]>([]);
+  const [clearanceLoans, setClearanceLoans] = useState<Loan[]>([]);
 
   const [selectedReleaseLoan, setSelectedReleaseLoan] = useState<Loan | null>(null);
   const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
@@ -49,9 +51,10 @@ export function LoansPage() {
     setLoading(true);
 
     try {
-      const [releasesRes, returnsRes] = await Promise.all([
+      const [releasesRes, returnsRes, clearanceRes] = await Promise.all([
         listLoansByStatus(["PENDING_RELEASE"]),
         listLoansByStatus(["RETURN_REQUESTED", "ON_LOAN"]),
+        listLoansByStatus([...CLEARANCE_LOAN_STATUSES]),
       ]);
 
       if (releasesRes.success && Array.isArray(releasesRes.loans)) {
@@ -66,6 +69,10 @@ export function LoansPage() {
           return new Date(a.returnBy).getTime() - new Date(b.returnBy).getTime();
         });
         setReturns(sortedReturns);
+      }
+
+      if (clearanceRes.success && Array.isArray(clearanceRes.loans)) {
+        setClearanceLoans(clearanceRes.loans);
       }
     } catch (err: any) {
       setFeedback({ type: "error", text: err?.message || "Failed to load loan queues." });
@@ -91,6 +98,11 @@ export function LoansPage() {
 
   const filteredReleases = useMemo(() => filterLoans(releases), [releases, searchQuery]);
   const filteredReturns = useMemo(() => filterLoans(returns), [returns, searchQuery]);
+  const clearanceRows = useMemo(() => buildClearanceRows(clearanceLoans), [clearanceLoans]);
+  const filteredClearanceRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return q ? clearanceRows.filter((r) => r.name.toLowerCase().includes(q)) : clearanceRows;
+  }, [clearanceRows, searchQuery]);
 
   if (!isTsg) {
     return (
@@ -131,7 +143,7 @@ export function LoansPage() {
         <div>
           <h1 className="text-foreground mb-1">{PAGE_TITLES.loans}</h1>
           <p className="text-muted-foreground text-sm">
-            Process equipment handovers, inspect returns, and manage active loans.
+            Process equipment handovers, inspect returns, manage active loans, and prepare clearance records.
           </p>
         </div>
         <Button size="sm" variant="outline" onClick={loadData} disabled={loading}>
@@ -175,13 +187,19 @@ export function LoansPage() {
                 {returns.length}
               </Badge>
             </TabsTrigger>
+            <TabsTrigger value="clearance" className="text-xs gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white">
+              Clearance
+              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                {clearanceRows.length}
+              </Badge>
+            </TabsTrigger>
           </TabsList>
 
           <div className="relative mb-4 w-full sm:w-72">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search tag, equipment, or borrower..."
+              placeholder={activeTab === "clearance" ? "Search borrower name..." : "Search tag, equipment, or borrower..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8 text-xs h-9"
@@ -325,6 +343,11 @@ export function LoansPage() {
               </Table>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Tab 3: Clearance */}
+        <TabsContent value="clearance">
+          <ClearanceTab rows={filteredClearanceRows} searching={Boolean(searchQuery.trim())} />
         </TabsContent>
       </Tabs>
 

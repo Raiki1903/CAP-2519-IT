@@ -59,6 +59,15 @@ export function ClearancePrintPage() {
     };
   }, [userId]);
 
+  // The page opens in its own tab from the Clearance tab, so Back closes it. A tab the browser will not close (one opened by
+  // a pasted link) stays open, and then Back goes to the previous page instead.
+  const handleBack = () => {
+    window.close();
+    setTimeout(() => {
+      if (!window.closed) navigate(-1);
+    }, 100);
+  };
+
   const handlePrint = () => {
     if (!record) return;
     const lastName = record.person.name.split(" ").slice(-1)[0] || "borrower";
@@ -96,7 +105,7 @@ export function ClearancePrintPage() {
           <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-3 mb-4">
             {error || "Clearance record not found."}
           </p>
-          <Button variant="outline" size="sm" onClick={() => navigate(-1)} className="gap-1.5 text-xs">
+          <Button variant="outline" size="sm" onClick={handleBack} className="gap-1.5 text-xs">
             <ArrowLeft size={13} />
             Go Back
           </Button>
@@ -118,7 +127,7 @@ export function ClearancePrintPage() {
     <div className="min-h-screen bg-slate-100 text-slate-900 py-6 px-4 print:p-0 print:bg-white">
       {/* Top action bar: hidden when printing */}
       <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between gap-3 print:hidden">
-        <Button variant="outline" size="sm" onClick={() => navigate(-1)} className="gap-1.5 text-xs bg-white">
+        <Button variant="outline" size="sm" onClick={handleBack} className="gap-1.5 text-xs bg-white">
           <ArrowLeft size={13} />
           Back
         </Button>
