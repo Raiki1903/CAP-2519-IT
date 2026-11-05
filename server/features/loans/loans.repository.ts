@@ -1,24 +1,17 @@
 /**
  * Loan row access: every database read and write the loan endpoints make.
  * Layer: repository. Called by loans.service.ts. Calls server/config/prisma.ts, shared/services/rowLocks.ts,
- * shared/services/assetState.ts (the open loan, read inside the lock, and clearance), and shared/services/activityLog.ts.
+ * shared/services/assetState.ts (the open loan, read inside the lock, and clearance), shared/services/activityLog.ts, and
+ * shared/services/inspectionShape.ts (what an inspection includes, and its metric baselines).
  * Used by: Researcher loan requests, Lab Head approval, TSG release and receipt, the loan lists, the Accountability
  * Form, and the clearance record.
  */
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { lockAsset } from '../../shared/services/rowLocks';
-import { isCleared, openLoanOf, type Db } from '../../shared/services/assetState';
+import { isCleared, openLoanOf } from '../../shared/services/assetState';
 import { logActivity } from '../../shared/services/activityLog';
-
-/** The person fields every loan answer names. */
-const PERSON = { select: { user_id: true, first_name: true, last_name: true } } as const;
-
-/** What an inspection in a loan answer includes: its inspector and its metric values with their definitions. */
-const INSPECTION_INCLUDE = {
-    users: PERSON,
-    metrics: { include: { metric_definitions: true }, orderBy: { metric_id: 'asc' } },
-} satisfies Prisma.asset_inspectionsInclude;
+import { INSPECTION_INCLUDE, PERSON, metricBaselinesOf } from '../../shared/services/inspectionShape';
 
 /** What a loan read for the Loan shape includes. */
 const LOAN_INCLUDE = {
@@ -35,9 +28,6 @@ const LOAN_INCLUDE = {
 
 /** A loan row with everything the Loan shape names. */
 export type LoanRow = Prisma.asset_loansGetPayload<{ include: typeof LOAN_INCLUDE }>;
-
-/** An inspection row as a loan answer includes it. */
-export type LoanInspectionRow = NonNullable<LoanRow['release_inspection']>;
 
 /** Loan rows for the Loan shape, with the metric baselines their inspections are flagged against. */
 export interface LoanRows {
@@ -75,29 +65,7 @@ export function findListLookups() {
  */
 export async function findRows(where: Prisma.asset_loansWhereInput, orderBy: Prisma.asset_loansOrderByWithRelationInput[]): Promise<LoanRows> {
     const rows = await prisma.asset_loans.findMany({ where, orderBy, include: LOAN_INCLUDE });
-    return { rows, baselines: await metricBaselines(prisma, rows) };
-}
-
-/**
- * The asset's first recorded value of each metric its loans' inspections measured, in one query. A flag rule that
- * needs a baseline compares against it (shared/constants/metricFlagRules.ts).
- */
-async function metricBaselines(db: Db, rows: LoanRow[]): Promise<Map<string, number>> {
-    const inspections = rows.flatMap(r => [r.release_inspection, r.return_inspection]).filter(i => i !== null);
-    const metricIds = [...new Set(inspections.flatMap(i => i.metrics.map(m => m.metric_id)))];
-    if (metricIds.length === 0) return new Map();
-    const assetIds = [...new Set(inspections.map(i => i.asset_id))];
-    const values = await db.asset_inspection_metrics.findMany({
-        where: { metric_id: { in: metricIds }, asset_inspections: { asset_id: { in: assetIds } } },
-        include: { asset_inspections: { select: { asset_id: true } } },
-        orderBy: [{ asset_inspections: { inspected_at: 'asc' } }, { inspection_id: 'asc' }],
-    });
-    const baselines = new Map<string, number>();
-    for (const v of values) {
-        const key = `${v.asset_inspections.asset_id}:${v.metric_id}`;
-        if (!baselines.has(key)) baselines.set(key, Number(v.value));
-    }
-    return baselines;
+    return { rows, baselines: await metricBaselinesOf(prisma, rows.flatMap(r => [r.release_inspection, r.return_inspection]).filter(i => i !== null)) };
 }
 
 /** The loan with this id, or null. Its asset never changes, so a step reads it first to know which asset to lock. */
