@@ -1,8 +1,9 @@
 /**
  * Researcher screen: My Loans tracking active borrowings, pending requests, and loan history.
  * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx when activeTab === "myassets".
- * Calls: api/loans.api.ts (listMyLoans, cancelLoan, requestReturn).
- * Used by: Researchers/Custodians to cancel requests, request returns, and view their Accountability Forms.
+ * Calls: api/loans.api.ts (listMyLoans, cancelLoan, requestReturn), features/assets/AssetDetailModal.tsx (report an issue),
+ * state/serverData.tsx (assets).
+ * Used by: Researchers/Custodians to cancel requests, request returns, report an issue, and view their Accountability Forms.
  */
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -16,11 +17,14 @@ import {
   Calendar,
   MapPin,
   Search,
+  Wrench,
   RefreshCw,
   CheckCircle2,
 } from "lucide-react";
 import * as loansApi from "@web/api/loans.api";
 import type { Loan } from "@shared/types/loans";
+import { AssetDetailModal } from "@web/features/assets/AssetDetailModal";
+import { useServerData } from "@web/state/serverData";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
@@ -50,11 +54,14 @@ const statusBadgeClasses: Record<string, string> = {
 /**
  * Researcher My Loans component. Displays loans grouped by status:
  * 1. Waiting: Pending Approval and Pending Release. Supports Cancel action.
- * 2. Out: On Loan and Return Requested. Supports Ask to return and Accountability Form view.
+ * 2. Out: On Loan and Return Requested. Supports Ask to return, Report an issue, and Accountability Form view.
  * 3. History: Returned, Declined, and Cancelled loans.
  */
 export function ResearcherMyLoans() {
+  const { assets } = useServerData();
   const [activeTab, setActiveTab] = useState<"waiting" | "out" | "history">("out");
+  // The tag of the asset whose detail is open. The detail's Request Repair opens the report form.
+  const [detailTag, setDetailTag] = useState<string | null>(null);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -366,6 +373,17 @@ export function ResearcherMyLoans() {
                           </span>
                         )}
 
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-50"
+                          disabled={!assets.some(a => a.id === loan.asset.tag)}
+                          onClick={() => setDetailTag(loan.asset.tag)}
+                        >
+                          <Wrench size={13} />
+                          Report an issue
+                        </Button>
+
                         {/* Accountability Form link */}
                         <Button
                           size="sm"
@@ -539,6 +557,9 @@ export function ResearcherMyLoans() {
           )}
         </div>
       )}
+
+      {/* The asset detail, opened from Report an issue; its Request Repair button opens the report form. */}
+      <AssetDetailModal asset={assets.find(a => a.id === detailTag) ?? null} onClose={() => setDetailTag(null)} />
 
       {/* Cancel Request Dialog */}
       <Dialog open={Boolean(cancelTarget)} onOpenChange={(open) => { if (!open) setCancelTarget(null); }}>
