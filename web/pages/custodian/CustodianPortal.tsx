@@ -32,6 +32,7 @@ import {
 import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
+import { SUGGESTED_HEALTH_SCORE, type AssetCondition } from "@shared/enums/assetCondition";
 
 const MINT = "#10B981";
 
@@ -68,7 +69,7 @@ const statusPills = [
  * - myassets: assets whose custodian name matches the signed-in user, without Disposed ones.
  * - available: Active assets, filtered by category, campus, lab, and search, with the detail modal for a loan request.
  * - scan: reads a QR tag from the camera or an uploaded picture and opens that asset.
- * - report: a condition report, posted to asset_inspections, optionally filing a repair too.
+ * - report: a Self Report on an asset the person holds, optionally filing a repair ticket too.
  *
  * @param activeTab "myassets", "available", "scan", or "report"
  */
@@ -138,9 +139,9 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   // Matched by user id, never by name (issue #32). A disposal keeps the last custodian on the DISPOSED record, so the
   // id match alone would keep listing assets that are no longer in service.
   const custodianAssets = displayedAssets.filter(a => !!currentUser && a.custodianId === currentUser.userId && a.status !== "RETIRED");
-  // Only borrowed equipment under the custodian's custody can be picked for an inspection report.
-  // Assets in Maintenance or Disposed cannot be inspected again. (issue #88)
-  const reportEligibleAssets = custodianAssets.filter(a => a.status === "ON_LOAN" || a.isOverdue);
+  // A Self Report is offered only for assets the person holds (custodianId is their own id) and that are On Loan: the
+  // server refuses anything else with 403 or 409. An asset in Maintenance is inspected through the repair steps. (issue #88)
+  const reportEligibleAssets = custodianAssets.filter(a => a.status === "ON_LOAN");
 
   useEffect(() => {
     if (activeTab === "report") {
@@ -347,7 +348,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     const assetObj = eligibleAsset;
     const targetTag = assetObj?.id || assetObj?.asset_tag || selectedAssetId;
 
-    const conditionEnumMap: Record<string, string> = {
+    const conditionEnumMap: Record<string, AssetCondition> = {
       "Perfect": "PERFECT",
       "Operational": "OPERATIONAL",
       "Minor Drift": "MINOR_DRIFT",
@@ -362,11 +363,12 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     setTicketError(null);
 
     try {
-      // 1. Post directly to MySQL database table asset_inspections
+      // 1. File the Self Report. The inspection's remarks hold at most 255 characters; a repair ticket below gets the whole text.
       const res = await inspectionsApi.submitInspectionRaw(targetTag, {
-        reportCondition: reportConditionEnum,
-        reportRemarks: fullRemarks,
-        reportImg: firstImg,
+        condition: reportConditionEnum,
+        healthScore: SUGGESTED_HEALTH_SCORE[reportConditionEnum],
+        remarks: fullRemarks.slice(0, 255),
+        photo: firstImg,
       });
 
       if (!res.ok) {

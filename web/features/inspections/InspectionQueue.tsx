@@ -1,12 +1,15 @@
 /**
- * Inspection queue: assets grouped by lab group (A to D, and Other for a lab in none), each with a button to inspect it and file a condition report.
+ * Inspection queue: the Available assets due for a routine inspection, from the server, grouped by lab group (A to D,
+ * and Other for a lab in none), with a period picker and a button to inspect each asset and file a Routine inspection.
  * Layer: feature component. Called by pages/staff/InspectionsPage.tsx.
- * Calls: api/inspections.api.ts submitInspectionRaw(), state/serverData.tsx syncFromDb().
+ * Calls: api/inspections.api.ts getRoutineQueue() and submitInspectionRaw(), features/inspections/InspectionFields.tsx,
+ * state/serverData.tsx syncFromDb().
  * Used by: Staff single-item inspection.
  */
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useServerData } from "@web/state/serverData";
 import * as inspectionsApi from "@web/api/inspections.api";
+import { EMPTY_INSPECTION, InspectionFields, toInspectionInput, type InspectionFieldsValue } from "@web/features/inspections/InspectionFields";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import { Button } from "@web/components/ui/button";
@@ -15,9 +18,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Label } from "@web/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@web/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
-import { INSPECTION_LAB_GROUPS, OTHER_INSPECTION_GROUP_ID, inspectionGroupIdOf } from "@shared/constants/inspectionGroups";
+import { DEFAULT_ROUTINE_PERIOD_DAYS, OTHER_INSPECTION_GROUP_ID, ROUTINE_PERIOD_OPTIONS } from "@shared/constants/inspectionGroups";
+import type { RoutineQueueEntry, RoutineQueueGroup } from "@shared/types/inspections";
 import { cn } from "@web/components/ui/utils";
-import { CheckCircle, ClipboardCheck, Camera, Upload } from "lucide-react";
+import { ClipboardCheck, Camera, Upload } from "lucide-react";
 
 // The dot colour of each group's tab. The groups themselves are in shared/constants/inspectionGroups.ts.
 const GROUP_COLORS: Record<string, string> = {
@@ -28,229 +32,189 @@ const GROUP_COLORS: Record<string, string> = {
   [OTHER_INSPECTION_GROUP_ID]: "text-slate-500",
 };
 
-const statusBadge: Record<string, string> = {
-  Inspected: "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold",
-  "For Inspection": "bg-amber-50 text-amber-800 border-amber-300 font-bold",
-  "Due Soon": "bg-amber-50 text-amber-700 border-amber-200",
-  Overdue: "bg-red-50 text-red-700 border-red-200",
-};
-
-const urgencyBadge: Record<string, string> = {
-  Low: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Normal: "bg-blue-50   text-blue-700   border-blue-200",
-  High: "bg-amber-50  text-amber-700  border-amber-200",
-  Critical: "bg-red-50    text-red-700    border-red-200",
-};
+/** A date-time as "Oct 9, 2026". */
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 /**
- * Shows one tab per lab group with its assets, and the dialog that finalizes one asset's inspection.
- * Submitting posts the report through inspectionsApi.submitInspectionRaw(), then calls onReportSaved.
- * The row then shows "Inspected" until the page is left: that badge is not stored anywhere (H-18).
+ * Shows the period picker, one tab per lab group with the assets the server says are due, and the dialog that files one
+ * asset's Routine inspection. Submitting posts the inspection through inspectionsApi.submitInspectionRaw(), then reloads
+ * the queue (the asset leaves it, because TSG just inspected it) and calls onReportSaved.
  *
- * @param displayedAssets the Staff asset list (useStaffAssets)
- * @param onReportSaved reloads the page's assets and reports after a successful post
+ * @param onReportSaved reloads the page's inspection log after a successful post
  */
-export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedAssets: any[]; onReportSaved: () => Promise<void> }) {
+export function InspectionQueue({ onReportSaved }: { onReportSaved: () => Promise<void> }) {
   const { syncFromDb } = useServerData();
+  const [days, setDays] = useState<number>(DEFAULT_ROUTINE_PERIOD_DAYS);
+  const [groups, setGroups] = useState<RoutineQueueGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeGroup, setActiveGroup] = useState("A");
-  const [itemInspectedState, setItemInspectedState] = useState<Record<string, boolean>>({});
-  const [selectedQueueItem, setSelectedQueueItem] = useState<any | null>(null);
-  const [inspectionStatusOption, setInspectionStatusOption] = useState<string>("Operational");
-  const [inspectionNotesOption, setInspectionNotesOption] = useState<string>("");
-  // TODO(F-28): the Inspector Role is not saved anywhere; the database records only the reporter's account. Phase 3 stores it with the report (issue #48).
-  const [inspectorRoleOption, setInspectorRoleOption] = useState<string>("TSG Staff");
-  const [tsgRemarksOption, setTsgRemarksOption] = useState<string>("");
-  const [itsRemarksOption, setItsRemarksOption] = useState<string>("");
-  const [inspectionImgOption, setInspectionImgOption] = useState<string>("");
+  const [selected, setSelected] = useState<RoutineQueueEntry | null>(null);
+  const [inspection, setInspection] = useState<InspectionFieldsValue>(EMPTY_INSPECTION);
+  const [photo, setPhoto] = useState<string>("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  const loadQueue = useCallback(async () => {
+    try {
+      const data = await inspectionsApi.getRoutineQueue(days);
+      if (data.success && Array.isArray(data.groups)) {
+        setGroups(data.groups);
+        setLoadError(null);
+      } else {
+        setLoadError(data.error || "The inspection queue could not be loaded.");
+      }
+    } catch (e) {
+      console.error("Failed to load the routine queue:", e);
+      setLoadError("The inspection queue could not be loaded: the server could not be reached.");
+    } finally {
+      setLoading(false);
+    }
+  }, [days]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadQueue();
+  }, [loadQueue]);
+
+  // A lab in none of the four groups gets its own "Other" tab, only when it has assets due, so they are not hidden.
+  const shownGroups = groups.filter(g => g.group !== OTHER_INSPECTION_GROUP_ID || g.assets.length > 0);
+
+  const openDialog = (entry: RoutineQueueEntry) => {
+    setSelected(entry);
+    setInspection(EMPTY_INSPECTION);
+    setPhoto("");
+    setSubmitError(null);
+  };
+
+  const submit = async () => {
+    if (!selected || isSubmitting) return;
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      let res: Response;
+      try {
+        res = await inspectionsApi.submitInspectionRaw(selected.asset.tag, { ...toInspectionInput(inspection), photo: photo || null });
+      } catch (e) {
+        console.error("Failed to file the routine inspection:", e);
+        setSubmitError("The inspection could not be saved: the server could not be reached. Please try again.");
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        // The dialog stays open, so the inspector sees why and can cancel.
+        setSubmitError(body?.error || "The inspection could not be saved. Please try again.");
+        return;
+      }
+      const name = selected.asset.name;
+      setSelected(null);
+      await loadQueue();
+      await onReportSaved();
+      syncFromDb();
+      alert(`Inspection saved for ${name}.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <>
-      {/* Group tabs using shadcn Tabs */}
-      {(() => {
-        // A disposed asset has left the registry, and the server refuses a report for it (409).
-        const queueAssets = displayedAssets.filter(a => a.status !== "RETIRED");
+      <div className="flex items-center gap-3 mb-4">
+        <Label className="text-xs font-bold text-foreground">Not inspected in the last</Label>
+        <Select value={String(days)} onValueChange={v => setDays(Number(v))}>
+          <SelectTrigger className="h-9 w-36 text-xs" aria-label="Inspection period">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ROUTINE_PERIOD_OPTIONS.map(d => <SelectItem key={d} value={String(d)}>{d} days</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">Only Available assets are listed. An asset that is out, in repair, missing or retired is left out.</p>
+      </div>
 
-        const getGroupAssets = (groupId: string) => queueAssets.filter(a => inspectionGroupIdOf(a.lab) === groupId);
+      {loadError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">{loadError}</div>}
 
-        // A lab in none of the four groups gets its own "Other" tab (only when it has assets), so its assets are not hidden in another group.
-        const otherLabs = [...new Set(getGroupAssets(OTHER_INSPECTION_GROUP_ID).map(a => String(a.lab || "No lab")))].sort();
-        const groups = [
-          ...INSPECTION_LAB_GROUPS,
-          ...(otherLabs.length > 0 ? [{ id: OTHER_INSPECTION_GROUP_ID, name: "Other", labs: otherLabs }] : []),
-        ];
+      {loading && groups.length === 0 ? (
+        <Card className="p-6 text-center text-xs text-muted-foreground mb-8">Loading the inspection queue...</Card>
+      ) : (
+        <Tabs value={activeGroup} onValueChange={setActiveGroup}>
+          <TabsList className="mb-4 h-auto gap-1 bg-muted/40">
+            {shownGroups.map(g => (
+              <TabsTrigger key={g.group} value={g.group} className="text-xs gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white">
+                <span className={cn("w-2 h-2 rounded-full", GROUP_COLORS[g.group].replace("text-", "bg-"))} />
+                {g.name}
+                {g.assets.length > 0 && <Badge className="text-[9px] bg-red-100 text-red-700 border-red-200 ml-0.5">{g.assets.length}</Badge>}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        const dynamicGroups = groups.map(g => {
-          const gAssets = getGroupAssets(g.id);
-          const due = gAssets.filter(a => a.status === "MAINTENANCE" || a.isOverdue || (a.healthScore != null && a.healthScore < 80)).length;
-          return { ...g, color: GROUP_COLORS[g.id], assets: gAssets.length, due };
-        });
-
-        return (
-          <Tabs value={activeGroup} onValueChange={setActiveGroup}>
-            <TabsList className="mb-4 h-auto gap-1 bg-muted/40">
-              {dynamicGroups.map(g => (
-                <TabsTrigger key={g.id} value={g.id} className="text-xs gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white">
-                  <span className={cn("w-2 h-2 rounded-full", g.color.replace("text-", "bg-"))} />
-                  {g.name}
-                  {g.due > 0 && <Badge className="text-[9px] bg-red-100 text-red-700 border-red-200 ml-0.5">{g.due}</Badge>}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            {dynamicGroups.map(g => {
-              const groupAssets = getGroupAssets(g.id);
-              const queueItems = groupAssets.map(a => {
-                const isInspected = itemInspectedState[a.id] === true;
-                const status = isInspected ? "Inspected" : "For Inspection";
-                // `healthScore` is the newest TSG inspection's 0 to 100 score, null when it has none.
-                const urgency = a.status === "MAINTENANCE" || a.isOverdue ? "Critical" : (a.healthScore != null && a.healthScore < 80 ? "High" : "Normal");
-
-                return {
-                  id: `MNT-${String(a.id)}`,
-                  asset: a.name,
-                  serial: a.serial || a.id,
-                  lab: a.lab,
-                  // TODO(F-28): "Last Inspected" shows the procurement date, or a made-up date, not the newest report. Phase 3.
-                  lastInspected: a.procured || "Jan 15, 2024",
-                  status,
-                  urgency,
-                  rawAsset: a
-                };
-              });
-
-              return (
-                <TabsContent key={g.id} value={g.id}>
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    {[{ val: String(g.assets), label: "Total Assets" }, { val: String(g.due), label: "Due / Overdue" }, { val: g.labs.join(", "), label: "Labs" }].map(({ val, label }) => (
-                      <Card key={label}><CardContent className="pt-4 pb-4"><p className="text-xl font-extrabold text-foreground">{val}</p><p className="text-xs text-muted-foreground">{label}</p></CardContent></Card>
-                    ))}
+          {shownGroups.map(g => (
+            <TabsContent key={g.group} value={g.group}>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {[{ val: String(g.assets.length), label: "Due for inspection" }, { val: g.labs.join(", ") || "None", label: "Labs" }].map(({ val, label }) => (
+                  <Card key={label}><CardContent className="pt-4 pb-4"><p className="text-xl font-extrabold text-foreground">{val}</p><p className="text-xs text-muted-foreground">{label}</p></CardContent></Card>
+                ))}
+              </div>
+              <Card className="overflow-hidden p-0 mb-8">
+                <CardHeader className="px-5 py-4 flex-row items-center justify-between space-y-0 border-b border-border">
+                  <CardTitle className="text-sm">Inspection Queue: {g.name} ({g.labs.join(", ") || "no labs"})</CardTitle>
+                </CardHeader>
+                {g.assets.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/30">
+                        {["Asset", "Lab", "Last Inspected by TSG", "Condition", "Action"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {g.assets.map(entry => (
+                        <TableRow key={entry.asset.tag} className="transition-colors hover:bg-muted/10">
+                          <TableCell>
+                            <p className="text-xs font-semibold text-foreground">{entry.asset.name}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono">{entry.asset.tag}</p>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{entry.asset.homeLab.code}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{entry.lastTsgInspectionAt ? shortDate(entry.lastTsgInspectionAt) : "Never"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{entry.asset.conditionLabel ?? "Not inspected"}</TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              onClick={() => openDialog(entry)}
+                              className="bg-[#005A36] hover:bg-[#004225] text-white font-bold text-[10px] h-7 px-2.5 gap-1 shadow-sm"
+                            >
+                              <ClipboardCheck size={11} /> Inspect / Log Report
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="p-6 text-center text-xs text-muted-foreground bg-muted/10">
+                    No Available asset in {g.name} is due for an inspection within {days} days.
                   </div>
-                  <Card className="overflow-hidden p-0 mb-8">
-                    <CardHeader className="px-5 py-4 flex-row items-center justify-between space-y-0 border-b border-border">
-                      <div>
-                        <CardTitle className="text-sm">Inspection Queue: {g.name} ({g.labs.join(", ")})</CardTitle>
-                      </div>
-                    </CardHeader>
-                    {queueItems.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/30">
-                            {["Ticket ID", "Asset", "Lab", "Last Inspected", "Status", "Urgency", "Action"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {queueItems.map(item => (
-                            <TableRow key={item.id} className="transition-colors hover:bg-muted/10">
-                              <TableCell className="font-bold text-primary text-xs font-mono">{item.id}</TableCell>
-                              <TableCell><p className="text-xs font-semibold text-foreground">{item.asset}</p><p className="text-[10px] text-muted-foreground font-mono">{item.serial}</p></TableCell>
-                              <TableCell className="text-xs text-muted-foreground">{item.lab}</TableCell>
-                              <TableCell className="text-xs text-muted-foreground">{item.lastInspected}</TableCell>
-                              <TableCell><Badge className={cn("text-[10px]", statusBadge[item.status])}>{item.status}</Badge></TableCell>
-                              <TableCell><Badge className={cn("text-[10px]", urgencyBadge[item.urgency])}>{item.urgency}</Badge></TableCell>
-                              <TableCell>
-                                {item.status === "Inspected" ? (
-                                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold gap-1">
-                                    <CheckCircle size={11} /> Inspected
-                                  </Badge>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => {
-                                      setSelectedQueueItem(item);
-                                      setInspectionStatusOption("Operational");
-                                      setInspectionNotesOption("");
-                                    }}
-                                    className="bg-[#005A36] hover:bg-[#004225] text-white font-bold text-[10px] h-7 px-2.5 gap-1 shadow-sm"
-                                  >
-                                    <ClipboardCheck size={11} /> Inspect / Log Report
-                                  </Button>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    ) : (
-                      <div className="p-6 text-center text-xs text-muted-foreground bg-muted/10">
-                        No registered equipment currently assigned to {g.name} ({g.labs.join(", ")}).
-                      </div>
-                    )}
-                  </Card>
-                </TabsContent>
-              );
-            })}
-          </Tabs>
-        );
-      })()}
+                )}
+              </Card>
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
 
-      {/* Log Inspection Report Dialog for Queue Item */}
-      <Dialog open={!!selectedQueueItem} onOpenChange={(open) => !open && setSelectedQueueItem(null)}>
-        {selectedQueueItem && (
+      {/* Log Routine Inspection Dialog for one queue item */}
+      <Dialog open={!!selected} onOpenChange={(open) => !open && !isSubmitting && setSelected(null)}>
+        {selected && (
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                <ClipboardCheck className="text-[#005A36]" size={16} /> Log Asset Inspection Report
+                <ClipboardCheck className="text-[#005A36]" size={16} /> Log Routine Inspection
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Record technical inspection details, condition ratings, and role remarks for {selectedQueueItem.asset} ({selectedQueueItem.rawAsset?.id || selectedQueueItem.id}).
+                Record the condition you found for {selected.asset.name} ({selected.asset.tag}). It becomes the asset's condition.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3.5 my-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  {/* The role picked here is not sent to the server: the report records the signed-in account. Logged in 02-restructure-log.md, notes. */}
-                  <Label className="text-xs font-bold text-foreground">Inspector Role</Label>
-                  <Select value={inspectorRoleOption} onValueChange={setInspectorRoleOption}>
-                    <SelectTrigger className="mt-1 h-9 text-xs">
-                      <SelectValue placeholder="Select Role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="TSG Staff">Staff</SelectItem>
-                      <SelectItem value="Lab Head">Lab Head</SelectItem>
-                      <SelectItem value="Custodian">Custodian</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs font-bold text-foreground">Condition Rating</Label>
-                  <Select value={inspectionStatusOption} onValueChange={setInspectionStatusOption}>
-                    <SelectTrigger className="mt-1 h-9 text-xs">
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Perfect">Perfect (Brand New / 100%)</SelectItem>
-                      <SelectItem value="Operational">Operational (Standard Wear / 90%)</SelectItem>
-                      <SelectItem value="Minor Drift">Minor Drift (Functional / 78%)</SelectItem>
-                      <SelectItem value="Degraded Performance">Degraded Performance (Needs Service / 60%)</SelectItem>
-                      <SelectItem value="Critical Defect">Critical Defect (Non-Functional / 35%)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold text-foreground">Hardware Remarks</Label>
-                <textarea
-                  value={tsgRemarksOption}
-                  onChange={(e) => setTsgRemarksOption(e.target.value)}
-                  placeholder="Enter physical hardware metrics, component diagnostics, fan noise, thermal readings, or maintenance notes..."
-                  rows={2}
-                  className="w-full rounded-md border border-input bg-background p-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1 resize-none"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold text-foreground">Records Remarks</Label>
-                <textarea
-                  value={itsRemarksOption}
-                  onChange={(e) => setItsRemarksOption(e.target.value)}
-                  placeholder="Tag check, warranty claim, software licence, or other records notes..."
-                  rows={2}
-                  className="w-full rounded-md border border-input bg-background p-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1 resize-none"
-                />
-              </div>
+              <InspectionFields value={inspection} onChange={setInspection} heading="Condition Rating" />
 
               <div>
                 <Label className="text-xs font-bold text-foreground flex items-center gap-1">
@@ -267,7 +231,7 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                       if (file) {
                         const reader = new FileReader();
                         reader.onloadend = () => {
-                          setInspectionImgOption(reader.result as string);
+                          setPhoto(reader.result as string);
                         };
                         reader.readAsDataURL(file);
                       }
@@ -277,14 +241,14 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                     htmlFor="inspection-img-input"
                     className="px-3 py-1.5 rounded-md border border-slate-300 bg-slate-50 text-slate-700 font-semibold text-xs cursor-pointer hover:bg-slate-100 flex items-center gap-1.5"
                   >
-                    <Upload size={13} /> {inspectionImgOption ? "Change Photo Proof" : "Upload Inspection Photo"}
+                    <Upload size={13} /> {photo ? "Change Photo Proof" : "Upload Inspection Photo"}
                   </label>
-                  {inspectionImgOption && (
+                  {photo && (
                     <div className="flex items-center gap-2">
-                      <img src={inspectionImgOption} alt="Inspection Proof" className="w-8 h-8 object-cover rounded border border-slate-300" />
+                      <img src={photo} alt="Inspection Proof" className="w-8 h-8 object-cover rounded border border-slate-300" />
                       <button
                         type="button"
-                        onClick={() => setInspectionImgOption("")}
+                        onClick={() => setPhoto("")}
                         className="text-[10px] text-red-600 hover:underline font-bold"
                       >
                         Remove
@@ -293,70 +257,17 @@ export function InspectionQueue({ displayedAssets, onReportSaved }: { displayedA
                   )}
                 </div>
               </div>
+
+              {submitError && <p className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs font-semibold text-red-700">{submitError}</p>}
             </div>
 
             <DialogFooter className="gap-2">
-              <Button variant="outline" size="sm" disabled={isSubmitting} onClick={() => setSelectedQueueItem(null)}>Cancel</Button>
+              <Button variant="outline" size="sm" disabled={isSubmitting} onClick={() => setSelected(null)}>Cancel</Button>
               <Button
                 size="sm"
                 disabled={isSubmitting}
                 className="bg-[#005A36] hover:bg-[#004225] text-white font-bold text-xs"
-                onClick={async () => {
-                  if (isSubmitting) return;
-                  setIsSubmitting(true);
-
-                  const fullNotes = [
-                    tsgRemarksOption ? `[TSG Remarks]: ${tsgRemarksOption}` : "",
-                    itsRemarksOption ? `[ITS Remarks]: ${itsRemarksOption}` : "",
-                    inspectionNotesOption ? `[Notes]: ${inspectionNotesOption}` : ""
-                  ].filter(Boolean).join(" | ") || "Routine periodic physical inspection verified.";
-
-                  try {
-                    // Save report under asset_inspections table in MySQL database before reloading data
-                    if (selectedQueueItem.rawAsset?.id || selectedQueueItem.id) {
-                      const conditionEnumMap: Record<string, string> = {
-                        "Perfect": "PERFECT",
-                        "Operational": "OPERATIONAL",
-                        "Minor Drift": "MINOR_DRIFT",
-                        "Degraded Performance": "DEGRADED",
-                        "Critical Defect": "CRITICAL_DEFECT",
-                      };
-                      const targetTag = selectedQueueItem.rawAsset?.id || selectedQueueItem.id;
-                      let res: Response;
-                      try {
-                        res = await inspectionsApi.submitInspectionRaw(targetTag, {
-                          reportCondition: conditionEnumMap[inspectionStatusOption] || "PERFECT",
-                          reportRemarks: fullNotes,
-                          reportImg: inspectionImgOption || null,
-                        });
-                      } catch (e) {
-                        console.error("Failed to save asset inspection report in MySQL asset_inspections:", e);
-                        alert("The inspection report could not be saved: the server could not be reached. Please try again.");
-                        return;
-                      }
-                      if (!res.ok) {
-                        const body = await res.json().catch(() => null);
-                        // The dialog stays open, so the inspector sees why and can cancel.
-                        alert(body?.error || "The inspection report could not be saved. Please try again.");
-                        return;
-                      }
-                      await onReportSaved();
-                    }
-
-                    if (selectedQueueItem.rawAsset) {
-                      syncFromDb();
-                    }
-
-                    setItemInspectedState(prev => ({ ...prev, [selectedQueueItem.rawAsset?.id || selectedQueueItem.id]: true }));
-                    setSelectedQueueItem(null);
-                    setInspectionImgOption("");
-                    setTsgRemarksOption("");
-                    setItsRemarksOption("");
-                    alert(`Inspection report saved for ${selectedQueueItem.asset}.`);
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }}
+                onClick={submit}
               >
                 {isSubmitting ? "Submitting..." : "Submit & Finalize Inspection"}
               </Button>

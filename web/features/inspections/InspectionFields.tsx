@@ -1,9 +1,10 @@
 /**
  * Inspection fields: the condition and the remarks TSG writes when a step files an inspection (receiving an asset for
- * maintenance, completing the work, marking an asset found).
- * Layer: feature component. Called by features/repairs/RepairProgressDialog.tsx and features/assets/AssetDetailModal.tsx.
+ * maintenance, completing the work, marking an asset found, a routine inspection).
+ * Layer: feature component. Called by features/repairs/RepairProgressDialog.tsx, features/assets/AssetDetailModal.tsx,
+ * and features/inspections/InspectionQueue.tsx.
  * Calls nothing: the caller sends the inspection through its own api function.
- * Used by: TSG maintenance receipt and completion, and Missing and Found.
+ * Used by: TSG maintenance receipt and completion, Missing and Found, and the routine queue.
  */
 import { ASSET_CONDITIONS, ASSET_CONDITION_LABELS, SUGGESTED_HEALTH_SCORE, type AssetCondition } from "@shared/enums/assetCondition";
 import type { InspectionInput } from "@shared/types/assets";
