@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { Printer, ArrowLeft, CheckCircle2, XCircle, AlertTriangle, ShieldCheck } from "lucide-react";
 import * as loansApi from "@web/api/loans.api";
-import type { ClearanceRecord, Loan } from "@web/features/loans/loanTypes";
+import type { ClearanceRecord, Loan } from "@shared/types/loans";
 import { Button } from "@web/components/ui/button";
 import { cn } from "@web/components/ui/utils";
 

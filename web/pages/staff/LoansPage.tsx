@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@web/components/ui/tab
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { LoanReleaseDialog } from "@web/features/loans/LoanReleaseDialog";
 import { LoanReceiveDialog } from "@web/features/loans/LoanReceiveDialog";
-import type { Loan } from "@web/features/loans/loanTypes";
+import type { Loan } from "@shared/types/loans";
 
 /**
  * Main Asset Loaning and Return management screen with Releases and Returns tabs.
@@ -82,7 +82,6 @@ export function LoansPage() {
       (l) =>
         l.asset.tag.toLowerCase().includes(q) ||
         l.asset.name.toLowerCase().includes(q) ||
-        (l.asset.serial && l.asset.serial.toLowerCase().includes(q)) ||
         (l.borrower && "name" in l.borrower && l.borrower.name.toLowerCase().includes(q))
     );
   };

@@ -18,7 +18,7 @@ import { Input } from "@web/components/ui/input";
 import { Label } from "@web/components/ui/label";
 import { InspectionStep, type InspectionStepValue } from "@web/features/inspections/InspectionStep";
 import { releaseLoan } from "@web/api/loans.api";
-import type { Loan } from "./loanTypes";
+import type { Loan } from "@shared/types/loans";
 
 /** Props for LoanReleaseDialog. */
 export interface LoanReleaseDialogProps {

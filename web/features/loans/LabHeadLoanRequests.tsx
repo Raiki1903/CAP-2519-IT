@@ -19,7 +19,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import * as loansApi from "@web/api/loans.api";
-import type { Loan } from "./loanTypes";
+import type { Loan } from "@shared/types/loans";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
