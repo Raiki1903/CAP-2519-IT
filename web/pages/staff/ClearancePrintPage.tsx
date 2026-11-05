@@ -91,9 +91,9 @@ export function ClearancePrintPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/20 p-4">
         <div className="max-w-md w-full bg-card border border-border rounded-xl p-6 shadow-sm text-center">
-          <AlertTriangle className="mx-auto text-red-600 mb-3" size={36} />
+          <AlertTriangle className="mx-auto text-destructive mb-3" size={36} />
           <h2 className="text-base font-bold text-foreground mb-2">Unable to Prepare Clearance Record</h2>
-          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-3 mb-4">
+          <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-3 mb-4">
             {error || "Clearance record not found."}
           </p>
           <Button variant="outline" size="sm" onClick={() => navigate(-1)} className="gap-1.5 text-xs">
@@ -126,7 +126,7 @@ export function ClearancePrintPage() {
           <Button
             size="sm"
             onClick={handlePrint}
-            className="gap-1.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
+            className="gap-1.5 text-xs"
           >
             <Printer size={13} />
             Print / Save PDF
@@ -163,7 +163,7 @@ export function ClearancePrintPage() {
           </div>
           <div>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ID Number</p>
-            <p className="font-semibold text-slate-800 mt-0.5">{person.idNumber ?? "—"}</p>
+            <p className="font-semibold text-slate-800 mt-0.5">{person.idNumber ?? "N/A"}</p>
           </div>
           <div>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Affiliated Labs</p>
@@ -270,7 +270,7 @@ export function ClearancePrintPage() {
                             : "Still Out"}
                         </td>
                         <td className="p-2 border-r border-slate-200 font-medium">
-                          {ret ? ret.conditionLabel : "—"}
+                          {ret ? ret.conditionLabel : "N/A"}
                         </td>
                         <td className="p-2 border-r border-slate-200">
                           {ret?.missingAccessories ? (
@@ -280,7 +280,7 @@ export function ClearancePrintPage() {
                           )}
                         </td>
                         <td className="p-2 text-slate-600 italic">
-                          {ret?.remarks || "—"}
+                          {ret?.remarks || "N/A"}
                         </td>
                       </tr>
                     );

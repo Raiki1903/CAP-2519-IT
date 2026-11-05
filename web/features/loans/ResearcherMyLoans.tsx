@@ -2,15 +2,11 @@
  * Researcher screen: My Loans tracking active borrowings, pending requests, and loan history.
  * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx when activeTab === "myassets".
  * Calls: api/loans.api.ts (listMyLoans, cancelLoan, requestReturn), features/assets/AssetDetailModal.tsx (report an issue),
- * state/serverData.tsx (assets).
+ * AccountabilityFormButton.tsx, loanStatusStyles.ts, state/serverData.tsx (assets).
  * Used by: Researchers/Custodians to cancel requests, request returns, report an issue, and view their Accountability Forms.
  */
 import { useState, useEffect, useCallback } from "react";
 import {
-  Clock,
-  ArrowUpRight,
-  History,
-  FileText,
   RotateCcw,
   Ban,
   AlertTriangle,
@@ -29,6 +25,7 @@ import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
 import { Badge } from "@web/components/ui/badge";
 import { Card, CardContent } from "@web/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@web/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -40,18 +37,8 @@ import {
 import { Textarea } from "@web/components/ui/textarea";
 import { Label } from "@web/components/ui/label";
 import { cn } from "@web/components/ui/utils";
-
-const statusBadgeClasses: Record<string, string> = {
-  PENDING_APPROVAL: "bg-amber-50 text-amber-700 border-amber-200",
-  PENDING_RELEASE: "bg-blue-50 text-blue-700 border-blue-200",
-  ON_LOAN: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  RETURN_REQUESTED: "bg-purple-50 text-purple-700 border-purple-200",
-  RETURNED: "bg-slate-50 text-slate-700 border-slate-200",
-  DECLINED: "bg-red-50 text-red-700 border-red-200",
-  CANCELLED: "bg-slate-100 text-slate-600 border-slate-300",
-  ENDED_BY_MAINTENANCE: "bg-amber-50 text-amber-700 border-amber-200",
-  ENDED_BY_LOSS: "bg-red-50 text-red-700 border-red-200",
-};
+import { AccountabilityFormButton } from "@web/features/loans/AccountabilityFormButton";
+import { loanCardAccentClass, loanStatusBadgeClass } from "@web/features/loans/loanStatusStyles";
 
 /**
  * Researcher My Loans component. Displays loans grouped by status:
@@ -171,21 +158,15 @@ export function ResearcherMyLoans() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-foreground text-xl font-bold mb-1">My Loans</h1>
+          <h1 className="text-foreground mb-1">My Loans</h1>
           <p className="text-muted-foreground text-sm">
             Equipment you have borrowed, requests awaiting processing, and your past borrowing history.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchMyLoans}
-          disabled={loading}
-          className="gap-1.5 text-xs"
-        >
-          <RefreshCw size={12} className={cn(loading && "animate-spin")} />
+        <Button variant="outline" size="sm" onClick={fetchMyLoans} disabled={loading}>
+          <RefreshCw size={13} className={cn(loading && "animate-spin")} />
           Refresh
         </Button>
       </div>
@@ -194,19 +175,19 @@ export function ResearcherMyLoans() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
         <Card>
           <CardContent className="pt-4 pb-4">
-            <p className="text-2xl font-extrabold text-blue-600">{outLoans.length}</p>
+            <p className="text-2xl font-extrabold text-foreground">{outLoans.length}</p>
             <p className="text-xs text-muted-foreground">Equipment in Custody</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4">
-            <p className="text-2xl font-extrabold text-amber-600">{waitingLoans.length}</p>
+            <p className="text-2xl font-extrabold text-foreground">{waitingLoans.length}</p>
             <p className="text-xs text-muted-foreground">Requests Waiting</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4">
-            <p className={cn("text-2xl font-extrabold", overdueCount > 0 ? "text-red-600" : "text-emerald-700")}>
+            <p className={cn("text-2xl font-extrabold", overdueCount > 0 ? "text-destructive" : "text-foreground")}>
               {overdueCount}
             </p>
             <p className="text-xs text-muted-foreground">Overdue Items</p>
@@ -215,62 +196,47 @@ export function ResearcherMyLoans() {
       </div>
 
       {error && (
-        <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-4">
+        <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2 mb-4">
           {error}
         </div>
       )}
 
       {overdueCount > 0 && (
-        <div className="rounded-xl p-3.5 mb-4 flex items-center gap-3 bg-red-50 border border-red-200">
-          <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
-          <p className="text-xs text-red-700">
+        <div className="rounded-xl p-3.5 mb-4 flex items-center gap-3 bg-destructive/10 border border-destructive/20">
+          <AlertTriangle size={16} className="text-destructive flex-shrink-0" />
+          <p className="text-xs text-destructive">
             <strong>Overdue Return:</strong> You have {overdueCount} overdue borrowed asset(s). Please return them to TSG immediately to prevent clearance delays.
           </p>
         </div>
       )}
 
       {/* Navigation tabs & Search */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex rounded-lg overflow-hidden border border-border">
-          <Button
-            variant={activeTab === "out" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("out")}
-            className="rounded-none text-xs gap-1.5 h-8 font-semibold"
-          >
-            <ArrowUpRight size={13} />
-            Out ({outLoans.length})
-          </Button>
-          <Button
-            variant={activeTab === "waiting" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("waiting")}
-            className="rounded-none text-xs gap-1.5 h-8 font-semibold"
-          >
-            <Clock size={13} />
-            Waiting ({waitingLoans.length})
-          </Button>
-          <Button
-            variant={activeTab === "history" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("history")}
-            className="rounded-none text-xs gap-1.5 h-8 font-semibold"
-          >
-            <History size={13} />
-            History ({historyLoans.length})
-          </Button>
-        </div>
+      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "waiting" | "out" | "history")}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <TabsList className="mb-4 h-auto gap-1 bg-muted/40">
+            {([
+              ["out", "Out", outLoans.length],
+              ["waiting", "Waiting", waitingLoans.length],
+              ["history", "History", historyLoans.length],
+            ] as const).map(([value, label, count]) => (
+              <TabsTrigger key={value} value={value} className="text-xs gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-white">
+                {label}
+                <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{count}</Badge>
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        <div className="relative w-full sm:w-64">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by tag, name, or lab..."
-            className="pl-8 h-8 text-xs"
-          />
+          <div className="relative mb-4 w-full sm:w-64">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by tag, name, or lab..."
+              className="pl-8 h-9 text-xs"
+            />
+          </div>
         </div>
-      </div>
+      </Tabs>
 
       {/* Out on Loan Section */}
       {activeTab === "out" && (
@@ -278,33 +244,26 @@ export function ResearcherMyLoans() {
           {loading && loans.length === 0 ? (
             <p className="text-xs text-muted-foreground py-6 text-center">Loading borrowed assets...</p>
           ) : filteredOut.length === 0 ? (
-            <Card className="p-8 text-center text-muted-foreground text-xs">
+            <div className="p-6 text-center text-xs text-muted-foreground bg-muted/20 border border-dashed border-border rounded-xl">
               You do not have any borrowed equipment currently in your custody.
-            </Card>
+            </div>
           ) : (
             <div className="flex flex-col gap-3">
               {filteredOut.map((loan) => (
                 <Card
                   key={loan.loanId}
-                  className={cn(
-                    "border-l-4 overflow-hidden",
-                    loan.isOverdue
-                      ? "border-l-red-500"
-                      : loan.status === "RETURN_REQUESTED"
-                      ? "border-l-purple-500"
-                      : "border-l-emerald-500"
-                  )}
+                  className={cn("border-l-4 overflow-hidden", loanCardAccentClass(loan.status, loan.isOverdue))}
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="flex-1 min-w-[16rem]">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-xs font-bold text-primary">LOAN-{loan.loanId}</span>
-                          <Badge className={cn("text-[10px]", statusBadgeClasses[loan.status] ?? "bg-muted")}>
+                          <Badge variant="outline" className={cn("text-[10px]", loanStatusBadgeClass(loan.status))}>
                             {loan.statusLabel}
                           </Badge>
                           {loan.isOverdue && (
-                            <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200 font-bold">
+                            <Badge variant="destructive" className="text-[10px] font-bold">
                               Overdue
                             </Badge>
                           )}
@@ -320,7 +279,7 @@ export function ResearcherMyLoans() {
                               <MapPin size={10} /> Destination
                             </p>
                             <p className="font-semibold text-foreground">
-                              {loan.destinationLab?.code ?? "—"}
+                              {loan.destinationLab?.code ?? "N/A"}
                               {loan.destinationRoom ? ` (Room ${loan.destinationRoom})` : ""}
                             </p>
                           </div>
@@ -328,7 +287,7 @@ export function ResearcherMyLoans() {
                             <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase mb-0.5 flex items-center gap-1">
                               <Calendar size={10} /> Return By
                             </p>
-                            <p className={cn("font-semibold", loan.isOverdue ? "text-red-600 font-bold" : "text-foreground")}>
+                            <p className={cn("font-semibold", loan.isOverdue ? "text-destructive font-bold" : "text-foreground")}>
                               {loan.returnBy}
                             </p>
                           </div>
@@ -337,7 +296,7 @@ export function ResearcherMyLoans() {
                               Handed Over On
                             </p>
                             <p className="font-medium text-foreground">
-                              {loan.releasedAt ? new Date(loan.releasedAt).toLocaleDateString() : "—"}
+                              {loan.releasedAt ? new Date(loan.releasedAt).toLocaleDateString() : "N/A"}
                             </p>
                           </div>
                         </div>
@@ -355,8 +314,7 @@ export function ResearcherMyLoans() {
                         {loan.status === "ON_LOAN" && (
                           <Button
                             size="sm"
-                            variant="default"
-                            className="text-xs gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white"
+                            className="text-xs gap-1.5"
                             onClick={() => {
                               setReturnTarget(loan);
                               setReturnRemarks("");
@@ -368,17 +326,10 @@ export function ResearcherMyLoans() {
                           </Button>
                         )}
 
-                        {loan.status === "RETURN_REQUESTED" && (
-                          <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 rounded px-2.5 py-1.5 flex items-center gap-1">
-                            <Clock size={12} />
-                            Return Requested
-                          </span>
-                        )}
-
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-xs gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-50"
+                          className="text-xs gap-1.5"
                           disabled={!assets.some(a => a.id === loan.asset.tag)}
                           onClick={() => setDetailTag(loan.asset.tag)}
                         >
@@ -386,16 +337,7 @@ export function ResearcherMyLoans() {
                           Report an issue
                         </Button>
 
-                        {/* Accountability Form link */}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs gap-1.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
-                          onClick={() => window.open(`/loans/${loan.loanId}/accountability-form`, "_blank")}
-                        >
-                          <FileText size={13} />
-                          Accountability Form
-                        </Button>
+                        <AccountabilityFormButton loanId={loan.loanId} />
                       </div>
                     </div>
                   </CardContent>
@@ -412,25 +354,22 @@ export function ResearcherMyLoans() {
           {loading && loans.length === 0 ? (
             <p className="text-xs text-muted-foreground py-6 text-center">Loading waiting requests...</p>
           ) : filteredWaiting.length === 0 ? (
-            <Card className="p-8 text-center text-muted-foreground text-xs">
+            <div className="p-6 text-center text-xs text-muted-foreground bg-muted/20 border border-dashed border-border rounded-xl">
               You have no loan requests currently waiting for approval or release.
-            </Card>
+            </div>
           ) : (
             <div className="flex flex-col gap-3">
               {filteredWaiting.map((loan) => (
                 <Card
                   key={loan.loanId}
-                  className={cn(
-                    "border-l-4 overflow-hidden",
-                    loan.status === "PENDING_APPROVAL" ? "border-l-amber-500" : "border-l-blue-500"
-                  )}
+                  className={cn("border-l-4 overflow-hidden", loanCardAccentClass(loan.status, loan.isOverdue))}
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="flex-1 min-w-[16rem]">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-xs font-bold text-primary">LOAN-{loan.loanId}</span>
-                          <Badge className={cn("text-[10px]", statusBadgeClasses[loan.status] ?? "bg-muted")}>
+                          <Badge variant="outline" className={cn("text-[10px]", loanStatusBadgeClass(loan.status))}>
                             {loan.statusLabel}
                           </Badge>
                         </div>
@@ -445,7 +384,7 @@ export function ResearcherMyLoans() {
                               <MapPin size={10} /> Destination
                             </p>
                             <p className="font-semibold text-foreground">
-                              {loan.destinationLab?.code ?? "—"}
+                              {loan.destinationLab?.code ?? "N/A"}
                               {loan.destinationRoom ? ` (Room ${loan.destinationRoom})` : ""}
                             </p>
                           </div>
@@ -479,7 +418,7 @@ export function ResearcherMyLoans() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-xs gap-1 border-red-200 text-red-600 hover:bg-red-50"
+                          className="text-xs gap-1 border-destructive/30 text-destructive hover:text-destructive"
                           onClick={() => {
                             setCancelTarget(loan);
                             setCancelError(null);
@@ -504,19 +443,19 @@ export function ResearcherMyLoans() {
           {loading && loans.length === 0 ? (
             <p className="text-xs text-muted-foreground py-6 text-center">Loading borrowing history...</p>
           ) : filteredHistory.length === 0 ? (
-            <Card className="p-8 text-center text-muted-foreground text-xs">
+            <div className="p-6 text-center text-xs text-muted-foreground bg-muted/20 border border-dashed border-border rounded-xl">
               No previous borrowing history found.
-            </Card>
+            </div>
           ) : (
             <div className="flex flex-col gap-3">
               {filteredHistory.map((loan) => (
-                <Card key={loan.loanId} className="border-l-4 border-l-slate-300 overflow-hidden opacity-90">
+                <Card key={loan.loanId} className={cn("border-l-4 overflow-hidden opacity-90", loanCardAccentClass(loan.status, loan.isOverdue))}>
                   <CardContent className="p-4">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="flex-1 min-w-[16rem]">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-xs font-bold text-primary">LOAN-{loan.loanId}</span>
-                          <Badge className={cn("text-[10px]", statusBadgeClasses[loan.status] ?? "bg-muted")}>
+                          <Badge variant="outline" className={cn("text-[10px]", loanStatusBadgeClass(loan.status))}>
                             {loan.statusLabel}
                           </Badge>
                         </div>
@@ -531,7 +470,7 @@ export function ResearcherMyLoans() {
                         </div>
 
                         {loan.decisionRemarks && loan.status === "DECLINED" && (
-                          <div className="mt-2 text-xs bg-red-50 text-red-700 border border-red-200 rounded p-2">
+                          <div className="mt-2 text-xs bg-destructive/10 text-destructive border border-destructive/20 rounded p-2">
                             <span className="font-semibold">Decline Reason: </span>
                             {loan.decisionRemarks}
                           </div>
@@ -540,15 +479,7 @@ export function ResearcherMyLoans() {
 
                       {loan.status === "RETURNED" && (
                         <div className="flex-shrink-0">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs gap-1"
-                            onClick={() => window.open(`/loans/${loan.loanId}/accountability-form`, "_blank")}
-                          >
-                            <FileText size={12} />
-                            View Record
-                          </Button>
+<AccountabilityFormButton loanId={loan.loanId} />
                         </div>
                       )}
                     </div>
@@ -578,7 +509,7 @@ export function ResearcherMyLoans() {
           </DialogHeader>
 
           {cancelError && (
-            <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2.5">
+            <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2.5">
               {cancelError}
             </div>
           )}
@@ -622,7 +553,7 @@ export function ResearcherMyLoans() {
 
           <div className="space-y-4 py-2">
             {returnError && (
-              <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2.5">
+              <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2.5">
                 {returnError}
               </div>
             )}
@@ -661,7 +592,7 @@ export function ResearcherMyLoans() {
               type="button"
               size="sm"
               disabled={requestingReturn}
-              className="text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+              className="text-xs"
               onClick={handleConfirmReturnRequest}
             >
               {requestingReturn ? "Submitting..." : "Submit Return Request"}
