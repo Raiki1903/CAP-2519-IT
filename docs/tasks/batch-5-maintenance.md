@@ -288,3 +288,190 @@ Build passes after every code commit. Test moves from 631 to 690 (+59): commit 2
 8. No web tests exist; the web changes are checked by typecheck, build and the hand checks.
 
 **Also open:** `withAssetLock` now exists in four repositories (loans, maintenance, retirements, assets). A later refactor could move it to shared.
+
+## Batch 5 hand checks
+
+Written for Raiki, to run by hand. The agent did not run them. Every check uses **`adric_uat_check` only** (the local copy), started through `C:\dev\uat-data\start-local-uat.ps1` on branch `feat/batch-5-maintenance`, after `main` was pulled in (Joel's #147 and #148 are in). Nothing here touches CCS Cloud. Find this section by searching the exact heading text `Batch 5 hand checks` in `docs/tasks/batch-5-maintenance.md`; each check below names its number (5-H1 to 5-H20).
+
+**Order.** TSG first (5-H1 to 5-H10), then the Secretary and the Director (5-H11, 5-H12), then TSG once more (5-H13), then the Researcher and the Lab Heads (5-H14 to 5-H17), then three general checks (5-H18 to 5-H20). Two steps leave the by-role order because they need an earlier step by someone else: Complete Disposal (5-H13) needs the Director's approval from 5-H12, and the loan ending on receipt (5-H15) needs the Researcher's report, so TSG receives inside 5-H15.
+
+**Before the checks**
+
+1. Ports 4000 and 5173 must be free (no leftover `npm run dev:all`, which talks to CCS Cloud). Batch 5 has no migration, so `adric_uat_check` needs nothing beyond the migrations and hashed passwords of the earlier batches.
+2. Start the app with `C:\dev\uat-data\start-local-uat.ps1`. Accounts and passwords are in `C:\dev\uat-data\uat-passwords.txt` (do not copy them anywhere). Use one private window per account, because the login lives in the browser's cookies. The accounts: TSG "UAT Staff One"; the Secretary "UAT Custodian Three"; the Director "UAT Director One"; the Head of CITe4D "UAT LabHead CITe4D One"; the Head of CAR "UAT LabHead CAR"; the borrower "UAT Custodian One"; a second Researcher "UAT LabHead CITe4D Two".
+3. In UAT Staff One's Asset Inventory, pick and write down these assets. None may have an open loan, ticket or disposal. The asset detail shows "Warranty Exp.".
+   - **A1**, **M1** and **A2**: three Available assets of CITe4D.
+   - **W1**: an Available asset of CITe4D whose warranty date is **after** today (Nov 5, 2026). In the seed data `CITe4D-0002` qualifies.
+   - **N1**, **N2** and **N3**: three Available assets, any lab, whose warranty date is **before** today. In the seed data `CITe4D-0003`, `CeHCI-0002`, `GAME-0004`, `GAME-0005`, `Bio-0004` and `Bio-0009` qualify. Check the date, the copy may differ.
+4. **Two loans (setup, writes two loans).** As UAT Custodian One: Available Equipment, open A1, Request Loan, any destination lab, Return By 14 days from today (a past date is refused, and the database refuses a return-by before the request date), purpose `Batch 5 setup`, Submit Request. Write the number in `LOAN-<number>` as **L1**. Do the same for M1 and write **L2**. As UAT LabHead CITe4D One: the Requests tab, Approve both. Both now show "Pending release".
+5. **A picture of A1's QR tag (setup, for 5-H15).** As UAT Staff One: QR Tags, tick A1, and save a screenshot of the QR preview as an image file. The Researcher's screen no longer has a way into an asset from My Loans, so 5-H15 opens A1 through the QR Scan tab (see question Q1 in the report).
+6. **Console commands.** Open DevTools (F12), Console, on a page of `http://localhost:5173` while logged in as the account the check names. The first time the browser may ask you to type `allow pasting`. Replace `<T1>`, `<N1>` and so on before sending. Each command prints the server's answer. The commands that report an issue use `issueTypeId:1`. If one answers "Pick an issue type from the list.", open `http://localhost:4000/api/lookups` and use an `issueTypeId` from `issueTypes`.
+7. **To read the database**, SELECT only, never a `password` column. PowerShell, it asks for the root password: `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "<SELECT>"`. One check (5-H14) runs a single UPDATE on `adric_uat_check`, and says so.
+8. These checks leave loans, tickets, disposals, inspections and activity rows in `adric_uat_check`. The next UAT reset removes them.
+
+**5-H1. TSG releases a loan on Joel's Releases tab; the merge left his screen working.** Role: UAT Staff One. Screen: "Asset Loaning and Return", Releases tab. Database: `adric_uat_check` (writes two releases, two Loan Release inspections).
+- The sidebar has one "Asset Loaning and Return" item and no "Pending Returns" item. The Releases tab lists L1 (A1) and L2 (M1).
+- On A1's row click Release. In the dialog type a wrong tag: "Confirm & Release Asset" stays disabled. Type A1's tag: it turns on. Leave the condition Operational, click it.
+- Expect: the green line "Loan #<L1> released successfully. Opening Accountability Form...", and a new browser tab with the Accountability Form for A1 (allow pop-ups for `localhost:5173` if the browser blocks it), borrower UAT Custodian One. The row leaves the Releases tab. Close the form tab. Release M1 (L2) the same way.
+- Asset Inventory: A1 and M1 show On Loan, held by UAT Custodian One.
+- Database: `SELECT loan_id, status FROM asset_loans WHERE loan_id IN (<L1>,<L2>)` shows ON_LOAN twice.
+
+**5-H2. TSG flags a warranty asset and receives it.** Role: UAT Staff One. Screen: Asset Inventory, then Repairs. Database: `adric_uat_check` (writes ticket **T1**, one Maintenance inspection).
+- Asset Inventory, open W1 (Available), click "Flag for Maintenance". The dialog closes.
+- Repairs, "Open Repair Tickets": a new ticket `MNT-<number>` for W1, status Pending Receipt, issue type Other. Write the number as **T1**. The sidebar Repairs item shows a red count. The bell (Requests tab) has "Repair Ticket: <W1 name>" with "Waiting for Receipt". It has no card titled "Your maintenance ticket" for T1 (TSG filed it, so it gets only the first).
+- On T1's row click Receive. Heading "Condition on arrival": pick Minor Drift, type a remark, click "Receive the asset".
+- Expect: T1 reads Inspecting. Open W1 in Asset Inventory: Maintenance, current location the TSG Office.
+- Database: `SELECT m.status, a.status FROM asset_maintenance m JOIN assets a ON a.asset_id=m.asset_id WHERE m.maintenance_id=<T1>` shows INSPECTING and MAINTENANCE.
+
+**5-H3. The warranty rule: Repairing needs a reason, External Service needs a provider.** Role: UAT Staff One. Screen: Repairs. Database: `adric_uat_check` (writes T1's stage twice).
+- T1, Manage, "Start the work". Expect a blue line "Under warranty until <W1's warranty date>. Send it to the warranty holder, or write why TSG repairs it." With Stage "Repairing (TSG repairs it)", the box "Why TSG repairs it under warranty" shows and "Start the work" stays disabled while it is empty.
+- Console, the same call without a reason (the old bug: an 8-second guard and no warranty rule):
+```js
+fetch("http://localhost:4000/api/maintenance/<T1>/start",{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({stage:"REPAIRING"})}).then(r=>r.json()).then(console.log)
+```
+- Expect `{success: false, error: "This asset is under warranty. Send it to the warranty holder, or write why TSG repairs it."}`, and T1 still reads Inspecting.
+- Back in the dialog pick Stage "External Service (the warranty holder or a repair shop)". The box "Provider" shows and the button stays disabled while it is empty. Type `Batch 5 Service Center`, click "Start the work". Expect T1 reads External Service, "With Batch 5 Service Center".
+- T1, Manage, "Back to Repairing": it says "Move this ticket to Repairing" and asks for the reason. Type `Warranty claim refused`, click "Change the stage". Expect T1 reads Repairing.
+- Database: `SELECT status, warranty_override_reason FROM asset_maintenance WHERE maintenance_id=<T1>` shows REPAIRING and `Warranty claim refused`.
+
+**5-H4. Complete Resolved: the asset is Available and back home.** Role: UAT Staff One. Screen: Repairs. Database: `adric_uat_check` (writes T1's completion and one Maintenance inspection).
+- T1, Manage, "Complete". Outcome "Resolved (the asset is Available again, back home)". "What was done": `Replaced the part`. "Condition after the work": Operational. Click "Complete the work".
+- Expect: T1 moves to "Closed Tickets" as Resolved. Asset Inventory: W1 is Available, current location its home lab (not the TSG Office), condition Operational. W1's Asset History has "Maintenance completed (Resolved) by UAT Staff One".
+- Database: `SELECT m.status, a.status FROM asset_maintenance m JOIN assets a ON a.asset_id=m.asset_id WHERE m.maintenance_id=<T1>` shows RESOLVED and AVAILABLE.
+
+**5-H5. No warranty: Start works at once; Complete Beyond Repair keeps the asset in Maintenance.** Role: UAT Staff One. Screen: Asset Inventory, then Repairs. Database: `adric_uat_check` (writes ticket **T2**).
+- Open N1, "Flag for Maintenance". Repairs: the new ticket `MNT-<number>` for N1 is **T2**. Receive it (condition Degraded). Manage, "Start the work": **no** blue warranty line and **no** reason box. Stage "Repairing (TSG repairs it)", click "Start the work". Expect T2 reads Repairing.
+- Manage, "Complete": Outcome "Beyond Repair (the asset stays in Maintenance until a disposal is requested)", "What was done": `Cannot be repaired`, condition Critical Defect, "Complete the work".
+- Expect: T2 is in "Closed Tickets" as Beyond Repair. N1 still reads Maintenance, at the TSG Office. Open N1 in Asset Inventory: no "Flag for Maintenance" button.
+- Database: `SELECT m.status, a.status FROM asset_maintenance m JOIN assets a ON a.asset_id=m.asset_id WHERE m.maintenance_id=<T2>` shows BEYOND_REPAIR and MAINTENANCE.
+
+**5-H6. TSG requests two disposals on Beyond Repair assets.** Role: UAT Staff One. Screen: Asset Inventory. Database: `adric_uat_check` (writes ticket **T3**, disposals **D1** and **D2**).
+- Asset Inventory, In Service tab: on N1's card click the "Decommission Asset" icon. Type the reason `Beyond repair`, pathway Recycle (or leave it), click "Submit for Approval". Expect "Disposal Request Submitted" with "Disposal ID: DISP-<number>". Write it as **D1**. N1 now reads Pending Retirement.
+- Do the same on N3 for a second asset: Flag for Maintenance, Receive, Start the work, Complete as Beyond Repair (this ticket is **T3**), then "Decommission Asset" and "Submit for Approval". Write its `DISP-<number>` as **D2**. Note N3's tag.
+- Database: `SELECT retirement_id, status, previous_status FROM asset_retirements WHERE retirement_id IN (<D1>,<D2>)` shows PENDING twice, with previous status MAINTENANCE. The reason is plain text, with no packed lines.
+
+**5-H7. Cancel a ticket after receipt.** Role: UAT Staff One. Screen: Asset Inventory, then Repairs. Database: `adric_uat_check` (writes ticket **T4**).
+- Open N2, "Flag for Maintenance". The new ticket in Repairs is **T4**. Receive it. Manage, "Cancel ticket", remark `Batch 5 cancel`, click "Cancel this ticket".
+- Expect: T4 is in "Closed Tickets" as Cancelled. N2 is Available again at its home lab. N2's Asset History has "Maintenance cancelled by UAT Staff One". It does not say Resolved.
+- Database: `SELECT m.status, a.status FROM asset_maintenance m JOIN assets a ON a.asset_id=m.asset_id WHERE m.maintenance_id=<T4>` shows CANCELLED and AVAILABLE.
+
+**5-H8. The routine inspection queue skips assets that are out or in repair, and the filing refuses long remarks.** Role: UAT Staff One. Screen: Inspections. Database: `adric_uat_check` (writes one Routine inspection).
+- Inspections page. The line under "Not inspected in the last" says only Available assets are listed. Walk the group tabs (the five groups, each with a name and the labs it holds). A1 and M1 (On Loan), N1 and N3 (Pending Retirement) are in **no** group. N2 (Available again) may be.
+- Pick an Available asset from any group and write its tag as **R1**. Click "Inspect / Log Report". Condition Minor Drift, remark `Batch 5 routine`, click "Submit & Finalize Inspection". Expect the message "Inspection saved for <name>." R1 leaves the queue. Asset Inventory shows R1 with condition Minor Drift.
+- Console, remarks over 255 characters (the old body cut them silently):
+```js
+fetch("http://localhost:4000/api/assets/<R1>/inspection",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({condition:"OPERATIONAL",remarks:"x".repeat(300)})}).then(r=>r.json()).then(console.log)
+```
+- Expect `{success: false, error: "remarks can be at most 255 characters."}` and no new inspection.
+- Console, the old body, which was removed:
+```js
+fetch("http://localhost:4000/api/assets/<R1>/inspection",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({reportCondition:"PERFECT"})}).then(r=>r.json()).then(console.log)
+```
+- Expect `{success: false, error: "Pick the condition of the inspection from the list."}`.
+- Database: `SELECT type, condition FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<R1>' ORDER BY inspection_id DESC LIMIT 1` shows ROUTINE and MINOR_DRIFT.
+
+**5-H9. Mark Missing on an On Loan asset ends the loan; Mark Found files a Recovery inspection.** Role: UAT Staff One. Screen: Asset Inventory. Database: `adric_uat_check` (writes L2's end, one Recovery inspection).
+- Open M1 (On Loan). Click "Mark Missing". Type `Not returned after the event`, click "Mark Missing". Expect M1 reads Missing, and its detail says "This asset is Missing."
+- Database: `SELECT status FROM asset_loans WHERE loan_id=<L2>` shows ENDED_BY_LOSS. `SELECT status FROM assets WHERE asset_tag='<M1>'` shows MISSING.
+- M1's Asset History has "Marked missing".
+- Click "Mark Found". "Condition when found": Operational. "Where it was found (optional)": `Stock room`. Click "Mark Found". Expect M1 is Available, at its home lab, with no holder. The history has "Found".
+- Database: `SELECT i.type FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<M1>' ORDER BY i.inspection_id DESC LIMIT 1` shows RECOVERY. The loan stays ENDED_BY_LOSS.
+
+**5-H10. TSG's own account cannot decide the disposal it asked for.** Role: UAT Staff One. Screen: the bell. Database: `adric_uat_check` (writes nothing).
+- Bell, Requests tab: "Disposal Request: <N1 name>" (D1) with the badge "Pending Approval". Instead of Deny and "Approve Disposal" buttons it reads "You requested this disposal, so someone else decides it."
+- Console:
+```js
+fetch("http://localhost:4000/api/retirements/<D1>/decision",{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision:"approve"})}).then(r=>r.json()).then(console.log)
+```
+- Expect `{success: false, error: "Your role is not allowed to do this."}`. D1 stays Pending.
+- Database: `SELECT status FROM asset_retirements WHERE retirement_id=<D1>` shows PENDING.
+
+**5-H11. The Secretary denies one disposal: the asset goes back to its previous status.** Role: UAT Custodian Three (the Secretary). Screen: the bell. Database: `adric_uat_check` (writes D2's denial).
+- Bell, Requests tab: "Disposal Request: <N3 name>" (D2) and the one for N1 (D1), each with Deny and "Approve Disposal". She did not request them, so she may decide.
+- On D2 click Deny, type `Batch 5 denial` in "Reason for denying", click "Send denial". Expect D2's card goes away.
+- Staff view, Asset Inventory: N3 is Maintenance again (its status before the request), not Pending Retirement. Do not touch D1.
+- Database: `SELECT r.status, a.status FROM asset_retirements r JOIN assets a ON a.asset_id=r.asset_id WHERE r.retirement_id=<D2>` shows DENIED and MAINTENANCE.
+
+**5-H12. The Director approves the other disposal.** Role: UAT Director One. Screen: "Disposal Approvals" (`/adric-director/clearance-disposal`). Database: `adric_uat_check` (writes D1's approval).
+- The "Disposal Requests" card lists N1 (D1) with its reason, "Requested by: UAT Staff One" and the badge Pending. D2 is not listed (it was decided). Click "Approve Disposal".
+- Expect: D1 leaves the list. N1 still reads Pending Retirement.
+- Database: `SELECT status, decided_by_id FROM asset_retirements WHERE retirement_id=<D1>` shows APPROVED and the Director's user id (not TSG's).
+
+**5-H13. TSG completes the disposal: the asset is Retired and nothing else can be done to it.** Role: UAT Staff One. Screen: Asset Inventory. Database: `adric_uat_check` (writes D1's completion).
+- Open N1. The detail says "DISP-<D1> was approved. Complete it once the asset has left." with a "Complete Disposal" button. Click it. Pathway Recycle, "Disposition reference" `Batch 5 DOD-1`, click "Complete disposal".
+- Expect: N1 reads Retired. In Asset Inventory it is under the Disposed tab, not In Service. Its detail has no action buttons.
+- Console, two refusals:
+```js
+fetch("http://localhost:4000/api/assets/<N1>/missing",{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({reason:"test"})}).then(r=>r.json()).then(console.log)
+```
+- Expect `{success: false, error: "<N1> is Retired and cannot be marked missing."}`.
+```js
+fetch("http://localhost:4000/api/assets/<N1>/maintenance",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({issueTypeId:1,issueDescription:"test"})}).then(r=>r.json()).then(console.log)
+```
+- Expect `{success: false, error: "<N1> is Retired and cannot take a maintenance ticket."}`.
+- Database: `SELECT status, pathway, disposition_reference, completed_by_id FROM asset_retirements WHERE retirement_id=<D1>` shows COMPLETED, RECYCLE, `Batch 5 DOD-1` and TSG's user id. `SELECT status FROM assets WHERE asset_tag='<N1>'` shows RETIRED.
+
+**5-H14. A Self Report files a Self Report inspection, clears the status check, and does not change the asset's condition.** Role: UAT Custodian One. Screen: the bell, then "Send Inspection Report". Database: `adric_uat_check` (**one UPDATE**, then one Self Report inspection).
+- First back-date A1's inspections so a status check is due (it is due when the newest inspection is older than 90 days). In PowerShell, one statement, `adric_uat_check` only. It changes no column with a CHECK (those are `health_score`, loan `return_by`, maintenance `completed_at`, retirement `decided_by_id` and `completed_at`): `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "UPDATE asset_inspections SET inspected_at = DATE_SUB(NOW(), INTERVAL 100 DAY) WHERE asset_id = (SELECT asset_id FROM assets WHERE asset_tag='<A1>')"`
+- Reload the page. Bell, Reminders tab: "Status check due: <A1 name>", text "Its last inspection was on <a date about 100 days ago>. Send a status report on the Report tab."
+- Before filing, note A1's condition: as UAT Staff One, Asset Inventory, open A1 (it should read Operational, from the release).
+- Report tab ("Send Inspection Report"): pick A1, status Minor Drift, a short description, click "Send Inspection Report". Expect "Report Sent" and "Your report is saved." Only A1 (On Loan, held by this person) is on the list.
+- Reload. The "Status check due" card for A1 is gone.
+- As UAT Staff One, Asset Inventory, open A1: the condition is **still** Operational (a Self Report never changes it).
+- Database: `SELECT type, condition FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<A1>' ORDER BY inspection_id DESC LIMIT 1` shows SELF_REPORT and MINOR_DRIFT.
+
+**5-H15. The holder reports an issue on A1; a second report is refused; TSG receives it and the loan ends.** Roles: UAT Custodian One, then UAT Staff One. Screen: QR Scan, then Repairs. Database: `adric_uat_check` (writes ticket **T5**, ends L1).
+- As UAT Custodian One: QR Scan tab, use the upload box with the picture of A1's tag from setup step 5. Expect "Asset Found" and A1's detail. Click "Request Repair".
+- "Report an Issue" says "The asset stays with you until TSG receives it." Pick the issue type "Display" (or any): a green "Suggested first step:" line shows that type's suggested action. Type a description, click "Report Issue". Expect a ticket reference `MNT-<number>`. Write it as **T5**.
+- A1 still reads On Loan and still shows UAT Custodian One as the holder (open it again from QR Scan). My Loans still lists L1 on the Out tab.
+- Bell: "Your maintenance ticket: <A1 name>" with "MNT-<T5> is Pending Receipt." It has no action badge.
+- Report again: scan A1, "Request Repair", any type, any description, click "Report Issue". Expect the red line `<A1> already has an open maintenance ticket (MNT-<T5>).` and no second ticket.
+- As UAT Staff One (another window): Repairs lists T5 with "Reported by UAT Custodian One", status Pending Receipt. The bell has the card "Repair Ticket: <A1 name>" with "Waiting for Receipt". Click Receive, pick a condition, click "Receive the asset".
+- Expect: T5 reads Inspecting. Asset Inventory: A1 is Maintenance, at the TSG Office, and no longer held by UAT Custodian One.
+- Database: `SELECT status FROM asset_loans WHERE loan_id=<L1>` shows ENDED_BY_MAINTENANCE. `SELECT status FROM assets WHERE asset_tag='<A1>'` shows MAINTENANCE.
+- As UAT Custodian One, My Loans: L1 is in none of Waiting, Out or History (Joel's History lists only Returned, Declined and Cancelled). See question Q2 in the report; this is expected today.
+
+**5-H16. Each bell card reaches only its person.** Roles: UAT Custodian One, UAT Staff One, UAT LabHead CITe4D Two, UAT LabHead CITe4D One, UAT Director One, UAT Custodian Three. Screen: the bell, both tabs. Database: `adric_uat_check` (writes nothing). Run it right after 5-H15, while T5 is open.
+- UAT Custodian One (the reporter and holder of A1 until 5-H15): "Your maintenance ticket: <A1 name>" for T5, no action badge. No "Repair Ticket" card with "Waiting for Receipt". No "Status check due" for A1 (5-H14 cleared it).
+- UAT Staff One (TSG): no "Your maintenance ticket" card for T5 (TSG gets "Repair Ticket" cards instead, and T5 is past receipt now, so it has none). No "Status check due" card at all.
+- UAT LabHead CITe4D Two (a plain Researcher): no card for A1, T5, L1, D1 or D2.
+- UAT LabHead CITe4D One: no "Status check due" and no "Your maintenance ticket" (this account did not report T5 and does not hold A1).
+- UAT Director One and UAT Custodian Three: no "Disposal Request" card for D1 or D2. Both were decided in 5-H11 and 5-H12, and only TSG gets a card for an approved disposal.
+
+**5-H17. A Lab Head sees only their own lab's tickets and disposals, and reports only on their own lab's assets.** Roles: UAT LabHead CITe4D One, then UAT LabHead CAR. Screen: Analytics, then the console. Database: `adric_uat_check` (writes nothing).
+- As UAT LabHead CITe4D One: Analytics tab. The repair table has the columns "Ticket ID", "Asset ID", "Asset Name", "Issue Description", "Reported At", "Issue Type" and "Status". It lists `MNT-<T5>` for A1 (a CITe4D asset), with the issue type you picked and status Inspecting. A ticket on a CAR asset is not listed.
+- As UAT LabHead CAR, console:
+```js
+fetch("http://localhost:4000/api/maintenance",{credentials:"include"}).then(r=>r.json()).then(console.log)
+```
+- Expect `success: true` and a `tickets` list with no `MNT-<T5>` (A1 is a CITe4D asset).
+- Same account, report on A2 (a CITe4D asset):
+```js
+fetch("http://localhost:4000/api/assets/<A2>/maintenance",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({issueTypeId:1,issueDescription:"test"})}).then(r=>r.json()).then(console.log)
+```
+- Expect `{success: false, error: "This asset belongs to another lab. Only that lab's Head can report an issue on it."}` and no new ticket on A2.
+- Database: `SELECT COUNT(*) FROM asset_maintenance m JOIN assets a ON a.asset_id=m.asset_id WHERE a.asset_tag='<A2>'` shows 0.
+
+**5-H18. The old routes answer 404, and the server terminal shows only plain lines with ids.** Role: UAT Staff One. Screen: the console and the terminal that runs the start script. Database: `adric_uat_check` (writes nothing).
+- Console:
+```js
+fetch("http://localhost:4000/api/maintenance/<T1>",{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:"{}"}).then(r=>console.log(r.status))
+fetch("http://localhost:4000/api/maintenance/<T1>/status",{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:"{}"}).then(r=>console.log(r.status))
+```
+- Expect 404 twice.
+- Terminal: look back over the lines from 5-H2 to 5-H15. They read like `Maintenance <id> received by user <id>`, `Maintenance <id> on <tag> reported by user <id>`, `Retirement <id> approved by user <id>`, `Asset <id> marked missing by user <id>` and `Inspection <id> on asset <id> filed by user <id>`. No name, email, ID number, description, reason, remark or photo appears in any line.
+
+**5-H19. Nearby: a loan goes from request to receive, as before.** Roles: UAT Custodian One, UAT LabHead CITe4D One, UAT Staff One. Screens: Available Equipment, Requests, "Asset Loaning and Return", My Loans. Database: `adric_uat_check` (writes one loan, one release, one return).
+- As UAT Custodian One: Available Equipment, open A2, Request Loan, any lab, Return By 14 days from today, purpose `Batch 5 nearby`, Submit Request. Write `LOAN-<number>` as **L3**.
+- As UAT LabHead CITe4D One: Requests tab, Approve L3.
+- As UAT Staff One: "Asset Loaning and Return", Releases, Release on A2 with the tag typed, "Confirm & Release Asset". A2 reads On Loan.
+- As UAT Custodian One: My Loans, Out section, on L3 click "Ask to Return", remark `Batch 5 nearby`, submit. L3 reads Return Requested.
+- As UAT Staff One: Returns tab, L3 first with the chip "Return requested". Click "Receive Return", type the tag, leave the "Damage found during return" switch off, confirm. Expect A2 is Available. L3 is under History in the Researcher's My Loans (Returned).
+- Database: `SELECT status FROM asset_loans WHERE loan_id=<L3>` shows RETURNED. `SELECT status FROM assets WHERE asset_tag='<A2>'` shows AVAILABLE.
+
+**5-H20. Nearby: the other screens still load.** Roles: UAT Staff One, UAT Director One, UAT Custodian Three, UAT LabHead CITe4D One. Screens: see below. Database: `adric_uat_check` (writes nothing).
+- UAT Staff One: System Overview (the card "Open Maintenance Tickets" counts the open tickets, and the "Pending Returns" card opens "Asset Loaning and Return"), Asset Inventory (both tabs), Repairs, Inspections (the log below the queue), Analytics.
+- UAT Director One: Overview, Analytics, Disposal Approvals, Inventory Report.
+- UAT Custodian Three (the Secretary): the Staff view loads; "Asset Loaning and Return" is not in her sidebar; Repairs lists tickets to read, with no step buttons.
+- UAT LabHead CITe4D One: Requests, Lab Inventory, Analytics.
+- Expect on every page: no red error box, no failed call in DevTools, Network, and the repair numbers match the Repairs page.
