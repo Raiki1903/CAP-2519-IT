@@ -94,3 +94,11 @@ export interface AccountabilityForm {
   };
   releaseInspection: LoanInspection | null;
 }
+
+
+/** Clearance record returned by POST /api/users/:userId/clearance-record. */
+export interface ClearanceRecord {
+  person: { userId: number; name: string; idNumber: number | null; labs: PersonLab[] };
+  cleared: boolean;
+  loans: Loan[];
+}
