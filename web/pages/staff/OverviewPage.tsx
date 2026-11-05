@@ -73,7 +73,7 @@ export function OverviewPage() {
             <p className="text-xs text-muted-foreground mt-0.5 font-medium">Maintenance Requests</p>
           </CardContent>
         </Card>
-        <Card className="border border-border bg-card shadow-sm rounded-xl">
+        <Card className="border border-border bg-card shadow-sm rounded-xl cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate(`/${overviewSlug}/loans`)}>
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-extrabold text-foreground font-mono">{pendingReturns.length}</p>
             <p className="text-xs text-muted-foreground mt-0.5 font-medium">Pending Returns</p>

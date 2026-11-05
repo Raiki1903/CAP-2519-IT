@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Shield, LogOut, Monitor, Users, Wrench, QrCode,
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
-  ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck
+  ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck, ArrowLeftRight
 } from "lucide-react";
 import { useSession, roleToSlug, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
@@ -40,7 +40,7 @@ const roleConfig: Record<Role, {
       { id: "inventory",   label: "Asset Inventory",      icon: ClipboardList },
       { id: "repairs",     label: "Repairs",              icon: Wrench        },
       { id: "inspections", label: "Inspections",          icon: ClipboardCheck },
-      { id: "returns",     label: "Pending Returns",       icon: ClipboardList },
+      { id: "loans",       label: "Asset Loaning and Return", icon: ArrowLeftRight },
       { id: "qrtags",      label: "QR Tags",               icon: QrCode        },
       { id: "health",      label: "Analytics",             icon: BarChart3     },
     ],
@@ -281,7 +281,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
             )}
           </AnimatePresence>
 
-          {cfg.nav.map(({ id, label, icon: Icon }) => {
+          {cfg.nav.filter(({ id }) => !(role === "Staff" && id === "loans" && currentUser?.staffUnit !== "TSG")).map(({ id, label, icon: Icon }) => {
             const active = activeTab === id;
             const alertCount = id === "repairs" ? unacknowledgedCount : id === "approvals" && role === "ITAdmin" ? pendingSignUps.length : 0;
             const hasAlert   = alertCount > 0;

@@ -13,6 +13,7 @@ import { RegisterPage } from "@web/pages/staff/RegisterPage";
 import { InventoryPage } from "@web/pages/staff/InventoryPage";
 import { RepairsPage } from "@web/pages/staff/RepairsPage";
 import { InspectionsPage } from "@web/pages/staff/InspectionsPage";
+import { LoansPage } from "@web/pages/staff/LoansPage";
 import { ReturnsPage } from "@web/pages/staff/ReturnsPage";
 import { QrTagsPage } from "@web/pages/staff/QrTagsPage";
 import { HealthPage } from "@web/pages/staff/HealthPage";
@@ -68,6 +69,7 @@ export const router = createBrowserRouter([
           { path: "inventory",   element: <InventoryPage /> },
           { path: "repairs",     element: <RepairsPage /> },
           { path: "inspections", element: <InspectionsPage /> },
+          { path: "loans",       element: <LoansPage /> },
           { path: "returns",     element: <ReturnsPage /> },
           { path: "qrtags",      element: <QrTagsPage /> },
           { path: "health",      element: <HealthPage /> },
