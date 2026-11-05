@@ -23,6 +23,7 @@ import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboa
 import { ApprovalsPage } from "@web/pages/it-admin/ApprovalsPage";
 import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
 import { AccountabilityFormPage } from "@web/pages/shared/AccountabilityFormPage";
+import { ClearancePrintPage } from "@web/pages/staff/ClearancePrintPage";
 import { NotFound } from "@web/pages/NotFound";
 
 /**
@@ -100,6 +101,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="myassets" replace /> },
           { path: "myassets",  element: <CustodianPortal activeTab="myassets" /> },
+          { path: "myloans",   element: <CustodianPortal activeTab="myassets" /> },
           { path: "inventory", element: <Navigate to="myassets" replace /> },
           { path: "available", element: <CustodianPortal activeTab="available" /> },
           { path: "scan",      element: <CustodianPortal activeTab="scan" /> },

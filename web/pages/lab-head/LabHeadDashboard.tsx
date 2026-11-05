@@ -14,6 +14,7 @@ import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDe
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { ASSET_SEARCH_PLACEHOLDER, matchesAssetSearch } from "@web/features/assets/assetSearch";
 import { LabHeadAnalyticsView } from "@web/features/analytics/labHead/LabHeadAnalyticsView";
+import { LabHeadLoanRequests } from "@web/features/loans/LabHeadLoanRequests";
 import * as loansApi from "@web/api/loans.api";
 import * as assetsApi from "@web/api/assets.api";
 import { labMatches } from "@web/features/labs/labMatches";
@@ -436,108 +437,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
 
   // ── Custody ───────────────────────────────────────────────────────────────
   if (activeTab === "custody") {
-    const pendingCount = branchLoanRequests.filter(l => l.status === "Pending").length;
-    const approvedCount = branchLoanRequests.filter(l => ["Approved", "Pending release", "Return requested", "Returned"].includes(l.status)).length;
-    const declinedCount = branchLoanRequests.filter(l => l.status === "Declined").length;
-    return (
-      <div>
-        <div className="mb-6">
-          <h1 className="text-foreground mb-1">Loan Requests</h1>
-          <p className="text-muted-foreground text-sm">Loan requests for {userLab}. Approve or decline the pending ones.</p>
-        </div>
-        {/* The first three count loans only, so their labels say so; approved includes returned loans, all time. */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
-          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-amber-600">{pendingCount}</p><p className="text-xs text-muted-foreground">Loans pending</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-emerald-700">{approvedCount}</p><p className="text-xs text-muted-foreground">Loans approved</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-4"><p className="text-2xl font-extrabold text-red-700">{declinedCount}</p><p className="text-xs text-muted-foreground">Loans declined</p></CardContent></Card>
-        </div>
-
-        <h3 className="text-xs font-extrabold text-foreground uppercase tracking-widest mb-2.5">Equipment Loan Requests</h3>
-
-        {loanError && (
-          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">{loanError}</div>
-        )}
-
-        {loansLoading && branchLoanRequests.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-4">Loading loan requests…</p>
-        ) : branchLoanRequests.length === 0 ? (
-          <div className="py-4">
-            <p className="text-xs text-muted-foreground">No loan requests for {userLab}.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {branchLoanRequests.map(loan => {
-              const isPending = loan.status === "Pending";
-              const isActing = loanActionId === loan.loanId;
-              return (
-                <Card key={loan.id} className={cn("border-l-4", ["Approved", "Pending release", "Return requested", "Returned"].includes(loan.status) ? "border-l-emerald-500" : loan.status === "Declined" ? "border-l-red-500" : "border-l-amber-500")} style={{ borderLeftWidth: 4 }}>
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="flex-1 min-w-[16rem]">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[11px] font-bold text-primary">{loan.id}</span>
-                          <Badge className={cn("text-[10px]", txnBadgeClass[loan.status])}>{loan.status}</Badge>
-                        </div>
-                        <p className="text-sm font-bold text-foreground mb-2">{loan.asset} <span className="font-normal text-muted-foreground">({loan.assetId})</span></p>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground mb-3">
-                          <div>
-                            <p className="text-[9px] font-bold text-muted-foreground tracking-widest mb-0.5">BORROWER</p>
-                            <p className="font-semibold text-foreground">{loan.borrower}</p>
-                          </div>
-                          {loan.destinationLab && (
-                            <div>
-                              <p className="text-[9px] font-bold text-muted-foreground tracking-widest mb-0.5">DESTINATION LAB</p>
-                              <p className="font-semibold text-foreground">{loan.destinationLab}</p>
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-[9px] font-bold text-muted-foreground tracking-widest mb-0.5">PURPOSE</p>
-                            <p className="max-w-[220px] truncate" title={loan.purpose}>{loan.purpose}</p>
-                          </div>
-                          <div className="ml-auto text-right">
-                            {/* A declined or returned loan has no due date that matters any more. */}
-                            {["Pending", "Pending release", "Approved", "Return requested"].includes(loan.status) && (
-                              <p><Calendar size={10} className="inline mr-1" />Due {loan.dueDate}</p>
-                            )}
-                            <p>Requested {loan.requestedOn}</p>
-                          </div>
-                        </div>
-                        <VisualTimeline status={loan.status} />
-                      </div>
-                      {isPending && (
-                        <div className="flex gap-2 flex-shrink-0">
-                          <Button size="sm" className="text-xs" disabled={isActing} onClick={() => decideLoan(loan.loanId, "approve")}><CheckCircle size={11} />{isActing ? "Working…" : "Approve"}</Button>
-                          <Button size="sm" variant="outline" className="text-xs border-red-200 text-red-600 hover:bg-red-50" disabled={isActing} onClick={() => { setDecliningLoanId(loan.loanId); setDeclineRemarks(""); }}><XCircle size={11} />Decline</Button>
-                        </div>
-                      )}
-                      {isPending && decliningLoanId === loan.loanId && (
-                        <div className="basis-full flex flex-col gap-2 border-t border-dashed border-border pt-3">
-                          <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground" htmlFor={`decline-${loan.loanId}`}>Reason for declining</label>
-                          <textarea
-                            id={`decline-${loan.loanId}`}
-                            value={declineRemarks}
-                            onChange={e => setDeclineRemarks(e.target.value)}
-                            rows={2}
-                            maxLength={2000}
-                            placeholder="Tell the borrower why the request is declined"
-                            className="w-full rounded-md border border-input bg-input-background px-3 py-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
-                          />
-                          <div className="flex gap-2 justify-end">
-                            <Button size="sm" variant="outline" className="text-xs" disabled={isActing} onClick={() => setDecliningLoanId(null)}>Cancel</Button>
-                            <Button size="sm" className="text-xs bg-red-600 text-white hover:bg-red-700" disabled={isActing || !declineRemarks.trim()} onClick={() => decideLoan(loan.loanId, "decline")}>{isActing ? "Working…" : "Send decline"}</Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-
-      </div>
-    );
+    return <LabHeadLoanRequests userLab={userLab} />;
   }
 
   // ── Analytics ───────────────────────────────────────────────────

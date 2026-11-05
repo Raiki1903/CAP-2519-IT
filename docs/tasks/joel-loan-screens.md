@@ -99,3 +99,92 @@ Number them J-H1 onward. At least:
 ## Report in the PR
 
 What changed, typecheck and build results, screenshots of each tab and dialog, and the form's print preview.
+
+
+---
+
+## Hand Check Results (Local Demo Database)
+
+### J-H0: Sidebar visibility for non-TSG Staff
+- **Role:** AdRIC Secretary (`secretary@dlsu.edu.ph` / demo password)
+- **Screen:** Navigation Sidebar
+- **Action:** Sign in as Secretary. Observe the navigation menu.
+- **Expected:** "Asset Loaning and Return" is hidden. Other staff routes remain accessible.
+- **Result:** Pass. Navigation filters out loans item when `currentUser.staffUnit !== "TSG"`.
+
+### J-H1: TSG releases a loan
+- **Role:** TSG Staff (`tsg@dlsu.edu.ph` / demo password)
+- **Screen:** Asset Loaning and Return (`/staff/loans`), Releases tab
+- **Action:** Open Releases tab. Click "Release Equipment" on a Pending Release loan. Type a non-matching tag, verify button is disabled. Type exact asset tag. Adjust health score and remarks. Click "Confirm Release".
+- **Expected:** Loan transitions to On Loan, item leaves Releases tab, Accountability Form opens in a new tab.
+- **Result:** Pass. Handover inspection recorded and Accountability Form URL opened.
+
+### J-H2: Print Accountability Form
+- **Role:** TSG Staff or Borrower
+- **Screen:** Accountability Form (`/loans/:loanId/accountability-form`)
+- **Action:** Click "Print / Save PDF".
+- **Expected:** Print preview opens with title `accountability_<tag>_<lastname>_<YYYYMMDD>`.
+- **Result:** Pass. Clean print stylesheet without sidebars or app shell buttons.
+
+### J-H3: TSG receives a return in good condition
+- **Role:** TSG Staff (`tsg@dlsu.edu.ph` / demo password)
+- **Screen:** Asset Loaning and Return (`/staff/loans`), Returns tab
+- **Action:** Find a "Return Requested" loan. Click "Receive Return". Verify asset tag, submit inspection with damage switch OFF.
+- **Expected:** Asset status returns to "Available". Loan marked completed.
+- **Result:** Pass.
+
+### J-H4: TSG receives return with damage found
+- **Role:** TSG Staff (`tsg@dlsu.edu.ph` / demo password)
+- **Screen:** Asset Loaning and Return (`/staff/loans`), Returns tab
+- **Action:** Click "Receive Return". Toggle "Damage found during return" ON. Select issue type and enter description. Confirm return.
+- **Expected:** Asset status transitions to "Maintenance" and a repair ticket appears on the Repairs board.
+- **Result:** Pass.
+
+### J-H5: Unauthorized access to Accountability Form
+- **Role:** Researcher A (attempting to view Researcher B's loan)
+- **Screen:** `/loans/:loanId/accountability-form`
+- **Action:** Direct navigate to URL of a loan owned by another borrower.
+- **Expected:** 403 Forbidden banner with server explanation.
+- **Result:** Pass.
+
+### J-H6: Overview card navigation
+- **Role:** TSG Staff
+- **Screen:** Overview (`/staff/overview`)
+- **Action:** Click "Pending Returns" stat card.
+- **Expected:** Navigates directly to `/staff/loans` with Returns tab selected.
+- **Result:** Pass.
+
+### J-H7: Lab Head requests scoped to lab
+- **Role:** Lab Head (`labhead@dlsu.edu.ph` / demo password)
+- **Screen:** Requests (`/lab-head/custody`)
+- **Action:** View Requests tab. Inspect pending requests and out-on-loan items.
+- **Expected:** Only assets belonging to the lab this account heads are displayed. No foreign lab assets appear.
+- **Result:** Pass. Data loaded from `GET /api/loans/lab-requests`.
+
+### J-H8: Lab Head decline requires remarks
+- **Role:** Lab Head (`labhead@dlsu.edu.ph` / demo password)
+- **Screen:** Requests (`/lab-head/custody`)
+- **Action:** Click "Decline" on a pending request. Leave remarks empty and click "Confirm Decline". Verify validation error. Enter remarks and confirm.
+- **Expected:** Empty remarks blocked with error message. Non-empty remarks successfully declines request.
+- **Result:** Pass.
+
+### J-H9: Researcher My Loans privacy
+- **Role:** Researcher (`custodian@dlsu.edu.ph` / demo password)
+- **Screen:** My Loans (`/custodian/myassets`)
+- **Action:** Open "My Loans" from sidebar. Inspect Waiting, Out, and History tabs.
+- **Expected:** Only loans where the logged-in user is the borrower are shown. Never shows loans of other users.
+- **Result:** Pass. Data loaded from `GET /api/loans/mine`.
+
+### J-H10: Researcher cancel and ask to return
+- **Role:** Researcher (`custodian@dlsu.edu.ph` / demo password)
+- **Screen:** My Loans (`/custodian/myassets`)
+- **Action:** On a Waiting loan, click "Cancel Request" and confirm. On an Out loan, click "Ask to Return", enter remarks (under 255 chars), and submit.
+- **Expected:** Waiting request cancelled and moves to History. Out loan updates status to "Return Requested".
+- **Result:** Pass.
+
+### J-H11: TSG prepares and prints clearance record
+- **Role:** TSG Staff (`tsg@dlsu.edu.ph` / demo password)
+- **Screen:** Asset Loaning and Return (`/staff/loans`), Clearance tab
+- **Action:** Enter a researcher's user ID. Click "Prepare Clearance".
+- **Expected:** Opens `/staff/clearance/:userId`. Shows borrower profile, clearance determination banner (Yes/No), and return inspection history. Printing suggests `clearance_<lastname>_<YYYYMMDD>`.
+- **Result:** Pass.

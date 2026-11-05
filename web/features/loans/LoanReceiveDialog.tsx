@@ -20,7 +20,7 @@ import { Switch } from "@web/components/ui/switch";
 import { InspectionStep, type InspectionStepValue } from "@web/features/inspections/InspectionStep";
 import { useFormLookups } from "@web/features/lookups/useLookups";
 import { receiveLoan } from "@web/api/loans.api";
-import type { Loan } from "./loanTypes";
+import type { Loan } from "@shared/types/loans";
 
 /** Props for LoanReceiveDialog. */
 export interface LoanReceiveDialogProps {

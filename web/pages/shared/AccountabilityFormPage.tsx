@@ -9,7 +9,7 @@ import { useParams, useNavigate } from "react-router";
 import { Printer, ArrowLeft, ShieldAlert } from "lucide-react";
 import { getAccountabilityForm } from "@web/api/loans.api";
 import { Button } from "@web/components/ui/button";
-import type { AccountabilityForm } from "@web/features/loans/loanTypes";
+import type { AccountabilityForm } from "@shared/types/loans";
 
 /**
  * Format a date string into YYYYMMDD for the file title.
@@ -122,7 +122,7 @@ export function AccountabilityFormPage() {
   const accountabilityId = `AF-${String(loan.loanId).padStart(5, "0")}`;
   const effectivePeriod = `${formatDate(loan.releasedAt)} to ${loan.returnBy}`;
   const modelName = asset.manufacturer || "N/A";
-  const serialNo = asset.serialNumber || asset.serial || loan.asset.serial || "N/A";
+  const serialNo = (asset as any).serialNumber || asset.serial || "N/A";
   const affiliatedLabs = borrower.labs?.map((l) => l.code).join(", ") || "None";
   const destination = `${loan.destinationLab?.code ?? "Home Lab"}${loan.destinationRoom ? ` - ${loan.destinationRoom}` : ""}`;
   const releasedBy = loan.releasedBy && "name" in loan.releasedBy ? loan.releasedBy.name : "TSG Staff";

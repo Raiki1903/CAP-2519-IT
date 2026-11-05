@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@web/components/ui/tab
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { LoanReleaseDialog } from "@web/features/loans/LoanReleaseDialog";
 import { LoanReceiveDialog } from "@web/features/loans/LoanReceiveDialog";
-import type { Loan } from "@web/features/loans/loanTypes";
+import type { Loan } from "@shared/types/loans";
 
 /**
  * Main Asset Loaning and Return management screen with Releases and Returns tabs.
@@ -24,7 +24,8 @@ import type { Loan } from "@web/features/loans/loanTypes";
 export function LoansPage() {
   const { role, currentUser } = useSession();
 
-  const [activeTab, setActiveTab] = useState<"releases" | "returns">("releases");
+  const [activeTab, setActiveTab] = useState<"releases" | "returns" | "clearance">("releases");
+  const [clearanceUserId, setClearanceUserId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -81,7 +82,6 @@ export function LoansPage() {
       (l) =>
         l.asset.tag.toLowerCase().includes(q) ||
         l.asset.name.toLowerCase().includes(q) ||
-        (l.asset.serial && l.asset.serial.toLowerCase().includes(q)) ||
         (l.borrower && "name" in l.borrower && l.borrower.name.toLowerCase().includes(q))
     );
   };
@@ -166,7 +166,7 @@ export function LoansPage() {
       )}
 
       {/* Tabs and Search */}
-      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "releases" | "returns")}>
+      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "releases" | "returns" | "clearance")}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
           <TabsList className="bg-muted/60 p-1">
             <TabsTrigger value="releases" className="text-xs font-bold gap-2">
