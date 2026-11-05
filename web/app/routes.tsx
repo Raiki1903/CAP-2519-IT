@@ -22,6 +22,7 @@ import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";
 import { ApprovalsPage } from "@web/pages/it-admin/ApprovalsPage";
 import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
+import { AccountabilityFormPage } from "@web/pages/shared/AccountabilityFormPage";
 import { NotFound } from "@web/pages/NotFound";
 
 /**
@@ -50,6 +51,10 @@ export const router = createBrowserRouter([
   {
     path: "/register",
     Component: Register,
+  },
+  {
+    path: "/loans/:loanId/accountability-form",
+    Component: AccountabilityFormPage,
   },
   { path: "/its/*", Component: OldStaffUrlRedirect },
   { path: "/tsg/*", Component: OldStaffUrlRedirect },
