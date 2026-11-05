@@ -24,7 +24,8 @@ import type { Loan } from "@web/features/loans/loanTypes";
 export function LoansPage() {
   const { role, currentUser } = useSession();
 
-  const [activeTab, setActiveTab] = useState<"releases" | "returns">("releases");
+  const [activeTab, setActiveTab] = useState<"releases" | "returns" | "clearance">("releases");
+  const [clearanceUserId, setClearanceUserId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -166,7 +167,7 @@ export function LoansPage() {
       )}
 
       {/* Tabs and Search */}
-      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "releases" | "returns")}>
+      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "releases" | "returns" | "clearance")}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
           <TabsList className="bg-muted/60 p-1">
             <TabsTrigger value="releases" className="text-xs font-bold gap-2">

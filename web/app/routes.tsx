@@ -23,6 +23,7 @@ import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboa
 import { ApprovalsPage } from "@web/pages/it-admin/ApprovalsPage";
 import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
 import { AccountabilityFormPage } from "@web/pages/shared/AccountabilityFormPage";
+import { ClearancePrintPage } from "@web/pages/staff/ClearancePrintPage";
 import { NotFound } from "@web/pages/NotFound";
 
 /**
