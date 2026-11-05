@@ -1,7 +1,7 @@
 /**
  * Server data state: the lists that several screens share, loaded from the server and kept in memory.
  * Layer: shared (web state). Called by App.tsx (the provider) and by screens through useServerData().
- * Calls the web/api files, browserOnly.tsx, and session.tsx (the role). Never reads or writes localStorage itself.
+ * Calls the web/api files and session.tsx (the role). Never reads or writes localStorage itself.
  * Used by: every role (asset lists, the notification bell, repairs, loan approvals).
  *
  * Temporary home. 01D gives each page its own data loading; these lists move out as the
@@ -14,7 +14,6 @@ import * as maintenanceApi from "../api/maintenance.api";
 import * as retirementsApi from "../api/retirements.api";
 import * as inspectionsApi from "../api/inspections.api";
 import type { ApiResult } from "../api/client";
-import { useBrowserOnly } from "./browserOnly";
 import { useSession } from "./session";
 import type { Role } from "@shared/enums/role";
 import type { AssetLabRef } from "@shared/types/assets";
@@ -152,7 +151,7 @@ interface ServerDataContextType {
   syncFromDb: () => Promise<void>;
   refreshSharedLists: () => Promise<void>;
   reloadLoans: () => Promise<ApiResult>;
-  authorizeLoan: (loanId: string, decision?: "approve" | "decline") => Promise<void>;
+  authorizeLoan: (loanId: string, decision?: "approve" | "decline", remarks?: string) => Promise<string | null>;
 }
 
 const ServerDataContext = createContext<ServerDataContextType | null>(null);
@@ -168,20 +167,17 @@ const ServerDataContext = createContext<ServerDataContextType | null>(null);
  * - `addRepairRequest(req)`: maintenanceApi.requestRepairRaw. `acknowledgeRepair(id)` and
  *   `updateRepairStatus(id, status)`: maintenanceApi.updateRepairRaw. Each reloads afterwards.
  * - `dbLoans`: loansApi.listLoans. `reloadLoans()`: reloads only this list and returns the answer.
- *   `authorizeLoan(loanId, decision)`: loansApi.decideLoan.
+ *   `authorizeLoan(loanId, decision, remarks)`: loansApi.approveLoan or loansApi.declineLoan; answers the server's
+ *   sentence when it refuses, or null.
  * - `dbReports`: inspectionsApi.listReportSummaries.
  * - `pendingDisposals`: retirementsApi.listDisposals, pending ones only.
  * - `isDbLoading`: true while a reload is running. `syncFromDb()`: runs one.
  * - `refreshSharedLists()`: runs one too, unless one is running or started in the last few seconds.
  *   For a screen that opens, not for a save (a save needs the lists as they are after it).
  *
- * Must sit inside BrowserOnlyProvider, because each reload also re-reads the browser-only lists and
- * drops the return requests whose asset is back in the pool or disposed.
- *
  * @param children the rest of the app
  */
 export function ServerDataProvider({ children }: { children: React.ReactNode }) {
-  const { reloadFromStorage, dropReturnRequests } = useBrowserOnly();
   const { role } = useSession();
   const [isDbLoading, setIsDbLoading] = useState<boolean>(true);
 
@@ -212,17 +208,12 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     lastSyncStartedAt.current = Date.now();
     runningSyncs.current += 1;
     setIsDbLoading(true);
-    // Tags of assets back in the pool or retired, from this reload's asset list. Empty when the list did not load.
-    let doneAssetTags: string[] = [];
     try {
       try {
         const jsonAssets = await assetsApi.listAssets();
         if (jsonAssets.success && Array.isArray(jsonAssets.assets)) {
           setAssets(jsonAssets.assets);
           setAssetsVersion(v => v + 1);
-          doneAssetTags = jsonAssets.assets
-            .filter((a: Asset) => a.status === "AVAILABLE" || a.status === "RETIRED")
-            .map((a: Asset) => a.id);
           // First guess at the reports from the rows inside each asset. The dedicated request below replaces
           // them when it succeeds.
           const allReports = jsonAssets.assets.flatMap((a: any) => a.asset_reports || []);
@@ -272,10 +263,6 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
       } catch (e) {
         console.error("Failed to sync repairs from database API:", e);
       }
-
-      reloadFromStorage();
-      // A return request for an asset that is now Active or Disposed is done, wherever it was finalized.
-      dropReturnRequests(doneAssetTags);
     } finally {
       runningSyncs.current -= 1;
       setIsDbLoading(false);
@@ -349,21 +336,25 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
-  // Updates the one loan in memory instead of reloading every list.
-  const authorizeLoan = async (loanId: string, decision: "approve" | "decline" = "approve") => {
+  // Updates the one loan in memory instead of reloading every list. A decline needs the reason; the server refuses an
+  // empty one. The word set here is the one GET /api/loans sends for the new status.
+  const authorizeLoan = async (loanId: string, decision: "approve" | "decline" = "approve", remarks = ""): Promise<string | null> => {
     const numericId = loanId.replace("LOAN-", "");
     try {
-      const data = await loansApi.decideLoan(numericId, decision);
-      if (data.success) {
-        setDbLoans(prev => prev.map(l => {
-          if (String(l.loanId) === String(numericId) || String(l.loan_id) === String(numericId) || l.id === loanId) {
-            return { ...l, status: decision === "approve" ? "Approved" : "Declined" };
-          }
-          return l;
-        }));
-      }
+      const data = decision === "approve"
+        ? await loansApi.approveLoan(numericId, remarks)
+        : await loansApi.declineLoan(numericId, remarks);
+      if (!data.success) return data.error || `Failed to ${decision} loan.`;
+      setDbLoans(prev => prev.map(l => {
+        if (String(l.loanId) === String(numericId) || String(l.loan_id) === String(numericId) || l.id === loanId) {
+          return { ...l, status: decision === "approve" ? "Pending release" : "Declined" };
+        }
+        return l;
+      }));
+      return null;
     } catch (e) {
       console.error("Failed to authorize loan:", e);
+      return "Could not reach the server. Please try again.";
     }
   };
 

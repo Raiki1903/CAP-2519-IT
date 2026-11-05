@@ -4,23 +4,8 @@
  * types.
  * Used by: Researcher loan requests, Lab Head approval, TSG release and receipt, and the loan lists.
  */
-import type { AssetListItem, PersonRef } from './assets';
+import type { AssetListItem, InspectionInput, PersonRef } from './assets';
 import type { Inspection } from './inspections';
-
-/** The body LoanForm sends today. It goes in commit 8 of Batch 3, when LoanForm sends LoanRequestBody. */
-export interface LoanRequestInput {
-  /** Destination lab code, for example "CITe4D". Optional: without it the asset keeps its current location on approval. */
-  lab?: string;
-  purpose: string;
-  /** Due date as yyyy-mm-dd. */
-  dueDate: string;
-}
-
-/**
- * The two decision words today's Lab Head screens use. They go in commit 8 of Batch 3, when the screens call approve
- * and decline.
- */
-export type LoanDecision = "approve" | "decline";
 
 /** One row of GET /api/loans. Several fields come in two spellings because different screens read each. */
 export interface LoanListItem {
@@ -73,6 +58,29 @@ export interface LoanRequestBody {
 /** The body of PUT /api/loans/:loanId/approve and /decline. Required, and not empty, to decline. */
 export interface LoanDecisionBody {
   decisionRemarks?: string | null;
+}
+
+/** The body of PUT /api/loans/:loanId/release: the Loan Release inspection TSG files when the borrower collects the asset. */
+export interface LoanReleaseBody {
+  inspection: InspectionInput;
+}
+
+/** The body of PUT /api/loans/:loanId/return-request. The remarks are optional and at most 255 characters. */
+export interface LoanReturnRequestBody {
+  remarks?: string | null;
+}
+
+/** Damage TSG found when receiving a return. It opens a Return Damage ticket and sends the asset to Maintenance. */
+export interface LoanReturnDamage {
+  /** An issue type id from GET /api/lookups. */
+  issueTypeId: number;
+  issueDescription: string;
+}
+
+/** The body of PUT /api/loans/:loanId/receive: the Return inspection and, when there is damage, the ticket to open. */
+export interface LoanReceiveBody {
+  inspection: InspectionInput;
+  returnDamage?: LoanReturnDamage | null;
 }
 
 /** A loan in an answer (docs/contracts/lifecycle.md, Loan). People are `{ userId, name }`, `{ hidden: true }`, or null. */

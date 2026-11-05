@@ -113,9 +113,9 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   const reloadedCopy = propAsset && assetsVersion > openedVersion ? assets.find(a => a.id === propAsset.id) : undefined;
   const asset = propAsset ? (reloadedCopy || propAsset) : null;
 
-  // The server refuses a second loan request while one is pending, so the
+  // The server refuses a second loan request while one waits for approval or for release, so the
   // request buttons are swapped for a notice instead of leading to that refusal. (H-05)
-  const isPendingFor = (r: any) => !!asset && r.assetId === asset.id && String(r.status).toLowerCase() === "pending";
+  const isPendingFor = (r: any) => !!asset && r.assetId === asset.id && ["pending", "pending release"].includes(String(r.status).toLowerCase());
   const pendingLoan = dbLoans.find(isPendingFor);
   const pendingRequest = pendingLoan
     ? { kind: "loan", requesterId: pendingLoan.borrower_id, requesterName: pendingLoan.borrower }
@@ -124,9 +124,10 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
   // The Return button shows only on an asset the Custodian holds, matched by user id as My Assets matches it
   // (issue #32). The server sends a Custodian no other holder's id, so this matches only their own assets. Repair stays for all.
   const holdsThisAsset = !!asset && !!currentUser && asset.custodianId === currentUser.userId;
-  // Staff record a return straight from here, with no request needed in this browser, so a return works from
-  // any computer. Only on an asset that is out: Overdue is On Loan past its due date. (issue #99)
+  // TSG record a return straight from here, with no request needed, as a walk-in return. Only on an asset that is out:
+  // Overdue is On Loan past its due date. The server lets only TSG receive a return, so the button is theirs alone. (issue #99)
   const isOnLoan = !!asset && (asset.status === "ON_LOAN" || asset.isOverdue);
+  const canRecordReturn = role === "Staff" && currentUser?.staffUnit === "TSG" && isOnLoan;
   const [view, setView] = useState<FormView>("detail");
 
   const [historyEvents, setHistoryEvents] = useState<AssetHistoryEvent[]>([]);
@@ -534,7 +535,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 </div>
                               </div>
                             ) : (
-                              <div className={cn("grid gap-2.5", role === "Custodian" && holdsThisAsset ? "grid-cols-2" : role === "Staff" && isOnLoan ? "grid-cols-2" : "grid-cols-1")}>
+                              <div className={cn("grid gap-2.5", role === "Custodian" && holdsThisAsset ? "grid-cols-2" : canRecordReturn ? "grid-cols-2" : "grid-cols-1")}>
                                 {/* 2a — Request Repair (Form) */}
                                 {(role === "Custodian") && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
@@ -574,7 +575,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                                 )}
 
                                 {/* 3a: Record Return, Staff, on an asset that is out */}
-                                {role === "Staff" && isOnLoan && (
+                                {canRecordReturn && (
                                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
                                     <Button
                                       className="w-full h-auto flex-col py-4 px-2 gap-2 text-white"

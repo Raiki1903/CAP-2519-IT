@@ -23,8 +23,6 @@ const queryClient = new QueryClient({
 
 /**
  * Renders the router inside the providers.
- * The order matters: ServerDataProvider calls useBrowserOnly() to reread the
- * browser-only lists after each server reload, so it must sit inside BrowserOnlyProvider.
  */
 export default function App() {
   return (

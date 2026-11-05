@@ -1,13 +1,12 @@
 /**
  * Lab Head analytics: utilization, category mix, project allocation, delinquencies, and accountability widgets for one lab.
  * Layer: feature component. Called by pages/lab-head/LabHeadDashboard.tsx (health tab).
- * Calls: api/analytics.api.ts getLabHeadAnalyticsRaw(), api/loans.api.ts.
+ * Calls: api/analytics.api.ts getLabHeadAnalyticsRaw().
  * Used by: Lab Head.
  */
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import * as loansApi from "@web/api/loans.api";
 import * as analyticsApi from "@web/api/analytics.api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
@@ -83,23 +82,6 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = ""
   });
 
   const [actingId, setActingId] = useState<string | null>(null);
-
-  // Nothing calls handleLoanDecision. It sends "reject", which the
-  // server refuses (it expects "decline"). Decisions are made from the
-  // Custody tab and the bell instead.
-  const handleLoanDecision = async (loanId: number, decision: "approve" | "reject") => {
-    setActingId(`loan-${loanId}`);
-    try {
-      const json = await loansApi.decideLoan(loanId, decision);
-      if (json.success) {
-        await refetch();
-      }
-    } catch (e) {
-      console.error("Failed loan decision:", e);
-    } finally {
-      setActingId(null);
-    }
-  };
 
   if (isLoading) {
     return (
