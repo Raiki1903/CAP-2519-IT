@@ -1,19 +1,19 @@
 /**
- * Notification bell: a floating panel listing requests, reminders, and clearance holds for the signed-in role.
+ * Notification bell: a floating panel listing requests and reminders for the signed-in role.
  * Layer: feature component. Called by app/layouts/RootLayout.tsx, on every signed-in screen.
- * Calls: api/retirements.api.ts decideDisposal(), and state/serverData.tsx
- * (the shared lists, authorizeLoan, acknowledgeRepair). It fetches nothing itself.
+ * Calls: api/notifications.api.ts getMyNotifications(), api/retirements.api.ts decideDisposal(), and state/serverData.tsx
+ * (the shared lists, authorizeLoan, acknowledgeRepair).
  * Used by: every role.
  */
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { useSession, roleToSlug, roleDefaultPath, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
-import { useBrowserOnly } from "@web/state/browserOnly";
-import { openReturnRequests } from "@web/features/returns/openReturnRequests";
+import * as notificationsApi from "@web/api/notifications.api";
 import * as retirementsApi from "@web/api/retirements.api";
 import { labMatches } from "@web/features/labs/labMatches";
 import type { Role } from "@shared/enums/role";
+import type { Notification } from "@shared/types/notifications";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Bell,
@@ -25,25 +25,48 @@ import {
   X,
   Clock,
   Activity,
-  UserCheck,
-  UserX,
   ExternalLink,
-  ShieldAlert,
-  FileSpreadsheet
 } from "lucide-react";
 
+/** One card on the Requests tab. */
+interface RequestCard {
+  id: string;
+  type: "repair" | "loan" | "release" | "return" | "disposal";
+  title: string;
+  description: string;
+  date: string;
+  priority?: string;
+  needsAction: boolean;
+  /** The red tag on a card that needs action. */
+  badge?: string;
+  targetTab?: string;
+  meta: any;
+}
+
+/** One card on the Reminders tab. */
+interface ReminderCard {
+  id: string;
+  type: "overdue" | "duesoon" | "degraded";
+  title: string;
+  description: string;
+  needsAction: boolean;
+  targetTab?: string;
+  meta: any;
+}
+
 /**
- * Builds the role's notifications from the shared lists and offers the decisions that role
- * may make from the bell: the Director authorizes or
- * rejects disposals, Lab Heads authorize or decline loans, Staff acknowledge repair tickets.
- * Each decision calls the API and then reloads the shared lists. Clicking a card opens the
- * matching tab. Takes no props.
+ * Shows the role's notifications and offers the decisions that role may make from the bell: the Director authorizes
+ * or rejects disposals, Lab Heads approve or decline loans, Staff acknowledge repair tickets.
+ * The loan, return, due-soon and overdue cards come from the server (GET /api/notifications/mine), matched there by
+ * user id; the repair, disposal and health cards come from the shared lists. Each decision calls the API and then
+ * reloads the shared lists. Clicking a card opens the matching tab. Takes no props.
  */
-// TODO(H-16): a failed decision is written to the console only; the card stays and the user is not told why. Step 13, then the bell rewrite (01D section 8).
+// TODO(H-16): a failed disposal decision is written to the console only; the card stays and the user is not told why. The bell rewrite (01D section 8).
 export function NotificationCenter() {
   const { role, currentUser } = useSession();
   const {
     assets,
+    assetsVersion,
     repairRequests,
     dbLoans,
     pendingDisposals,
@@ -51,19 +74,58 @@ export function NotificationCenter() {
     authorizeLoan,
     syncFromDb
   } = useServerData();
-  const { returns, manualClearanceHolds } = useBrowserOnly();
 
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"requests" | "reminders" | "holds">("requests");
+  const [activeTab, setActiveTab] = useState<"requests" | "reminders">("requests");
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Which cards are "mine" is decided by comparing names, not ids. (issue #32)
-  const currentUserId = currentUser?.userId;
+  // The name is shown in the panel header only. No card is matched by it.
   const currentUserName = currentUser
     ? `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim()
-    : "A. Dela Cruz";
-  const currentUserEmail = currentUser?.email || "";
+    : "";
+
+  // The loan notifications, from the server. They load when the bell mounts, each time the shared lists reload (every
+  // save reloads them), and when the panel opens. A failed load keeps what the panel showed before.
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const loadNotifications = useCallback(async () => {
+    if (!role || role === "ITAdmin") {
+      setNotifications([]);
+      return;
+    }
+    try {
+      const data = await notificationsApi.getMyNotifications();
+      if (data.success && Array.isArray(data.notifications)) setNotifications(data.notifications);
+    } catch (e) {
+      console.error("Failed to load notifications:", e);
+    }
+  }, [role]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications, assetsVersion]);
+
+  useEffect(() => {
+    if (isOpen) loadNotifications();
+  }, [isOpen, loadNotifications]);
+
+  // The Lab Head's open Decline box: which loan, the reason written, and the server's refusal if there was one.
+  const [decliningLoanId, setDecliningLoanId] = useState<number | null>(null);
+  const [declineRemarks, setDeclineRemarks] = useState("");
+  const [decisionError, setDecisionError] = useState<{ loanId: number; message: string } | null>(null);
+
+  const decideLoanFromBell = async (loanId: number, decision: "approve" | "decline") => {
+    setDecisionError(null);
+    const error = await authorizeLoan(`LOAN-${loanId}`, decision, declineRemarks);
+    if (error) {
+      setDecisionError({ loanId, message: error });
+      return;
+    }
+    setDecliningLoanId(null);
+    setDeclineRemarks("");
+    await syncFromDb();
+    await loadNotifications();
+  };
 
   // Click outside to close panel
   useEffect(() => {
@@ -87,106 +149,27 @@ export function NotificationCenter() {
   const {
     requestsList,
     remindersList,
-    holdsList,
     requestsBadge,
     remindersBadge,
-    holdsBadge,
     totalBadgeCount
   } = useMemo(() => {
     if (!role) {
       return {
-        requestsList: [],
-        remindersList: [],
-        holdsList: [],
+        requestsList: [] as RequestCard[],
+        remindersList: [] as ReminderCard[],
         requestsBadge: 0,
         remindersBadge: 0,
-        holdsBadge: 0,
         totalBadgeCount: 0
       };
     }
 
-    // 1. CLEARANCE HOLDS TAB
-    const holds: { id: string; name: string; email: string; userRole: string; notes: string; isSystem: boolean; needsAction: boolean }[] = [];
+    const assetNameOf = (tag?: string) => assets.find(a => a.id === tag)?.name ?? tag ?? "Unknown asset";
 
-    // Manual clearance holds
-    manualClearanceHolds.forEach(h => {
-      if (h.holdStatus === "Hold Active") {
-        let isRelevant = false;
-        let actionRequired = false;
-
-        if (role === "AdRICDirector" || role === "Staff") {
-          isRelevant = true;
-          actionRequired = role === "AdRICDirector";
-        } else if (role === "LabHead") {
-          isRelevant = true;
-        } else if (role === "Custodian" && (h.name === currentUserName || h.email === currentUserEmail)) {
-          isRelevant = true;
-          actionRequired = true;
-        }
-
-        if (isRelevant) {
-          holds.push({
-            id: `HOLD-M-${h.userId}`,
-            name: h.name,
-            email: h.email,
-            userRole: h.role,
-            notes: h.notes || "Manual clearance hold active.",
-            isSystem: false,
-            needsAction: actionRequired
-          });
-        }
-      }
-    });
-
-    // System-flagged clearance holds (Overdue equipment delinquency)
-    const overdueAssets = assets.filter(a => a.isOverdue || (a.daysLeft !== undefined && a.daysLeft < 0));
-    const uniqueCustodiansWithOverdue = Array.from(new Set(overdueAssets.map(a => a.custodian).filter(Boolean)));
-
-    uniqueCustodiansWithOverdue.forEach((custName, idx) => {
-      if (custName && !holds.some(h => h.name === custName)) {
-        let isRelevant = false;
-        let actionRequired = false;
-
-        if (role === "AdRICDirector" || role === "Staff") {
-          isRelevant = true;
-          actionRequired = role === "AdRICDirector";
-        } else if (role === "LabHead") {
-          const hasLabOverdue = overdueAssets.some(a => a.custodian === custName && labMatches(currentUser?.headOf?.code, a.lab));
-          if (hasLabOverdue) isRelevant = true;
-        } else if (role === "Custodian" && custName === currentUserName) {
-          isRelevant = true;
-          actionRequired = true;
-        }
-
-        if (isRelevant) {
-          const isFaculty = custName === "Felix Torres" || custName.startsWith("Dr.");
-          holds.push({
-            id: `HOLD-S-${idx + 10}`,
-            name: custName,
-            email: `${custName.toLowerCase().replace(/\s/g, "")}@dlsu.edu.ph`,
-            userRole: isFaculty ? "Faculty" : "Student",
-            notes: "System-Flagged: Overdue equipment delinquency blocking clearance.",
-            isSystem: true,
-            needsAction: actionRequired
-          });
-        }
-      }
-    });
-
-    // 2. REQUESTS TAB (Repairs, Equipment Loans, Returns, Disposals)
-    const requests: {
-      id: string;
-      type: "repair" | "loan" | "return" | "disposal";
-      title: string;
-      description: string;
-      date: string;
-      priority?: string;
-      needsAction: boolean;
-      targetTab?: string;
-      meta: any;
-    }[] = [];
+    // REQUESTS TAB (Repairs, Equipment Loans, Returns, Disposals)
+    const requests: RequestCard[] = [];
 
     // A. Repair Tickets (Staff and AdRIC Director only, NOT shown to Lab Head)
+    // A Researcher's own repair cards come back in Batch 5, found by user id.
     repairRequests.forEach(rep => {
       const isOverdueOrActive = rep.statusLabel !== "Fixed & Completed";
       if (isOverdueOrActive) {
@@ -198,8 +181,6 @@ export function NotificationCenter() {
           actionRequired = !rep.acknowledged;
         } else if (role === "AdRICDirector") {
           isRelevant = rep.priority === "Critical" || !rep.acknowledged;
-        } else if (role === "Custodian") {
-          if (rep.custodian === currentUserName || rep.custodian === currentUserId?.toString()) isRelevant = true;
         }
 
         if (isRelevant) {
@@ -218,74 +199,50 @@ export function NotificationCenter() {
       }
     });
 
-    // C. Equipment Loan Requests (dbLoans) - Includes LOAN-9 for Lab Head
-    const rawLoans = (dbLoans && dbLoans.length > 0) ? dbLoans : [];
-    rawLoans.forEach((loan: any) => {
-      const status = (loan.status || "").toLowerCase();
-      if (status === "pending" || status === "pending approval") {
-        let isRelevant = false;
-        let actionRequired = false;
-
-        if (role === "LabHead") {
-          if (labMatches(currentUser?.headOf?.code, loan.lab)) {
-            isRelevant = true;
-            actionRequired = true; // Pending Lab Head authorization
-          }
-        } else if (role === "Staff" || role === "AdRICDirector") {
-          isRelevant = true;
-          actionRequired = role === "Staff";
-        } else if (role === "Custodian") {
-          const isMyLoan = (currentUserId && loan.borrower_id === currentUserId) || (loan.borrower && loan.borrower.toLowerCase().includes(currentUserName.toLowerCase()));
-          if (isMyLoan) isRelevant = true;
-        }
-
-        if (isRelevant) {
-          const assetName = loan.assetName || loan.asset || loan.assetId || "Unknown asset";
-          requests.push({
-            id: loan.id || `LOAN-${loan.loanId || loan.loan_id}`,
-            type: "loan",
-            title: `Equipment Loan Request: ${assetName}`,
-            description: `Borrower: ${loan.borrower || "Faculty/Student"} • Purpose: "${loan.purpose || "Research Project Use"}"`,
-            date: loan.requestedOn || loan.loaned_on || new Date().toISOString(),
-            needsAction: actionRequired,
-            targetTab: "custody",
-            meta: loan
-          });
-        }
+    // B. Loan cards, one per server notification. Only the Head, TSG and the borrower get any, so there is no role check.
+    notifications.forEach(n => {
+      if (n.kind === "LOAN_AWAITING_APPROVAL") {
+        const loan = dbLoans.find((l: any) => l.loanId === n.loanId);
+        requests.push({
+          id: `LOAN-${n.loanId}`,
+          type: "loan",
+          title: `Equipment Loan Request: ${assetNameOf(n.assetTag)}`,
+          description: loan
+            ? `Borrower: ${loan.borrower || "A researcher"} • Purpose: "${loan.purpose || "Research Project Use"}"`
+            : n.label,
+          date: n.date ?? "",
+          needsAction: true,
+          badge: "Pending Approval",
+          targetTab: "custody",
+          meta: n
+        });
+      } else if (n.kind === "RELEASE_WAITING") {
+        requests.push({
+          id: `REL-${n.loanId}`,
+          type: "release",
+          title: `Loan Ready for Release: ${assetNameOf(n.assetTag)}`,
+          description: `${n.label}. The Lab Head approved it${n.date ? ` on ${n.date}` : ""}.`,
+          date: n.date ?? "",
+          needsAction: true,
+          badge: "Waiting for Release",
+          meta: n
+        });
+      } else if (n.kind === "RETURN_WAITING") {
+        requests.push({
+          id: `RET-${n.loanId}`,
+          type: "return",
+          title: `Return Request: ${assetNameOf(n.assetTag)}`,
+          description: `${n.label}. Awaiting final inspection clearance.`,
+          date: n.date ?? "",
+          needsAction: true,
+          badge: "Return Waiting",
+          targetTab: "returns",
+          meta: n
+        });
       }
     });
 
-    // D. Return Requests, only those whose asset is still out (issue #99)
-    openReturnRequests(returns, assets).forEach(ret => {
-      if (ret.status === "Pending") {
-        let isRelevant = false;
-        let actionRequired = false;
-
-        if (role === "Staff") {
-          isRelevant = true;
-          actionRequired = true;
-        } else if (role === "AdRICDirector") {
-          isRelevant = true;
-        } else if (role === "Custodian" && ret.custodian === currentUserName) {
-          isRelevant = true;
-        }
-
-        if (isRelevant) {
-          requests.push({
-            id: ret.id,
-            type: "return",
-            title: `Return Request: ${ret.assetName}`,
-            description: `Returned by ${ret.custodian}. Awaiting final inspection clearance.`,
-            date: ret.returnDate,
-            needsAction: actionRequired,
-            targetTab: "returns",
-            meta: ret
-          });
-        }
-      }
-    });
-
-    // E. Decommission Disposals (AdRIC Director Approvals)
+    // C. Decommission Disposals (AdRIC Director Approvals)
     pendingDisposals.forEach(disp => {
       let isRelevant = false;
       let actionRequired = false;
@@ -312,6 +269,7 @@ export function NotificationCenter() {
           description: `Decommission request: "${justification}". Pathway: ${pathway}. Requested by: ${disp.requestedBy}.`,
           date: disp.requestedAt,
           needsAction: actionRequired,
+          badge: "Pending Approval",
           targetTab: "disposals",
           meta: disp
         });
@@ -319,84 +277,44 @@ export function NotificationCenter() {
     });
 
     // Sort requests: Action required first, then newest
+    const time = (d: string) => new Date(d).getTime() || 0;
     requests.sort((a, b) => {
       if (a.needsAction !== b.needsAction) return a.needsAction ? -1 : 1;
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
+      return time(b.date) - time(a.date);
     });
 
-    // 3. REMINDERS TAB (Overdue Loans, Degraded Health)
-    const reminders: {
-      id: string;
-      type: "overdue" | "duesoon" | "degraded" | "active_loan";
-      title: string;
-      description: string;
-      date?: string;
-      needsAction: boolean;
-      targetTab?: string;
-      meta: any;
-    }[] = [];
+    // REMINDERS TAB (the borrower's overdue and due-soon loans, Degraded Health)
+    const reminders: ReminderCard[] = [];
 
-    // Overdue, Due Soon, or Degraded Health Equipment
+    notifications.forEach(n => {
+      if (n.kind === "LOAN_OVERDUE") {
+        reminders.push({
+          id: `REM-OVD-${n.loanId}`,
+          type: "overdue",
+          title: `Overdue Equipment Return: ${assetNameOf(n.assetTag)}`,
+          description: `WARNING: This device was due on ${n.date}. Return it as soon as you can.`,
+          needsAction: true,
+          targetTab: "myassets",
+          meta: n
+        });
+      } else if (n.kind === "LOAN_DUE_SOON") {
+        reminders.push({
+          id: `REM-DUE-${n.loanId}`,
+          type: "duesoon",
+          title: `Return Reminder: ${assetNameOf(n.assetTag)}`,
+          description: `Your borrowed device is due on ${n.date}.`,
+          needsAction: true,
+          targetTab: "myassets",
+          meta: n
+        });
+      }
+    });
+
+    // Degraded Health Equipment
     assets.forEach(asset => {
-      const isOverdue = asset.isOverdue || (asset.daysLeft !== undefined && asset.daysLeft < 0);
-      const isDueSoon = asset.daysLeft !== undefined && asset.daysLeft >= 0 && asset.daysLeft <= 5;
       const isDegraded = asset.healthScore != null && asset.healthScore <= 60 && asset.status !== "RETIRED";
-
-      const isMyAsset = asset.custodian === currentUserName;
       const isHighValue = (asset.cost || 0) >= 50000;
 
-      // Overdue Asset
-      if (isOverdue) {
-        let isRelevant = false;
-        let actionRequired = false;
-
-        if (role === "AdRICDirector") {
-          if (isHighValue) isRelevant = true;
-        } else if (role === "LabHead") {
-          if (labMatches(currentUser?.headOf?.code, asset.lab)) isRelevant = true;
-        } else if (role === "Custodian") {
-          if (isMyAsset) {
-            isRelevant = true;
-            actionRequired = true;
-          }
-        } else if (role === "Staff") {
-          isRelevant = true;
-        }
-
-        if (isRelevant) {
-          reminders.push({
-            id: `REM-OVD-${asset.id}`,
-            type: "overdue",
-            title: `Overdue Equipment Return: ${asset.name}`,
-            description: isMyAsset
-              ? `WARNING: This device was due on ${asset.dueDate}. Return immediately to clear registration hold.`
-              : `Custodian ${asset.custodian || "Unknown"} is overdue returning ${asset.name} (Due: ${asset.dueDate}).`,
-            needsAction: actionRequired,
-            targetTab: role === "Custodian" ? "myassets" : "inventory",
-            meta: asset
-          });
-        }
-      }
-
-      // Due Soon
-      if (isDueSoon) {
-        let isRelevant = (role === "Custodian" && isMyAsset) || (role === "LabHead" && labMatches(currentUser?.headOf?.code, asset.lab));
-        if (isRelevant) {
-          reminders.push({
-            id: `REM-DUE-${asset.id}`,
-            type: "duesoon",
-            title: `Return Reminder: ${asset.name}`,
-            description: isMyAsset
-              ? `Your borrowed device is due in ${asset.daysLeft} days (on ${asset.dueDate}).`
-              : `Device held by ${asset.custodian} is due in ${asset.daysLeft} days.`,
-            needsAction: isMyAsset,
-            targetTab: role === "Custodian" ? "myassets" : "inventory",
-            meta: asset
-          });
-        }
-      }
-
-      // Degraded Condition / High Value Maintenance
       if (isDegraded) {
         let isRelevant = role === "Staff" || (role === "AdRICDirector" && isHighValue) || (role === "LabHead" && labMatches(currentUser?.headOf?.code, asset.lab));
         if (isRelevant) {
@@ -413,61 +331,6 @@ export function NotificationCenter() {
       }
     });
 
-    // Active / Approved Equipment Loans (dbLoans) - Exclude Returned / Completed items
-    const rawLoansForReminders = (dbLoans && dbLoans.length > 0) ? dbLoans : [];
-    rawLoansForReminders.forEach((loan: any) => {
-      const statusUpper = (loan.status || "").toUpperCase();
-      const isReturned = statusUpper === "RETURNED" || statusUpper === "COMPLETED";
-      if (isReturned) return;
-
-      const isActive = statusUpper === "APPROVED" || statusUpper === "ACTIVE" || statusUpper === "ON_LOAN" || statusUpper === "ON LOAN";
-
-      if (isActive) {
-        let isRelevant = false;
-        let actionRequired = false;
-
-        const borrowerNameLower = (loan.borrower || "").trim().toLowerCase();
-        const currentUserNameLower = currentUserName.trim().toLowerCase();
-        const isBorrower = Boolean(
-          (currentUserId && Number(loan.borrower_id) === Number(currentUserId)) ||
-          (currentUserEmail && loan.borrower_email === currentUserEmail) ||
-          (borrowerNameLower && (borrowerNameLower === currentUserNameLower || (borrowerNameLower.length > 3 && currentUserNameLower.includes(borrowerNameLower))))
-        );
-
-        if (role === "Custodian") {
-          if (isBorrower) {
-            isRelevant = true;
-            actionRequired = true;
-          }
-        } else if (role === "LabHead") {
-          if (labMatches(currentUser?.headOf?.code, loan.lab)) {
-            isRelevant = true;
-            actionRequired = true;
-          }
-        } else if (role === "Staff" || role === "AdRICDirector") {
-          isRelevant = true;
-          actionRequired = true;
-        }
-
-        if (isRelevant) {
-          const assetName = loan.assetName || loan.asset || loan.assetId || "Unknown asset";
-          const dueDate = loan.dueDate || loan.due_date || loan.returnDate || "2026-08-25";
-          const labName = loan.lab || "Center for ICT for Development (CITE4D)";
-
-          reminders.push({
-            id: `REM-LOAN-${loan.id || loan.loanId || loan.loan_id}`,
-            type: "active_loan",
-            title: `Active Equipment Loan: ${assetName}`,
-            description: `Due Date: ${dueDate} • Lab: ${labName}`,
-            date: dueDate,
-            needsAction: actionRequired,
-            targetTab: role === "Custodian" ? "myassets" : "inventory",
-            meta: loan
-          });
-        }
-      }
-    });
-
     // Sort reminders: Overdue first, then needsAction
     reminders.sort((a, b) => {
       if (a.type === "overdue" && b.type !== "overdue") return -1;
@@ -478,24 +341,17 @@ export function NotificationCenter() {
     // Calculate Badges
     const rBadge = requests.filter(r => r.needsAction).length;
     const remBadge = reminders.filter(r => r.needsAction).length;
-    const hBadge = holds.filter(h => h.needsAction).length;
-    const totBadge = rBadge + remBadge + hBadge;
 
     return {
       requestsList: requests,
       remindersList: reminders,
-      holdsList: holds,
       requestsBadge: rBadge,
       remindersBadge: remBadge,
-      holdsBadge: hBadge,
-      totalBadgeCount: totBadge
+      totalBadgeCount: rBadge + remBadge
     };
-  }, [role, currentUser, currentUserName, currentUserEmail, currentUserId, assets, repairRequests, dbLoans, returns, pendingDisposals, manualClearanceHolds]);
+  }, [role, currentUser, assets, repairRequests, dbLoans, notifications, pendingDisposals]);
 
   if (!role) return null;
-
-  const hasPersonalHold = holdsList.some(h => h.name === currentUserName);
-  const personalHoldNotes = holdsList.find(h => h.name === currentUserName)?.notes;
 
   const decideDisposalFromBell = async (disp: any, decision: "approve" | "reject") => {
     if (disp?.disposalId === undefined) {
@@ -529,14 +385,14 @@ export function NotificationCenter() {
       if (cardType === "loan" || targetTab === "custody") {
         return "/lab-head/custody";
       }
-      if (targetTab === "inventory" || cardType === "overdue" || cardType === "duesoon" || cardType === "active_loan") {
+      if (targetTab === "inventory") {
         return "/lab-head/inventory";
       }
       return fallback;
     }
 
     if (cardRole === "Custodian") {
-      // Repairs, loans, and asset reminders all live in myassets.
+      // Loans and the due-soon and overdue reminders live in myassets.
       return "/custodian/myassets";
     }
 
@@ -547,7 +403,7 @@ export function NotificationCenter() {
       if (cardType === "return" || targetTab === "returns") {
         return "/staff/returns";
       }
-      if (targetTab === "inventory" || cardType === "overdue" || cardType === "duesoon" || cardType === "active_loan") {
+      if (targetTab === "inventory") {
         return "/staff/inventory";
       }
       return fallback;
@@ -619,23 +475,11 @@ export function NotificationCenter() {
               </span>
             </div>
 
-            {/* Warning Banner if active clearance hold exists */}
-            {role === "Custodian" && hasPersonalHold && (
-              <div className="bg-red-50 border-b border-red-200 px-5 py-2.5 flex items-start gap-2.5">
-                <AlertTriangle size={15} className="text-red-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-[11px] font-extrabold text-red-800">Clearance Hold Active</p>
-                  <p className="text-[10px] text-red-700 leading-normal">{personalHoldNotes || "System hold due to overdue equipment."}</p>
-                </div>
-              </div>
-            )}
-
             {/* Tabs Header Badges */}
             <div className="flex border-b border-border text-xs font-semibold bg-slate-50/30 dark:bg-slate-900/5">
               {[
                 { id: "requests", label: "Requests", badge: requestsBadge },
-                { id: "reminders", label: "Reminders", badge: remindersBadge },
-                { id: "holds", label: "Clearance Holds", badge: holdsBadge }
+                { id: "reminders", label: "Reminders", badge: remindersBadge }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -674,12 +518,12 @@ export function NotificationCenter() {
                         <div className="flex items-start gap-2.5">
                           <span className={`p-1.5 rounded-lg flex-shrink-0 mt-0.5 ${item.type === "repair" ? "bg-red-50 text-red-600 border border-red-100" :
                               item.type === "loan" ? "bg-amber-50 text-amber-600 border border-amber-100" :
-                                item.type === "return" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
+                                item.type === "return" || item.type === "release" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
                                   "bg-purple-50 text-purple-600 border border-purple-100"
                             }`}>
                             {item.type === "repair" && <Wrench size={14} />}
                             {item.type === "loan" && <ClipboardCheck size={14} />}
-                            {item.type === "return" && <ClipboardCheck size={14} />}
+                            {(item.type === "return" || item.type === "release") && <ClipboardCheck size={14} />}
                             {item.type === "disposal" && <Trash2 size={14} />}
                           </span>
                           <div>
@@ -692,7 +536,7 @@ export function NotificationCenter() {
                         </div>
                         {item.needsAction && (
                           <span className="flex-shrink-0 text-[8px] bg-red-600 text-white font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wider animate-pulse">
-                            Pending Approval
+                            {item.badge}
                           </span>
                         )}
                       </div>
@@ -719,39 +563,66 @@ export function NotificationCenter() {
                           {/* Equipment Loan Decision Buttons */}
                           {/* Lab Head only: the server refuses a loan decision from any other role (13b role table). */}
                           {item.type === "loan" && role === "LabHead" && (
-                            <div className="flex gap-1">
-                              <button
-                                type="button"
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  try {
-                                    await authorizeLoan(item.id, "approve");
-                                    await syncFromDb();
-                                  } catch (err: any) {
-                                    console.error("Failed to authorize loan:", err);
-                                  }
-                                }}
-                                className="text-[10px] font-bold text-white bg-[#005A36] hover:bg-[#004225] px-3 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                              >
-                                <CheckCircle size={10} /> Approve Loan
-                              </button>
-                              <button
-                                type="button"
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  try {
-                                    await authorizeLoan(item.id, "decline");
-                                    await syncFromDb();
-                                  } catch (err: any) {
-                                    console.error("Failed to decline loan:", err);
-                                  }
-                                }}
-                                className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                              >
-                                Decline
-                              </button>
+                            <div className="flex flex-col items-end gap-2 w-full">
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    await decideLoanFromBell(item.meta.loanId, "approve");
+                                  }}
+                                  className="text-[10px] font-bold text-white bg-[#005A36] hover:bg-[#004225] px-3 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                                >
+                                  <CheckCircle size={10} /> Approve Loan
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setDecliningLoanId(item.meta.loanId);
+                                    setDeclineRemarks("");
+                                    setDecisionError(null);
+                                  }}
+                                  className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                                >
+                                  Decline
+                                </button>
+                              </div>
+                              {decliningLoanId === item.meta.loanId && (
+                                <div className="w-full flex flex-col gap-1.5">
+                                  <textarea
+                                    value={declineRemarks}
+                                    onChange={e => setDeclineRemarks(e.target.value)}
+                                    rows={2}
+                                    maxLength={2000}
+                                    placeholder="Reason for declining"
+                                    aria-label="Reason for declining"
+                                    className="w-full rounded-md border border-input bg-input-background px-2 py-1.5 text-[11px] placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                                  />
+                                  <div className="flex justify-end gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setDecliningLoanId(null)}
+                                      className="text-[10px] font-bold text-muted-foreground border border-border hover:bg-muted/30 px-2.5 py-1 rounded-lg cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={!declineRemarks.trim()}
+                                      onClick={async () => { await decideLoanFromBell(item.meta.loanId, "decline"); }}
+                                      className="text-[10px] font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 px-2.5 py-1 rounded-lg cursor-pointer"
+                                    >
+                                      Send decline
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              {decisionError?.loanId === item.meta.loanId && (
+                                <p className="text-[10px] text-red-600 text-right">{decisionError.message}</p>
+                              )}
                             </div>
                           )}
 
@@ -815,12 +686,10 @@ export function NotificationCenter() {
                         <div className="flex items-start gap-2.5">
                           <span className={`p-1.5 rounded-lg flex-shrink-0 mt-0.5 ${item.type === "overdue" ? "bg-red-50 text-red-600 border border-red-100" :
                             item.type === "duesoon" ? "bg-amber-50 text-amber-600 border border-amber-100" :
-                              item.type === "active_loan" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
-                                "bg-orange-50 text-orange-600 border border-orange-100"
+                              "bg-orange-50 text-orange-600 border border-orange-100"
                             }`}>
                             {item.type === "overdue" && <AlertTriangle size={14} />}
                             {item.type === "duesoon" && <Clock size={14} />}
-                            {item.type === "active_loan" && <ClipboardCheck size={14} />}
                             {item.type === "degraded" && <Activity size={14} />}
                           </span>
                           <div>
@@ -831,11 +700,6 @@ export function NotificationCenter() {
                             <p className="text-[10px] text-muted-foreground mt-0.5 leading-normal">{item.description}</p>
                           </div>
                         </div>
-                        {item.type === "active_loan" && (
-                          <span className="flex-shrink-0 text-[8px] bg-emerald-600 text-white font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wider">
-                            Active / On Loan
-                          </span>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -844,51 +708,7 @@ export function NotificationCenter() {
                     <div className="flex flex-col items-center justify-center text-center py-12 text-muted-foreground">
                       <CheckCircle size={32} className="text-emerald-500/50 mb-2" />
                       <p className="text-xs font-bold text-foreground">No Active Reminders</p>
-                      <p className="text-[10px] mt-0.5">No overdue equipment or maintenance alerts detected for your role.</p>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* CLEARANCE HOLDS TAB */}
-              {activeTab === "holds" && (
-                <>
-                  {holdsList.map(item => (
-                    <div
-                      key={item.id}
-                      className={`p-3.5 rounded-xl border bg-card border-border/80 transition-all flex flex-col gap-2 ${item.name === currentUserName ? "border-red-400 bg-red-50/10 shadow-2xs" : ""
-                        }`}
-                    >
-                      <div className="flex items-start gap-2.5 justify-between">
-                        <div className="flex items-start gap-2.5">
-                          <span className="p-1.5 rounded-lg bg-red-50 text-red-600 flex-shrink-0 mt-0.5 border border-red-100">
-                            <UserX size={14} />
-                          </span>
-                          <div>
-                            <h4 className="text-xs font-bold leading-tight">
-                              {item.name} {item.name === currentUserName && <span className="text-red-600 font-extrabold">(You)</span>}
-                            </h4>
-                            <p className="text-[9px] text-muted-foreground">{item.userRole} · {item.email}</p>
-                            <p className="text-[10px] text-red-700 font-medium mt-1 leading-normal">
-                              <strong>Status:</strong> {item.notes}
-                            </p>
-                          </div>
-                        </div>
-                        <span className={`text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded ${item.isSystem
-                          ? "bg-red-500/10 border border-red-500/20 text-red-600"
-                          : "bg-amber-500/10 border border-amber-500/20 text-amber-600"
-                          }`}>
-                          {item.isSystem ? "System" : "Manual"}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-
-                  {holdsList.length === 0 && (
-                    <div className="flex flex-col items-center justify-center text-center py-12 text-muted-foreground">
-                      <UserCheck size={32} className="text-emerald-500/50 mb-2" />
-                      <p className="text-xs font-bold text-foreground">Clearance Holds Clean</p>
-                      <p className="text-[10px] mt-0.5">No active clearance holds recorded for your scope.</p>
+                      <p className="text-[10px] mt-0.5">No due-soon or overdue loans and no health alerts for your role.</p>
                     </div>
                   )}
                 </>

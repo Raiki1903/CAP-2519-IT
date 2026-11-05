@@ -1,12 +1,11 @@
 /**
  * App root: wraps the router in the state providers every screen relies on.
  * Layer: shared (app shell). Called by web/main.tsx.
- * Calls: state/session.tsx, state/browserOnly.tsx, state/serverData.tsx, state/pendingSignUps.tsx, app/routes.tsx.
+ * Calls: state/session.tsx, state/serverData.tsx, state/pendingSignUps.tsx, app/routes.tsx.
  * Used by: every role.
  */
 import { RouterProvider } from "react-router";
 import { SessionProvider } from "@web/state/session";
-import { BrowserOnlyProvider } from "@web/state/browserOnly";
 import { ServerDataProvider } from "@web/state/serverData";
 import { PendingSignUpsProvider } from "@web/state/pendingSignUps";
 import { router } from "./routes";
@@ -28,13 +27,11 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <BrowserOnlyProvider>
-          <ServerDataProvider>
-            <PendingSignUpsProvider>
-              <RouterProvider router={router} />
-            </PendingSignUpsProvider>
-          </ServerDataProvider>
-        </BrowserOnlyProvider>
+        <ServerDataProvider>
+          <PendingSignUpsProvider>
+            <RouterProvider router={router} />
+          </PendingSignUpsProvider>
+        </ServerDataProvider>
       </SessionProvider>
     </QueryClientProvider>
   );
