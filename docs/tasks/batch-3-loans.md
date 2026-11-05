@@ -261,7 +261,7 @@ Written for Raiki, to run by hand. The agent did not run them. Every check uses 
 
 1. Ports 4000 and 5173 must be free (no leftover `npm run dev:all`, which talks to CCS Cloud). `adric_uat_check` must be at the latest migrations with hashed passwords, as for the Batch 2b checks.
 2. Start the app with `C:\dev\uat-data\start-local-uat.ps1`. Accounts and passwords are in `C:\dev\uat-data\uat-passwords.txt` (do not copy them anywhere). Use a private window per account, or log out between accounts. The accounts: TSG "UAT Staff One"; the Head of the home lab "UAT LabHead CITe4D One"; the Head of another lab "UAT LabHead CAR"; the borrower "UAT Custodian One"; a second Researcher "UAT LabHead CITe4D Two"; the "UAT Director" account.
-3. Pick two **Available CITe4D assets** in UAT Staff One's Inventory and write their tags down: **A1** and **A2**. The loan ids are the numbers in `LOAN-<number>`: **L1** is the first loan (3-H1), **L2** the second (3-H10).
+3. Pick two **Available CITe4D assets** in UAT Staff One's Inventory and write their tags down: **A1** and **A2**.
 4. **Console commands.** Open DevTools (F12), Console, on a page of `http://localhost:5173` while logged in as the account named in the check. The first time the browser may ask you to type `allow pasting`. Replace `<A1>`, `<L1>` and so on before sending. Each command prints the server's answer; `success` is the first thing to read.
 5. **To read the database**, SELECT only, never a `password` column. PowerShell, it asks for the root password: `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "<SELECT>"`. One check (3-H11) runs a single UPDATE on `adric_uat_check`, and says so.
 6. These checks leave loans, inspections and activity rows in `adric_uat_check`. The next `uat-reset.sql` load removes them.
@@ -269,7 +269,7 @@ Written for Raiki, to run by hand. The agent did not run them. Every check uses 
 **3-H1. A Researcher requests an asset: the destination picker lists only their own labs.** Role: UAT Custodian One. Database: `adric_uat_check` (writes one loan).
 - Account page: note the labs listed there. Then Available Equipment, open A1, click Request Loan.
 - Expect: "Research Lab Destination" lists exactly the labs from the Account page and no other (the old bug: it listed every research center). There is a "Room (optional)" box, and the date field is named "Return By". Type a past date: "The return-by date cannot be in the past." shows and Submit Request stays disabled.
-- Pick a lab, Room `Room 301`, purpose `Batch 3 check one`, Return By 7 days from today. Click Submit Request. Expect "Loan Request Sent" and a reference `LOAN-<number>`. That number is the real loan id (it used to be made up in the browser). Write it down as **L1**.
+- Pick a lab, Room `Room 301`, purpose `Batch 3 check one`, Return By 7 days from today. Click Submit Request. Expect "Loan Request Sent" and a reference `LOAN-<number>`. That number is the real loan id (it used to be made up in the browser). Write it down as **L1**: the loan ids are the numbers in `LOAN-<number>`, and **L1** is this first loan.
 - Database: `SELECT loan_id, status, destination_center_id, destination_room, return_by FROM asset_loans WHERE loan_id=<L1>` shows PENDING_APPROVAL, the id of the lab you picked, `Room 301`, and the date.
 
 **3-H2. A second Researcher's request on the same asset is refused with the server's sentence.** Role: UAT LabHead CITe4D Two (a plain Researcher). Database: `adric_uat_check` (writes nothing).
@@ -340,7 +340,7 @@ fetch("http://localhost:4000/api/users/<U1>/clearance-record",{method:"POST",cre
 - Database: `SELECT status, received_by_id, closed_at FROM asset_loans WHERE loan_id=<L1>` shows RETURNED, this TSG's user id and a time; `SELECT i.type FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<A1>' ORDER BY i.inspection_id DESC LIMIT 2` shows RETURN then LOAN_RELEASE.
 
 **3-H10. A second loan: Decline asks for a reason, then the Head approves it.** Roles: UAT Custodian One, then UAT LabHead CITe4D One. Database: `adric_uat_check` (writes a second loan and its approval).
-- UAT Custodian One: request A2 as in 3-H1, with Return By **2 days from today** and purpose `Batch 3 check two`. Write the new loan id down as **L2**.
+- UAT Custodian One: request A2 as in 3-H1, with Return By **2 days from today** and purpose `Batch 3 check two`. Write the new loan id (the number in `LOAN-<number>`) down as **L2**: it is the second loan.
 - UAT LabHead CITe4D One: Custody tab, LOAN-<L2>, click Decline. A box "Reason for declining" opens and "Send decline" stays disabled until you type. Type a reason, then click Cancel (do not send it). The loan is still Pending.
 - Console (declining with no reason is refused):
 ```js
@@ -354,7 +354,7 @@ fetch("http://localhost:4000/api/loans/<L2>/decline",{method:"PUT",credentials:"
 - UAT Staff One, console: the Accountability Form command for L2 first. Expect `{success: false, error: "This loan has not been released yet."}`. Then release L2 with the 3-H6 release command (use `<L2>`). Expect `success: true` and `status: "ON_LOAN"`.
 - UAT Custodian One: the bell, Reminders tab, shows a card "Return Reminder: <A2 name>" saying the device is due on the date you set (2 days from today). Its red count is one more.
 - UAT LabHead CITe4D Two: the bell shows no card about A2. UAT Staff One: no due-soon card about A2 either (TSG see only waiting releases and returns). UAT LabHead CITe4D One: no card about A2 any more.
-- Make the loan overdue (PowerShell, this one writes, to `adric_uat_check` only): `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "UPDATE asset_loans SET return_by = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE loan_id=<L2>"`. Reload as UAT Custodian One: the Reminders tab now shows "Overdue Equipment Return: <A2 name>" with "WARNING: This device was due on <yesterday>".
+- Make the loan overdue (PowerShell, this one writes, to `adric_uat_check` only). Run it **before 3-H12**, while L2 is still On Loan. It moves `requested_at` back too, because the table has the check `asset_loans_return_by_check` (`return_by >= DATE(requested_at)`) and a yesterday return-by alone breaks it: `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "UPDATE asset_loans SET requested_at = DATE_SUB(NOW(), INTERVAL 3 DAY), return_by = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE loan_id=<L2>"`. Reload as UAT Custodian One: the Reminders tab now shows "Overdue Equipment Return: <A2 name>" with "WARNING: This device was due on <yesterday>".
 - Database: `SELECT status, released_at FROM asset_loans WHERE loan_id=<L2>` shows ON_LOAN and a time.
 
 **3-H12. A return with damage: Maintenance and a ticket on the Repairs board.** Role: UAT Staff One. Database: `adric_uat_check` (writes the return, an inspection, a maintenance ticket).
@@ -380,3 +380,13 @@ Promise.all([["POST","/api/assets/<A1>/borrow"],["PUT","/api/loans/<L1>/decision
 - UAT Director: Overview and Analytics load with the campus and lab numbers.
 - UAT LabHead CITe4D One: the Analytics tab loads. In its loan list, A1 and A2 show the destination lab you picked (no "Destination Lab:" text packed into the purpose).
 - UAT Custodian One: My Assets loads; the bell opens and shows no Clearance Holds tab.
+
+## Batch 3 hand check results
+
+Run by Raiki on `adric_uat_check`. 3-H1 to 3-H14 pass, with these notes.
+
+- **Clearance Holds tab (the Stop 2 question): A.** It stays removed. It matched people by name; the server's overdue cards and the clearance record replace it.
+- **3-H8:** the second submit showed "This asset is not out on loan to you." This is a web check made before anything is sent, not the server's sentence. The database shows the return request was saved.
+- **3-H9:** the success message has no LOAN reference. Joel's Returns dialog replaces this screen.
+- **3-H11:** the overdue step failed on the check constraint `asset_loans_return_by_check` (`return_by >= DATE(requested_at)`), and loan 20 had already been received in 3-H12. Overdue is covered by `notifications.test.ts`. The command in 3-H11 now moves `requested_at` back too, and says to run it before 3-H12.
+- **Before the checks, step 3:** the L1 and L2 notes moved into 3-H1 and 3-H10, where the loans are made.
