@@ -11,7 +11,7 @@ import * as assetsApi from "@web/api/assets.api";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, Wrench, CornerUpLeft,
-  Tag, MapPin, Building2, Calendar, Activity, Bookmark, History, ArrowLeft, Clock
+  Tag, MapPin, Building2, Calendar, Activity, Bookmark, Clock
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { assetStatusLabel } from "./assetBadges";
@@ -66,14 +66,13 @@ export interface AssetDetail {
   specs?: string;
 }
 
-type FormView = "detail" | "return" | "repair" | "loan" | "custodianHistory";
+type FormView = "detail" | "return" | "repair" | "loan";
 
 const viewTitles: Record<FormView, string> = {
   detail: "Details",
   return: "Asset Return",
   repair: "Request Repair",
   loan: "Request Loan",
-  custodianHistory: "Asset History",
 };
 
 const STATUS_CLASS: Record<string, string> = {
@@ -91,10 +90,10 @@ interface Props {
 }
 
 /**
- * Shows one asset, with its current custodian under the name, and switches between its detail view, custodian history, and the request forms.
+ * Shows one asset, with its current custodian under the name and its asset history, and switches between its detail view and the request forms.
  * The buttons depend on role and status: a Custodian can request a loan (Active),
  * a repair or return (On Loan); Staff can send it to maintenance, and record its return
- * when it is On Loan or Overdue; a Lab Head can open the full asset history. Calls assetsApi.getAssetHistory() and
+ * when it is On Loan or Overdue; a Lab Head sees the details and the history, with no buttons. Calls assetsApi.getAssetHistory() and
  * reloads the shared loan list (reloadLoans) when it opens.
  *
  * @param asset the asset to show, or null for a closed modal. It is shown as passed, the row of the list it
@@ -251,7 +250,6 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
       return: "Return Asset",
     repair: "Request Repair",
     loan: "Request a Loan",
-    custodianHistory: "Asset History",
   };
 
   return (
@@ -424,7 +422,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       </div>
 
                       {/* ── Action panel conditional rendering ── */}
-                      {asset.status !== "RETIRED" && (role === "Staff" || role === "Custodian" || role === "LabHead") && (
+                      {asset.status !== "RETIRED" && (role === "Staff" || role === "Custodian") && (
                         <>
                           <Separator className="mb-4" />
 
@@ -459,28 +457,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                             </p>
                           )}
                           <div className="w-full">
-                            {role === "LabHead" ? (
-                              <div className="grid grid-cols-1 gap-2.5">
-                                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
-                                  <Button
-                                    variant="outline"
-                                    className="w-full h-auto flex-col py-3.5 px-2 gap-2 text-[#005A36] border-[#005A36]/30 hover:bg-emerald-50 hover:border-[#005A36] shadow-sm cursor-pointer"
-                                    onClick={() => {
-                                      setView("custodianHistory");
-                                      if (asset) fetchAssetHistory(asset.id);
-                                    }}
-                                  >
-                                    <History size={20} className="text-[#005A36]" />
-                                    <span
-                                      className="text-[10px] font-extrabold leading-tight text-center uppercase tracking-wider"
-                                      style={{ fontFamily: "'Montserrat', sans-serif" }}
-                                    >
-                                      Asset<br />History
-                                    </span>
-                                  </Button>
-                                </motion.div>
-                              </div>
-                            ) : asset.status === "AVAILABLE" ? (
+                            {asset.status === "AVAILABLE" ? (
                               <div className="grid grid-cols-1 gap-2.5">
                                 {/* 0 — Request Loan */}
                                 {role === "Custodian" && pendingRequest && requestPendingTile}
@@ -649,82 +626,6 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       transition={{ duration: 0.2 }}
                     >
                       <LoanForm asset={asset} onBack={goBack} onClose={resetAndClose} />
-                    </motion.div>
-                  )}
-
-                  {view === "custodianHistory" && (
-                    <motion.div
-                      key="custodianHistory"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between border-b pb-3">
-                          <div>
-                            <h3 className="text-sm font-extrabold text-[#005A36] uppercase tracking-wider flex items-center gap-1.5 font-sans">
-                              <History size={16} /> Asset History
-                            </h3>
-                            <p className="text-xs text-muted-foreground mt-0.5 font-sans">
-                              Every loan, inspection, maintenance, and retirement step of this asset, oldest first.
-                            </p>
-                          </div>
-                          <Button variant="outline" size="sm" onClick={goBack} className="text-xs font-bold gap-1 cursor-pointer">
-                            <ArrowLeft size={13} /> Back
-                          </Button>
-                        </div>
-
-                        {loadingHistory ? (
-                          <div className="py-8 text-center text-xs text-muted-foreground animate-pulse font-mono">
-                            Loading the history…
-                          </div>
-                        ) : historyError ? (
-                          <div className="p-3 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded-lg">
-                            {historyError}
-                          </div>
-                        ) : historyEvents.length === 0 ? (
-                          <div className="py-8 text-center text-xs text-muted-foreground font-mono">
-                            Nothing recorded for this asset yet.
-                          </div>
-                        ) : (
-                          <div className="relative pl-6 space-y-4 pt-1 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                            {historyEvents.map((entry, idx) => (
-                              <div key={idx} className="relative bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
-                                <div className={cn(
-                                  "absolute -left-6 top-3.5 w-3 h-3 rounded-full border-2 border-white flex-shrink-0",
-                                  idx === historyEvents.length - 1 ? "bg-emerald-600 ring-2 ring-emerald-100" : "bg-slate-400"
-                                )} />
-
-                                <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
-                                  <span className="font-bold text-slate-800 text-sm">{entry.label}</span>
-                                  <span className="text-[10px] font-mono text-slate-500">
-                                    {new Date(entry.at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                  </span>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 font-sans">
-                                  <div className="col-span-2">
-                                    <span className="text-slate-400 font-semibold block text-[9px] uppercase">By:</span>
-                                    <span className="font-semibold text-slate-700">{entry.actor ? actorLabel(entry.actor) : "Not recorded"}</span>
-                                  </div>
-                                  {entry.details && (
-                                    <div className="col-span-2 bg-white p-2 rounded-lg border border-slate-100 italic text-[11px] text-slate-600">
-                                      "{entry.details}"
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="pt-2 flex justify-end">
-                          <Button variant="outline" size="sm" onClick={goBack} className="text-xs font-bold cursor-pointer">
-                            Close History
-                          </Button>
-                        </div>
-                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
