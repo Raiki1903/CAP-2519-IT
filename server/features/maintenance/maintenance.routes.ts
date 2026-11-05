@@ -18,4 +18,7 @@ export const maintenanceRouter = express.Router();
 maintenanceRouter.post('/api/assets/:assetTag/maintenance', requireAuth, requireActive, requireAnyRole('RESEARCHER', 'LAB_HEAD', 'TSG_STAFF'), maintenanceController.reportIssue);
 maintenanceRouter.get('/api/maintenance', requireAuth, requireActive, requireAnyRole('TSG_STAFF', 'ADRIC_DIRECTOR', 'ADRIC_SECRETARY', 'LAB_HEAD', 'RESEARCHER'), maintenanceController.listTickets);
 maintenanceRouter.put('/api/maintenance/:maintenanceId/receive', requireAuth, requireActive, requireTsg, maintenanceController.receive);
+maintenanceRouter.put('/api/maintenance/:maintenanceId/start', requireAuth, requireActive, requireTsg, maintenanceController.start);
+maintenanceRouter.put('/api/maintenance/:maintenanceId/stage', requireAuth, requireActive, requireTsg, maintenanceController.changeStage);
+maintenanceRouter.put('/api/maintenance/:maintenanceId/complete', requireAuth, requireActive, requireTsg, maintenanceController.complete);
 maintenanceRouter.put('/api/maintenance/:maintenanceId/cancel', requireAuth, requireActive, requireAnyRole('RESEARCHER', 'LAB_HEAD', 'TSG_STAFF'), maintenanceController.cancel);

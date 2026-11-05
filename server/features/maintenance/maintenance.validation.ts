@@ -70,6 +70,60 @@ export function readCancelBody(body: unknown): string | null {
     return readText(bodyOf(body), "remarks", LONG_TEXT_MAX) ?? null;
 }
 
+/** A stage of the work after TSG's inspection. */
+export type WorkStage = "REPAIRING" | "EXTERNAL_SERVICE";
+
+/** How a ticket ends when the work is done. */
+export type MaintenanceOutcome = "RESOLVED" | "BEYOND_REPAIR";
+
+/** A start or stage change, as read from the body. Whether the provider and the override reason are needed is the service's check. */
+export interface StageBody {
+    stage: WorkStage;
+    provider: string | null;
+    warrantyOverrideReason: string | null;
+}
+
+/**
+ * Reads a start or stage change body: the stage, and the provider and the warranty override reason when sent.
+ *
+ * @param body the request body, `{ stage, provider?, warrantyOverrideReason? }`
+ * @throws AppError 400 if the stage is not Repairing or External Service, or a text is too long
+ */
+export function readStageBody(body: unknown): StageBody {
+    const data = bodyOf(body);
+    if (data.stage !== "REPAIRING" && data.stage !== "EXTERNAL_SERVICE") {
+        throw new AppError(400, "Pick the stage: REPAIRING or EXTERNAL_SERVICE.");
+    }
+    return {
+        stage: data.stage,
+        provider: readText(data, "provider", 255) ?? null,
+        warrantyOverrideReason: readText(data, "warrantyOverrideReason", LONG_TEXT_MAX) ?? null,
+    };
+}
+
+/** A completion, as read from the body. */
+export interface CompleteBody {
+    outcome: MaintenanceOutcome;
+    resolutionRemarks: string;
+    inspection: InspectionInput;
+}
+
+/**
+ * Reads a complete body: the outcome, the resolution remarks, and the Maintenance inspection after the work.
+ *
+ * @param body the request body, `{ outcome, resolutionRemarks, inspection }`
+ * @throws AppError 400 if the outcome is not Resolved or Beyond Repair, the remarks are missing, or the inspection is missing or wrong
+ */
+export function readCompleteBody(body: unknown): CompleteBody {
+    const data = bodyOf(body);
+    if (data.outcome !== "RESOLVED" && data.outcome !== "BEYOND_REPAIR") {
+        throw new AppError(400, "Pick the outcome: RESOLVED or BEYOND_REPAIR.");
+    }
+    const resolutionRemarks = readText(data, "resolutionRemarks", LONG_TEXT_MAX);
+    if (!resolutionRemarks) throw new AppError(400, "Write the resolution remarks.");
+    return { outcome: data.outcome, resolutionRemarks, inspection: readInspectionInput(data.inspection, "inspection") };
+}
+
 /**
  * Reads a filter of the ticket list: one or more values separated by commas, each one of the allowed values.
  *

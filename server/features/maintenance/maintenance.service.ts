@@ -1,20 +1,20 @@
 /**
- * Maintenance service: the business rules for reporting an issue, TSG's receipt, cancelling a ticket, and the ticket
- * lists, and the one builder of the Maintenance shape.
+ * Maintenance service: the business rules for reporting an issue, TSG's receipt, start, stage change and completion
+ * (with the warranty rule), cancelling a ticket, and the ticket lists, and the one builder of the Maintenance shape.
  * Layer: service. Called by maintenance.controller.ts and features/loans/loans.service.ts (the Return Damage ticket in a
  * receive answer). Calls maintenance.repository.ts, features/assets/assets.repository.ts, shared/services/lifecycleGuard.ts,
  * shared/services/assetState.ts (holder and today's date), shared/services/inspectionShape.ts, and, inside the step's
  * transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts.
- * Used by: a holder's, a Lab Head's or TSG's issue report, TSG receipt, cancelling, and every role's ticket list.
+ * Used by: a holder's, a Lab Head's or TSG's issue report, TSG's maintenance steps, cancelling, and every role's ticket list.
  */
 import { asset_loans_status, asset_maintenance_status, type Prisma } from '@prisma/client';
 import type { InspectionInput } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
 import type { Maintenance, MaintenanceReportBody, RepairListItem } from '@shared/types/maintenance';
-import { MAINTENANCE_STATUS_LABELS, MAINTENANCE_TYPE_LABELS } from '@shared/constants/maintenanceStatuses';
+import { MAINTENANCE_STATUS_LABELS, MAINTENANCE_TYPE_LABELS, RECEIVED_MAINTENANCE_STATUSES } from '@shared/constants/maintenanceStatuses';
 import * as maintenanceRepository from './maintenance.repository';
 import type { TicketRow, TicketRows } from './maintenance.repository';
-import type { MaintenanceListFilters } from './maintenance.validation';
+import type { CompleteBody, MaintenanceListFilters, StageBody } from './maintenance.validation';
 import { PICK_ISSUE_TYPE_MESSAGE } from './maintenance.validation';
 import * as assetsRepository from '../assets/assets.repository';
 import { AppError } from '../../shared/errors/AppError';
@@ -252,6 +252,123 @@ export async function receive(maintenanceId: number, inspection: InspectionInput
         await setAssetStatus(tx, ticket.asset_id, "MAINTENANCE");
     });
     return maintenanceById(maintenanceId, receiver);
+}
+
+/** The 400 message when TSG would repair an asset under warranty without saying why. (CAP1DEF 5) */
+export const UNDER_WARRANTY_MESSAGE = "This asset is under warranty. Send it to the warranty holder, or write why TSG repairs it.";
+
+/** The 400 message when the work goes to External Service with nobody named. */
+export const NAME_PROVIDER_MESSAGE = "Name the provider: the warranty holder or the repair shop.";
+
+/**
+ * The ticket fields a move to a stage writes, after the warranty and provider rules: External Service needs a provider;
+ * Repairing an asset under warranty needs a warranty override reason, sent now or stored before.
+ *
+ * @param ticket the ticket as it is now
+ * @param warrantyExpiry the asset's warranty expiry
+ * @param body the stage, provider, and override reason sent
+ * @throws AppError 400 NAME_PROVIDER_MESSAGE or UNDER_WARRANTY_MESSAGE
+ */
+function stageData(
+    ticket: { received_at: Date | null; warranty_override_reason: string | null },
+    warrantyExpiry: Date | null,
+    body: StageBody,
+): Prisma.asset_maintenanceUncheckedUpdateInput {
+    if (body.stage === "EXTERNAL_SERVICE") {
+        if (!body.provider) throw new AppError(400, NAME_PROVIDER_MESSAGE);
+        return { status: body.stage, provider: body.provider };
+    }
+    const overrideReason = body.warrantyOverrideReason ?? ticket.warranty_override_reason;
+    if (isUnderWarranty(warrantyExpiry, ticket.received_at) && !overrideReason) throw new AppError(400, UNDER_WARRANTY_MESSAGE);
+    return { status: body.stage, ...(body.warrantyOverrideReason ? { warranty_override_reason: body.warrantyOverrideReason } : {}) };
+}
+
+/**
+ * TSG starts the work after its inspection: Repairing (TSG repairs it) or External Service (the warranty holder or a
+ * repair shop has it). An asset under warranty goes to External Service unless TSG writes why it repairs it itself;
+ * the reason and the provider are kept on the ticket. The asset stays in Maintenance.
+ *
+ * @param maintenanceId the ticket
+ * @param body the checked stage, provider, and warranty override reason
+ * @param actor the session user, TSG (the route checks it)
+ * @returns the ticket, Repairing or External Service
+ * @throws AppError 404 if no ticket has this id
+ * @throws AppError 400 UNDER_WARRANTY_MESSAGE or NAME_PROVIDER_MESSAGE
+ * @throws AppError 409 if the ticket is not Inspecting, or the asset is not in Maintenance
+ */
+export async function start(maintenanceId: number, body: StageBody, actor: SessionIdentity): Promise<Maintenance> {
+    const ticket = await existingTicket(maintenanceId);
+
+    await maintenanceRepository.withAssetLock(ticket.asset_id, async (tx) => {
+        const current = await maintenanceRepository.findTicketIn(tx, maintenanceId);
+        if (current.status !== asset_maintenance_status.INSPECTING) throw wrongStatus(current, "started");
+        const asset = await maintenanceRepository.findAssetIn(tx, ticket.asset_id);
+        assertActionAllowed(asset, "WORK_ON_MAINTENANCE");
+        await maintenanceRepository.updateTicket(tx, maintenanceId, stageData(current, asset.warranty_expiry, body));
+    });
+    return maintenanceById(maintenanceId, actor);
+}
+
+/**
+ * TSG moves the work between Repairing and External Service, either way, with the same warranty and provider rules as
+ * the start. A warranty override reason stored at the start still counts.
+ *
+ * @param maintenanceId the ticket
+ * @param body the checked stage, provider, and warranty override reason
+ * @param actor the session user, TSG (the route checks it)
+ * @returns the ticket in its new stage
+ * @throws AppError 404 if no ticket has this id
+ * @throws AppError 400 UNDER_WARRANTY_MESSAGE or NAME_PROVIDER_MESSAGE
+ * @throws AppError 409 if the ticket is not Repairing or External Service, is already in that stage, or the asset is not in Maintenance
+ */
+export async function changeStage(maintenanceId: number, body: StageBody, actor: SessionIdentity): Promise<Maintenance> {
+    const ticket = await existingTicket(maintenanceId);
+
+    await maintenanceRepository.withAssetLock(ticket.asset_id, async (tx) => {
+        const current = await maintenanceRepository.findTicketIn(tx, maintenanceId);
+        if (current.status !== asset_maintenance_status.REPAIRING && current.status !== asset_maintenance_status.EXTERNAL_SERVICE) {
+            throw wrongStatus(current, "moved to another stage");
+        }
+        if (current.status === body.stage) throw new AppError(409, `MNT-${maintenanceId} is already ${MAINTENANCE_STATUS_LABELS[body.stage]}.`);
+        const asset = await maintenanceRepository.findAssetIn(tx, ticket.asset_id);
+        assertActionAllowed(asset, "WORK_ON_MAINTENANCE");
+        await maintenanceRepository.updateTicket(tx, maintenanceId, stageData(current, asset.warranty_expiry, body));
+    });
+    return maintenanceById(maintenanceId, actor);
+}
+
+/**
+ * TSG completes the work, in one transaction: a Maintenance inspection by the session user, and the ticket closed as
+ * Resolved or Beyond Repair with who completed it, when, the remarks, and the inspection. Resolved puts the asset back
+ * to Available, at its home lab and room. Beyond Repair leaves it in Maintenance: the next step is a retirement request.
+ *
+ * @param maintenanceId the ticket
+ * @param body the checked outcome, remarks, and inspection
+ * @param actor the session user, TSG (the route checks it)
+ * @returns the ticket, Resolved or Beyond Repair
+ * @throws AppError 404 if no ticket has this id
+ * @throws AppError 400 if a metric does not apply to the asset; nothing is written
+ * @throws AppError 409 if the ticket is not Inspecting, Repairing or External Service, or the asset is not in Maintenance
+ */
+export async function complete(maintenanceId: number, body: CompleteBody, actor: SessionIdentity): Promise<Maintenance> {
+    const ticket = await existingTicket(maintenanceId);
+
+    await maintenanceRepository.withAssetLock(ticket.asset_id, async (tx) => {
+        const current = await maintenanceRepository.findTicketIn(tx, maintenanceId);
+        if (!(RECEIVED_MAINTENANCE_STATUSES as readonly string[]).includes(current.status)) throw wrongStatus(current, "completed");
+        assertActionAllowed(await maintenanceRepository.findAssetIn(tx, ticket.asset_id), "WORK_ON_MAINTENANCE");
+
+        const row = await writeInspection(tx, { assetId: ticket.asset_id, type: "MAINTENANCE", input: body.inspection, inspectorId: actor.userId });
+        await maintenanceRepository.updateTicket(tx, maintenanceId, {
+            status: body.outcome,
+            completed_by_id: actor.userId,
+            completed_at: new Date(),
+            resolution_remarks: body.resolutionRemarks,
+            completion_inspection_id: row.inspection_id,
+        });
+        if (body.outcome === "RESOLVED") await setAssetStatus(tx, ticket.asset_id, "AVAILABLE");
+    });
+    return maintenanceById(maintenanceId, actor);
 }
 
 /**

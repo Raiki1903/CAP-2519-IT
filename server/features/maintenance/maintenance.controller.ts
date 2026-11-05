@@ -8,7 +8,7 @@
  */
 import type { Request, Response } from 'express';
 import * as maintenanceService from './maintenance.service';
-import { readCancelBody, readListFilters, readMaintenanceId, readReceiveBody, readReportBody } from './maintenance.validation';
+import { readCancelBody, readCompleteBody, readListFilters, readMaintenanceId, readReceiveBody, readReportBody, readStageBody } from './maintenance.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
@@ -47,6 +47,48 @@ export async function receive(req: Request<{ maintenanceId: string }>, res: Resp
     const maintenance = await maintenanceService.receive(maintenanceId, inspection, receiver);
 
     console.log(`Maintenance ${maintenanceId} received by user ${receiver.userId}`);
+    res.json({ success: true, maintenance });
+}
+
+/**
+ * Handles PUT /api/maintenance/:maintenanceId/start: TSG starts the work, Repairing or External Service.
+ * Answers `{ success, maintenance }`, or the AppError's status and message (400 the warranty or provider rule, 404, 409).
+ */
+export async function start(req: Request<{ maintenanceId: string }>, res: Response): Promise<void> {
+    const maintenanceId = readMaintenanceId(req.params.maintenanceId);
+    const body = readStageBody(req.body);
+    const actor = sessionUserOf(req);
+    const maintenance = await maintenanceService.start(maintenanceId, body, actor);
+
+    console.log(`Maintenance ${maintenanceId} started as ${body.stage} by user ${actor.userId}`);
+    res.json({ success: true, maintenance });
+}
+
+/**
+ * Handles PUT /api/maintenance/:maintenanceId/stage: TSG moves the work between Repairing and External Service.
+ * Answers `{ success, maintenance }`, or the AppError's status and message (400, 404, 409).
+ */
+export async function changeStage(req: Request<{ maintenanceId: string }>, res: Response): Promise<void> {
+    const maintenanceId = readMaintenanceId(req.params.maintenanceId);
+    const body = readStageBody(req.body);
+    const actor = sessionUserOf(req);
+    const maintenance = await maintenanceService.changeStage(maintenanceId, body, actor);
+
+    console.log(`Maintenance ${maintenanceId} moved to ${body.stage} by user ${actor.userId}`);
+    res.json({ success: true, maintenance });
+}
+
+/**
+ * Handles PUT /api/maintenance/:maintenanceId/complete: TSG completes the work, Resolved or Beyond Repair, with a
+ * Maintenance inspection. Answers `{ success, maintenance }`, or the AppError's status and message (400, 404, 409).
+ */
+export async function complete(req: Request<{ maintenanceId: string }>, res: Response): Promise<void> {
+    const maintenanceId = readMaintenanceId(req.params.maintenanceId);
+    const body = readCompleteBody(req.body);
+    const actor = sessionUserOf(req);
+    const maintenance = await maintenanceService.complete(maintenanceId, body, actor);
+
+    console.log(`Maintenance ${maintenanceId} completed as ${body.outcome} by user ${actor.userId}`);
     res.json({ success: true, maintenance });
 }
 

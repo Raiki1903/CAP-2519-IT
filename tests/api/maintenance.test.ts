@@ -1,9 +1,11 @@
 /**
- * Maintenance API: reporting an issue, TSG's receipt, cancelling, and the ticket list.
- * Covers POST /api/assets/:tag/maintenance, GET /api/maintenance, PUT /api/maintenance/:id/receive and /cancel, and that
- * the old PUT /api/maintenance/:id and /:id/status are gone.
+ * Maintenance API: reporting an issue, TSG's receipt, start, stage change and completion, cancelling, and the ticket list.
+ * Covers POST /api/assets/:tag/maintenance, GET /api/maintenance, PUT /api/maintenance/:id/receive, /start, /stage,
+ * /complete and /cancel, and that the old PUT /api/maintenance/:id and /:id/status are gone.
  * Workflow: maintenance (the holder, the home lab's Head, or TSG reports an issue with an issue type; the asset stays
- * where it is until TSG receives it with a Maintenance inspection, which ends a held loan; the reporter or TSG cancels).
+ * where it is until TSG receives it with a Maintenance inspection, which ends a held loan; TSG repairs it or sends it to
+ * External Service, an asset under warranty only with a reason; TSG completes it Resolved or Beyond Repair; the reporter
+ * or TSG cancels).
  * Fixtures: the seeded ticket MNT-1 (Inspecting, reported by Custodian A, received by Staff TSG) on TEST-0003, in
  * Maintenance, under warranty until 2027-06-01; the issue types in LOOKUPS; LAB, headed by the Lab Head. The list tests
  * run first. Every write test uses its own extra asset (TEST-0401 onward, see extraAssets.ts).
@@ -399,6 +401,180 @@ describe("PUT /api/maintenance/:id/cancel", () => {
       details: "Test: reported by mistake",
     });
     expect(res.body.events.map((e: { kind: string }) => e.kind)).not.toContain("MAINTENANCE_COMPLETED");
+  });
+});
+
+/**
+ * An asset with a ticket TSG reported and received (Inspecting), under warranty until a year from now when `warranty`
+ * is true, else with no warranty.
+ */
+async function receivedTicket(tag: string, warranty: boolean) {
+  const asset = await addExtraAsset(db, { tag, warrantyExpiry: warranty ? new Date(Date.now() + 365 * 86400000) : undefined });
+  const filed = await asStaff.post(`/api/assets/${tag}/maintenance`, reportBody(`Test fault on ${tag}`));
+  const maintenanceId = filed.body.maintenance.maintenanceId as number;
+  expect((await asStaff.put(`/api/maintenance/${maintenanceId}/receive`, receiveBody())).status).toBe(200);
+  return { asset, maintenanceId };
+}
+
+const UNDER_WARRANTY = "This asset is under warranty. Send it to the warranty holder, or write why TSG repairs it.";
+const NAME_PROVIDER = "Name the provider: the warranty holder or the repair shop.";
+const completeBody = (outcome: string, extra: Record<string, unknown> = {}) => ({
+  outcome,
+  resolutionRemarks: "Test: replaced the fan",
+  inspection: { condition: "OPERATIONAL", remarks: "Test: runs cool" },
+  ...extra,
+});
+
+describe("PUT /api/maintenance/:id/start and /stage: the warranty rule (CAP1DEF 5)", () => {
+  it("refuses Repairing on an asset under warranty without a reason (400), and keeps the reason when one is written", async () => {
+    const { maintenanceId } = await receivedTicket("TEST-0461", true);
+    expect((await asStaff.get(`/api/maintenance?status=INSPECTING`)).body.tickets.find((t: { maintenanceId: number }) => t.maintenanceId === maintenanceId).underWarranty).toBe(true);
+
+    const refused = await asStaff.put(`/api/maintenance/${maintenanceId}/start`, { stage: "REPAIRING" });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toBe(UNDER_WARRANTY);
+    expect((await ticketRow(maintenanceId)).status).toBe("INSPECTING");
+
+    const res = await asStaff.put(`/api/maintenance/${maintenanceId}/start`, { stage: "REPAIRING", warrantyOverrideReason: "Test: the seller closed" });
+    expect(res.status).toBe(200);
+    expect(res.body.maintenance).toMatchObject({ status: "REPAIRING", statusLabel: "Repairing", underWarranty: true, warrantyOverrideReason: "Test: the seller closed" });
+  });
+
+  it("sends a warranty asset to External Service with a provider, and needs the provider (400)", async () => {
+    const { asset, maintenanceId } = await receivedTicket("TEST-0462", true);
+
+    const none = await asStaff.put(`/api/maintenance/${maintenanceId}/start`, { stage: "EXTERNAL_SERVICE" });
+    expect(none.status).toBe(400);
+    expect(none.body.error).toBe(NAME_PROVIDER);
+
+    const res = await asStaff.put(`/api/maintenance/${maintenanceId}/start`, { stage: "EXTERNAL_SERVICE", provider: "Test Seller Inc." });
+    expect(res.status).toBe(200);
+    expect(res.body.maintenance).toMatchObject({ status: "EXTERNAL_SERVICE", provider: "Test Seller Inc." });
+    expect(await assetStatus(asset.assetId)).toBe("MAINTENANCE");
+  });
+
+  it("lets TSG repair an asset with no warranty without a reason", async () => {
+    const { maintenanceId } = await receivedTicket("TEST-0463", false);
+
+    const res = await asStaff.put(`/api/maintenance/${maintenanceId}/start`, { stage: "REPAIRING" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.maintenance).toMatchObject({ status: "REPAIRING", underWarranty: false, warrantyOverrideReason: null });
+  });
+
+  it("answers 409 to a start on a ticket that is not Inspecting, and 400 to an unknown stage", async () => {
+    const { maintenanceId } = await reportedOnLoan("TEST-0464");
+
+    const pending = await asStaff.put(`/api/maintenance/${maintenanceId}/start`, { stage: "REPAIRING" });
+    expect(pending.status).toBe(409);
+    expect(pending.body.error).toBe(`MNT-${maintenanceId} is Pending Receipt, so it cannot be started.`);
+    const stage = await asStaff.put(`/api/maintenance/${SEEDED_ROWS.repairId}/start`, { stage: "FIXED" });
+    expect(stage.status).toBe(400);
+    expect(stage.body.error).toBe("Pick the stage: REPAIRING or EXTERNAL_SERVICE.");
+  });
+
+  it("moves Repairing to External Service with a provider, and back to Repairing on the stored warranty reason", async () => {
+    const { maintenanceId } = await receivedTicket("TEST-0465", true);
+    await asStaff.put(`/api/maintenance/${maintenanceId}/start`, { stage: "REPAIRING", warrantyOverrideReason: "Test: urgent" });
+
+    const noProvider = await asStaff.put(`/api/maintenance/${maintenanceId}/stage`, { stage: "EXTERNAL_SERVICE" });
+    expect(noProvider.status).toBe(400);
+    expect(noProvider.body.error).toBe(NAME_PROVIDER);
+    const out = await asStaff.put(`/api/maintenance/${maintenanceId}/stage`, { stage: "EXTERNAL_SERVICE", provider: "Test Repair Shop" });
+    expect(out.status).toBe(200);
+    expect(out.body.maintenance).toMatchObject({ status: "EXTERNAL_SERVICE", provider: "Test Repair Shop" });
+
+    const back = await asStaff.put(`/api/maintenance/${maintenanceId}/stage`, { stage: "REPAIRING" });
+    expect(back.status).toBe(200);
+    expect(back.body.maintenance.status).toBe("REPAIRING");
+  });
+
+  it("refuses a move back to Repairing on a warranty asset with no stored reason (400)", async () => {
+    const { maintenanceId } = await receivedTicket("TEST-0466", true);
+    await asStaff.put(`/api/maintenance/${maintenanceId}/start`, { stage: "EXTERNAL_SERVICE", provider: "Test Seller Inc." });
+
+    const res = await asStaff.put(`/api/maintenance/${maintenanceId}/stage`, { stage: "REPAIRING" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(UNDER_WARRANTY);
+    expect((await ticketRow(maintenanceId)).status).toBe("EXTERNAL_SERVICE");
+  });
+
+  it("answers 409 to a stage change from Inspecting, or to the stage the ticket is already in", async () => {
+    const { maintenanceId } = await receivedTicket("TEST-0467", false);
+
+    const inspecting = await asStaff.put(`/api/maintenance/${maintenanceId}/stage`, { stage: "REPAIRING" });
+    expect(inspecting.status).toBe(409);
+    expect(inspecting.body.error).toBe(`MNT-${maintenanceId} is Inspecting, so it cannot be moved to another stage.`);
+
+    await asStaff.put(`/api/maintenance/${maintenanceId}/start`, { stage: "REPAIRING" });
+    const same = await asStaff.put(`/api/maintenance/${maintenanceId}/stage`, { stage: "REPAIRING" });
+    expect(same.status).toBe(409);
+    expect(same.body.error).toBe(`MNT-${maintenanceId} is already Repairing.`);
+  });
+});
+
+describe("PUT /api/maintenance/:id/complete", () => {
+  it("Resolved: files the completion inspection, closes the ticket, and puts the asset back to Available at home", async () => {
+    const { asset, maintenanceId } = await receivedTicket("TEST-0481", false);
+    await asStaff.put(`/api/maintenance/${maintenanceId}/start`, { stage: "REPAIRING" });
+
+    const res = await asStaff.put(`/api/maintenance/${maintenanceId}/complete`, completeBody("RESOLVED"));
+
+    expect(res.status).toBe(200);
+    expect(res.body.maintenance).toMatchObject({
+      status: "RESOLVED",
+      statusLabel: "Resolved",
+      completedBy: { userId: USERS.staffTsg.userId },
+      resolutionRemarks: "Test: replaced the fan",
+      completionInspection: { type: "MAINTENANCE", condition: "OPERATIONAL", remarks: "Test: runs cool" },
+    });
+    expect((await ticketRow(maintenanceId)).completion_inspection_id).toBe(res.body.maintenance.completionInspection.inspectionId);
+    expect(await assetStatus(asset.assetId)).toBe("AVAILABLE");
+    expect(await listedAsset(asset.tag)).toMatchObject({ currentLocation: LAB.shortCode, condition: "OPERATIONAL" });
+
+    const history = await asStaff.get(`/api/assets/${asset.tag}/history`);
+    expect(history.body.events.find((e: { kind: string }) => e.kind === "MAINTENANCE_COMPLETED")).toMatchObject({ label: "Maintenance completed (Resolved) by", actor: { userId: USERS.staffTsg.userId } });
+  });
+
+  it("Beyond Repair: closes the ticket straight from Inspecting and keeps the asset in Maintenance", async () => {
+    const { asset, maintenanceId } = await receivedTicket("TEST-0482", false);
+
+    const res = await asStaff.put(`/api/maintenance/${maintenanceId}/complete`, completeBody("BEYOND_REPAIR", { inspection: { condition: "CRITICAL_DEFECT" } }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.maintenance.status).toBe("BEYOND_REPAIR");
+    expect(await assetStatus(asset.assetId)).toBe("MAINTENANCE");
+    expect(await listedAsset(asset.tag)).toMatchObject({ currentLocation: "TSG Office", condition: "CRITICAL_DEFECT" });
+  });
+
+  it.each([
+    { body: completeBody("RESOLVED", { inspection: undefined }), error: "Missing required field: inspection.", case: "no inspection" },
+    { body: completeBody("RESOLVED", { resolutionRemarks: " " }), error: "Write the resolution remarks.", case: "no remarks" },
+    { body: completeBody("FIXED"), error: "Pick the outcome: RESOLVED or BEYOND_REPAIR.", case: "an unknown outcome" },
+  ])("answers 400 for $case, and writes nothing", async ({ body, error }) => {
+    const before = await db.asset_inspections.count();
+
+    const res = await asStaff.put(`/api/maintenance/${SEEDED_ROWS.repairId}/complete`, body);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(error);
+    expect(await db.asset_inspections.count()).toBe(before);
+    expect((await ticketRow(SEEDED_ROWS.repairId)).status).toBe("INSPECTING");
+  });
+
+  it("answers 409 to a ticket that is Pending Receipt or already completed", async () => {
+    const { maintenanceId: pending } = await reportedOnLoan("TEST-0483");
+    const { maintenanceId: done } = await receivedTicket("TEST-0484", false);
+    await asStaff.put(`/api/maintenance/${done}/complete`, completeBody("RESOLVED"));
+
+    const first = await asStaff.put(`/api/maintenance/${pending}/complete`, completeBody("RESOLVED"));
+    const second = await asStaff.put(`/api/maintenance/${done}/complete`, completeBody("RESOLVED"));
+
+    expect(first.status).toBe(409);
+    expect(first.body.error).toBe(`MNT-${pending} is Pending Receipt, so it cannot be completed.`);
+    expect(second.status).toBe(409);
+    expect(second.body.error).toBe(`MNT-${done} is Resolved, so it cannot be completed.`);
   });
 });
 
