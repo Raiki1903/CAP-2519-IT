@@ -1,9 +1,10 @@
 /**
  * The Inspection shape: the people a step names, as the viewer may see them, and an inspection row in the contract's
  * Inspection shape with its metrics flagged against the asset's first recorded values.
- * Layer: shared service. Called by the repositories and services of features/loans and features/maintenance. Calls Prisma
- * through the client it is given and @shared (labels and flag rules).
- * Used by: every answer that carries an inspection (loan release and return, maintenance receipt and completion).
+ * Layer: shared service. Called by the repositories and services of features/loans, maintenance, retirements, and inspections.
+ * Calls Prisma through the client it is given and @shared (labels and flag rules).
+ * Used by: every answer that carries an inspection (loan release and return, maintenance receipt and completion, the
+ * disposal assessment, inspection filing).
  */
 import type { Prisma } from '@prisma/client';
 import type { Inspection } from '@shared/types/inspections';

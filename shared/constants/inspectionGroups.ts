@@ -1,8 +1,18 @@
 /**
- * The inspection lab groups (Group A to D) TSG works through, and the "Other" group for any lab not in one of them.
- * Layer: shared. Imported by web/ (the Inspection Queue). Imports nothing.
+ * The inspection lab groups (Group A to D) TSG works through, the "Other" group for any lab not in one of them, and the
+ * routine inspection periods.
+ * Layer: shared. Imported by server/features/inspections/ (the routine queue) and web/ (the Inspection Queue). Imports nothing.
  * Used by: Staff inspections. A group is how TSG splits the rounds, not a campus: a lab's campus comes from its research center.
  */
+
+/** An Available asset is due for a routine inspection when TSG last inspected it more than this many days ago. */
+export const DEFAULT_ROUTINE_PERIOD_DAYS = 90;
+
+/** The inspection periods the queue offers, in days (the manuscript's "selected inspection periods"). */
+export const ROUTINE_PERIOD_OPTIONS: readonly number[] = [30, 90, 180];
+
+/** The longest period the routine queue accepts, in days. */
+export const MAX_ROUTINE_PERIOD_DAYS = 3650;
 
 /** One inspection group: the short codes of the labs whose assets are inspected together. */
 export interface InspectionLabGroup {

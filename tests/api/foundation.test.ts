@@ -19,7 +19,7 @@ const { db } = useApiHarness();
 /** The guard table of docs/contracts/lifecycle.md, section 3: the actions each status allows, nothing else. */
 const EXPECTED: Record<string, LifecycleAction[]> = {
   AVAILABLE: ["REQUEST_LOAN", "APPROVE_LOAN", "RELEASE_LOAN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "REQUEST_RETIREMENT", "MARK_MISSING", "EDIT_MASTER_DATA", "ROUTINE_INSPECTION"],
-  ON_LOAN: ["REQUEST_RETURN", "RECEIVE_RETURN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "MARK_MISSING", "EDIT_MASTER_DATA"],
+  ON_LOAN: ["REQUEST_RETURN", "RECEIVE_RETURN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "MARK_MISSING", "EDIT_MASTER_DATA", "SELF_REPORT_INSPECTION"],
   MAINTENANCE: ["WORK_ON_MAINTENANCE", "REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
   PENDING_RETIREMENT: ["DECIDE_RETIREMENT", "COMPLETE_RETIREMENT"],
   RETIRED: [],
@@ -33,9 +33,9 @@ describe("the lifecycle guard", () => {
     }
   });
 
-  it("covers the six statuses and the fifteen actions", () => {
+  it("covers the six statuses and the sixteen actions", () => {
     expect(Object.keys(ALLOWED_ACTIONS).sort()).toEqual(Object.keys(EXPECTED).sort());
-    expect(LIFECYCLE_ACTIONS).toHaveLength(15);
+    expect(LIFECYCLE_ACTIONS).toHaveLength(16);
   });
 
   it("refuses a second loan while a loan waits, and says which loan; a waiting loan blocks no retirement request or ticket (Batch 5, 3.7)", () => {

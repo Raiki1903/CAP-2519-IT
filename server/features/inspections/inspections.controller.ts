@@ -2,31 +2,41 @@
  * Inspection controller: unpacks inspection requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by inspections.routes.ts. Calls inspections.validation.ts, inspections.service.ts, and shared/middleware/requireAuth.ts
  * (sessionUserOf: who is acting).
- * Used by: Custodian condition report, Staff inspection finalize, the Staff inspection log, and state/serverData.tsx.
+ * Used by: Custodian condition report, Staff inspection finalize and the routine queue, the Staff inspection log, and
+ * state/serverData.tsx.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts,
  * which writes the answer (the AppError's status and message, or a generic 500 with the detail logged on the server).
  */
 import type { Request, Response } from 'express';
 import * as inspectionsService from './inspections.service';
-import { checkInspectionReport } from './inspections.validation';
+import { readFilingBody, readRoutineQueueQuery } from './inspections.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles POST /api/assets/:assetTag/inspection: saves a condition report to asset_inspections and
- * writes its condition onto the asset.
- * Answers `{ success, report }` with the new row, or the AppError's status and message
- * (400 missing or unknown condition, 404 unknown asset, 409 a disposed asset), or 500.
+ * Handles POST /api/assets/:assetTag/inspection: TSG files a Routine inspection, the holder a Self Report, in either
+ * body (readFilingBody).
+ * Answers `{ success, inspection, report }`: the Inspection shape and the new row today's screens read, or the
+ * AppError's status and message (400 a missing or wrong value, 403 not the holder, 404 unknown asset, 409 the asset's
+ * status does not allow it), or 500.
  */
 export async function fileReport(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
-    const data = req.body;
+    const input = readFilingBody(req.body);
+    const actor = sessionUserOf(req);
+    const { inspection, report } = await inspectionsService.fileInspection(assetTag, input, actor);
 
-    checkInspectionReport(data);
-    const reporter = sessionUserOf(req);
-    const newReport = await inspectionsService.fileReport(assetTag, data, reporter);
+    console.log(`Inspection ${inspection.inspectionId} on asset ${report.asset_id} filed by user ${actor.userId}`);
+    res.json({ success: true, inspection, report });
+}
 
-    console.log(`Inspection ${newReport.inspection_id} on ${assetTag} filed by user ${reporter.userId}`);
-    res.json({ success: true, report: newReport });
+/**
+ * Handles GET /api/inspections/routine-queue: the Available assets due for a routine inspection, by group, as
+ * `{ success, groups }`. Answers 400 for a wrong `days` or `centerId`, or 500.
+ */
+export async function routineQueue(req: Request, res: Response): Promise<void> {
+    const filters = readRoutineQueueQuery(req.query);
+    const groups = await inspectionsService.routineQueue(filters, sessionUserOf(req));
+    res.json({ success: true, groups });
 }
 
 /**

@@ -25,7 +25,8 @@ export type LifecycleAction =
     | "MARK_MISSING"
     | "MARK_FOUND"
     | "EDIT_MASTER_DATA"
-    | "ROUTINE_INSPECTION";
+    | "ROUTINE_INSPECTION"
+    | "SELF_REPORT_INSPECTION";
 
 /** Every action, for tests and for screens that build a table from it. */
 export const LIFECYCLE_ACTIONS: readonly LifecycleAction[] = [
@@ -44,6 +45,7 @@ export const LIFECYCLE_ACTIONS: readonly LifecycleAction[] = [
     "MARK_FOUND",
     "EDIT_MASTER_DATA",
     "ROUTINE_INSPECTION",
+    "SELF_REPORT_INSPECTION",
 ];
 
 /**
@@ -51,12 +53,13 @@ export const LIFECYCLE_ACTIONS: readonly LifecycleAction[] = [
  * decision and, once approved, the completion; Retired allows nothing; Missing allows found and a retirement request.
  * Approving and releasing a loan need the asset still Available; asking to return it and receiving it need it On Loan.
  * The maintenance steps after receipt (start, stage, complete, cancelling an Inspecting ticket) need it in Maintenance.
+ * TSG's routine inspection needs it Available; the holder's Self Report needs it On Loan.
  * Cancelling or declining a loan checks no asset status, so a loan
  * on an asset that went to maintenance can still be closed.
  */
 export const ALLOWED_ACTIONS: Record<assets_status, readonly LifecycleAction[]> = {
     AVAILABLE: ["REQUEST_LOAN", "APPROVE_LOAN", "RELEASE_LOAN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "REQUEST_RETIREMENT", "MARK_MISSING", "EDIT_MASTER_DATA", "ROUTINE_INSPECTION"],
-    ON_LOAN: ["REQUEST_RETURN", "RECEIVE_RETURN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "MARK_MISSING", "EDIT_MASTER_DATA"],
+    ON_LOAN: ["REQUEST_RETURN", "RECEIVE_RETURN", "START_MAINTENANCE", "RECEIVE_FOR_MAINTENANCE", "MARK_MISSING", "EDIT_MASTER_DATA", "SELF_REPORT_INSPECTION"],
     MAINTENANCE: ["WORK_ON_MAINTENANCE", "REQUEST_RETIREMENT", "EDIT_MASTER_DATA"],
     PENDING_RETIREMENT: ["DECIDE_RETIREMENT", "COMPLETE_RETIREMENT"],
     RETIRED: [],
@@ -80,6 +83,7 @@ const ACTION_WORDS: Record<LifecycleAction, string> = {
     MARK_FOUND: "be marked found",
     EDIT_MASTER_DATA: "be edited",
     ROUTINE_INSPECTION: "take a routine inspection",
+    SELF_REPORT_INSPECTION: "take a self report",
 };
 
 /**

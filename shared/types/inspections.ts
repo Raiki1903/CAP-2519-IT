@@ -1,11 +1,14 @@
 /**
  * Request and response shapes of the inspection endpoints.
- * Layer: shared. Imported by server/features/inspections/ and web/api/inspections.api.ts. Imports nothing.
- * Used by: Custodian condition report, Staff inspection finalize, the Staff inspection log, and the Director audit.
+ * Layer: shared. Imported by server/features/inspections/ and web/api/inspections.api.ts. Imports shared/types/assets.ts.
+ * Used by: Custodian condition report, Staff inspection finalize, the Staff inspection log, the routine queue, and the
+ * Director audit.
  */
+import type { AssetListItem } from './assets';
 
 /**
- * The body of POST /api/assets/:assetTag/inspection. A condition is required, in reportCondition or assetCondition;
+ * Today's body of POST /api/assets/:assetTag/inspection, still read next to the contract's InspectionInput (a body with
+ * `condition`) until the screens move (Batch 5, Q1). A condition is required, in reportCondition or assetCondition;
  * every other field has a fallback.
  * The two senders (CustodianPortal, InspectionQueue) use reportCondition, reportRemarks, and reportImg; the other names
  * are older spellings the server still reads. The reporter is the session user. (issue #32)
@@ -103,4 +106,30 @@ export interface Inspection {
   remarks: string | null;
   photo: string | null;
   metrics: InspectionMetricValue[];
+}
+
+/** The routine queue's query (GET /api/inspections/routine-queue). */
+export interface RoutineQueueFilters {
+  /** An asset is due when TSG last inspected it more than this many days ago. */
+  days: number;
+  /** Only this home lab's assets. */
+  centerId?: number;
+}
+
+/** One asset in the routine queue. */
+export interface RoutineQueueEntry {
+  /** The asset, as the asset list shows it. */
+  asset: AssetListItem;
+  /** When TSG last inspected it (ISO date-time), or null when TSG never did. */
+  lastTsgInspectionAt: string | null;
+}
+
+/** One inspection group of the routine queue, its assets oldest inspection first. */
+export interface RoutineQueueGroup {
+  /** The group's id, "A" to "D", or "Other". */
+  group: string;
+  name: string;
+  /** The lab short codes in the group; for "Other", the codes of the labs its assets belong to. */
+  labs: string[];
+  assets: RoutineQueueEntry[];
 }
