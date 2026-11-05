@@ -8,7 +8,6 @@
  * Used by: Custodian condition report (CustodianPortal), Staff inspection finalize and the routine queue
  * (InspectionQueue), the Staff inspection log, and state/serverData.tsx.
  */
-import type { asset_inspections } from '@prisma/client';
 import type { InspectionInput } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
 import type { Inspection, InspectionReportItem, ReportSummaryItem, RoutineQueueEntry, RoutineQueueFilters, RoutineQueueGroup } from '@shared/types/inspections';
@@ -28,10 +27,10 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 /** The 403 message when someone who is not TSG files an inspection on an asset they do not hold. */
 export const NOT_THE_HOLDER_INSPECTION_MESSAGE = "Only the person who holds this asset can send a self report on it.";
 
-/** What a filing answers: the inspection in the contract's shape, and the row as today's screens read it. */
+/** What a filing answers: the inspection in the contract's shape, and the asset it was filed on. */
 export interface FiledInspection {
     inspection: Inspection;
-    report: asset_inspections;
+    assetId: number;
 }
 
 /**
@@ -43,7 +42,7 @@ export interface FiledInspection {
  * @param assetTag the asset's tag from the URL, or its numeric asset_id
  * @param input the checked inspection
  * @param actor the session user, TSG or a Researcher (the route checks it)
- * @returns the new inspection, in the Inspection shape and as its row
+ * @returns the new inspection, in the Inspection shape, and the asset's id
  * @throws AppError 404 if no asset has this tag (or, for a number, this id)
  * @throws AppError 403 NOT_THE_HOLDER_INSPECTION_MESSAGE for a Researcher who does not hold the asset
  * @throws AppError 400 if a metric does not apply to the asset; nothing is written
@@ -61,7 +60,7 @@ export async function fileInspection(assetTag: string, input: InspectionInput, a
     const assetId = asset.asset_id;
     const byTsg = hasAccessRole(actor, ["TSG_STAFF"]);
 
-    const report = await assetsRepository.withAssetLock(assetId, async (tx) => {
+    const written = await assetsRepository.withAssetLock(assetId, async (tx) => {
         const current = await assetsRepository.findAssetIn(tx, assetId);
         if (byTsg) {
             assertActionAllowed(current, "ROUTINE_INSPECTION");
@@ -74,8 +73,8 @@ export async function fileInspection(assetTag: string, input: InspectionInput, a
         return writeInspection(tx, { assetId, type: byTsg ? "ROUTINE" : "SELF_REPORT", input, inspectorId: actor.userId });
     });
 
-    const { row, baselines } = await inspectionsRepository.findInspectionWithBaselines(report.inspection_id);
-    return { inspection: inspectionOf(row, baselines, actor)!, report };
+    const { row, baselines } = await inspectionsRepository.findInspectionWithBaselines(written.inspection_id);
+    return { inspection: inspectionOf(row, baselines, actor)!, assetId };
 }
 
 /** Oldest TSG inspection first; an asset TSG never inspected comes before all, then by asset id. */

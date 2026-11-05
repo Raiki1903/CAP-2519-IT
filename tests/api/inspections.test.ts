@@ -25,12 +25,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const heldByCustodian = (tag: string, extra: Partial<Parameters<typeof addExtraAsset>[1]> = {}) =>
   addExtraAsset(db, { tag, status: "ON_LOAN", custodianId: USERS.custodianA.userId, ...extra });
 
-/** What InspectionQueue sends: the signed-in reporter's email (not read since 13c), the condition, the remarks, and one image or null. */
+/** What InspectionQueue sends: the condition, the remarks, and one photo or null. */
 const inspectionBody = (extra: Record<string, unknown> = {}) => ({
-  reporterEmail: USERS.staffTsg.email,
-  reportCondition: "MINOR_DRIFT",
-  reportRemarks: "Test inspection: loose hinge",
-  reportImg: null,
+  condition: "MINOR_DRIFT",
+  remarks: "Test inspection: loose hinge",
+  photo: null,
   ...extra,
 });
 
@@ -224,50 +223,45 @@ describe("POST /api/assets/:tag/inspection", () => {
   it("files a Self Report under the session user, whatever reporterEmail names, with the condition and remarks sent (issue #32 fixed)", async () => {
     const asset = await heldByCustodian("TEST-0501");
 
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody());
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reporterEmail: USERS.staffTsg.email }));
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.report).toMatchObject({
-      asset_id: asset.assetId,
-      inspected_by_id: USERS.custodianA.userId,
-      type: "SELF_REPORT",
-      condition: "MINOR_DRIFT",
-      remarks: "Test inspection: loose hinge",
-      photo: null,
-    });
     expect(res.body.inspection).toMatchObject({
-      inspectionId: res.body.report.inspection_id,
       type: "SELF_REPORT",
       typeLabel: "Self Report",
       inspectedBy: { userId: USERS.custodianA.userId, name: USERS.custodianA.fullName },
       condition: "MINOR_DRIFT",
       conditionLabel: "Minor Drift",
+      remarks: "Test inspection: loose hinge",
+      photo: null,
       metrics: [],
     });
+    expect(res.body.report).toBeUndefined();
+    expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId, inspection_id: res.body.inspection.inspectionId } })).toBe(1);
     expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(1);
   });
 
   it("a holder's Self Report never changes the asset's condition", async () => {
     const asset = await heldByCustodian("TEST-0502", { condition: "OPERATIONAL" });
 
-    const self = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportCondition: "CRITICAL_DEFECT" }));
+    const self = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ condition: "CRITICAL_DEFECT" }));
 
-    expect(self.body.report.type).toBe("SELF_REPORT");
+    expect(self.body.inspection.type).toBe("SELF_REPORT");
     expect(await conditionNow(asset.tag)).toBe("OPERATIONAL");
   });
 
   it("a TSG inspection is Routine and sets the asset's condition", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0508", condition: "OPERATIONAL" });
 
-    const routine = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportCondition: "DEGRADED" }));
+    const routine = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ condition: "DEGRADED" }));
 
-    expect(routine.body.report.type).toBe("ROUTINE");
+    expect(routine.body.inspection.type).toBe("ROUTINE");
     expect(routine.body.inspection.typeLabel).toBe("Routine");
     expect(await conditionNow(asset.tag)).toBe("DEGRADED");
   });
 
-  it("takes the contract's InspectionInput, with the score, missing accessories and metrics, and flags a metric", async () => {
+  it("files the score, missing accessories and metrics, and flags a metric", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0509" });
     await db.assets.update({ where: { asset_id: asset.assetId }, data: { category: "TABLET" } });
 
@@ -301,9 +295,9 @@ describe("POST /api/assets/:tag/inspection", () => {
   it("ignores reportedById: the report is the session user's (issue #32 fixed)", async () => {
     const asset = await heldByCustodian("TEST-0503");
 
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reporterEmail: undefined, reportedById: USERS.custodianB.userId }));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportedById: USERS.custodianB.userId }));
 
-    expect(res.body.report.inspected_by_id).toBe(USERS.custodianA.userId);
+    expect(res.body.inspection.inspectedBy.userId).toBe(USERS.custodianA.userId);
   });
 
   it.each([
@@ -316,16 +310,16 @@ describe("POST /api/assets/:tag/inspection", () => {
     const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody(reporter));
 
     expect(res.status).toBe(200);
-    expect(res.body.report.inspected_by_id).toBe(USERS.custodianA.userId);
+    expect(res.body.inspection.inspectedBy.userId).toBe(USERS.custodianA.userId);
   });
 
   it("ignores a reportedById that is no account, and files the report under the session user (it answered a generic 500 before 13c)", async () => {
     const asset = await addExtraAsset(db, { tag: "TEST-0507", condition: "PERFECT" });
 
-    const res = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reporterEmail: undefined, reportedById: 9999 }));
+    const res = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportedById: 9999 }));
 
     expect(res.status).toBe(200);
-    expect(res.body.report.inspected_by_id).toBe(USERS.staffTsg.userId);
+    expect(res.body.inspection.inspectedBy.userId).toBe(USERS.staffTsg.userId);
     expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(2);
     expect(await conditionNow(asset.tag)).toBe("MINOR_DRIFT");
   });
@@ -339,63 +333,47 @@ describe("POST /api/assets/:tag/inspection", () => {
   ])("stores the condition $sent on the report, and it becomes the asset's condition", async ({ sent, tag }) => {
     const asset = await addExtraAsset(db, { tag, condition: "OPERATIONAL" });
 
-    const res = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportCondition: sent }));
+    const res = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ condition: sent }));
 
     expect(res.status).toBe(200);
-    expect(res.body.report.condition).toBe(sent);
+    expect(res.body.inspection.condition).toBe(sent);
     expect(await conditionNow(asset.tag)).toBe(sent);
   });
 
   it.each([
-    { sent: "Broken", case: "a condition it does not know", error: "Unrecognized condition: Broken.", tag: "TEST-0521" },
-    { sent: "degraded", case: "a condition in lower case", error: "Unrecognized condition: degraded.", tag: "TEST-0522" },
-    { sent: "MINOR DRIFT", case: "the stored spelling with a space", error: "Unrecognized condition: MINOR DRIFT.", tag: "TEST-0523" },
-    { sent: "Degraded Performance", case: "a display name", error: "Unrecognized condition: Degraded Performance.", tag: "TEST-0526" },
-    { sent: undefined, case: "no condition", error: "Missing required field: reportCondition.", tag: "TEST-0524" },
-  ])("answers 400 for $case, and writes nothing (issue #53)", async ({ sent, error, tag }) => {
+    { sent: "Broken", case: "a condition it does not know", tag: "TEST-0521" },
+    { sent: "degraded", case: "a condition in lower case", tag: "TEST-0522" },
+    { sent: "MINOR DRIFT", case: "the stored spelling with a space", tag: "TEST-0523" },
+    { sent: "Degraded Performance", case: "a display name", tag: "TEST-0526" },
+    { sent: undefined, case: "no condition", tag: "TEST-0524" },
+  ])("answers 400 for $case, and writes nothing (issue #53)", async ({ sent, tag }) => {
     const asset = await addExtraAsset(db, { tag, condition: "DEGRADED" });
 
-    const res = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportCondition: sent }));
+    const res = await asStaff.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ condition: sent }));
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ success: false, error });
+    expect(res.body).toEqual({ success: false, error: "Pick the condition of the inspection from the list." });
     expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(1);
     expect(await conditionNow(asset.tag)).toBe("DEGRADED");
   });
 
-  it("takes assetCondition when no reportCondition is sent", async () => {
-    const asset = await heldByCustodian("TEST-0525");
-
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportCondition: undefined, assetCondition: "DEGRADED" }));
-
-    expect(res.body.report.condition).toBe("DEGRADED");
-  });
-
-  it("writes the default remarks when none are sent", async () => {
-    const asset = await heldByCustodian("TEST-0531");
-
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportRemarks: undefined }));
-
-    expect(res.body.report.remarks).toBe("Routine technical inspection completed.");
-  });
-
-  it("cuts remarks longer than 255 characters to 255", async () => {
+  it("answers 400 for remarks longer than 255 characters instead of cutting them, and writes nothing", async () => {
     const asset = await heldByCustodian("TEST-0532");
-    const longRemarks = "Test long remark. ".repeat(20);
 
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportRemarks: longRemarks }));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ remarks: "Test long remark. ".repeat(20) }));
 
-    expect(res.status).toBe(200);
-    expect(res.body.report.remarks).toBe(longRemarks.slice(0, 255));
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ success: false, error: "remarks can be at most 255 characters." });
+    expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(0);
   });
 
   it("stores the image text as sent, with no check that it is an image (unlike asset edits)", async () => {
     const asset = await heldByCustodian("TEST-0533");
 
-    const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ reportImg: "not an image" }));
+    const res = await asCustodian.post(`/api/assets/${asset.tag}/inspection`, inspectionBody({ photo: "not an image" }));
 
     expect(res.status).toBe(200);
-    expect(res.body.report.photo).toBe("not an image");
+    expect(res.body.inspection.photo).toBe("not an image");
   });
 
   it("looks a numeric tag up as an asset id", async () => {
@@ -404,7 +382,7 @@ describe("POST /api/assets/:tag/inspection", () => {
     const res = await asCustodian.post(`/api/assets/${asset.assetId}/inspection`, inspectionBody());
 
     expect(res.status).toBe(200);
-    expect(res.body.report.asset_id).toBe(asset.assetId);
+    expect(await db.asset_inspections.count({ where: { asset_id: asset.assetId } })).toBe(1);
   });
 
   it("sets the condition of an asset TSG never inspected", async () => {

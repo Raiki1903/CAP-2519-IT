@@ -7,31 +7,6 @@
 import type { AssetListItem } from './assets';
 
 /**
- * Today's body of POST /api/assets/:assetTag/inspection, still read next to the contract's InspectionInput (a body with
- * `condition`) until the screens move (Batch 5, Q1). A condition is required, in reportCondition or assetCondition;
- * every other field has a fallback.
- * The two senders (CustodianPortal, InspectionQueue) use reportCondition, reportRemarks, and reportImg; the other names
- * are older spellings the server still reads. The reporter is the session user. (issue #32)
- */
-export interface InspectionReportInput {
-  /** One of ASSET_CONDITIONS ("MINOR_DRIFT"). Anything else, or no condition at all, answers 400. (issue #53) */
-  reportCondition?: string;
-  /** Read when reportCondition is empty. */
-  assetCondition?: string;
-  /** Cut to 255 characters. Without any of the five remark fields, a default sentence is stored. */
-  reportRemarks?: string;
-  remarks?: string;
-  tsgRemarks?: string;
-  itsRemarks?: string;
-  description?: string;
-  /** One image as text (a data URL), or null. Stored as sent, with no check that it is an image. Callers send only the first image they hold. */
-  // TODO(M-17): images are stored as base64 text in the database, and only one per report. Phase 3 (at most 3 photos, kept 2 weeks).
-  reportImg?: string | null;
-  image?: string | null;
-  image_url?: string | null;
-}
-
-/**
  * One row of GET /api/inspections, the short list (no email, no image), read by state/serverData.tsx.
  * Both snake_case and camelCase names are sent for several fields.
  */

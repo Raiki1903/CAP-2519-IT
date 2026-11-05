@@ -68,7 +68,7 @@ describe("the IT Admin has no asset steps", () => {
     ["POST", `/api/assets/${ASSETS.available.tag}/retirement`, { reason: "Test" }],
     ["PUT", "/api/retirements/1/decision", { decision: "deny", decisionRemarks: "Test" }],
     ["PUT", "/api/retirements/1/complete", { pathway: "RECYCLE", dispositionReference: "Test" }],
-    ["POST", `/api/assets/${ASSETS.available.tag}/inspection`, { reportCondition: "PERFECT" }],
+    ["POST", `/api/assets/${ASSETS.available.tag}/inspection`, { condition: "PERFECT" }],
     ["POST", `/api/assets/${ASSETS.available.tag}/loans`, { destinationCenterId: 1, returnBy: "2030-01-01", purpose: "Test" }],
     ["PUT", "/api/loans/2/cancel", {}],
     ["PUT", "/api/loans/2/approve", {}],

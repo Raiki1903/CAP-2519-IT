@@ -13,20 +13,18 @@ import { readFilingBody, readRoutineQueueQuery } from './inspections.validation'
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles POST /api/assets/:assetTag/inspection: TSG files a Routine inspection, the holder a Self Report, in either
- * body (readFilingBody).
- * Answers `{ success, inspection, report }`: the Inspection shape and the new row today's screens read, or the
- * AppError's status and message (400 a missing or wrong value, 403 not the holder, 404 unknown asset, 409 the asset's
+ * Handles POST /api/assets/:assetTag/inspection: TSG files a Routine inspection, the holder a Self Report.
+ * Answers `{ success, inspection }` (the Inspection shape), or the AppError's status and message (400 a missing or wrong value, 403 not the holder, 404 unknown asset, 409 the asset's
  * status does not allow it), or 500.
  */
 export async function fileReport(req: Request<{ assetTag: string }>, res: Response): Promise<void> {
     const { assetTag } = req.params;
     const input = readFilingBody(req.body);
     const actor = sessionUserOf(req);
-    const { inspection, report } = await inspectionsService.fileInspection(assetTag, input, actor);
+    const { inspection, assetId } = await inspectionsService.fileInspection(assetTag, input, actor);
 
-    console.log(`Inspection ${inspection.inspectionId} on asset ${report.asset_id} filed by user ${actor.userId}`);
-    res.json({ success: true, inspection, report });
+    console.log(`Inspection ${inspection.inspectionId} on asset ${assetId} filed by user ${actor.userId}`);
+    res.json({ success: true, inspection });
 }
 
 /**
