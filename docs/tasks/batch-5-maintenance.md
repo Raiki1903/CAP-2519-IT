@@ -197,7 +197,7 @@ Made by Raiki at Stop 0 (2026-11-05). Where they differ from the sections above,
 
 **Stop 0 answers:**
 
-- **Q1: A.** `POST /api/assets/:assetTag/inspection` takes both the contract's `InspectionInput` and today's body (`reportCondition`, `reportRemarks`, `reportImg`), and answers both `inspection` and `report`. Commit 11 moves the Staff Inspections page and the Researcher's "Send Inspection Report" to the new body, and the old names go with it. The screens keep working if commit 11 is cut.
+- **Q1: A.** `POST /api/assets/:assetTag/inspection` takes both the contract's `InspectionInput` and today's body (`reportCondition`, `reportRemarks`, `reportImg`), and answers both `inspection` and `report`. Commit 11 moves the Staff Inspections page and the Researcher's "Send Inspection Report" to the new body, and the old names go with it. The screens keep working if commit 11 is cut. **Final (after commit 11):** the old body is removed in its own commit after commit 11, not in commit 12 (`d1cf1efd`). See "Accepted after commit 11".
 - **Q2: A.** Commits 2 and 4 send the old keys and rows (`repairs`, `disposals`) next to the new ones (`tickets`, `retirements`). The old rows are built from the new statuses, so the Staff board and analytics show sensible texts until commits 9 and 10, which switch the screens and drop the old keys. Analytics changes in the same commit as the texts.
 - **Q3: A.** The disposal request email goes to the Director and the Secretary. The decision email to the requester stays, reworded for two steps (approved: TSG completes it; denied: with the remarks). Every value in both is escaped.
 - **Q4: A.** The TSG "flag for maintenance" button in the asset modal and the Researcher's immediate-inspection toggle (including its automatic ticket on a critical fault) send issue type OTHER, found by its key in the lookups, with their text as the description, and stop sending a priority. `RepairForm.tsx` gets the real issue type select with the suggested action (CAP1DEF 6).
@@ -217,13 +217,44 @@ Made by Raiki at Stop 0 (2026-11-05). Where they differ from the sections above,
 
 **Waiting loans on an asset that ends Retired** (section 3.7): left as they are. The Lab Head can decline them and the borrower can cancel them. No code.
 
+**Accepted at Stop 1 (the extras beyond the brief, after commit 10):**
+
+- **Stage change takes `warrantyOverrideReason`.** Without it, a warranty asset sent to External Service first could never come back to Repairing.
+- **Extra answer fields:** `Maintenance.asset.warrantyExpiry` (for the "Under warranty until" line), `issueType.suggestedAction`, and `Retirement.previousStatusLabel`. Recorded in the contract (common objects).
+- **Emails carry ids only in their subjects**, for example `New disposal request DISP-12 (TEST-0001)`, because the mailer logs the subject. The decision email does not name who decided. Every value in a body is escaped (`server/shared/utils/html.ts`).
+- **History labels:** "Maintenance cancelled by" (kind `MAINTENANCE_CANCELLED`) and "Maintenance completed (<outcome>) by". A cancelled ticket keeps who cancelled it in `completed_by_id` and `completed_at`.
+- **Report checks who first, then the asset's status:** a Researcher who does not hold a Retired asset gets 403; TSG on the same asset gets 409.
+- **Test seed:** the seeded disposal now has a plain reason, pathway Recycle, a disposition reference, and TSG as the one who completed it. Tests that read the packed reason, the waiting-loan block or the word "reject" were updated.
+- **Shared `InspectionFields`** (condition and remarks) in `web/features/inspections/`, used by receive, complete, Found and the routine queue. `main` has no shared component from Joel.
+
+**Accepted after commits 6 and 7:**
+
+1. **Never inspected counts as due** for `STATUS_CHECK_DUE`, the same as the queue. The card's `date` is the newest inspection's day, and it is left out when there is none.
+2. **The routine queue always sends all five groups,** even empty ones. Each group has `group` (the id) and a `name`. Other's `labs` are the codes of the labs its assets belong to.
+3. **A Self Report checks who first, then the status.** Someone who does not hold the asset gets 403 before the guard runs, the same order as Report.
+4. **Q5: B.** TSG gets no `MAINTENANCE_OPEN` card for a ticket it filed itself. It already sees the ticket as `RECEIPT_WAITING` and on the Repairs page. Its own small commit (`933f3198`), with a test.
+
+**Accepted after commit 11:**
+
+1. **The bell's action badges need the lists and the notifications to load together.** The ticket and disposal cards come from the lists; `RECEIPT_WAITING` and `DISPOSAL_DECISION_WAITING` decide which of them need the person's action. If the notifications call fails, the cards stay but lose their "action required" badge.
+2. **The Other tab is hidden when it has no assets,** as before, although the server always sends all five groups.
+3. **The Researcher's Self Report is offered only for assets they hold that are On Loan.** The `|| a.isOverdue` test was dropped: an overdue asset is always On Loan.
+4. **Q1: yes, the old inspection body goes, in its own commit after commit 11** (not in commit 12): `chore(inspections): drop the old inspection body (Q1)`, `d1cf1efd`. The old-body reader, the `InspectionReportInput` type and the `report` key in the filing answer are removed. `GET /api/inspections` and `/log` keep their old field names (L-07).
+5. **Inspection remarks over 255 characters answer 400** ("remarks can be at most 255 characters."), where the old body cut them silently. Both screens already limit the length. A browser tab left open from before the deploy would break on its next inspection.
+
+**Accepted after commit 8:**
+
+1. **Self Reports are left out of the benchmark data,** as they are left out of the asset's condition. Only TSG's inspections count.
+2. **A metric recorded before the asset's category changed is still listed,** so no recorded value disappears.
+3. **A category with metrics never flags a health score** (only a category with no metrics flags a score below `HEALTH_SCORE_FLAG_BELOW`).
+
 **Run order:** commits 1 to 5, then Stop 1. After Raiki's go: 9 and 10 (P1 web), then 6, 7 and 11 (P2), then 8 (P3), then 12 (docs), then Stop 2. If time runs short, cut from the bottom (8, then 11, 7, 6) and say so.
 
 **Issues:** the pull request also closes #65 (the 8-second repair guard) and #66 (the board statuses). The results in this file name both.
 
-## Progress after commit 10
+## Results (after commit 12)
 
-Branch `feat/batch-5-maintenance`, from `main` at `6a2376b3`. Nothing pushed. No schema change, no new package, nothing run against CCS Cloud. Left to do: commits 6, 7 and 11 (P2), 8 (P3), 12 (docs), then Stop 2.
+Branch `feat/batch-5-maintenance`, from `main` at `6a2376b3`. Nothing pushed (Raiki pulls `main` into the branch, pushes and opens the pull request). No schema change, no new package, nothing run against CCS Cloud. The pull request closes #65 (the 8-second repair guard) and #66 (the board statuses). Hand checks 5-H1 onward come at Stop 2 and have not been run.
 
 | # | Commit | Hash | Typecheck | Tests | One line |
 |---|---|---|---|---|---|
@@ -235,18 +266,15 @@ Branch `feat/batch-5-maintenance`, from `main` at `6a2376b3`. Nothing pushed. No
 | 5 | `feat(assets): mark missing and found` | `829fbd1e` | 25 | 659 | Missing ends a held loan by loss; Found files a Recovery inspection |
 | 9 | `feat(web): today's maintenance screens use the new steps` | `f249f565` | 25 | 659 | Report form with issue types, Repairs page and dialog by status, board with every status, `repairs` key dropped |
 | 10 | `feat(web): disposal and Missing on today's screens` | `45dd81b9` | 25 | 659 | Request, decide (Director and Secretary), complete, Mark Missing and Found, `disposals` key dropped |
+| 6 | `feat(inspections): routine and self-report filing and the routine queue` | `8d7658db` | 25 | 679 | Filing inside the asset lock for TSG (Routine) and the holder (Self Report); the routine queue |
+| 7 | `feat(notifications): status checks, receipts, disposal decisions and my tickets` | `1ba1d8ba` | 25 | 682 | Four new notification kinds, by user id |
+| Q5 | `fix(notifications): TSG gets no ticket card for a ticket it filed itself` | `933f3198` | 25 | 683 | TSG is left out of `MAINTENANCE_OPEN` |
+| 11 | `feat(web): routine queue, self reports and the new bell cards` | `2e288fcb` | 25 | 683 | Routine queue page, Self Report body, the four bell kinds |
+| 8 | `feat(assets): benchmark data` | `dc091cc3` | 25 | 692 | `GET /api/assets/:assetTag/benchmarks`, no screen |
+| Q1 | `chore(inspections): drop the old inspection body (Q1)` | `d1cf1efd` | 25 | 690 | The filing takes only `InspectionInput`; answers `{ inspection }` |
+| 12 | `docs: Batch 5 contract, guide and counts` | this commit | 25 | 690 | Contract 7.4 to 7.6 and 7.10 live, 3.7, counts, this section |
 
-Build passes after every code commit. Test moves: commit 2 -6 (old update-route and repeat-check tests replaced), 3 +17, 4 +1, 5 +16, 9 and 10 unchanged.
-
-**What changed beyond the brief (the Stop 1 extras):**
-
-- **Stage change takes `warrantyOverrideReason`.** Without it, a warranty asset sent to External Service first could never come back to Repairing.
-- **Extra answer fields:** `Maintenance.asset.warrantyExpiry` (for the "Under warranty until" line), `issueType.suggestedAction`, and `Retirement.previousStatusLabel`. Commit 12 records them in the contract.
-- **Emails carry ids only in their subjects**, for example `New disposal request DISP-12 (TEST-0001)`, because the mailer logs the subject. The decision email does not name who decided. Every value in a body is escaped (`server/shared/utils/html.ts`).
-- **History labels:** "Maintenance cancelled by" (kind `MAINTENANCE_CANCELLED`) and "Maintenance completed (<outcome>) by". A cancelled ticket keeps who cancelled it in `completed_by_id` and `completed_at`.
-- **Report checks who first, then the asset's status:** a Researcher who does not hold a Retired asset gets 403; TSG on the same asset gets 409.
-- **Test seed:** the seeded disposal now has a plain reason, pathway Recycle, a disposition reference, and TSG as the one who completed it. Tests that read the packed reason, the waiting-loan block or the word "reject" were updated.
-- **Shared `InspectionFields`** (condition and remarks) in `web/features/inspections/`, used by receive, complete and Found. `main` has no shared component from Joel.
+Build passes after every code commit. Test moves from 631 to 690 (+59): commit 2 -6 (old update-route and repeat-check tests replaced), 3 +17, 4 +1, 5 +16, 9 and 10 unchanged, 6 +20, 7 +3, Q5 +1, 11 unchanged (no web tests), 8 +9 (benchmarks.test.ts 8, session row 64), Q1 -2, 12 unchanged. The Q1 commit deleted three tests that pinned only the old body (the `assetCondition` alias, the default remarks sentence, the silent cut to 255) and added one (400 for remarks over 255); the no-condition row of the 400 table stays, now expecting "Pick the condition of the inspection from the list." instead of "Missing required field: reportCondition.". `inspections.test.ts` went 50 to 48.
 
 **Left as it was (not moved on today's screens):**
 
@@ -254,8 +282,9 @@ Build passes after every code commit. Test moves: commit 2 -6 (old update-route 
 2. The Staff analytics board still reads `data.repairs` from `GET /api/analytics/tsg`; its `progressStatus` is now the status label, and a card opens the dialog from the shared ticket list. The analytics endpoint itself is unchanged.
 3. The Secretary can open the Repairs page and read, but the step buttons are TSG only (the server refuses her anyway).
 4. In the asset modal, the older branch for Missing and Pending Retirement assets may still show TSG a "Flag for Maintenance" button; the server refuses it with its sentence, shown under the button. That branch was not restructured.
-5. The Researcher's repair cards in the bell are still missing until the P2 `MAINTENANCE_OPEN` notification.
-6. Old disposal rows on `adric_uat_check` hold the packed text and show it whole as the reason, with pathway "Not recorded". The Nov 8 database is fresh.
-7. `InspectionQueue.tsx` and the Researcher's inspection report still send the old body, which the server accepts under Q1 A. They move in commit 11 (P2).
+5. Old disposal rows on `adric_uat_check` hold the packed text and show it whole as the reason, with pathway "Not recorded". The Nov 8 database is fresh.
+6. `GET /api/inspections` and `GET /api/inspections/log` keep today's field names (L-07).
+7. The benchmark data has no screen yet.
+8. No web tests exist; the web changes are checked by typecheck, build and the hand checks.
 
 **Also open:** `withAssetLock` now exists in four repositories (loans, maintenance, retirements, assets). A later refactor could move it to shared.

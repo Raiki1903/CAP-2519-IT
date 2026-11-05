@@ -59,8 +59,8 @@ You do not need to stop `npm run dev:all`: the tests start their own copy of the
 A good run ends like this:
 
 ```
- Test Files  12 passed (12)
-      Tests  305 passed (305)
+ Test Files  34 passed (34)
+      Tests  690 passed (690)
 ```
 
 The first time, Windows may ask whether to allow Node.js through the firewall. Choose **Cancel** (or deny). The tests only talk to your own computer, so they work either way.
@@ -105,7 +105,7 @@ Defined in [setup/fixtures.ts](setup/fixtures.ts). Everything is invented. Never
 | `custodian.a`, `custodian.b` | RESEARCHER |
 | `secretary` | ADRIC_SECRETARY |
 
-One lab, `TEST` (Test Research Lab, Manila). Six assets, `TEST-0001` to `TEST-0006`: Available, On Loan (to Custodian A), in Maintenance, Retired, Available with a loan waiting for approval (from Custodian B), and Available with a Routine inspection. The seed also writes its own funding sources, issue types, and metrics (`LOOKUPS` in fixtures.ts), because the reset empties the rows the migrations wrote.
+One lab, `TEST` (Test Research Lab, Manila). Six assets, `TEST-0001` to `TEST-0006`: Available, On Loan (to Custodian A), in Maintenance, Retired, Available with a loan waiting for approval (from Custodian B), and Available with a Routine inspection. The seed also writes one maintenance ticket (`MNT-1`, Inspecting, reported by Custodian A), one completed disposal (`DISP-1`) and one report (`RPT-1`, a Routine inspection of `TEST-0006`); the ids are in `SEEDED_ROWS`. The seed also writes its own funding sources, issue types, and metrics (`LOOKUPS` in fixtures.ts), because the reset empties the rows the migrations wrote.
 
 ---
 
@@ -142,7 +142,7 @@ describe("loans", () => {
 - These are **characterization tests**: they record what the API does **today**, even where that is wrong, so that a later change that alters it by accident makes a test fail. Do not "fix" the expected value to what it should be.
 - Do not check exact timestamps, generated ids, or text containing today's date.
 - Tests inside one file share that file's data, in order. Keep each test's changes in mind for the next one, or use a different seeded asset.
-- When a test changes an asset's state (a borrow, a return, a repair, an inspection, a retirement), give it an asset of its own: `addExtraAsset(db, { tag: "TEST-0101", status: "ON_LOAN", custodianId: USERS.custodianA.userId })` from [setup/extraAssets.ts](setup/extraAssets.ts) adds one in the state you ask for (a loan for a holder, an inspection for a condition). Use a tag no other test in the file uses.
+- When a test changes an asset's state (a borrow, a return, a repair, an inspection, a retirement, a missing mark), give it an asset of its own: `addExtraAsset(db, { tag: "TEST-0101", status: "ON_LOAN", custodianId: USERS.custodianA.userId })` from [setup/extraAssets.ts](setup/extraAssets.ts) adds one in the state you ask for (a loan for a holder, an inspection for a condition). Use a tag no other test in the file uses.
 - When a test adds rows that a later test in the file would count (the analytics endpoints count every asset), remove them in a `finally` block: `removeExtraAssets(db, [asset.assetId])` from the same file deletes the assets and every row that points at them.
 - Each file gets the same fresh data, so a test file never relies on another file.
 - **The failed-login limit** is kept in the server's memory (per email and address), and the 6th failed login for one email within 15 minutes answers 429. Each test file has its own server, so the count starts at 0 in every file. Inside one file, a test that needs several failed logins uses an account no other test in that file fails more than a few times (see [api/auth.test.ts](api/auth.test.ts)); [api/loginLimit.test.ts](api/loginLimit.test.ts) tests the limit itself, and [unit/loginLimiter.test.ts](unit/loginLimiter.test.ts) tests the helper with a test clock.

@@ -10,6 +10,8 @@ Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges
 
 **Batch 3 built (2026-11-05):** the loan chain on the server. The endpoints marked "live (Batch 3)" in 7.3 and 7.10 exist: request, cancel, approve, decline, release (a Loan Release inspection), return request, receive (a Return inspection, and a Return Damage ticket when TSG found damage), the loan lists, the Accountability Form data, the clearance record, and `GET /api/notifications/mine`. Every loan step locks the asset first, so two requests, an approve and a cancel, two releases or two receives at once give one winner and one 409. The guard gained approve, release, ask-to-return and receive. **Removed in Batch 3:** `POST /api/assets/:assetTag/borrow`, `PUT /api/loans/:loanId/decision` and `POST /api/assets/:assetTag/return` (they answer 404), and the browser-stored return requests. Today's loan screens use the new steps; the new loan screens are Joel's (#116).
 
+**Batch 5 built (2026-11-05):** maintenance, disposal, Missing and Found, inspections, the routine queue, the benchmark data and four notification kinds on the server, with today's screens moved onto them. The endpoints marked "live (Batch 5)" in 7.4, 7.5, 7.6 and 7.10 exist. Every step locks the asset first, so two reports, a receive and a cancel, or two disposal decisions at once give one winner and one 409. The guard gained `WORK_ON_MAINTENANCE` and `SELF_REPORT_INSPECTION`. **Removed in Batch 5:** `PUT /api/maintenance/:maintenanceId` and `PUT /api/maintenance/:maintenanceId/status` (the free-form update routes, H-06; they answer 404), the 8-second repeat check on repairs (#65), the `repairs` and `disposals` keys in the ticket and disposal lists (they answer `tickets` and `retirements` only), the packed disposal text, and the old inspection body (`reportCondition`, `reportRemarks`, `reportImg`) with the `report` key in its answer. No schema change. Where the brief and an earlier line here differed, this file now says what Batch 5 built.
+
 ---
 
 ## 1. Data model
@@ -105,14 +107,18 @@ The server checks this table before every step. A refused step answers **409** w
 | Mark found | no | no | no | no | no | yes |
 | Edit master data | yes | yes | yes | no | no | yes |
 | Routine inspection | yes | no | no | no | no | no |
+| Work on a maintenance ticket (start, stage, complete, cancel while Inspecting) | no | no | yes | no | no | no |
+| Self Report (the holder's inspection) | no | yes | no | no | no | no |
 
-1. Refused while the asset has a loan in Pending Approval or Pending Release.
+1. Refused while the asset has a loan in Pending Approval or Pending Release. This is the only action a waiting loan blocks (see below).
 2. Receiving ends the open loan (Ended by Maintenance) in the same step.
 3. After maintenance ends Beyond Repair.
 4. Only once the retirement is Approved. Completing it sets the asset to Retired.
 5. Marking missing ends the open loan (Ended by Loss) in the same step.
 
 Decline and cancel do not check the asset's status, so a loan on an asset that went to Maintenance can still be declined or cancelled. Approve and release need the asset Available: approving does not take the asset, it stays Available until release.
+
+**Waiting loans (Batch 5, decided).** A loan still in Pending Approval or Pending Release is **left as it is** when its asset goes to Maintenance, Missing or Pending Retirement, and when the asset ends Retired. A waiting loan does not block a maintenance ticket, marking the asset missing, or a retirement request; it blocks only a second loan request. The guard then refuses approve and release on the changed asset with its own sentence, and the Lab Head can still decline the loan and the borrower can still cancel it. Nothing closes a waiting loan by itself.
 
 ---
 
@@ -177,7 +183,10 @@ Ticket types: `BORROWER_REPORT` (Borrower Report), `TSG_MAINTENANCE` (TSG Mainte
 | Inspecting | Cancelled | TSG | Available |
 
 - **Under warranty** is worked out: the asset's warranty expiry is on or after the day TSG received it. An asset under warranty goes to External Service (the warranty holder) unless TSG writes a warranty override reason.
-- External Service names the `provider` (the warranty holder or a repair shop).
+- External Service names the `provider` (the warranty holder or a repair shop). The stage change may also carry `warrantyOverrideReason`, so a warranty asset sent to External Service first can still come back to Repairing.
+- Cancelling also sets `completedBy` and `completedAt`, because no other column holds who cancelled and when; the asset history reads "Maintenance cancelled by".
+- One open ticket per asset (Pending Receipt, Inspecting, Repairing or External Service). A held loan stays with the holder until TSG receives the asset.
+- A ticket a TSG person files is type TSG Maintenance; a holder's or a Lab Head's is Borrower Report; the Return Damage ticket comes from the loan receive step (7.3).
 
 ### Retirement (`asset_retirements.status`, page title "Asset Disposal")
 
@@ -196,6 +205,9 @@ Ticket types: `BORROWER_REPORT` (Borrower Report), `TSG_MAINTENANCE` (TSG Mainte
 | Approved | Completed | TSG (pathway and disposition reference) | Retired |
 
 Pathways: `DONATE` (Donate), `RECYCLE` (Recycle), `RETURN_TO_FUNDER` (Return to Funder), `SELL` (Sell), `OTHER` (Other).
+
+- A request from Maintenance is allowed only when the asset's newest ticket ended Beyond Repair and no ticket is open. One open disposal (Pending or Approved) per asset.
+- The requester never decides their own request (403), even when they are a Secretary or Director. The pathway, when TSG knows it at the request, is kept in its own column and can be set again at completion.
 
 ### Missing and Found
 
@@ -324,9 +336,9 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 
 `Loan`: `{ loanId, asset: { assetId, tag, name }, borrower: { userId, name }, status, statusLabel, purpose, project, destinationLab: { centerId, code }, destinationRoom, returnBy, requestedAt, decidedBy, decidedAt, decisionRemarks, releasedBy, releasedAt, releaseInspection, returnRequestedAt, receivedBy, returnInspection, closedAt, remarks, isOverdue }`. People are `{ userId, name }`, `{ hidden: true }` (a Researcher looking at a person who is not them), or null.
 
-`Maintenance`: `{ maintenanceId, asset, type, typeLabel, status, statusLabel, issueType: { issueTypeId, key, name }, issueDescription, reportedBy, reportedAt, receivedBy, receivedAt, underWarranty, warrantyOverrideReason, provider, completedBy, completedAt, resolutionRemarks, triggerInspection, completionInspection }`.
+`Maintenance`: `{ maintenanceId, asset: { assetId, tag, name, warrantyExpiry }, type, typeLabel, status, statusLabel, issueType: { issueTypeId, key, name, suggestedAction } or null, issueDescription, reportedBy, reportedAt, receivedBy, receivedAt, underWarranty, warrantyOverrideReason, provider, completedBy, completedAt, resolutionRemarks, triggerInspection, completionInspection }`. `issueType` is null only for a ticket filed before issue types existed. `completedBy` and `completedAt` hold who cancelled and when, when the status is Cancelled. `underWarranty` before receipt means the warranty expiry is on or after today.
 
-`Retirement`: `{ retirementId, asset, status, statusLabel, reason, pathway, pathwayLabel, previousStatus, requestedBy, requestedAt, decidedBy, decidedAt, decisionRemarks, completedBy, completedAt, dispositionReference, assessmentInspection }`.
+`Retirement`: `{ retirementId, asset, status, statusLabel, reason, pathway, pathwayLabel, previousStatus, previousStatusLabel, requestedBy, requestedAt, decidedBy, decidedAt, decisionRemarks, completedBy, completedAt, dispositionReference, assessmentInspection }`.
 
 `User`: `{ userId, firstName, lastName, email, idNumber, userType, role, roleLabel, accountStatus, labs: [{ centerId, code }], headOf: { centerId, code } or null }`. Sent only to the IT Admin and to the person themself. `role` is a database role key, or null for a Pending sign-up; for a Pending sign-up, `labs` are the labs it asked for.
 
@@ -388,33 +400,43 @@ Notes on the Batch 3 endpoints:
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| Report an issue ("Request Immediate Inspection") | `POST /api/assets/:assetTag/maintenance` | the holder, the home lab's Head, TSG | `{ issueTypeId, issueDescription }` | `{ maintenance: Maintenance }` (type Borrower Report, or TSG Maintenance when TSG files it) | 400; 403; 404; 409 status does not allow it or a ticket is already open | planned (Batch 5) |
-| Receive the asset | `PUT /api/maintenance/:maintenanceId/receive` | TSG | `{ inspection: InspectionInput }` | `{ maintenance: Maintenance }` | 403; 404; 409 not Pending Receipt | planned (Batch 5) |
-| Start the work | `PUT /api/maintenance/:maintenanceId/start` | TSG | `{ stage: "REPAIRING" or "EXTERNAL_SERVICE", provider?, warrantyOverrideReason? }` | `{ maintenance: Maintenance }` | 400 under warranty, stage Repairing, no override reason; 403; 404; 409 not Inspecting | planned (Batch 5) |
-| Change stage | `PUT /api/maintenance/:maintenanceId/stage` | TSG | `{ stage, provider? }` | `{ maintenance: Maintenance }` | 400; 403; 404; 409 | planned (Batch 5) |
-| Complete | `PUT /api/maintenance/:maintenanceId/complete` | TSG | `{ outcome: "RESOLVED" or "BEYOND_REPAIR", resolutionRemarks, inspection: InspectionInput }` | `{ maintenance: Maintenance }` | 400; 403; 404; 409 | planned (Batch 5) |
-| Cancel | `PUT /api/maintenance/:maintenanceId/cancel` | the reporter (Pending Receipt only), TSG | `{ remarks? }` | `{ maintenance: Maintenance }` | 403; 404; 409 | planned (Batch 5) |
-| Ticket list | `GET /api/maintenance` | TSG, Director, Secretary; a Lab Head sees their lab; a Researcher sees their own | `?status=&type=` optional | `{ tickets: Maintenance[] }` | | live (Batch 1), renamed from `/api/asset_repairs`; new fields from Batch 5 |
+| Report an issue ("Request Immediate Inspection") | `POST /api/assets/:assetTag/maintenance` | the holder, the home lab's Head, TSG | `{ issueTypeId, issueDescription }`; the description is required, at most 2,000 characters | `{ maintenance: Maintenance }` (201; type Borrower Report, or TSG Maintenance when TSG files it) | 400 (also an unknown issue type); 403 a Researcher who does not hold the asset ("Only the person who holds this asset can report an issue on it."), or a Lab Head of another lab ("This asset belongs to another lab. Only that lab's Head can report an issue on it."), or the IT Admin or Secretary; 404; 409 the status does not allow it, or the asset already has an open ticket. The asset and its loan do not change | live (Batch 5) |
+| Receive the asset | `PUT /api/maintenance/:maintenanceId/receive` | TSG | `{ inspection: InspectionInput }` (a Maintenance inspection) | `{ maintenance: Maintenance }` | 400; 403; 404; 409 not Pending Receipt. The asset becomes Maintenance, and a held loan ends (Ended by Maintenance) in the same step | live (Batch 5) |
+| Start the work | `PUT /api/maintenance/:maintenanceId/start` | TSG | `{ stage: "REPAIRING" or "EXTERNAL_SERVICE", provider?, warrantyOverrideReason? }` | `{ maintenance: Maintenance }` | 400 under warranty, stage Repairing, no override reason ("This asset is under warranty. Send it to the warranty holder, or write why TSG repairs it."); 400 External Service with no provider; 403; 404; 409 not Inspecting | live (Batch 5) |
+| Change stage | `PUT /api/maintenance/:maintenanceId/stage` | TSG | `{ stage, provider?, warrantyOverrideReason? }` | `{ maintenance: Maintenance }` | 400 (same rules as start); 403; 404; 409 not Repairing or External Service, or already in that stage | live (Batch 5) |
+| Complete | `PUT /api/maintenance/:maintenanceId/complete` | TSG | `{ outcome: "RESOLVED" or "BEYOND_REPAIR", resolutionRemarks, inspection: InspectionInput }` | `{ maintenance: Maintenance }` | 400 (no remarks, no inspection, no outcome); 403; 404; 409 not Inspecting, Repairing or External Service. Resolved makes the asset Available at home; Beyond Repair keeps it in Maintenance | live (Batch 5) |
+| Cancel | `PUT /api/maintenance/:maintenanceId/cancel` | the reporter (Pending Receipt only), TSG | `{ remarks? }` (kept as the ticket's resolution remarks) | `{ maintenance: Maintenance }` | 403 ("Only the person who reported this issue, or TSG, can cancel it."; the reporter on an Inspecting ticket gets "Only TSG can cancel a ticket once the asset is received."); 404; 409 not Pending Receipt or Inspecting. From Inspecting the asset becomes Available | live (Batch 5) |
+| Ticket list | `GET /api/maintenance` | TSG, Director, Secretary; a Lab Head sees their lab; a Researcher sees their own | `?status=&type=` optional, one or several values separated by commas | `{ tickets: Maintenance[] }`, newest first | 400 an unknown status or type; 403 the IT Admin | live (Batch 1), renamed from `/api/asset_repairs`; the Maintenance shape and the role scoping from Batch 5 |
+
+- **Report checks who first, then the asset's status.** A Researcher who does not hold a Retired asset gets 403; TSG on the same asset gets 409.
+- **History labels.** The asset history reads "Maintenance cancelled by" for a cancelled ticket and "Maintenance completed (<outcome>) by" for a finished one.
+- **Waiting loans.** Receiving an asset for maintenance leaves a loan in Pending Approval or Pending Release as it is (section 3).
 
 ### 7.5 Retirement, Missing and Found
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| Request retirement | `POST /api/assets/:assetTag/retirement` | TSG | `{ reason, pathway?, assessmentInspection?: InspectionInput }` | `{ retirement: Retirement }` | 400; 403; 404; 409 | planned (Batch 5) |
-| Decide | `PUT /api/retirements/:retirementId/decision` | Director, Secretary; never the requester | `{ decision: "approve" or "deny", decisionRemarks? }` (remarks required to deny) | `{ retirement: Retirement }` | 400; 403 (also when you requested it); 404; 409 not Pending | planned (Batch 5) |
-| Complete | `PUT /api/retirements/:retirementId/complete` | TSG | `{ pathway, dispositionReference }` | `{ retirement: Retirement }` | 400; 403; 404; 409 not Approved | planned (Batch 5) |
-| Retirement list | `GET /api/retirements` | TSG, Director, Secretary, Lab Head | `?status=` optional | `{ retirements: Retirement[] }` | | live (Batch 1), renamed from `/api/asset_disposals`; new fields from Batch 5 |
-| Mark missing | `PUT /api/assets/:assetTag/missing` | TSG | `{ reason }` | `{ asset: Asset }` | 400; 403; 404; 409 | planned (Batch 5) |
-| Mark found | `PUT /api/assets/:assetTag/found` | TSG | `{ inspection: InspectionInput, remarks? }` | `{ asset: Asset }` | 400; 403; 404; 409 not Missing | planned (Batch 5) |
+| Request retirement | `POST /api/assets/:assetTag/retirement` | TSG | `{ reason, pathway?, assessmentInspection?: InspectionInput }`; the reason is required, at most 2,000 characters | `{ retirement: Retirement }` (201) | 400; 403; 404; 409 the asset's status does not allow it (an On Loan asset cannot be disposed of), it is in Maintenance and not Beyond Repair or has an open ticket ("Finish the maintenance ticket first. Only an asset found beyond repair can be disposed of from Maintenance."), or a disposal is already open | live (Batch 5) |
+| Decide | `PUT /api/retirements/:retirementId/decision` | Director, Secretary; never the requester | `{ decision: "approve" or "deny", decisionRemarks? }` (remarks required to deny) | `{ retirement: Retirement }` | 400; 403 ("You requested this disposal, so someone else must decide it."); 404; 409 not Pending. Approve leaves the asset Pending Retirement; deny gives it its previous status back | live (Batch 5) |
+| Complete | `PUT /api/retirements/:retirementId/complete` | TSG | `{ pathway, dispositionReference }`; the reference is at most 255 characters | `{ retirement: Retirement }` | 400; 403; 404; 409 not Approved. The asset becomes Retired | live (Batch 5) |
+| Retirement list | `GET /api/retirements` | TSG, Director, Secretary, Lab Head (only their lab's) | `?status=` optional, one or several values separated by commas | `{ retirements: Retirement[] }`, newest first | 400 an unknown status; 403 | live (Batch 1), renamed from `/api/asset_disposals`; the Retirement shape and the Lab Head scoping from Batch 5 |
+| Mark missing | `PUT /api/assets/:assetTag/missing` | TSG | `{ reason }`; required, at most 255 characters, kept in the activity log | `{ asset: Asset }` | 400; 403; 404; 409 not Available or On Loan. A held loan ends (Ended by Loss) and a ticket still in Pending Receipt is cancelled ("Asset marked missing.") in the same step | live (Batch 5) |
+| Mark found | `PUT /api/assets/:assetTag/found` | TSG | `{ inspection: InspectionInput, remarks? }`; the inspection is a Recovery inspection | `{ asset: Asset }` | 400; 403; 404; 409 not Missing. The asset becomes Available at home; the old loan stays closed | live (Batch 5) |
+
+Missing and Found send no email. A disposal request emails the Director and the Secretary; the decision emails the requester (approved: TSG completes it; denied: with the remarks). Subjects carry ids only, and every value in a body is escaped.
 
 ### 7.6 Inspections and benchmarks
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| File an inspection | `POST /api/assets/:assetTag/inspection` | TSG (Routine); the holder (Self Report) | `InspectionInput` | `{ inspection: Inspection }` | 400; 403; 404; 409 | live (Batch 1) as today; type, score and metrics from Batch 5 |
-| Inspection list | `GET /api/inspections` | TSG, Director | `?assetTag=&type=` optional | `{ inspections: Inspection[] }` | | live (Batch 1), renamed from `/api/asset_reports` and `/api/asset-reports` |
-| Routine queue | `GET /api/inspections/routine-queue` | TSG | `?centerId=` optional | `{ groups: [{ group, labs: [code], assets: [{ asset: Asset, lastTsgInspectionAt }] }] }`, oldest inspection first | 403 | planned (Batch 5) |
-| Benchmark data | `GET /api/assets/:assetTag/benchmarks` | TSG, Director, the home lab's Head | | `{ metrics: [{ metricId, metricKey, name, unit, higherIsBetter, points: [{ inspectionId, inspectedAt, value, flagged }] }], healthScores: [{ inspectionId, inspectedAt, healthScore, flagged }] }` | 403; 404 | planned (Batch 5) |
+| File an inspection | `POST /api/assets/:assetTag/inspection` | TSG (Routine); the holder (Self Report) | `InspectionInput`; the remarks are at most 255 characters | `{ inspection: Inspection }` | 400 (a missing or unknown condition, a score outside 0 to 100, a metric that does not belong to the asset's category, remarks over 255 characters); 403 a Researcher who does not hold the asset ("Only the person who holds this asset can send a self report on it."); 404; 409 the status does not allow it | live (Batch 5) |
+| Inspection list | `GET /api/inspections` | TSG, Director | `?assetTag=&type=` optional | `{ inspections: Inspection[] }` | | live (Batch 1) as `{ reports }` in today's field names, with `/api/inspections/log` beside it (L-07); this row is the target shape |
+| Routine queue | `GET /api/inspections/routine-queue` | TSG | `?days=&centerId=` optional; `days` is a whole number from 1 to 3650, default 90 (the screen offers 30, 90 and 180) | `{ groups: [{ group, name, labs: [code], assets: [{ asset: Asset, lastTsgInspectionAt }] }] }`: the five groups A, B, C, D and Other, always all five, each with its assets oldest inspection first | 400 `days` or `centerId` is not a whole number in range; 403 | live (Batch 5) |
+| Benchmark data | `GET /api/assets/:assetTag/benchmarks` | TSG, Director, the home lab's Head | | `{ metrics: [{ metricId, metricKey, name, unit, higherIsBetter, points: [{ inspectionId, inspectedAt, value, flagged }] }], healthScores: [{ inspectionId, inspectedAt, healthScore, flagged }] }` | 403 (the Head of another lab gets "This asset belongs to another lab. Only that lab's Head can see its benchmark data."); 404 | live (Batch 5), no screen yet |
+
+- **Filing.** TSG files a Routine inspection, on an Available asset only; it sets the asset's condition. Anyone else files a Self Report: they must hold the asset (an On Loan or Return Requested loan of theirs) and the asset must be On Loan. The holder is checked before the status, so a person who does not hold the asset gets 403 on any status. A Self Report never changes the asset's condition. The reporter is always the session user. The body has `condition` and the other `InspectionInput` fields; any other field is ignored. The answer is the new `Inspection` only.
+- **Routine queue.** It lists Available assets whose newest TSG inspection is older than `days`, or that TSG never inspected (those come first, then oldest, then by asset id). A Self Report does not count. On Loan, Maintenance, Pending Retirement, Retired and Missing assets are never in it. The groups come from `INSPECTION_LAB_GROUPS` (`shared/constants/inspectionGroups.ts`); `labs` of a lab group are its lab short codes, and for Other they are the codes of the labs its assets belong to. `name` is the group's display name ("Group A").
+- **Benchmark data.** `metrics` lists each metric of the asset's category by metric id, and any metric recorded before a category change, with every value TSG recorded, oldest first. A value is `flagged` by its rule in `METRIC_FLAG_RULES` (`shared/constants/metricFlagRules.ts`) against the asset's first recorded value of that metric, the same baseline the Inspection shape uses. `healthScores` lists every TSG health score, oldest first; a score is `flagged` when it is below `HEALTH_SCORE_FLAG_BELOW`, only for a category that has no metrics. Self Reports are left out, as they are from the condition. Reads only.
 
 ### 7.7 Sign-up, users and activity log
 
@@ -464,9 +486,9 @@ Replace-soon, most-requested and the weekly counts are worked out on the server 
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| My notifications | `GET /api/notifications/mine` | logged in | | `{ notifications: [{ kind, label, loanId?, assetTag?, centerId?, date? }] }` | | live (Batch 3), except `STATUS_CHECK_DUE` (Batch 5) |
+| My notifications | `GET /api/notifications/mine` | logged in | | `{ notifications: [{ kind, label, loanId?, maintenanceId?, retirementId?, statusLabel?, assetTag?, centerId?, date? }] }` | | live (Batch 3); `STATUS_CHECK_DUE`, `RECEIPT_WAITING`, `DISPOSAL_DECISION_WAITING` and `MAINTENANCE_OPEN` and the three new fields live (Batch 5) |
 
-Worked out on each call from loans and the inspection schedule; there is no notifications table. Each person gets only the kinds that apply to them:
+Worked out on each call from loans, tickets, disposals and inspections; there is no notifications table. Each person gets only the kinds that apply to them:
 
 | Kind | For | When |
 |---|---|---|
@@ -475,9 +497,15 @@ Worked out on each call from loans and the inspection schedule; there is no noti
 | `RETURN_WAITING` | TSG | a loan is Return Requested |
 | `LOAN_DUE_SOON` | the borrower | their On Loan or Return Requested loan's return-by date is today or within the next 3 days |
 | `LOAN_OVERDUE` | the borrower | their On Loan or Return Requested loan's return-by date has passed |
-| `STATUS_CHECK_DUE` | members of a lab | the routine inspection cycle of their lab starts (sent once the schedule exists, Batch 5) |
+| `STATUS_CHECK_DUE` | the borrower | for each asset they hold (On Loan or Return Requested) whose newest inspection of any type is older than 90 days (`STATUS_CHECK_DAYS`), or that has none. Filing a Self Report clears it |
+| `RECEIPT_WAITING` | TSG | a maintenance ticket is Pending Receipt (one per ticket) |
+| `DISPOSAL_DECISION_WAITING` | the Director and the Secretary | a disposal is Pending and they did not request it (one per disposal) |
+| `MAINTENANCE_OPEN` | the reporter, except TSG | an open ticket they reported, with `statusLabel` (one per ticket). TSG sees its own ticket as `RECEIPT_WAITING` and on the Repairs page, so it gets no second card |
 
-People are matched by user id, never by display name. This replaced the notification bell's name matching (#131): the bell's loan, return, due-soon and overdue cards come only from this endpoint. A Researcher's repair cards come back in Batch 5.
+- **`STATUS_CHECK_DUE` replaces the earlier plan** ("members of a lab when their lab's cycle starts"). The policy puts the periodic status update on the Responsible Person, and there is no stored cycle. An asset that was never inspected counts as due; its `date` is the newest inspection's day and is left out when there is none.
+- **Fields.** `maintenanceId` goes with `RECEIPT_WAITING` and `MAINTENANCE_OPEN`, `retirementId` with `DISPOSAL_DECISION_WAITING`, `loanId` with the loan kinds and `STATUS_CHECK_DUE`, and `statusLabel` with `MAINTENANCE_OPEN`. `date` is the request date (awaiting approval, disposal decision), the approval date (release waiting), the return request date (return waiting), the return-by date (due soon, overdue), the newest inspection's date (status check), or the report date (receipt waiting, my ticket).
+
+People are matched by user id, never by display name. This replaced the notification bell's name matching (#131): the bell's loan, return, due-soon and overdue cards come only from this endpoint. A Researcher's repair cards are the `MAINTENANCE_OPEN` kind (Batch 5).
 
 ---
 
