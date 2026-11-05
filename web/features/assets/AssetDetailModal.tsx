@@ -412,9 +412,16 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                             <p className="text-slate-400 italic py-1">Nothing recorded yet.</p>
                           ) : (
                             newestFirstEvents.map((e, idx) => (
-                              <div key={idx} className="flex justify-between items-center gap-2 py-1 border-b border-slate-50 last:border-b-0">
-                                <span>{e.label}{e.actor ? <>: <strong>{actorLabel(e.actor)}</strong></> : null}</span>
-                                <span className="text-[10px] text-slate-400 shrink-0">{new Date(e.at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                              <div key={idx} className="py-1 border-b border-slate-50 last:border-b-0">
+                                <div className="flex justify-between items-center gap-2">
+                                  <span>{e.label}{e.actor ? <>: <strong>{actorLabel(e.actor)}</strong></> : null}</span>
+                                  <span className="text-[10px] text-slate-400 shrink-0">{new Date(e.at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                                </div>
+                                {e.details && (
+                                  <div className="mt-1.5 bg-white p-2 rounded-lg border border-slate-100 italic text-[11px] text-slate-600">
+                                    "{e.details}"
+                                  </div>
+                                )}
                               </div>
                             ))
                           )}
