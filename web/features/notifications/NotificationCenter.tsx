@@ -10,6 +10,8 @@ import { useNavigate } from "react-router";
 import { useSession, roleToSlug, roleDefaultPath, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import * as notificationsApi from "@web/api/notifications.api";
+import { Button } from "@web/components/ui/button";
+import { Textarea } from "@web/components/ui/textarea";
 import { DisposalDecisionControls } from "@web/features/disposals/DisposalDecisionControls";
 import { CompleteDisposalDialog } from "@web/features/disposals/CompleteDisposalDialog";
 import type { Retirement } from "@shared/types/retirements";
@@ -197,7 +199,7 @@ export function NotificationCenter() {
     // B. Loan cards, one per server notification. Only the Head, TSG and the borrower get any, so there is no role check.
     notifications.forEach(n => {
       if (n.kind === "LOAN_AWAITING_APPROVAL") {
-        const loan = dbLoans.find((l: any) => l.loanId === n.loanId);
+        const loan = dbLoans.find((l) => l.loanId === n.loanId);
         requests.push({
           id: `LOAN-${n.loanId}`,
           type: "loan",
@@ -563,19 +565,23 @@ export function NotificationCenter() {
                           {item.type === "loan" && role === "LabHead" && (
                             <div className="flex flex-col items-end gap-2 w-full">
                               <div className="flex gap-1">
-                                <button
+                                <Button
                                   type="button"
+                                  size="sm"
+                                  className="h-7 text-[10px] font-bold px-2.5 gap-1"
                                   onClick={async (e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     await decideLoanFromBell(item.meta.loanId, "approve");
                                   }}
-                                  className="text-[10px] font-bold text-white bg-[#005A36] hover:bg-[#004225] px-3 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                                 >
-                                  <CheckCircle size={10} /> Approve Loan
-                                </button>
-                                <button
+                                  <CheckCircle size={10} /> Approve
+                                </Button>
+                                <Button
                                   type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-[10px] font-bold px-2.5 border-destructive/30 text-destructive hover:text-destructive"
                                   onClick={e => {
                                     e.preventDefault();
                                     e.stopPropagation();
@@ -583,43 +589,46 @@ export function NotificationCenter() {
                                     setDeclineRemarks("");
                                     setDecisionError(null);
                                   }}
-                                  className="text-[10px] font-bold text-red-600 border border-red-200 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                                 >
                                   Decline
-                                </button>
+                                </Button>
                               </div>
                               {decliningLoanId === item.meta.loanId && (
                                 <div className="w-full flex flex-col gap-1.5">
-                                  <textarea
+                                  <Textarea
                                     value={declineRemarks}
                                     onChange={e => setDeclineRemarks(e.target.value)}
                                     rows={2}
                                     maxLength={2000}
                                     placeholder="Reason for declining"
                                     aria-label="Reason for declining"
-                                    className="w-full rounded-md border border-input bg-input-background px-2 py-1.5 text-[11px] placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                                    className="min-h-0 px-2 py-1.5 text-[11px]"
                                   />
                                   <div className="flex justify-end gap-1">
-                                    <button
+                                    <Button
                                       type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 text-[10px] font-bold px-2.5"
                                       onClick={() => setDecliningLoanId(null)}
-                                      className="text-[10px] font-bold text-muted-foreground border border-border hover:bg-muted/30 px-2.5 py-1 rounded-lg cursor-pointer"
                                     >
                                       Cancel
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button
                                       type="button"
+                                      size="sm"
+                                      variant="destructive"
+                                      className="h-7 text-[10px] font-bold px-2.5"
                                       disabled={!declineRemarks.trim()}
                                       onClick={async () => { await decideLoanFromBell(item.meta.loanId, "decline"); }}
-                                      className="text-[10px] font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 px-2.5 py-1 rounded-lg cursor-pointer"
                                     >
-                                      Send decline
-                                    </button>
+                                      Confirm Decline
+                                    </Button>
                                   </div>
                                 </div>
                               )}
                               {decisionError?.loanId === item.meta.loanId && (
-                                <p className="text-[10px] text-red-600 text-right">{decisionError.message}</p>
+                                <p className="text-[10px] text-destructive text-right">{decisionError.message}</p>
                               )}
                             </div>
                           )}
