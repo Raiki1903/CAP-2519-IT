@@ -7,6 +7,8 @@
 import { useEffect, useState } from "react";
 import { Label } from "@web/components/ui/label";
 import { Input } from "@web/components/ui/input";
+import { Textarea } from "@web/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import {
   ASSET_CONDITIONS,
   ASSET_CONDITION_LABELS,
@@ -95,18 +97,22 @@ export function InspectionStep({
         {/* Condition select */}
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs font-bold text-foreground">Condition</Label>
-          <select
+          <Select
             value={value.condition}
             disabled={disabled}
-            onChange={(e) => handleConditionChange(e.target.value as AssetCondition)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            onValueChange={(v) => handleConditionChange(v as AssetCondition)}
           >
-            {(ASSET_CONDITIONS as AssetCondition[]).map((c) => (
-              <option key={c} value={c}>
-                {ASSET_CONDITION_LABELS[c]} (suggested score {SUGGESTED_HEALTH_SCORE[c]})
-              </option>
-            ))}
-          </select>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(ASSET_CONDITIONS as AssetCondition[]).map((c) => (
+                <SelectItem key={c} value={c}>
+                  {ASSET_CONDITION_LABELS[c]} (suggested score {SUGGESTED_HEALTH_SCORE[c]})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Health Score input */}
@@ -139,13 +145,13 @@ export function InspectionStep({
       {/* Remarks */}
       <div className="flex flex-col gap-1.5">
         <Label className="text-xs font-bold text-foreground">Inspection Remarks</Label>
-        <textarea
+        <Textarea
           rows={3}
           disabled={disabled}
           value={value.remarks ?? ""}
           onChange={(e) => onChange({ ...value, remarks: e.target.value })}
           placeholder="Technical observations, physical wear, notes, or issues observed..."
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none disabled:opacity-50"
+          className="text-xs"
         />
       </div>
 

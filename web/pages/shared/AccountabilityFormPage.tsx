@@ -37,7 +37,7 @@ function extractLastName(fullName?: string | null): string {
  * Formats a date string into human-readable YYYY-MM-DD.
  */
 function formatDate(dateStr?: string | null): string {
-  if (!dateStr) return "—";
+  if (!dateStr) return "N/A";
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return dateStr;
   return d.toISOString().split("T")[0];
@@ -61,7 +61,7 @@ export function AccountabilityFormPage() {
     setErrorMessage(null);
 
     getAccountabilityForm(loanId)
-      .then((res: any) => {
+      .then((res) => {
         if (res.success && res.loan && res.asset && res.borrower) {
           setFormData({
             loan: res.loan,
@@ -73,7 +73,7 @@ export function AccountabilityFormPage() {
           setErrorMessage(res.error || "Failed to load Accountability Form.");
         }
       })
-      .catch((err: any) => {
+      .catch((err) => {
         setErrorMessage(err?.message || "Failed to contact the server.");
       })
       .finally(() => setLoading(false));
@@ -107,7 +107,7 @@ export function AccountabilityFormPage() {
           <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">
             <ShieldAlert size={24} />
           </div>
-          <h2 className="text-base font-bold text-foreground">Access Refused</h2>
+          <h2 className="text-base font-bold text-foreground">Unable to Open Accountability Form</h2>
           <p className="text-xs text-muted-foreground">{errorMessage || "Accountability Form not found."}</p>
           <Button size="sm" variant="outline" onClick={() => navigate(-1)} className="gap-1.5 text-xs font-semibold">
             <ArrowLeft size={13} />
@@ -122,7 +122,7 @@ export function AccountabilityFormPage() {
   const accountabilityId = `AF-${String(loan.loanId).padStart(5, "0")}`;
   const effectivePeriod = `${formatDate(loan.releasedAt)} to ${loan.returnBy}`;
   const modelName = asset.manufacturer || "N/A";
-  const serialNo = (asset as any).serialNumber || asset.serial || "N/A";
+  const serialNo = asset.serialNumber || asset.serial || "N/A";
   const affiliatedLabs = borrower.labs?.map((l) => l.code).join(", ") || "None";
   const destination = `${loan.destinationLab?.code ?? "Home Lab"}${loan.destinationRoom ? ` - ${loan.destinationRoom}` : ""}`;
   const releasedBy = loan.releasedBy && "name" in loan.releasedBy ? loan.releasedBy.name : "TSG Staff";
@@ -136,7 +136,7 @@ export function AccountabilityFormPage() {
           Close Form
         </Button>
         <div className="flex items-center gap-2">
-          <Button size="sm" onClick={handlePrint} className="gap-1.5 text-xs font-bold bg-[#005A36] text-white hover:bg-[#005A36]/90">
+          <Button size="sm" onClick={handlePrint} className="gap-1.5 text-xs font-semibold">
             <Printer size={13} />
             Print Form / Save PDF
           </Button>
