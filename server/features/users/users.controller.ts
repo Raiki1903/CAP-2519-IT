@@ -2,21 +2,21 @@
  * Users controller: unpacks the IT Admin's account requests, calls the service, and writes the JSON answers.
  * Layer: controller. Called by users.routes.ts. Calls users.validation.ts, users.service.ts, and
  * shared/middleware/requireAuth.ts (sessionUserOf: who is acting).
- * Used by: the IT Admin's Approvals page.
+ * Used by: the IT Admin's Approvals and Users pages.
  * Errors are not caught here: an AppError or any other failure falls through to shared/middleware/errorHandler.ts.
  */
 import type { Request, Response } from 'express';
 import * as usersService from './users.service';
-import { checkUserListQuery, readApproveSignUp, readRejectSignUp, readUserId } from './users.validation';
+import { readApproveSignUp, readRejectSignUp, readUserId, readUserListQuery } from './users.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
- * Handles GET /api/users?status=PENDING: the Pending sign-ups, oldest first, as `{ success, users }`.
- * Answers 400 for any other query, or 500.
+ * Handles GET /api/users?status=&role=&centerId=&q=: the accounts that pass the filters, as `{ success, users }`.
+ * `status=PENDING` alone gives the Approvals list, oldest first. Answers 400 for a bad filter or an unknown lab, or 500.
  */
 export async function listUsers(req: Request, res: Response): Promise<void> {
-    checkUserListQuery(req.query);
-    res.json({ success: true, users: await usersService.listPendingSignUps() });
+    const filters = readUserListQuery(req.query);
+    res.json({ success: true, users: await usersService.listUsers(filters) });
 }
 
 /**

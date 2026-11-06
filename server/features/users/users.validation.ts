@@ -1,24 +1,61 @@
 /**
- * Users request checks: the list query, the user id in the URL, and the approve and reject bodies.
- * Layer: validation. Called by users.controller.ts. Calls shared/errors/AppError.ts and @shared (roles, remarks limit).
- * Used by: the IT Admin's Approvals page.
+ * Users request checks: the list filters, the user id in the URL, and the approve and reject bodies.
+ * Layer: validation. Called by users.controller.ts. Calls shared/errors/AppError.ts and @shared (roles, account
+ * statuses, remarks limit).
+ * Used by: the IT Admin's Approvals and Users pages.
  */
+import { ACCOUNT_STATUSES, type AccountStatus } from '@shared/constants/accountStatuses';
 import { REJECT_REMARKS_MAX_LENGTH } from '@shared/constants/signUp';
 import { DATABASE_ROLES, type DatabaseRole } from '@shared/enums/role';
-import type { ApproveSignUpInput, RejectSignUpInput } from '@shared/types/users';
+import type { ApproveSignUpInput, RejectSignUpInput, UserListFilters } from '@shared/types/users';
 import { AppError } from '../../shared/errors/AppError';
 
+/** The 400 message for a role that is not one of the five database roles. */
+const ROLE_MESSAGE = "Choose a role: Researcher, TSG Staff, AdRIC Director, AdRIC Secretary, or IT Admin.";
+
+/** The longest search the users list takes. */
+const SEARCH_MAX_LENGTH = 100;
+
+const LIST_FILTERS = ['status', 'role', 'centerId', 'q'];
+
 /**
- * Checks the query of GET /api/users. Only the Pending list exists for now; module 6 adds the other filters.
+ * Reads the filters of GET /api/users. Each filter is optional and takes one value; an empty search counts as none.
  *
  * @param query the request's query
- * @throws AppError 400 for anything but exactly `status=PENDING`
+ * @returns the filters that were sent
+ * @throws AppError 400 for an unknown filter, a filter sent twice, an unknown status or role, a lab id that is not a
+ * positive whole number, or a search longer than 100 characters
  */
-export function checkUserListQuery(query: Record<string, unknown>): void {
-    const keys = Object.keys(query);
-    if (keys.length !== 1 || query.status !== 'PENDING') {
-        throw new AppError(400, "Only status=PENDING is available for now.");
+export function readUserListQuery(query: Record<string, unknown>): UserListFilters {
+    for (const [key, value] of Object.entries(query)) {
+        if (!LIST_FILTERS.includes(key)) throw new AppError(400, `Unknown filter "${key}". Use status, role, centerId, or q.`);
+        if (typeof value !== 'string') throw new AppError(400, `Send the filter "${key}" once.`);
     }
+    const { status, role, centerId, q } = query as Record<string, string | undefined>;
+    const filters: UserListFilters = {};
+
+    if (status !== undefined) {
+        if (!(ACCOUNT_STATUSES as readonly string[]).includes(status)) {
+            throw new AppError(400, "Choose a status: PENDING, ACTIVE, INACTIVE, or REJECTED.");
+        }
+        filters.status = status as AccountStatus;
+    }
+    if (role !== undefined) {
+        if (!(DATABASE_ROLES as readonly string[]).includes(role)) throw new AppError(400, ROLE_MESSAGE);
+        filters.role = role as DatabaseRole;
+    }
+    if (centerId !== undefined) filters.centerId = readPositiveId(centerId, "The lab id must be a positive whole number.");
+    if (q !== undefined && q.trim() !== '') {
+        if (q.trim().length > SEARCH_MAX_LENGTH) throw new AppError(400, `The search can be at most ${SEARCH_MAX_LENGTH} characters.`);
+        filters.q = q.trim();
+    }
+    return filters;
+}
+
+function readPositiveId(value: string, message: string): number {
+    const id = Number(value);
+    if (!/^\d+$/.test(value) || !Number.isSafeInteger(id) || id <= 0) throw new AppError(400, message);
+    return id;
 }
 
 /**
@@ -29,11 +66,7 @@ export function checkUserListQuery(query: Record<string, unknown>): void {
  * @throws AppError 400 if it is not a positive whole number
  */
 export function readUserId(value: string): number {
-    const userId = Number(value);
-    if (!/^\d+$/.test(value) || !Number.isSafeInteger(userId) || userId <= 0) {
-        throw new AppError(400, "The user id must be a positive whole number.");
-    }
-    return userId;
+    return readPositiveId(value, "The user id must be a positive whole number.");
 }
 
 /**
@@ -46,9 +79,7 @@ export function readUserId(value: string): number {
  */
 export function readApproveSignUp(body: any): ApproveSignUpInput {
     const { role, centerIds } = body ?? {};
-    if (!DATABASE_ROLES.includes(role)) {
-        throw new AppError(400, "Choose a role: Researcher, TSG Staff, AdRIC Director, AdRIC Secretary, or IT Admin.");
-    }
+    if (!DATABASE_ROLES.includes(role)) throw new AppError(400, ROLE_MESSAGE);
     const ids = centerIds ?? [];
     if (!Array.isArray(ids) || !ids.every(id => Number.isInteger(id) && id > 0)) {
         throw new AppError(400, "The labs must be a list of lab ids.");

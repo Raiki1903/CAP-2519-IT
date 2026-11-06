@@ -1,10 +1,10 @@
 /**
- * Users service: the IT Admin's rules for Pending sign-ups: who is waiting, and approving or rejecting one.
+ * Users service: the IT Admin's rules for accounts: the users list, and for Pending sign-ups, approving or rejecting one.
  * Layer: service. Called by users.controller.ts. Calls users.repository.ts.
- * Used by: the IT Admin's Approvals page.
+ * Used by: the IT Admin's Approvals and Users pages.
  */
 import { DATABASE_ROLE_LABELS, type DatabaseRole } from '@shared/enums/role';
-import type { ApproveSignUpInput, RejectSignUpInput, User } from '@shared/types/users';
+import type { ApproveSignUpInput, RejectSignUpInput, User, UserListFilters } from '@shared/types/users';
 import * as usersRepository from './users.repository';
 import type { SignUpDecision, UserRow } from './users.repository';
 import { AppError } from '../../shared/errors/AppError';
@@ -40,12 +40,20 @@ function decidedUser(decision: SignUpDecision): User {
 }
 
 /**
- * The sign-ups waiting for the IT Admin, oldest first, each with the labs it asked for.
+ * The accounts that pass the filters. `status=PENDING` alone is the Approvals list: the sign-ups waiting, oldest
+ * first, each with the labs it asked for. Any other filters, or none, list by last name and then first name; with no
+ * status the Pending sign-ups are left out.
  *
- * @returns the Pending accounts
+ * @param filters status, role, lab, and search, each optional
+ * @returns the accounts
+ * @throws AppError 400 if the lab does not exist
  */
-export async function listPendingSignUps(): Promise<User[]> {
-    return (await usersRepository.findUsersByStatus('PENDING')).map(toUser);
+export async function listUsers(filters: UserListFilters): Promise<User[]> {
+    if (filters.centerId !== undefined && (await usersRepository.findLabs([filters.centerId])).length === 0) {
+        throw new AppError(400, "No lab has this id.");
+    }
+    const approvalsList = filters.status === 'PENDING' && Object.keys(filters).length === 1;
+    return (await usersRepository.findUsers(filters, approvalsList ? 'SIGN_UP' : 'NAME')).map(toUser);
 }
 
 /**

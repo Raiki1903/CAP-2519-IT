@@ -1,10 +1,12 @@
 /**
- * Account row access for the IT Admin: Pending sign-ups, and approving or rejecting one with its role, labs, and log row.
+ * Account row access for the IT Admin: the users list with its filters, Pending sign-ups, and approving or rejecting
+ * one with its role, labs, and log row.
  * Layer: repository. Called by users.service.ts. Calls config/prisma.ts, shared/services/rowLocks.ts, and
  * shared/services/activityLog.ts.
- * Used by: the IT Admin's Approvals page.
+ * Used by: the IT Admin's Approvals and Users pages.
  */
-import type { Prisma, roles_role_name, users_account_status } from '@prisma/client';
+import type { Prisma, roles_role_name } from '@prisma/client';
+import type { UserListFilters } from '@shared/types/users';
 import { prisma } from '../../config/prisma';
 import { logActivity } from '../../shared/services/activityLog';
 import { lockUser } from '../../shared/services/rowLocks';
@@ -29,14 +31,41 @@ export type UserRow = Prisma.usersGetPayload<{ select: typeof USER_SELECT }>;
 /** How a sign-up decision went: done with the account as it is now, or refused because of what the locked row held. */
 export type SignUpDecision = { outcome: 'DONE'; user: UserRow } | { outcome: 'NOT_FOUND' } | { outcome: 'NOT_PENDING' };
 
+/** How a list is ordered: sign-up order (user_id, oldest first), or by last name and then first name. */
+export type UserListOrder = 'SIGN_UP' | 'NAME';
+
 /**
- * The accounts with one status, in sign-up order (user_id, oldest first). users has no creation date, so the id is
- * the order the accounts were made in.
+ * The accounts that pass every filter given. With no status, every account but the Pending ones.
+ * users has no creation date, so in sign-up order the id is the order the accounts were made in.
  *
- * @param status the account status
+ * @param filters status, role, lab, and search, each optional
+ * @param order sign-up order, or by name
  */
-export function findUsersByStatus(status: users_account_status) {
-    return prisma.users.findMany({ where: { account_status: status }, select: USER_SELECT, orderBy: { user_id: 'asc' } });
+export async function findUsers(filters: UserListFilters, order: UserListOrder) {
+    const where: Prisma.usersWhereInput = { account_status: filters.status ?? { not: 'PENDING' } };
+    if (filters.role) where.user_roles = { some: { roles: { role_name: filters.role } } };
+    if (filters.centerId !== undefined) where.user_centers = { some: { center_id: filters.centerId } };
+    if (filters.q) where.user_id = { in: await findUserIdsMatching(filters.q) };
+
+    const orderBy: Prisma.usersOrderByWithRelationInput[] = order === 'SIGN_UP'
+        ? [{ user_id: 'asc' }]
+        : [{ last_name: 'asc' }, { first_name: 'asc' }, { user_id: 'asc' }];
+    return prisma.users.findMany({ where, select: USER_SELECT, orderBy });
+}
+
+/**
+ * The ids of the accounts whose full name, email, or ID number contains the text. The columns' collation
+ * (utf8mb4_unicode_ci) makes the match ignore case.
+ */
+async function findUserIdsMatching(text: string): Promise<number[]> {
+    // The text is matched as typed: %, _ and \ are escaped so they are not LIKE wildcards.
+    const pattern = `%${text.replace(/[\\%_]/g, ch => `\\${ch}`)}%`;
+    const rows = await prisma.$queryRaw<{ user_id: number }[]>`
+        SELECT user_id FROM users
+        WHERE CONCAT(first_name, ' ', last_name) LIKE ${pattern}
+           OR email LIKE ${pattern}
+           OR CAST(id_number AS CHAR) LIKE ${pattern}`;
+    return rows.map(row => Number(row.user_id));
 }
 
 /** The research centers among these ids, with their codes. A missing one is not in the list. */

@@ -31,6 +31,19 @@ export interface User {
   headOf: UserLab | null;
 }
 
+/**
+ * The filters of GET /api/users, each optional and one value each. With no status, every account but the Pending
+ * ones is listed.
+ */
+export interface UserListFilters {
+  status?: AccountStatus;
+  role?: DatabaseRole;
+  /** A lab the account belongs to. */
+  centerId?: number;
+  /** Part of the name, email, or ID number, trimmed; any case. */
+  q?: string;
+}
+
 /** The body of PUT /api/users/:userId/approve. */
 export interface ApproveSignUpInput {
   role: DatabaseRole;
