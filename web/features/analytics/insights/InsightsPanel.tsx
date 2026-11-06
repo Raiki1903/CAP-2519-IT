@@ -1,21 +1,29 @@
 /**
- * Insights panel: the advice notes for the signed-in role, as the Insights section of an Analytics page (tabs Operational
- * and Strategic). Read-only; Dismiss hides a card until the page reloads.
+ * Insights panel: the advice notes for the signed-in role, as one block at the top of an Analytics page. A header row
+ * (title, total count, Hide or Show) and one wide card with three sections side by side: High, Medium, and Planning.
+ * Read-only; Dismiss hides a card until the page reloads, and Hide or Show is component state too.
  * Layer: feature component. Called by StaffAnalyticsView, LabHeadAnalyticsView, and DirectorAnalyticsView.
- * Calls api/analytics.api.ts getInsights() and InsightCard.tsx.
+ * Calls api/analytics.api.ts getInsights(), InsightCard.tsx, and insightPriorityStyles.ts.
  * Used by: TSG Staff, Secretary, Lab Head, Director.
  * The panel never blocks the page: it has its own loading and error states, so the charts show either way.
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Lightbulb } from "lucide-react";
-import type { Insight, InsightChartKey, InsightView } from "@shared/types/analytics";
+import type { Insight, InsightChartKey, InsightPriority } from "@shared/types/analytics";
 import * as analyticsApi from "@web/api/analytics.api";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@web/components/ui/tabs";
+import { Badge } from "@web/components/ui/badge";
+import { Button } from "@web/components/ui/button";
+import { Card } from "@web/components/ui/card";
+import { cn } from "@web/components/ui/utils";
 import { InsightCard } from "./InsightCard";
+import { INSIGHT_PRIORITY_LABELS, insightPriorityBadgeClass } from "./insightPriorityStyles";
 
 const NONE_MESSAGE = "No insights right now.";
 const ERROR_MESSAGE = "Insights are currently unavailable.";
+
+/** The sections, left to right. Planning is the strategic one. */
+const SECTIONS: InsightPriority[] = ["HIGH", "MEDIUM", "PLANNING"];
 
 interface InsightsPanelProps {
   /** One lab, for the Staff and Director views that can pick a lab. A Lab Head sends none. */
@@ -35,14 +43,14 @@ function InsightsSkeleton() {
 }
 
 /**
- * Loads the insights once and shows them in tabs.
+ * Loads the insights once and shows them in three sections by priority.
  *
  * @param centerId the lab to read, or none
  * @param charts the charts on this page, for the "Related chart" line
  */
 export function InsightsPanel({ centerId = null, charts = {} }: InsightsPanelProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [chosenTab, setChosenTab] = useState<InsightView | null>(null);
+  const [hidden, setHidden] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["analytics-insights", centerId],
@@ -53,43 +61,56 @@ export function InsightsPanel({ centerId = null, charts = {} }: InsightsPanelPro
   const dismiss = (id: string) => setDismissed(previous => new Set(previous).add(id));
   const shown: Insight[] = (data?.insights ?? []).filter(insight => !dismissed.has(insight.id));
 
-  const operational = shown.filter(insight => insight.view === "operational");
-  const strategic = shown.filter(insight => insight.view === "strategic");
-  // Open on the first tab that has a card, so a viewer with only strategic notes does not land on an empty tab.
-  const tab: InsightView = chosenTab ?? (operational.length === 0 && strategic.length > 0 ? "strategic" : "operational");
-
-  const list = (insights: Insight[]) =>
-    insights.length === 0 ? (
-      <p className="py-3 text-sm text-muted-foreground">{NONE_MESSAGE}</p>
-    ) : (
-      <div className="space-y-2">
-        {insights.map(insight => (
-          <InsightCard key={insight.id} insight={insight} chartTitle={charts[insight.chartKey]} onDismiss={dismiss} />
-        ))}
-      </div>
-    );
-
   return (
     <section className="space-y-3" aria-label="Insights">
-      <div>
+      <div className="flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-extrabold text-foreground">
           <Lightbulb className="w-5 h-5 text-primary" /> Insights
+          {data && <span className="text-sm font-bold text-muted-foreground">({shown.length})</span>}
         </h2>
-        <p className="text-xs text-muted-foreground">
-          Notes on what may need attention, with a suggested next step. They only read your data and change nothing.
-        </p>
+        <Button variant="outline" size="sm" aria-expanded={!hidden} onClick={() => setHidden(isHidden => !isHidden)}>
+          {hidden ? "Show" : "Hide"}
+        </Button>
       </div>
-      {isLoading && <InsightsSkeleton />}
-      {isError && <p className="text-sm text-muted-foreground">{ERROR_MESSAGE}</p>}
-      {data && (
-        <Tabs value={tab} onValueChange={value => setChosenTab(value as InsightView)}>
-          <TabsList>
-            <TabsTrigger value="operational">Operational ({operational.length})</TabsTrigger>
-            <TabsTrigger value="strategic">Strategic ({strategic.length})</TabsTrigger>
-          </TabsList>
-          <TabsContent value="operational">{list(operational)}</TabsContent>
-          <TabsContent value="strategic">{list(strategic)}</TabsContent>
-        </Tabs>
+
+      {!hidden && (
+        <>
+          {isLoading && <InsightsSkeleton />}
+          {isError && <p className="text-sm text-muted-foreground">{ERROR_MESSAGE}</p>}
+          {data && (
+            <Card className="rounded-xl border border-border bg-card p-0 shadow-sm">
+              {shown.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">{NONE_MESSAGE}</p>
+              ) : (
+                <div className="grid grid-cols-1 divide-y divide-border lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+                  {SECTIONS.map(priority => {
+                    const items = shown.filter(insight => insight.priority === priority);
+                    return (
+                      <div key={priority} className="flex flex-col gap-2 p-3" aria-label={`${INSIGHT_PRIORITY_LABELS[priority]} insights`}>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={cn("text-xs", insightPriorityBadgeClass(priority))}>
+                            {INSIGHT_PRIORITY_LABELS[priority]}
+                          </Badge>
+                          <span className="text-xs font-bold text-muted-foreground">{items.length}</span>
+                        </div>
+                        {/* Fixed height, about three cards; the rest scrolls. */}
+                        <div className="h-[26rem] space-y-2 overflow-y-auto pr-1">
+                          {items.length === 0 ? (
+                            <p className="py-2 text-xs text-muted-foreground">None</p>
+                          ) : (
+                            items.map(insight => (
+                              <InsightCard key={insight.id} insight={insight} chartTitle={charts[insight.chartKey]} onDismiss={dismiss} />
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          )}
+        </>
       )}
     </section>
   );

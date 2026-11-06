@@ -1,7 +1,8 @@
 /**
  * Insight card: one advice note with its priority, issue, and suggested next step, a Why section with the evidence and
- * other options, and a Dismiss button. Read-only: no button starts a workflow.
- * Layer: feature component. Called by InsightsPanel.tsx. Calls insightPriorityStyles.ts and components/ui (card, badge, button).
+ * other options, and a Dismiss button. Compact, to fit three to a column of the Insights block. Read-only: no button
+ * starts a workflow.
+ * Layer: feature component. Called by InsightsPanel.tsx. Calls insightPriorityStyles.ts and components/ui (badge, button).
  * Used by: the Insights section of the Staff, Lab Head, and Director analytics.
  */
 import { useState } from "react";
@@ -9,7 +10,6 @@ import { ChevronDown, ChevronUp, X } from "lucide-react";
 import type { Insight } from "@shared/types/analytics";
 import { Badge } from "@web/components/ui/badge";
 import { Button } from "@web/components/ui/button";
-import { Card } from "@web/components/ui/card";
 import { cn } from "@web/components/ui/utils";
 import { INSIGHT_PRIORITY_LABELS, insightPriorityAccentClass, insightPriorityBadgeClass } from "./insightPriorityStyles";
 
@@ -32,70 +32,64 @@ export function InsightCard({ insight, chartTitle, onDismiss }: InsightCardProps
   const [showWhy, setShowWhy] = useState(false);
 
   return (
-    <Card className={cn("border border-border border-l-4 bg-card shadow-sm rounded-xl p-4", insightPriorityAccentClass(insight.priority))}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className={insightPriorityBadgeClass(insight.priority)}>
-              {INSIGHT_PRIORITY_LABELS[insight.priority]}
-            </Badge>
-            <h3 className="text-sm font-extrabold text-foreground">{insight.title}</h3>
-            <span className="text-xs text-muted-foreground font-mono">{insight.assetTag} · {insight.labCode}</span>
-          </div>
-          <p className="text-sm text-foreground">{insight.issue}</p>
-          <p className="text-sm text-muted-foreground">
-            <span className="font-bold text-foreground">Suggested: </span>
-            {insight.preferredAction}
-          </p>
-          {chartTitle && (
-            <p className="text-xs text-muted-foreground">Related chart on this page: {chartTitle}</p>
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0 text-xs text-muted-foreground"
-          onClick={() => onDismiss(insight.id)}
-          aria-label={`Dismiss ${insight.title} for ${insight.assetTag}`}
-        >
-          <X size={14} /> Dismiss
-        </Button>
+    <div className={cn("rounded-lg border border-border border-l-4 bg-card p-2.5 text-xs shadow-sm", insightPriorityAccentClass(insight.priority))}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Badge variant="outline" className={cn("px-1.5 py-0 text-[10px]", insightPriorityBadgeClass(insight.priority))}>
+          {INSIGHT_PRIORITY_LABELS[insight.priority]}
+        </Badge>
+        <h3 className="text-xs font-extrabold text-foreground">{insight.title}</h3>
+        <span className="font-mono text-[11px] text-muted-foreground">{insight.assetTag} · {insight.labCode}</span>
       </div>
+      <p className="mt-1 text-foreground">{insight.issue}</p>
+      <p className="mt-0.5 text-muted-foreground">
+        <span className="font-bold text-foreground">Suggested: </span>
+        {insight.preferredAction}
+      </p>
+      {chartTitle && <p className="mt-0.5 text-[11px] text-muted-foreground">Related chart on this page: {chartTitle}</p>}
 
-      <div className="mt-2">
+      <div className="mt-1 flex items-center justify-between">
         <Button
           variant="ghost"
           size="sm"
-          className="px-1 text-xs font-bold text-primary"
+          className="h-6 px-1 text-[11px] font-bold text-primary"
           aria-expanded={showWhy}
           onClick={() => setShowWhy(open => !open)}
         >
-          {showWhy ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Why
+          {showWhy ? <ChevronUp size={12} /> : <ChevronDown size={12} />} Why
         </Button>
-
-        {showWhy && (
-          <div className="mt-2 space-y-3 rounded-lg bg-muted/50 p-3 text-xs">
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-              {insight.evidence.map(row => (
-                <div key={`${row.label}:${row.value}`} className="contents">
-                  <dt className="font-bold text-foreground">{row.label}</dt>
-                  <dd className="text-muted-foreground">{row.value}</dd>
-                </div>
-              ))}
-            </dl>
-            {insight.alternatives.length > 0 && (
-              <div>
-                <p className="font-bold text-foreground">Other options</p>
-                <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-muted-foreground">
-                  {insight.alternatives.map(alternative => (
-                    <li key={alternative.rank}>{alternative.text}</li>
-                  ))}
-                </ol>
-              </div>
-            )}
-          </div>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-1 text-[11px] text-muted-foreground"
+          onClick={() => onDismiss(insight.id)}
+          aria-label={`Dismiss ${insight.title} for ${insight.assetTag}`}
+        >
+          <X size={12} /> Dismiss
+        </Button>
       </div>
-    </Card>
+
+      {showWhy && (
+        <div className="mt-1 space-y-2 rounded-md bg-muted/50 p-2 text-[11px]">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+            {insight.evidence.map(row => (
+              <div key={`${row.label}:${row.value}`} className="contents">
+                <dt className="font-bold text-foreground">{row.label}</dt>
+                <dd className="text-muted-foreground">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+          {insight.alternatives.length > 0 && (
+            <div>
+              <p className="font-bold text-foreground">Other options</p>
+              <ol className="mt-0.5 list-decimal space-y-0.5 pl-4 text-muted-foreground">
+                {insight.alternatives.map(alternative => (
+                  <li key={alternative.rank}>{alternative.text}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
