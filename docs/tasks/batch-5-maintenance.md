@@ -422,10 +422,10 @@ fetch("http://localhost:4000/api/assets/<N1>/maintenance",{method:"POST",credent
 - First back-date A1's inspections so a status check is due (it is due when the newest inspection is older than 90 days). In PowerShell, one statement, `adric_uat_check` only. It changes no column with a CHECK (those are `health_score`, loan `return_by`, maintenance `completed_at`, retirement `decided_by_id` and `completed_at`): `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "UPDATE asset_inspections SET inspected_at = DATE_SUB(NOW(), INTERVAL 100 DAY) WHERE asset_id = (SELECT asset_id FROM assets WHERE asset_tag='<A1>')"`
 - Reload the page. Bell, Reminders tab: "Status check due: <A1 name>", text "Its last inspection was on <a date about 100 days ago>. Send a status report on the Report tab."
 - Before filing, note A1's condition: as UAT Staff One, Asset Inventory, open A1 (it should read Operational, from the release).
-- Report tab ("Send Inspection Report"): pick A1, status Minor Drift, a short description, click "Send Inspection Report". Expect "Report Sent" and "Your report is saved." Only A1 (On Loan, held by this person) is on the list.
+- Report tab ("Send Inspection Report"): pick A1, status Minor Drift, a short description, click "Send Inspection Report". Expect "Report Sent" and "Your report is saved." A1 (On Loan, held by this person) is on the list.
 - Reload. The "Status check due" card for A1 is gone.
 - As UAT Staff One, Asset Inventory, open A1: the condition is **still** Operational (a Self Report never changes it).
-- Database: ``SELECT i.type, i.`condition` FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<A1>' ORDER BY i.inspection_id DESC LIMIT 1`` shows SELF_REPORT and MINOR DRIFT (stored with a space).
+- Database: ``SELECT i.type, i.`condition` FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<A1>' AND i.type='SELF_REPORT' ORDER BY i.inspection_id DESC LIMIT 1`` shows SELF_REPORT and MINOR DRIFT (stored with a space).
 
 **5-H15. The holder reports an issue on A1; a second report is refused; TSG receives it and the loan ends.** Roles: UAT Custodian One, then UAT Staff One. Screen: My Loans, then Repairs. Database: `adric_uat_check` (writes ticket **T5**, ends L1).
 - As UAT Custodian One: My Loans, Out tab. On L1's row (A1) click "Report an issue". Expect A1's detail to open. Click "Request Repair".
@@ -446,8 +446,8 @@ fetch("http://localhost:4000/api/assets/<N1>/maintenance",{method:"POST",credent
 - UAT LabHead CITe4D One: no "Status check due" and no "Your maintenance ticket" (this account did not report T5 and does not hold A1).
 - UAT Director One and UAT Custodian Three: no "Disposal Request" card for D1 or D2. Both were decided in 5-H11 and 5-H12, and only TSG gets a card for an approved disposal.
 
-**5-H17. A Lab Head sees only their own lab's tickets and disposals, and reports only on their own lab's assets.** Roles: UAT LabHead CITe4D One, then UAT LabHead CAR. Screen: Analytics, then the console. Database: `adric_uat_check` (writes nothing).
-- As UAT LabHead CITe4D One: Analytics tab. The repair table has the columns "Ticket ID", "Asset ID", "Asset Name", "Issue Description", "Reported At", "Issue Type" and "Status". It lists `MNT-<T5>` for A1 (a CITe4D asset), with the issue type you picked and status Inspecting. A ticket on a CAR asset is not listed.
+**5-H17. A Lab Head sees only their own lab's tickets and disposals, and reports only on their own lab's assets.** Roles: UAT LabHead CITe4D One, then UAT LabHead CAR. Screen: Lab Inventory, then the console. Database: `adric_uat_check` (writes nothing).
+- As UAT LabHead CITe4D One: Lab Inventory, the "Inventory Report" button, section "III. Repairs". The repair table has the columns "Ticket ID", "Asset ID", "Asset Name", "Issue Description", "Reported At", "Issue Type" and "Status". It lists `MNT-<T5>` for A1 (a CITe4D asset), with the issue type you picked and status Inspecting. A ticket on a CAR asset is not listed.
 - As UAT LabHead CAR, console:
 ```js
 fetch("http://localhost:4000/api/maintenance",{credentials:"include"}).then(r=>r.json()).then(console.log)
