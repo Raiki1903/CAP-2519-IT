@@ -261,6 +261,7 @@ describe("insight wording", () => {
       ...Object.values(INSIGHT_ACTIONS).flatMap(a => Object.values(a)),
       ...Object.values(INSIGHT_ALTERNATIVES).flat(),
     ].join(" ");
-    expect(all).not.toMatch(/\bmust\b|unusable|warranty eligible|\bbuy\b|—/i);
+    expect(all).not.toMatch(/\bmust\b|unusable|warranty eligible|\bbuy\b/i);
+    expect(all).not.toContain(String.fromCharCode(0x2014));
   });
 });
