@@ -135,3 +135,184 @@ Schema changes, new packages, direct account creation by the IT Admin, password 
 2. Automatic anonymization after graduation or after a set time. Today the IT Admin anonymizes by hand, one account at a time.
 
 Also not part of this work: a password reset by the IT Admin, email or bell notices for tickets, ticket attachments, and any asset action for the IT Admin.
+
+## Hand checks (Stop 4)
+
+Written for Raiki, to run by hand. The agent did not run them, and used no browser. Every check uses **`adric_uat_check` only** (the local copy), on branch `feat/module-6-it-admin`. Nothing here touches CCS Cloud. Find this section by searching the exact heading text `Hand checks (Stop 4)` in `docs/tasks/module-6-it-admin.md`; the checks are H1 to H21. Each ends with a Pass line for you to fill in.
+
+**Order.** Users first (H1 to H10), then Labs (H11, H12), then Tickets (H13 to H16), then who may open the IT Admin pages (H17), then the Activity Log (H18 to H20, last on purpose, so it shows every step above), then the nearby screens (H21). Each check builds on the one before it, so run them in order and in one sitting.
+
+**Setup (before H1)**
+
+1. Ports 4000 and 5173 must be free: no leftover `npm run dev:all`, which talks to CCS Cloud.
+2. The database must be a **fresh demo seed**: "A fresh local database with demo data" in `docs/guides/DATABASE-MIGRATIONS.md` (11 demo accounts, 10 labs, 12 demo assets). These checks change it: they approve a sign-up, anonymize that account (which cannot be undone), move lab Heads, and file a ticket. To run them a second time, seed a fresh database again.
+3. Start the app with `C:\dev\uat-data\start-local-uat.ps1`. The startup line must say `Database: adric_uat_check on localhost`. If it names anything else, stop.
+4. Every demo account logs in with the same demo password: the `SEED_PASSWORD` you chose when you seeded the database. The agent did not read any password file. The accounts used (the app shows each as "Demo" and the name):
+   - `demo.admin@dlsu.edu.ph`, "Demo IT Admin"
+   - `demo.pending@dlsu.edu.ph`, "Demo Pending Applicant" (a Pending sign-up, asked for the lab CeLT)
+   - `demo.labhead.cite4d@dlsu.edu.ph`, "Demo Lab Head CITe4D" (heads CITe4D)
+   - `demo.labhead.car@dlsu.edu.ph`, "Demo Lab Head CAR" (heads CAR)
+   - `demo.researcher.a@dlsu.edu.ph`, "Demo Researcher A" (CITe4D, holds the loaned Meta Quest 3, CITe4D-0002)
+   - `demo.researcher.b@dlsu.edu.ph`, "Demo Researcher B" (CITe4D and CAR; named in H12, never logged in)
+   - `demo.researcher.c@dlsu.edu.ph`, "Demo Researcher C" (HXIL)
+   - `demo.tsg@dlsu.edu.ph`, "Demo TSG Staff A"
+5. **Two browser windows.** Window A: a normal window at `http://localhost:5173`, logged in as Demo IT Admin the whole time. Window B: a private window for every other account, one at a time. To switch account in Window B, click the red logout button at the bottom of the sidebar first.
+6. The Account page ("Account Settings") of any person opens by clicking their name in the "ACTIVE SESSION" box at the bottom of the sidebar.
+7. Two checks (H3 and H15) paste one command into the browser console: open DevTools (F12), Console, on the page of Window A. The first time the browser may ask you to type `allow pasting`. The command prints the server's answer.
+
+**H1. IT Admin approves the Pending sign-up; the sidebar has the new pages.** Role: Demo IT Admin. Screen: "Approvals". Database: `adric_uat_check` (writes: one approval, one log row).
+- In Window A log in as `demo.admin@dlsu.edu.ph`. You land on Approvals.
+- The sidebar has four items, in this order: Approvals, Users, Activity Log, Tickets.
+- The table has one row: Demo Pending Applicant, `demo.pending@dlsu.edu.ph`, requested lab CeLT. Click Approve. The dialog "Approve sign-up" shows Role "Researcher" and CeLT ticked. Click Approve.
+- Expect: the row leaves the table and the page says "No sign-ups are waiting for approval." The count on the sidebar's Approvals item is gone.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H2. Users: the list, the tabs and the search.** Role: Demo IT Admin. Screen: "Users". Database: `adric_uat_check` (read only).
+- Click Users in the sidebar. The title is "System Administration"; under it a Users / Labs switch with Users selected; then the tabs "All Users", "Active", "Inactive", "Rejected" and the box "Filter by name, email, or ID...".
+- All Users lists 11 accounts, by last name: the first row is Demo Director, the last is Demo TSG Staff B. Demo Pending Applicant is in the list now, as a Researcher with the lab CeLT. Demo Lab Head CITe4D shows the lab badge CITe4D and a badge "Head: CITe4D".
+- Click Active: the same 11 rows. Click Inactive: "No users found matching the filter criteria." Click Rejected: the same message. Click All Users again.
+- Type `researcher` in the box. After a moment only Demo Researcher A, Demo Researcher B and Demo Researcher C remain. Replace it with `demo.labhead`: two rows, the two Lab Heads (the email matches). Replace it with `zzz`: "No users found matching the filter criteria." Clear the box: 11 rows again.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H3. Users: your own row, and a Head cannot get another role or be deactivated.** Role: Demo IT Admin. Screen: "Users". Database: `adric_uat_check` (read only).
+- On the Demo IT Admin row the Actions cell says "Your account" and has no buttons.
+- On the Demo Lab Head CITe4D row, "Change role" and "Deactivate" are greyed. Hover over each: the tooltip says "Change the lab's Head first." "Change labs" is available.
+- To see that the server refuses too (this is the refusal of a Head getting a non-Researcher role): in the Window A console paste this and press Enter. Demo Lab Head CITe4D has user id 6 in the demo seed.
+  ```
+  fetch('http://localhost:4000/api/users/6/role',{method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'TSG_STAFF'})}).then(r=>r.json()).then(console.log)
+  ```
+- Expect: it prints `{success: false, error: "Change the lab's Head first."}`. On the Users page (reload it) Demo Lab Head CITe4D is still a Researcher.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H4. Users: Change role.** Role: Demo IT Admin. Screen: "Users". Database: `adric_uat_check` (writes: one role change, one log row).
+- On the Demo Pending Applicant row (Researcher, CeLT) click "Change role". The dialog says "Demo Pending Applicant is Researcher. Choose their new role." and its "Change role" button is greyed, because the role is the same.
+- Choose "TSG Staff" and click "Change role".
+- Expect: the dialog closes. A green notice says "Demo Pending Applicant is now TSG Staff." The row's Role column says TSG Staff. Click Dismiss on the notice.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H5. Users: Change labs, and the Head's lab cannot be unticked.** Role: Demo IT Admin. Screen: "Users". Database: `adric_uat_check` (writes: one lab change, one log row).
+- On the Demo Pending Applicant row (now TSG Staff, lab CeLT) click "Change labs". The dialog says "Labs (optional for this role)" and lists the labs with CeLT ticked. Its "Change labs" button is greyed (nothing changed yet). Tick CAR too, and click "Change labs".
+- Expect: a green notice "Labs of Demo Pending Applicant changed." and the Labs column shows CAR and CeLT.
+- Refusal: on the Demo Lab Head CITe4D row click "Change labs". CITe4D is ticked. Untick it. A red line says "Change the lab's Head first." and the "Change labs" button is greyed. Click Cancel. The row still shows CITe4D.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H6. Users: a Researcher needs a lab.** Role: Demo IT Admin. Screen: "Users". Database: `adric_uat_check` (writes: two lab changes, one role change, three log rows).
+- On the Demo Pending Applicant row (TSG Staff, CAR and CeLT) click "Change labs", untick both labs, click "Change labs". A TSG Staff account may have none: the notice says the labs changed and the Labs column says "None".
+- Click "Change role", choose "Researcher". Expect: a red line "A Researcher needs at least one lab. Change their labs first." and the "Change role" button greyed. Click Cancel.
+- Click "Change labs", tick CeLT only, click "Change labs". Then "Change role", choose "Researcher", click "Change role".
+- Expect: the notice "Demo Pending Applicant is now Researcher." and the row shows Researcher with the lab CeLT.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H7. Users: Deactivate; it survives a reload; the account cannot log in.** Role: Demo IT Admin, then Demo Pending Applicant in Window B. Screen: "Users", then the login page. Database: `adric_uat_check` (writes: one deactivation, one log row, one failed-login log row).
+- On the Demo Pending Applicant row click "Deactivate". Expect: the notice "Demo Pending Applicant deactivated." and the status badge says Inactive. The row now has Change role, Change labs, Reactivate and Anonymize.
+- Click the Active tab: the row is gone. Click the Inactive tab: it is there. Reload the page (F5) and open the Inactive tab: **it is still Inactive.** (The old mock page forgot every change on reload.)
+- In Window B open `http://localhost:5173` and log in as `demo.pending@dlsu.edu.ph` with the demo password. Expect: you stay on the login page and it says "This account is not active. Contact the IT Admin."
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H8. Users: Deactivate is refused while the account has an open loan.** Role: Demo IT Admin. Screen: "Users". Database: `adric_uat_check` (writes nothing: the step is refused).
+- Click the All Users tab. On the Demo Researcher A row (it holds the loaned Meta Quest 3, CITe4D-0002) click "Deactivate".
+- Expect: a red notice "This account still has an open loan or loan request." The row stays Active. Click Dismiss.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H9. Users: Reactivate; the account can log in again.** Role: Demo IT Admin, then Demo Pending Applicant in Window B. Screen: "Users", then the login page. Database: `adric_uat_check` (writes: one reactivation, one login row, then one more deactivation for H10).
+- Click the Inactive tab. On the Demo Pending Applicant row click "Reactivate". Expect: the notice "Demo Pending Applicant reactivated." and the row leaves the Inactive tab. The Active tab has it, Active.
+- In Window B log in as `demo.pending@dlsu.edu.ph` with the demo password. Expect: the Researcher view (the name box says Researcher; the sidebar has My Loans). Log out in Window B.
+- Back in Window A, on the Active tab click "Deactivate" on the Demo Pending Applicant row again (it is needed for H10). Expect the notice "Demo Pending Applicant deactivated."
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H10. Users: Anonymize.** Role: Demo IT Admin, then the old Demo Pending Applicant in Window B. Screen: "Users", then the login page. Database: `adric_uat_check` (writes: one anonymization, one log row. It cannot be undone).
+- Click the Inactive tab. On the Demo Pending Applicant row click "Anonymize". The dialog "Anonymize Account" asks "Are you sure you want to anonymize Demo Pending Applicant (demo.pending@dlsu.edu.ph)?" and says what is removed. Click Cancel: the row is unchanged.
+- Click "Anonymize" again, then "Confirm Anonymization".
+- Expect: the dialog closes and a green notice says "Account #11 anonymized." (the demo seed gives this account the id 11). The row now reads: name "Former researcher", email `anonymized-11@invalid`, ID Number "None", Labs "None", status Inactive. The Actions cell says "Anonymized" and **has no buttons.**
+- In Window B try to log in as `demo.pending@dlsu.edu.ph` with the demo password. Expect: "Invalid institutional email address or password."
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H11. Labs tab: change a lab's Head; the new Head gets the Lab Head view.** Role: Demo IT Admin, then Demo Researcher A in Window B. Screen: "Users", Labs. Database: `adric_uat_check` (writes: one Head change, one log row).
+- In Window A click the Labs switch. The subtitle says "Labs: see each lab's Head, and change who heads it." The table has 10 labs. CITe4D shows the Head "Demo Lab Head CITe4D", CAR shows "Demo Lab Head CAR", the other eight show "No Head".
+- On the CITe4D row click "Change Head". Open the Head list: it holds "No Head", Demo Lab Head CITe4D, Demo Researcher A and Demo Researcher B (the Active Researchers of CITe4D; not Demo Researcher C, who is in HXIL). Choose Demo Researcher A and click "Change Head".
+- Expect: the notice "CITe4D: Demo Researcher A is now the Head." and the CITe4D row shows Demo Researcher A.
+- In Window B log in as `demo.researcher.a@dlsu.edu.ph`. Expect: the **Lab Head view**: the name box says Lab Head, the sidebar has Requests, Lab Inventory and Analytics. Log out in Window B.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H12. Labs tab: replace a Head, a Head of another lab cannot be picked, No Head, and set everything back.** Role: Demo IT Admin. Screen: "Users", Labs. Database: `adric_uat_check` (writes: four Head changes, four log rows).
+- CAR row, "Change Head": the list holds Demo Lab Head CAR and Demo Researcher B (the Active Researchers of CAR). Choose Demo Researcher B, "Change Head". Expect "CAR: Demo Researcher B is now the Head." and the CAR row shows Demo Researcher B.
+- CITe4D row, "Change Head": open the list. "Demo Researcher B (Head of CAR)" is greyed and cannot be chosen. Press Esc to close the list and click Cancel.
+- CAR row, "Change Head", choose "No Head", "Change Head". Expect "CAR has no Head now." and the CAR row says "No Head".
+- Set it back. CAR row: choose Demo Lab Head CAR. CITe4D row: choose Demo Lab Head CITe4D. Expect the table to match the start of H11 (CITe4D: Demo Lab Head CITe4D, CAR: Demo Lab Head CAR).
+- Click the Users switch, then the All Users tab: Demo Lab Head CITe4D and Demo Lab Head CAR show their "Head:" badges again, and Demo Researcher A and Demo Researcher B show none.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H13. A Researcher files a support ticket.** Role: Demo Researcher C. Screen: "Account Settings". Database: `adric_uat_check` (writes: one ticket; a ticket writes no log row).
+- In Window B log in as `demo.researcher.c@dlsu.edu.ph`. Open Account Settings (click the name in the "ACTIVE SESSION" box). Scroll below the profile form to the card "SUPPORT TICKETS".
+- It says: "Ask the IT Admin about the system: a bug, trouble with your account, or a question. A problem with an asset is not a ticket: use Report an issue on the asset instead." The "Send ticket" button is greyed while the title and description are empty.
+- Choose the type "Bug". Title: `Hand check: lab list is empty`. Description: `Hand check: the lab list shows nothing.` The counts under the boxes show the length. Click "Send ticket".
+- Expect: the green line "Ticket sent. The IT Admin's answer will show below.", the boxes empty again, and under "YOUR TICKETS" one ticket: an Open badge, the title, "Bug", the description and "Filed" with the time.
+- Leave Window B logged in as Demo Researcher C.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H14. The IT Admin sees the ticket and moves it to In Progress.** Role: Demo IT Admin. Screen: "Tickets". Database: `adric_uat_check` (writes: one status change, one log row).
+- In Window A click Tickets. The subtitle ends "Problems with an asset go through Maintenance, not here." The table has one row: "#<number>", the title `Hand check: lab list is empty`, Bug, From Demo Researcher C, Open. **Write the number down as T1** (it is used in H15 and H18).
+- Set the Status filter to Resolved: "No tickets match the filters." Set it to Open: the row is back. Set the Type filter to Question: no match. Set both filters back to All.
+- Click Open on the row. The dialog "Ticket #T1" says "Bug from Demo Researcher C, filed <time>." and shows the Open badge, the title and the description. Click the "Move to" list: it offers In Progress, Resolved and Rejected, and not Open. Choose In Progress. No remarks box appears. Click "Change status".
+- Expect: the notice "Ticket #T1 is now In Progress." and the row says In Progress. Open the ticket again and open "Move to": it offers only Resolved and Rejected. Leave the dialog open for H15.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H15. Resolved needs remarks; the IT Admin resolves the ticket.** Role: Demo IT Admin. Screen: "Tickets". Database: `adric_uat_check` (writes: one status change, one log row).
+- In the open dialog of T1 choose Resolved. A box "Remarks (required)" appears and "Change status" is greyed. Type only spaces: it stays greyed.
+- To see that the server refuses too, paste this in the Window A console, with T1 in place of `<T1>`:
+  ```
+  fetch('http://localhost:4000/api/tickets/<T1>/status',{method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'RESOLVED'})}).then(r=>r.json()).then(console.log)
+  ```
+  Expect: `{success: false, error: "Write resolution remarks of 1 to 1000 characters."}`, and the ticket is still In Progress.
+- Type the remarks `Hand check: fixed in the settings.` and click "Change status".
+- Expect: the notice "Ticket #T1 is now Resolved." and the row says Resolved. Open the ticket: it says "This ticket is closed. It can't be changed any more.", shows an "Answer" with the remarks and "Demo IT Admin" with a time, and has only a Close button. Click Close.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H16. The Researcher sees the answer.** Role: Demo Researcher C. Screen: "Account Settings". Database: `adric_uat_check` (read only).
+- In Window B (still logged in as Demo Researcher C) reload Account Settings and scroll to "YOUR TICKETS".
+- Expect: the ticket now has a Resolved badge, and under it an "Answer" with `Hand check: fixed in the settings.` and "Demo IT Admin" with a time. It also shows "Filed ..." and "Updated ...".
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H17. Only the IT Admin opens the IT Admin pages.** Role: Demo Researcher C (Window B, still logged in). Screen: the address bar. Database: `adric_uat_check` (read only).
+- In Window B change the address to `http://localhost:5173/it-admin/users`. Expect: a "No Access" page. Do the same for `/it-admin/tickets` and `/it-admin/activity-log`: "No Access" each time. The Researcher's sidebar has no IT Admin items.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H18. Activity Log: every step above is a row.** Role: Demo IT Admin. Screen: "Activity Log". Database: `adric_uat_check` (read only).
+- In Window A click Activity Log. The title is "Activity Log"; the table columns are Time, Event, Actor, Target, Asset Tag, Details; the newest row is first. Names in the log are the current names, so every row about the anonymized account says "Former researcher".
+- Find these rows. The Actor is Demo IT Admin on all of them except the two login lines at the end of the list:
+  - "Ticket status changed", target Demo Researcher C, details `#T1 IN_PROGRESS to RESOLVED` (this is the top row), and below it `#T1 OPEN to IN_PROGRESS`.
+  - "Lab Head changed", five rows, with details `CITe4D: Demo Lab Head CITe4D to Demo Researcher A`, `CAR: Demo Lab Head CAR to Demo Researcher B`, `CAR: Demo Researcher B to none`, `CAR: none to Demo Lab Head CAR` and `CITe4D: Demo Researcher A to Demo Lab Head CITe4D`.
+  - "Account anonymized" (target Former researcher), "Account deactivated" twice, "Account reactivated" once.
+  - "Role changed", details `From RESEARCHER to TSG_STAFF` and `From TSG_STAFF to RESEARCHER`.
+  - "Labs changed", details `CAR, CeLT`, `none` and `CeLT`.
+  - "Sign-up approved", details `Role: RESEARCHER; labs: CeLT`.
+  - "Login failed", Actor "None", target Former researcher, details `Account inactive` (the login of H7).
+  - "Logged in" rows for the accounts you logged in with.
+- There is **no** "Account deactivated" row for Demo Researcher A (H8 was refused). No cell in the table contains an email address.
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H19. Activity Log: the filters.** Role: Demo IT Admin. Screen: "Activity Log". Database: `adric_uat_check` (read only).
+- Event: choose "Account deactivated". Only those rows remain (two), and a "Clear filters" button appears. Choose "All events".
+- From and To: pick today's date in both. The rows of this session are listed, "Account anonymized" among them. Change From to tomorrow's date: the table says "No entries match the filters." and the page line says "Page 1 of 1". With From tomorrow and To today a red line says "The start day must be on or before the end day." Click "Clear filters": the full list is back.
+- Asset tag: type `CITe4D-0004`. After a moment exactly one row remains: "Marked missing", Actor Demo TSG Staff A, Asset Tag CITe4D-0004, details "Demo: not found at the routine count." (the row the seed wrote). Replace the tag with `NOPE-9999`: "No entries match the filters." Click "Clear filters".
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H20. Activity Log: Previous and Next.** Role: Demo IT Admin. Screen: "Activity Log". Database: `adric_uat_check` (writes: 60 filler log rows, removed again at the end of this check).
+- The log holds fewer than 50 rows, so first make more. In PowerShell it asks for the MySQL root password; this adds 60 rows older than everything else, event "Found", details "Hand check filler 1" to "Hand check filler 60":
+  ```
+  & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "INSERT INTO activity_log (event_type, details, created_at) WITH RECURSIVE n (i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 60) SELECT 'ASSET_FOUND', CONCAT('Hand check filler ', i), '2026-01-01 00:00:00' + INTERVAL i MINUTE FROM n"
+  ```
+- Reload the Activity Log. Expect: 50 rows, "Page 1 of 2" (it says 2 while the log holds 100 rows or fewer), Previous greyed, Next available. Click Next: "Page 2 of 2", Next greyed, and the last row is "Hand check filler 1". Click Previous: back on "Page 1 of 2".
+- Choose the event "Found": 60 rows, "Page 1 of 2". Click Next: 10 rows. Choose "All events": the page goes back to "Page 1".
+- Clean up: the same command with this in place of the `INSERT`:
+  ```
+  & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "DELETE FROM activity_log WHERE details LIKE 'Hand check filler %'"
+  ```
+  Reload: the filler rows are gone and the page line says "Page 1 of 1".
+- **Pass:** [ ] yes [ ] no. Notes:
+
+**H21. Nearby: the Lab Head and Staff views still load, and every Account page has the new section.** Role: Demo Lab Head CITe4D, then Demo TSG Staff A. Screens: the Lab Head view, the Staff view, "Account Settings". Database: `adric_uat_check` (writes only logins).
+- In Window B log out, then log in as `demo.labhead.cite4d@dlsu.edu.ph`. Expect the Lab Head view (Requests, Lab Inventory, Analytics). Click each: every page loads with no error message. Log out.
+- Log in as `demo.tsg@dlsu.edu.ph`. Expect the Staff view (System Overview, Register Equipment, Asset Inventory, and the rest). Open System Overview and Asset Inventory: both load.
+- Open Account Settings. The profile form is as before (names, picture, the locked role and ID number, "Save Credentials"), and below it is the "SUPPORT TICKETS" card with "You have not sent any tickets." (Do not save or file anything.)
+- **Pass:** [ ] yes [ ] no. Notes:
