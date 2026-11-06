@@ -1,7 +1,7 @@
 /**
  * Lab Head analytics: utilization, category mix, project allocation, delinquencies, and accountability widgets for one lab.
  * Layer: feature component. Called by pages/lab-head/LabHeadDashboard.tsx (health tab).
- * Calls: api/analytics.api.ts getLabHeadAnalyticsRaw(), features/analytics/insights/InsightsPanel.tsx.
+ * Calls: api/analytics.api.ts getLabHeadAnalyticsRaw(), features/analytics/insights/InsightsPanel.tsx, features/analytics/utilization/LoansPerWeekChart.tsx.
  * Used by: Lab Head.
  */
 import React, { useState } from "react";
@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import * as analyticsApi from "@web/api/analytics.api";
 import { InsightsPanel } from "@web/features/analytics/insights/InsightsPanel";
+import { LoansPerWeekChart } from "@web/features/analytics/utilization/LoansPerWeekChart";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { Badge } from "@web/components/ui/badge";
@@ -869,6 +870,8 @@ export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "" }) =
       <InsightsPanel variant="full" charts={{ overdueLoans: "Overdue Loans" }} />
 
       <LabHeadOperationalSection lab={lab} />
+
+      <LoansPerWeekChart />
 
       <ProjectAllocationWidget lab={lab} />
 
