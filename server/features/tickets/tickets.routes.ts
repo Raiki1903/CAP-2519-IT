@@ -1,5 +1,6 @@
 /**
- * Ticket route table: filing a ticket and reading one's own for any Active account, and the IT Admin's list.
+ * Ticket route table: filing a ticket and reading one's own for any Active account, and the IT Admin's list and
+ * status changes.
  * Layer: routes. Mounted by server/app.ts. Calls tickets.controller.ts.
  * Used by: the Support tickets section of every Account page, and the IT Admin's Tickets page.
  */
@@ -17,3 +18,4 @@ ticketsRouter.get('/api/tickets/mine', requireAuth, requireActive, ticketsContro
 
 // The IT Admin only. Every other role gets 403.
 ticketsRouter.get('/api/tickets', requireAuth, requireActive, requireItAdmin, ticketsController.listTickets);
+ticketsRouter.put('/api/tickets/:ticketId/status', requireAuth, requireActive, requireItAdmin, ticketsController.changeTicketStatus);

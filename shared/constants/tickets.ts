@@ -37,3 +37,17 @@ export const TICKET_TITLE_MAX_LENGTH = 150;
 
 /** The longest ticket description. */
 export const TICKET_DESCRIPTION_MAX_LENGTH = 2000;
+
+/** The longest resolution remarks. */
+export const TICKET_REMARKS_MAX_LENGTH = 1000;
+
+/** The statuses the IT Admin may move a ticket to, from each status. Resolved and Rejected are final. */
+export const TICKET_STATUS_MOVES: Record<TicketStatus, readonly TicketStatus[]> = {
+  OPEN: ["IN_PROGRESS", "RESOLVED", "REJECTED"],
+  IN_PROGRESS: ["RESOLVED", "REJECTED"],
+  RESOLVED: [],
+  REJECTED: [],
+};
+
+/** The statuses that close a ticket: they need resolution remarks, and record who closed it and when. */
+export const TICKET_CLOSING_STATUSES: readonly TicketStatus[] = ["RESOLVED", "REJECTED"];

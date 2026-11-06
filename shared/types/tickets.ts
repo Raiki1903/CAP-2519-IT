@@ -35,6 +35,13 @@ export interface CreateTicketInput {
   description: string;
 }
 
+/** The body of PUT /api/tickets/:ticketId/status. */
+export interface ChangeTicketStatusInput {
+  status: TicketStatus;
+  /** Trimmed, 1 to TICKET_REMARKS_MAX_LENGTH characters for Resolved and Rejected; null for In Progress. */
+  resolutionRemarks: string | null;
+}
+
 /** The filters of GET /api/tickets, each optional and one value each. */
 export interface TicketListFilters {
   status?: TicketStatus;

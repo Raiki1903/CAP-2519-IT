@@ -7,7 +7,7 @@
  */
 import type { Request, Response } from 'express';
 import * as ticketsService from './tickets.service';
-import { readCreateTicket, readTicketListQuery } from './tickets.validation';
+import { readChangeTicketStatus, readCreateTicket, readTicketId, readTicketListQuery } from './tickets.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
@@ -39,4 +39,20 @@ export async function listMyTickets(req: Request, res: Response): Promise<void> 
 export async function listTickets(req: Request, res: Response): Promise<void> {
     const filters = readTicketListQuery(req.query);
     res.json({ success: true, tickets: await ticketsService.listTickets(filters) });
+}
+
+/**
+ * Handles PUT /api/tickets/:ticketId/status: moves a ticket to a new status.
+ * Answers `{ success, ticket }`, or the AppError's status and message (400 bad status or remarks; 404 no such
+ * ticket; 409 not an allowed move), or 500.
+ */
+export async function changeTicketStatus(req: Request<{ ticketId: string }>, res: Response): Promise<void> {
+    const ticketId = readTicketId(req.params.ticketId);
+    const input = readChangeTicketStatus(req.body);
+    const itAdminId = sessionUserOf(req).userId;
+
+    const ticket = await ticketsService.changeTicketStatus(ticketId, input, itAdminId);
+
+    console.log(`Ticket ${ticketId} moved to ${ticket.status} by user ${itAdminId}`);
+    res.json({ success: true, ticket });
 }
