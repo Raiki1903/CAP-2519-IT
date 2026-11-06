@@ -192,3 +192,101 @@ COND-05 replaces DEMAND-05. The alternatives for COND-05 are ours, because your 
 3. Category age limits set by policy, instead of the demo values in `LIFECYCLE_LIMIT_MONTHS`.
 4. Persistent insight history, saved dismissals and admin-editable thresholds (none exist: each request starts fresh).
 5. A share-of-time-on-loan figure per lab (the planned `timeOnLoanShare`), which is not built.
+
+---
+
+## Stop 4 browser checks
+
+Done by the agent with Playwright on the local `adric_uat_check` copy only (never CCS Cloud), on 2026-11-06, started with `C:\dev\uat-data\start-local-uat.ps1`. Raiki ran `C:\dev\uat-data\uat-insights-setup.sql` first. Screenshots are in `%TEMP%\insights-checks\`.
+
+- **TSG (UAT Staff One):** System Overview shows the top 3 (UATI-005 and UATI-011 High loans, UATI-001 High warranty) and "See all in Analytics". Analytics shows 15 Operational and 1 Strategic. Every qualifying case appears with the right priority. UATI-003 (warranty 91 days) and UATI-006 (loan 7 days late) are absent. Why shows the evidence rows and "Other options", Dismiss lowers the tab count, the Strategic tab shows UATI-008, and the related-chart line shows on a warranty card ("Warranties Ending in 90 Days") and a repair card ("Repair Operations Kanban Board").
+- **Secretary:** not checked in the browser, because the UAT account list has no Secretary account. The Secretary is app role Staff, the same guard and the same panel as TSG, and the API test calls the route as the Secretary. UAT Staff Two (also TSG) was not opened.
+- **Lab Head of CITe4D (UAT LabHead CITe4D):** the Requests page shows the top 3 and only CITe4D notes. Analytics shows 9 notes, all CITe4D. The chart counts only CITe4D (busiest weeks Nov 2 with 9, Oct 26 and Oct 12 with 6; average 2.9 days). A `centerId` for another lab answers 403 on both routes.
+- **Director (UAT Director One):** the Overview preview shows the top 3. Analytics shows 15 and 1 for All Laboratories. Picking CAR in the lab filter changes both the panel (3 Operational, 0 Strategic, only CAR) and the chart (busiest Oct 26, Oct 19, Oct 12 with 2 each; average 5.3 days). Picking CITe4D gives the same figures as the Lab Head.
+- **Researcher (UAT Custodian One):** no Insights panel on any page, both routes answer 403, and `/staff/health` shows "You don't have access to this page".
+- **Colours:** the High badge is red, Medium is amber (`chart-5` with dark text), Planning is green (`primary`). The chart bars resolve `var(--primary)` to rgb(0, 90, 54) for the busiest weeks and `var(--secondary)` to rgb(16, 185, 129) for the rest, so the fills work in an SVG attribute. Nothing rendered wrong, so no fix commit was needed.
+- **States:** with both routes answered by the browser as 500, the panel shows "Insights are currently unavailable.", the chart shows "Loans per week are currently unavailable.", and the other charts still load. With both routes answered as empty, the Analytics panel shows "No insights right now.", the chart shows its empty text, and the home preview is hidden. These two used browser-side fake answers, not the server.
+- **Console:** the only errors were `favicon.ico` 404 (not part of this work) and the 403 answers of the agent's own probes of other labs.
+
+## Stop 4 hand checks
+
+For Raiki. Database: the **local `adric_uat_check` copy only**, with the test data of `C:\dev\uat-data\uat-insights-setup.sql`. Never CCS Cloud. Start the app with `C:\dev\uat-data\start-local-uat.ps1`. Passwords are in `C:\dev\uat-data\uat-passwords.txt`.
+
+**Run these on the same day you ran the setup.** The warranty of UATI-003 is set to 91 days away and the loan of UATI-006 to 7 days late, so a day later they are 90 days and 8 days and the two notes start to appear. After the checks, run `C:\dev\uat-data\uat-insights-cleanup.sql`. The demo data has its own notes too (CITe4D-0122, GAME-0001 and others), so the totals below are the totals on 2026-11-06; look for the UATI tags.
+
+| # | Role and screen | Clicks | What you should see |
+|---|---|---|---|
+| H1 | TSG Staff (`uat.staff1`), **System Overview** | Log in. | An "Insights" block under the title with 3 cards, High first: UATI-005 and UATI-011 (Loan well past its return date), then UATI-001 (Warranty ending soon). A "See all in Analytics" link at the right. |
+| H2 | TSG Staff, **Analytics** | Click "See all in Analytics". | Tabs "Operational (15)" and "Strategic (1)". On Operational: High for UATI-001, UATI-005, UATI-010, UATI-011. Medium for UATI-002 (warranty 60 days), UATI-004 (loan 10 days late), UATI-007 (Repeated repairs), UATI-009 (Condition dropping). UATI-003 (warranty 91 days) and UATI-006 (loan 7 days late) are **not** listed. |
+| H3 | TSG Staff, **Analytics** | On the UATI-007 card click **Why**. Click **Dismiss** on the first card. Click the **Strategic** tab. Reload the page. | Why lists MNT ticket ids with dates, then "Other options" with 2 lines. The card shows "Related chart on this page: Repair Operations Kanban Board". After Dismiss the card is gone and the tab count drops by 1. Strategic shows UATI-008 (Planning, "Due for a lifecycle review"). After the reload the dismissed card is back. |
+| H4 | Lab Head of CITe4D (`uat.labhead.cite4d1`), **Requests** | Log in. | The Insights block is at the top of the page with 3 cards, all CITe4D (UATI-005, UATI-001, UATI-004). The suggested step is worded for a Lab Head ("Consider ..."). No CAR cards (UATI-010, UATI-011). |
+| H5 | Lab Head of CITe4D, **Analytics** | Click **Analytics**. Scroll to "Loans out per week". | Insights: 9 notes, every one labelled CITe4D. The chart has 12 bars, the busiest weeks darker. Under it: "Busiest weeks: week of Nov 2 (9 out), week of Oct 26 (6 out), week of Oct 12 (6 out)" and "Average loan length: 2.9 days". |
+| H6 | Director (`uat.director1`), **Overview** | Log in. | The Insights block with 3 cards and "See all in Analytics". The suggested step is worded for the Director ("Review ..."). |
+| H7 | Director, **Analytics** | Click **See all in Analytics**. Choose **CAR** in "Lab Filter". Then **CITe4D**. Then "All Laboratories". | All: "Operational (15)", "Strategic (1)", chart average 3.4 days. CAR: "Operational (3)", "Strategic (0)", only CAR cards, chart average 5.3 days. CITe4D: "Operational (9)", "Strategic (1)", chart average 2.9 days, the same as H5. The panel and the chart change together. |
+| H8 | Researcher (`uat.custodian1`), every screen | Log in. Open My Loans, Available Equipment, QR Scan, Send Inspection Report. Then type `/staff/health` after the address. | No "Insights" block and no loans per week chart anywhere (asset names that contain "UAT insights" are only names). `/staff/health` shows "You don't have access to this page". |
+| H9 | Nearby behavior, TSG Staff and Director, **Analytics** | Scroll below the Insights block and the loans chart. | The charts that were there before still load: on the Staff page the repair board, location status and warranty charts; on the Director page "Value by Funding Source" and "Asset Use". Nothing is blank or pushed off the page. |
+
+## Stop 4 hand checks: results
+
+| # | Result (pass or fail) | Notes |
+|---|---|---|
+| H1 | | |
+| H2 | | |
+| H3 | | |
+| H4 | | |
+| H5 | | |
+| H6 | | |
+| H7 | | |
+| H8 | | |
+| H9 | | |
+
+## Pull request text (draft)
+
+Title: `feat(analytics): rule-based insights and loans per week (#155)`
+
+Copy the text between the lines into the sections of `.github/pull_request_template.md`.
+
+---
+
+## What changed
+
+Adds read-only advice notes ("insights") to Analytics and a "Loans out per week" chart.
+
+- **Insights:** `GET /api/analytics/insights` works out five rules on each request: WAR-01 warranty ending soon, LOAN-02 loan well past its return date, REP-03 repeated repairs, LIFE-04 due for a lifecycle review, COND-05 condition dropping. Each note has a priority, an issue line, a suggested step worded for the role, a "Why" section (evidence and other options) and a chart key. A Lab Head gets only the lab they head; TSG Staff, the Secretary and the Director get every lab, or one with `centerId`.
+- **Screens:** an Insights section (tabs Operational and Strategic) at the top of the Staff, Lab Head and Director Analytics pages, and the top 3 on Staff System Overview, Director Overview and the Lab Head Requests page. Dismiss lasts until the page reloads. No button starts a workflow.
+- **Loans per week:** `GET /api/analytics/utilization` and a bar chart on Director Analytics (it follows the lab filter) and Lab Head Analytics: loans out and released per week for 12 weeks, the three busiest weeks and the average loan length.
+- Plain Prisma queries. No stored procedures, views, schema change, new package or write. LIFE-04 age limits (Monitor 60, Router 60, Dev Kit 48 months) are demo values, "a review point, not policy".
+
+## Why
+
+Closes #155. Brief: `docs/tasks/analytics-insights.md` (with the Decision Log, the hand checks and a "For Macy" note). Source of intent: Macy's Actionable Analytics plan v2.1, adapted where the brief says so. CAP1DEF comment 8 (time element for utilization) is the loans per week chart. The contract has the two new routes in section 7.9.
+
+## How I tested it
+
+- [x] `npm run build` passes
+- [x] I clicked through the screens this change touches (the agent, with Playwright on the local `adric_uat_check` copy: TSG, Lab Head, Director, Researcher; the Secretary has no UAT account, so it is covered by the API test). Raiki's hand checks H1 to H9 are in the task file.
+- [x] No secrets or personal data in the diff
+
+Typecheck 25 errors (unchanged). Build passes. Tests 759 passed (696 before this work: +36 rule unit tests, +15 insights API tests, +12 loans per week API tests).
+
+## This PR (pick one)
+
+- [ ] Moves code only (no behavior change)
+- [x] Changes behavior
+
+(One commit, "refactor(analytics): move the lab scope check out of the insights service", only moves code.)
+
+## Screenshots
+
+In `%TEMP%\insights-checks\` on Raiki's PC. The data is the local UAT copy, so crop the lab head and director names before posting.
+
+## Notes for the reviewer
+
+- Start with `server/features/analytics/insights.rules.ts` (the five rules) and `tests/unit/insightRules.test.ts`.
+- "Today" is `serverToday()`, the server's local day, as for the overdue flag. The deploy runs with `TZ=Asia/Manila`; on a UTC host the notes can be a day off between midnight and 8 AM Manila time (the `serverToday()` fix is after Nov 9).
+- The inspection rule loads every TSG inspection and keeps the two newest per asset in the service. Fine at today's size.
+- The alternatives are from Macy's plan section 5; COND-05 has none there, so its two are ours.
+- Both new routes answer `{ success, ...fields }` with no `data` wrapper, unlike the older analytics routes.
+- No Secretary account in the UAT data, so the Secretary view was not opened in the browser.
+
+---
