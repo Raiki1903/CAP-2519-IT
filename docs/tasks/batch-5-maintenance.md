@@ -312,7 +312,7 @@ Written for Raiki, to run by hand. The agent did not run them. Every check uses 
 4. **Two loans (setup, writes two loans).** As UAT Custodian One: Available Equipment, open A1, Request Loan, any destination lab, Return By 14 days from today (a past date is refused, and the database refuses a return-by before the request date), purpose `Batch 5 setup`, Submit Request. Write the number in `LOAN-<number>` as **L1**. Do the same for M1 and write **L2**. As UAT LabHead CITe4D One: the Requests tab, Approve both. Both now show "Pending release".
 5. **A picture of A1's QR tag (optional, only for the extra step in 5-H15).** As UAT Staff One: QR Tags, tick A1, and save a screenshot of the QR preview as an image file.
 6. **Console commands.** Open DevTools (F12), Console, on a page of `http://localhost:5173` while logged in as the account the check names. The first time the browser may ask you to type `allow pasting`. Replace `<T1>`, `<N1>` and so on before sending. Each command prints the server's answer. The commands that report an issue use `issueTypeId:1`. If one answers "Pick an issue type from the list.", open `http://localhost:4000/api/lookups` and use an `issueTypeId` from `issueTypes`.
-7. **To read the database**, SELECT only, never a `password` column. PowerShell, it asks for the root password: `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "<SELECT>"`. One check (5-H14) runs a single UPDATE on `adric_uat_check`, and says so.
+7. **To read the database**, SELECT only, never a `password` column. PowerShell, it asks for the root password: `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "<SELECT>"`. One check (5-H14) runs a single UPDATE on `adric_uat_check`, and says so. `condition` is a reserved word, so the SELECTs in 5-H8 and 5-H14 write it with backticks. PowerShell drops a single backtick inside double quotes, so in the command type each one twice (``` ``condition`` ```).
 8. These checks leave loans, tickets, disposals, inspections and activity rows in `adric_uat_check`. The next UAT reset removes them.
 
 **5-H1. TSG releases a loan on Joel's Releases tab; the merge left his screen working.** Role: UAT Staff One. Screen: "Asset Loaning and Return", Releases tab. Database: `adric_uat_check` (writes two releases, two Loan Release inspections).
@@ -374,7 +374,7 @@ fetch("http://localhost:4000/api/assets/<R1>/inspection",{method:"POST",credenti
 fetch("http://localhost:4000/api/assets/<R1>/inspection",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({reportCondition:"PERFECT"})}).then(r=>r.json()).then(console.log)
 ```
 - Expect `{success: false, error: "Pick the condition of the inspection from the list."}`.
-- Database: `SELECT type, condition FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<R1>' ORDER BY inspection_id DESC LIMIT 1` shows ROUTINE and MINOR_DRIFT.
+- Database: ``SELECT i.type, i.`condition` FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<R1>' ORDER BY i.inspection_id DESC LIMIT 1`` shows ROUTINE and MINOR DRIFT (stored with a space).
 
 **5-H9. Mark Missing on an On Loan asset ends the loan; Mark Found files a Recovery inspection.** Role: UAT Staff One. Screen: Asset Inventory. Database: `adric_uat_check` (writes L2's end, one Recovery inspection).
 - Open M1 (On Loan). Click "Mark Missing". Type `Not returned after the event`, click "Mark Missing". Expect M1 reads Missing, and its detail says "This asset is Missing."
@@ -385,7 +385,7 @@ fetch("http://localhost:4000/api/assets/<R1>/inspection",{method:"POST",credenti
 - As UAT Custodian One: My Loans, History tab. LOAN-<L2> is listed with the badge "Ended by Loss" (before the fix it was on no tab).
 
 **5-H10. TSG's own account cannot decide the disposal it asked for.** Role: UAT Staff One. Screen: the bell. Database: `adric_uat_check` (writes nothing).
-- Bell, Requests tab: "Disposal Request: <N1 name>" (D1) with the badge "Pending Approval". Instead of Deny and "Approve Disposal" buttons it reads "You requested this disposal, so someone else decides it."
+- Bell, Requests tab: "Disposal Request: <N1 name>" (D1) with the badge "Pending Approval". TSG asked for it, so the card has no Deny button and no "Approve Disposal" button.
 - Console:
 ```js
 fetch("http://localhost:4000/api/retirements/<D1>/decision",{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision:"approve"})}).then(r=>r.json()).then(console.log)
@@ -425,7 +425,7 @@ fetch("http://localhost:4000/api/assets/<N1>/maintenance",{method:"POST",credent
 - Report tab ("Send Inspection Report"): pick A1, status Minor Drift, a short description, click "Send Inspection Report". Expect "Report Sent" and "Your report is saved." Only A1 (On Loan, held by this person) is on the list.
 - Reload. The "Status check due" card for A1 is gone.
 - As UAT Staff One, Asset Inventory, open A1: the condition is **still** Operational (a Self Report never changes it).
-- Database: `SELECT type, condition FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<A1>' ORDER BY inspection_id DESC LIMIT 1` shows SELF_REPORT and MINOR_DRIFT.
+- Database: ``SELECT i.type, i.`condition` FROM asset_inspections i JOIN assets a ON a.asset_id=i.asset_id WHERE a.asset_tag='<A1>' ORDER BY i.inspection_id DESC LIMIT 1`` shows SELF_REPORT and MINOR DRIFT (stored with a space).
 
 **5-H15. The holder reports an issue on A1; a second report is refused; TSG receives it and the loan ends.** Roles: UAT Custodian One, then UAT Staff One. Screen: My Loans, then Repairs. Database: `adric_uat_check` (writes ticket **T5**, ends L1).
 - As UAT Custodian One: My Loans, Out tab. On L1's row (A1) click "Report an issue". Expect A1's detail to open. Click "Request Repair".
@@ -469,10 +469,10 @@ fetch("http://localhost:4000/api/maintenance/<T1>/status",{method:"PUT",credenti
 - Expect 404 twice.
 - Terminal: look back over the lines from 5-H2 to 5-H15. They read like `Maintenance <id> received by user <id>`, `Maintenance <id> on <tag> reported by user <id>`, `Retirement <id> approved by user <id>`, `Asset <id> marked missing by user <id>` and `Inspection <id> on asset <id> filed by user <id>`. No name, email, ID number, description, reason, remark or photo appears in any line.
 
-**5-H19. Nearby: a loan goes from request to receive, as before.** Roles: UAT Custodian One, UAT LabHead CITe4D One, UAT Staff One. Screens: Available Equipment, Requests, "Asset Loaning and Return", My Loans. Database: `adric_uat_check` (writes one loan, one release, one return).
+**5-H19. Nearby: a loan goes from request to receive, as before.** Roles: UAT Custodian One, UAT LabHead CITe4D One, UAT Staff One. Screens: Available Equipment, Requests, "Asset Loans", My Loans. Database: `adric_uat_check` (writes one loan, one release, one return).
 - As UAT Custodian One: Available Equipment, open A2, Request Loan, any lab, Return By 14 days from today, purpose `Batch 5 nearby`, Submit Request. Write `LOAN-<number>` as **L3**.
 - As UAT LabHead CITe4D One: Requests tab, Approve L3.
-- As UAT Staff One: "Asset Loaning and Return", Releases, Release on A2 with the tag typed, "Confirm & Release Asset". A2 reads On Loan.
+- As UAT Staff One: "Asset Loans", Releases, Release on A2 with the tag typed, "Confirm & Release Asset". A2 reads On Loan.
 - As UAT Custodian One: My Loans, Out section, on L3 click "Ask to Return", remark `Batch 5 nearby`, submit. L3 reads Return Requested.
 - As UAT Staff One: Returns tab, L3 first with the chip "Return requested". Click "Receive Return", type the tag, leave the "Damage found during return" switch off, confirm. Expect A2 is Available. L3 is under History in the Researcher's My Loans (Returned).
 - Database: `SELECT status FROM asset_loans WHERE loan_id=<L3>` shows RETURNED. `SELECT status FROM assets WHERE asset_tag='<A2>'` shows AVAILABLE.
