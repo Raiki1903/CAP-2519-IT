@@ -1,10 +1,10 @@
 /**
  * IT Admin Users: finds any account after sign-up, and changes its role and labs, deactivates, reactivates, or
- * anonymizes it.
+ * anonymizes it; and, on the Labs tab, sets each lab's Head.
  * Layer: page. Called by app/routes.tsx at /it-admin/users.
- * Calls: api/users.api.ts (the list and the one-click steps; api/client.ts for the ApiResult type), features/lookups/useLookups.ts (the labs),
- * features/users/ChangeRoleDialog.tsx, ChangeLabsDialog.tsx and AnonymizeUserDialog.tsx, state/session.tsx (whose
- * account is the IT Admin's own).
+ * Calls: api/users.api.ts (the list and the one-click steps; api/client.ts for the ApiResult type),
+ * features/lookups/useLookups.ts (the labs), features/users/ChangeRoleDialog.tsx, ChangeLabsDialog.tsx,
+ * AnonymizeUserDialog.tsx and LabsTab.tsx, state/session.tsx (whose account is the IT Admin's own).
  * Used by: the IT Admin.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -20,13 +20,17 @@ import { useFormLookups } from "@web/features/lookups/useLookups";
 import { AnonymizeUserDialog } from "@web/features/users/AnonymizeUserDialog";
 import { ChangeLabsDialog } from "@web/features/users/ChangeLabsDialog";
 import { ChangeRoleDialog } from "@web/features/users/ChangeRoleDialog";
+import { LabsTab } from "@web/features/users/LabsTab";
 import { Badge } from "@web/components/ui/badge";
 import { Button } from "@web/components/ui/button";
 import { Card } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@web/components/ui/tooltip";
 
-/** The tabs: every account the list sends (all but Pending), or one status. */
+/** The two parts of the page: the accounts, and the labs with their Heads. */
+type Section = "USERS" | "LABS";
+
+/** The tabs of the accounts: every account the list sends (all but Pending), or one status. */
 type FilterTab = "ALL" | Extract<AccountStatus, "ACTIVE" | "INACTIVE" | "REJECTED">;
 
 const TABS: { key: FilterTab; label: string }[] = [
@@ -90,6 +94,7 @@ const statusBadgeVariant = (status: AccountStatus) => {
 export function UsersPage() {
   const { currentUser } = useSession();
   const { lookups, failed: lookupsFailed } = useFormLookups();
+  const [section, setSection] = useState<Section>("USERS");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -129,9 +134,10 @@ export function UsersPage() {
     }
   }, [tab, query]);
 
+  // Also when the accounts come back into view, so a Head set on the Labs tab shows on its account.
   useEffect(() => {
-    load();
-  }, [load]);
+    if (section === "USERS") load();
+  }, [section, load]);
 
   /** A dialog's step went through: say so, close the dialogs, and read the list again. */
   const changed = (message: string) => {
@@ -162,8 +168,15 @@ export function UsersPage() {
       <div className="mb-6">
         <h1 className="text-foreground mb-1">{PAGE_TITLES.administration}</h1>
         <p className="text-muted-foreground text-sm">
-          Users: view and manage active, inactive, and rejected accounts.
+          {section === "USERS"
+            ? "Users: view and manage active, inactive, and rejected accounts."
+            : "Labs: see each lab's Head, and change who heads it."}
         </p>
+      </div>
+
+      <div className="mb-4 flex gap-2 border-b border-border pb-3">
+        <Button size="sm" variant={section === "USERS" ? "default" : "outline"} onClick={() => setSection("USERS")}>Users</Button>
+        <Button size="sm" variant={section === "LABS" ? "default" : "outline"} onClick={() => setSection("LABS")}>Labs</Button>
       </div>
 
       {notice && (
@@ -182,153 +195,165 @@ export function UsersPage() {
           </button>
         </div>
       )}
-      {loadError && <p role="alert" className="mb-3 text-sm text-destructive">{loadError}</p>}
+      {section === "USERS" && loadError && <p role="alert" className="mb-3 text-sm text-destructive">{loadError}</p>}
       {lookupsFailed && <p role="alert" className="mb-3 text-sm text-destructive">Could not load the labs. Reload the page.</p>}
 
-      <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          {TABS.map(({ key, label }) => (
-            <Button key={key} size="sm" variant={tab === key ? "default" : "outline"} onClick={() => setTab(key)}>
-              {label}
-            </Button>
-          ))}
-        </div>
+      {section === "LABS" && (
+        lookups ? (
+          <LabsTab labs={lookups.labs} onChanged={(message) => setNotice({ kind: "success", text: message })} />
+        ) : (
+          !lookupsFailed && <p className="text-muted-foreground text-sm">Loading labs...</p>
+        )
+      )}
 
-        <input
-          type="text"
-          placeholder="Filter by name, email, or ID..."
-          aria-label="Filter by name, email, or ID"
-          value={searchInput}
-          maxLength={SEARCH_MAX_LENGTH}
-          onChange={(e) => setSearchInput(e.target.value)}
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary w-full sm:w-64"
-        />
-      </div>
-
-      <Card className="overflow-hidden p-0">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/30">
-              {["Name", "Email", "ID Number", "Type", "Role", "Labs / Head", "Status", "Actions"].map((h) => (
-                <TableHead key={h} className="text-[10px] font-bold tracking-wider">
-                  {h}
-                </TableHead>
+      {section === "USERS" && (
+        <>
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              {TABS.map(({ key, label }) => (
+                <Button key={key} size="sm" variant={tab === key ? "default" : "outline"} onClick={() => setTab(key)}>
+                  {label}
+                </Button>
               ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-xs">
-                  {loading ? "Loading users..." : "No users found matching the filter criteria."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              users.map((user) => {
-                const roleDisplay = user.role ? DATABASE_ROLE_LABELS[user.role] : user.roleLabel ?? "None";
-                const isOwn = user.userId === currentUser?.userId;
-                const isAnonymized = user.anonymizedAt !== null;
-                const isHead = user.headOf !== null;
-                const isManaged = user.accountStatus === "ACTIVE" || user.accountStatus === "INACTIVE";
-                const busy = busyUserId === user.userId;
+            </div>
 
-                return (
-                  <TableRow key={user.userId}>
-                    <TableCell className="text-xs font-semibold">
-                      {user.firstName} {user.lastName}
-                    </TableCell>
-                    <TableCell className="text-xs">{user.email}</TableCell>
-                    <TableCell className="text-xs font-mono">{user.idNumber ?? "None"}</TableCell>
-                    <TableCell className="text-xs">{USER_TYPE_LABELS[user.userType]}</TableCell>
-                    <TableCell className="text-xs font-medium">{roleDisplay}</TableCell>
-                    <TableCell className="text-xs">
-                      <div className="flex flex-wrap items-center gap-1">
-                        {user.labs.length === 0 && <span className="text-muted-foreground text-[11px]">None</span>}
-                        {user.labs.map((lab) => (
-                          <Badge key={lab.centerId} variant="outline" className="text-[10px]">
-                            {lab.code}
-                          </Badge>
-                        ))}
-                        {user.headOf && (
-                          <Badge variant="secondary" className="text-[10px] font-semibold">
-                            Head: {user.headOf.code}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <Badge variant={statusBadgeVariant(user.accountStatus)} className="text-[10px]">
-                        {ACCOUNT_STATUS_LABELS[user.accountStatus] ?? user.accountStatus}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {isOwn && <span className="text-[11px] text-muted-foreground">Your account</span>}
-                        {!isOwn && isAnonymized && <span className="text-[11px] text-muted-foreground">Anonymized</span>}
+            <input
+              type="text"
+              placeholder="Filter by name, email, or ID..."
+              aria-label="Filter by name, email, or ID"
+              value={searchInput}
+              maxLength={SEARCH_MAX_LENGTH}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary w-full sm:w-64"
+            />
+          </div>
 
-                        {!isOwn && !isAnonymized && isManaged && (
-                          <>
-                            {isHead ? (
-                              <HeadBlockedButton label="Change role" />
-                            ) : (
-                              <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => setChangingRole(user)}>
-                                Change role
-                              </Button>
-                            )}
-                            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy || !lookups} onClick={() => setChangingLabs(user)}>
-                              Change labs
-                            </Button>
-                          </>
-                        )}
-
-                        {!isOwn && user.accountStatus === "ACTIVE" && (
-                          isHead ? (
-                            <HeadBlockedButton label="Deactivate" />
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs text-amber-700 hover:text-amber-800 hover:bg-amber-50"
-                              disabled={busy}
-                              onClick={() => runStep(user, usersApi.deactivateUser, `${user.firstName} ${user.lastName} deactivated.`)}
-                            >
-                              Deactivate
-                            </Button>
-                          )
-                        )}
-
-                        {user.accountStatus === "INACTIVE" && !isAnonymized && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs text-primary hover:text-primary hover:bg-primary/10"
-                            disabled={busy}
-                            onClick={() => runStep(user, usersApi.reactivateUser, `${user.firstName} ${user.lastName} reactivated.`)}
-                          >
-                            Reactivate
-                          </Button>
-                        )}
-
-                        {!isOwn && !isAnonymized && (user.accountStatus === "INACTIVE" || user.accountStatus === "REJECTED") && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                            disabled={busy}
-                            onClick={() => setAnonymizing(user)}
-                          >
-                            Anonymize
-                          </Button>
-                        )}
-                      </div>
+          <Card className="overflow-hidden p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  {["Name", "Email", "ID Number", "Type", "Role", "Labs / Head", "Status", "Actions"].map((h) => (
+                    <TableHead key={h} className="text-[10px] font-bold tracking-wider">
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-xs">
+                      {loading ? "Loading users..." : "No users found matching the filter criteria."}
                     </TableCell>
                   </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+                ) : (
+                  users.map((user) => {
+                    const roleDisplay = user.role ? DATABASE_ROLE_LABELS[user.role] : user.roleLabel ?? "None";
+                    const isOwn = user.userId === currentUser?.userId;
+                    const isAnonymized = user.anonymizedAt !== null;
+                    const isHead = user.headOf !== null;
+                    const isManaged = user.accountStatus === "ACTIVE" || user.accountStatus === "INACTIVE";
+                    const busy = busyUserId === user.userId;
+
+                    return (
+                      <TableRow key={user.userId}>
+                        <TableCell className="text-xs font-semibold">
+                          {user.firstName} {user.lastName}
+                        </TableCell>
+                        <TableCell className="text-xs">{user.email}</TableCell>
+                        <TableCell className="text-xs font-mono">{user.idNumber ?? "None"}</TableCell>
+                        <TableCell className="text-xs">{USER_TYPE_LABELS[user.userType]}</TableCell>
+                        <TableCell className="text-xs font-medium">{roleDisplay}</TableCell>
+                        <TableCell className="text-xs">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {user.labs.length === 0 && <span className="text-muted-foreground text-[11px]">None</span>}
+                            {user.labs.map((lab) => (
+                              <Badge key={lab.centerId} variant="outline" className="text-[10px]">
+                                {lab.code}
+                              </Badge>
+                            ))}
+                            {user.headOf && (
+                              <Badge variant="secondary" className="text-[10px] font-semibold">
+                                Head: {user.headOf.code}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <Badge variant={statusBadgeVariant(user.accountStatus)} className="text-[10px]">
+                            {ACCOUNT_STATUS_LABELS[user.accountStatus] ?? user.accountStatus}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {isOwn && <span className="text-[11px] text-muted-foreground">Your account</span>}
+                            {!isOwn && isAnonymized && <span className="text-[11px] text-muted-foreground">Anonymized</span>}
+
+                            {!isOwn && !isAnonymized && isManaged && (
+                              <>
+                                {isHead ? (
+                                  <HeadBlockedButton label="Change role" />
+                                ) : (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => setChangingRole(user)}>
+                                    Change role
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy || !lookups} onClick={() => setChangingLabs(user)}>
+                                  Change labs
+                                </Button>
+                              </>
+                            )}
+
+                            {!isOwn && user.accountStatus === "ACTIVE" && (
+                              isHead ? (
+                                <HeadBlockedButton label="Deactivate" />
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                                  disabled={busy}
+                                  onClick={() => runStep(user, usersApi.deactivateUser, `${user.firstName} ${user.lastName} deactivated.`)}
+                                >
+                                  Deactivate
+                                </Button>
+                              )
+                            )}
+
+                            {user.accountStatus === "INACTIVE" && !isAnonymized && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs text-primary hover:text-primary hover:bg-primary/10"
+                                disabled={busy}
+                                onClick={() => runStep(user, usersApi.reactivateUser, `${user.firstName} ${user.lastName} reactivated.`)}
+                              >
+                                Reactivate
+                              </Button>
+                            )}
+
+                            {!isOwn && !isAnonymized && (user.accountStatus === "INACTIVE" || user.accountStatus === "REJECTED") && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                disabled={busy}
+                                onClick={() => setAnonymizing(user)}
+                              >
+                                Anonymize
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </>
+      )}
 
       {changingRole && (
         <ChangeRoleDialog key={changingRole.userId} user={changingRole} onClose={() => setChangingRole(null)} onChanged={changed} />
