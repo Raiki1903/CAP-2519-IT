@@ -12,7 +12,7 @@ Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges
 
 **Batch 5 built (2026-11-05):** maintenance, disposal, Missing and Found, inspections, the routine queue, the benchmark data and four notification kinds on the server, with today's screens moved onto them. The endpoints marked "live (Batch 5)" in 7.4, 7.5, 7.6 and 7.10 exist. Every step locks the asset first, so two reports, a receive and a cancel, or two disposal decisions at once give one winner and one 409. The guard gained `WORK_ON_MAINTENANCE` and `SELF_REPORT_INSPECTION`. **Removed in Batch 5:** `PUT /api/maintenance/:maintenanceId` and `PUT /api/maintenance/:maintenanceId/status` (the free-form update routes, H-06; they answer 404), the 8-second repeat check on repairs (#65), the `repairs` and `disposals` keys in the ticket and disposal lists (they answer `tickets` and `retirements` only), the packed disposal text, and the old inspection body (`reportCondition`, `reportRemarks`, `reportImg`) with the `report` key in its answer. No schema change. Where the brief and an earlier line here differed, this file now says what Batch 5 built.
 
-**Module 6, users and labs, built on the server (2026-11-07, issue #158):** the endpoints marked "live (module 6)" in 7.7 exist: the users list with its filters, role and lab changes, a lab's Head, deactivate, reactivate and anonymize, with the rules in section 4 ("Sign-up and account"). `GET /api/users?status=PENDING` answers as before. The activity log, the tickets, and the screens come later in module 6. No schema change.
+**Module 6, users and labs, built on the server (2026-11-07, issue #158):** the endpoints marked "live (module 6)" in 7.7 exist: the users list with its filters, role and lab changes, a lab's Head, deactivate, reactivate and anonymize, with the rules in section 4 ("Sign-up and account"). `GET /api/users?status=PENDING` answers as before. The activity log read (7.7) and the tickets (7.8) are live too. The screens come later in module 6. No schema change.
 
 ---
 
@@ -275,8 +275,10 @@ There is no ticket form on the login page: `user_tickets.created_by_id` is a req
 | From | To | Who |
 |---|---|---|
 | (new) | Open | Any Active account (a ticket always needs a login) |
-| Open | In Progress, Resolved or Rejected | The IT Admin |
+| Open | In Progress, Resolved or Rejected | The IT Admin (resolution remarks required for Resolved and Rejected) |
 | In Progress | Resolved or Rejected | The IT Admin (resolution remarks required) |
+
+Resolved and Rejected are final: any other move answers 409. They record the IT Admin who set them and the time.
 
 ### Inspection types (`asset_inspections.type`)
 
@@ -462,7 +464,7 @@ Missing and Found send no email. A disposal request emails the Director and the 
 | Deactivate | `PUT /api/users/:userId/deactivate` | IT Admin | | `{ user: User }`, Inactive | 400 the IT Admin's own account; 403; 404; 409 not Active, heads a lab, or has any open loan, a request still waiting included (Pending Approval, Pending Release, On Loan, Return Requested: "This account still has an open loan or loan request.") | live (module 6) |
 | Reactivate | `PUT /api/users/:userId/reactivate` | IT Admin | | `{ user: User }`, Active | 403; 404; 409 not Inactive, or anonymized | live (module 6) |
 | Anonymize | `PUT /api/users/:userId/anonymize` | IT Admin | | `{ user: User }`, with the fields of section 4 | 400 the IT Admin's own account; 403; 404; 409 already anonymized, not Inactive or Rejected, or not cleared (section 5) | live (module 6) |
-| Activity log | `GET /api/activity-log` | IT Admin | `?eventType=&actorId=&targetUserId=&assetTag=&from=&to=&page=` | `{ entries: ActivityEntry[], page, pageCount }` | 403 | planned (module 6) |
+| Activity log | `GET /api/activity-log` | IT Admin | `?eventType=&actorId=&targetUserId=&assetTag=&from=&to=&page=`, each optional and sent once: `from` and `to` are `yyyy-mm-dd` days in the server's local time, both included; `page` from 1 | `{ entries: ActivityEntry[], page, pageCount }`: newest first, 50 rows a page, `pageCount` at least 1, a page past the last one empty. An unknown asset tag gives no rows. `eventLabel` comes from `ACTIVITY_EVENT_LABELS`; `actor` and `targetUser` are `{ userId, name }` or null, never an email | 400 an unknown filter, a filter sent twice, an unknown event type, a bad id, page or day, or `from` after `to`; 403 | live (module 6) |
 
 Approve and reject lock the account row, so two decisions at once give one 200 and one 409. Each writes one activity row, with the IT Admin as actor and the account as target: SIGNUP_APPROVED (details `Role: <key>; labs: <codes, or none>`) and SIGNUP_REJECTED (details: the remarks). Each login on an existing account writes one row too: LOGIN_SUCCESS (actor: the account), or LOGIN_FAILURE (no actor, the account as target, details one of "Wrong password", "Account pending", "Account rejected", "Account inactive"). A failed login for an email with no account writes nothing.
 
@@ -474,10 +476,12 @@ Activity events: LOGIN_SUCCESS, LOGIN_FAILURE, SIGNUP_APPROVED, SIGNUP_REJECTED,
 
 | Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
 |---|---|---|---|---|---|---|
-| Create a ticket | `POST /api/tickets` | any Active account | `{ type, title, description }` | `{ ticket: Ticket }` | 400 | planned (module 6) |
-| My tickets | `GET /api/tickets/mine` | logged in | | `{ tickets: Ticket[] }` | | planned (module 6) |
-| All tickets | `GET /api/tickets` | IT Admin | `?status=&type=` | `{ tickets: Ticket[] }` | 403 | planned (module 6) |
-| Change status | `PUT /api/tickets/:ticketId/status` | IT Admin | `{ status, resolutionRemarks? }` (required for Resolved and Rejected) | `{ ticket: Ticket }` | 400; 403; 404; 409 not a listed move | planned (module 6) |
+| Create a ticket | `POST /api/tickets` | any Active account | `{ type, title, description }`: `type` one of the four, `title` trimmed 1 to 150 characters, `description` trimmed 1 to 2000 | 201 `{ ticket: Ticket }`, Open, filed by the session's account | 400 a bad type, title or description; 403 an account that is not Active | live (module 6) |
+| My tickets | `GET /api/tickets/mine` | any Active account | | `{ tickets: Ticket[] }`: the account's own, newest first, with the IT Admin's answer | 403 an account that is not Active | live (module 6) |
+| All tickets | `GET /api/tickets` | IT Admin | `?status=&type=`, each optional and sent once | `{ tickets: Ticket[] }`, newest first | 400 an unknown filter, status or type; 403 | live (module 6) |
+| Change status | `PUT /api/tickets/:ticketId/status` | IT Admin | `{ status, resolutionRemarks? }`: remarks trimmed, 1 to 1000 characters, required for Resolved and Rejected, and not taken for In Progress | `{ ticket: Ticket }`; Resolved and Rejected also set `resolvedBy` (the IT Admin) and `resolvedAt` | 400 unknown status, or remarks missing, too long, or sent for In Progress; 403; 404; 409 not a listed move (section 4) | live (module 6) |
+
+Filing a ticket writes no activity row (there is no event for it). Each status change locks the ticket row, so two changes at once give one 200 and one 409, and writes one TICKET_STATUS_CHANGED row: the IT Admin as actor, the ticket's creator as target, details `#<ticketId> <from> to <to>` (status keys). The moves and the closing statuses are in `shared/constants/tickets.ts` (`TICKET_STATUS_MOVES`, `TICKET_CLOSING_STATUSES`).
 
 ### 7.9 Analytics
 
