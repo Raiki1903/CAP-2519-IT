@@ -189,6 +189,24 @@ describe("PUT /api/users/:userId/role", () => {
     expect(await logRowsFor(userId, "ROLE_CHANGED")).toEqual([]);
   });
 
+  it("answers 400 to make an account with no lab a Researcher, and gives the role once it has a lab", async () => {
+    const { userId } = await makeAccount({ role: "TSG_STAFF", centerIds: [] });
+
+    const refused = await asItAdmin.put(`/api/users/${userId}/role`, { role: "RESEARCHER" });
+
+    expect(refused.status).toBe(400);
+    expect(refused.body).toEqual({ success: false, error: "Choose at least one lab for a Researcher." });
+    const roles = await db.user_roles.findMany({ where: { user_id: userId }, include: { roles: true } });
+    expect(roles.map((ur) => ur.roles.role_name)).toEqual(["TSG_STAFF"]);
+    expect(await logRowsFor(userId, "ROLE_CHANGED")).toEqual([]);
+
+    await asItAdmin.put(`/api/users/${userId}/labs`, { centerIds: [LAB.centerId] });
+    const given = await asItAdmin.put(`/api/users/${userId}/role`, { role: "RESEARCHER" });
+
+    expect(given.status).toBe(200);
+    expect(given.body.user).toMatchObject({ role: "RESEARCHER", labs: [{ centerId: LAB.centerId }] });
+  });
+
   it("answers 409 for an anonymized account", async () => {
     const { userId } = await makeAccount({ status: "INACTIVE" });
     await db.users.update({ where: { user_id: userId }, data: { anonymized_at: new Date() } });

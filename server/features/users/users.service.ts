@@ -104,6 +104,9 @@ export async function rejectSignUp(userId: number, input: RejectSignUpInput, itA
 /** The 400 message when the IT Admin tries to change their own account. */
 const OWN_ACCOUNT_MESSAGE = "You can't change your own account here.";
 
+/** The 400 message when a role or lab change would leave a Researcher with no lab. */
+const NO_LAB_MESSAGE = "Choose at least one lab for a Researcher.";
+
 /** The 409 message when the account heads a lab and the change would undo that. */
 const HEAD_FIRST_MESSAGE = "Change the lab's Head first.";
 
@@ -140,13 +143,14 @@ function changedUser(row: UserRow | null): User {
 
 /**
  * Gives an Active or Inactive account one role in place of the one it has. The account that heads a lab stays a
- * Researcher, because a lab's Head is a Researcher office account.
+ * Researcher, because a lab's Head is a Researcher office account. A Researcher needs at least one lab, as at
+ * approval, so an account with none gets its labs first.
  *
  * @param userId the account
  * @param input the new role
  * @param itAdminId the session user who changes it (never from the body)
  * @returns the account with its new role
- * @throws AppError 400 if the account is the IT Admin's own
+ * @throws AppError 400 if the account is the IT Admin's own, or would be a Researcher with no lab
  * @throws AppError 404 if there is no such account
  * @throws AppError 409 if the account is Pending, Rejected, or anonymized, or heads a lab and the role is not Researcher
  */
@@ -154,6 +158,7 @@ export async function changeRole(userId: number, input: ChangeRoleInput, itAdmin
     refuseOwnAccount(userId, itAdminId);
     return changedUser(await usersRepository.changeRole(userId, input.role, itAdminId, (account) => {
         refuseUnlessManaged(account);
+        if (input.role === 'RESEARCHER' && account.centerIds.length === 0) throw new AppError(400, NO_LAB_MESSAGE);
         if (account.headOf && input.role !== 'RESEARCHER') throw new AppError(409, HEAD_FIRST_MESSAGE);
         return `From ${account.role ?? 'none'} to ${input.role}`;
     }));
@@ -180,9 +185,7 @@ export async function changeLabs(userId: number, input: ChangeLabsInput, itAdmin
 
     return changedUser(await usersRepository.changeLabs(userId, input.centerIds, itAdminId, (account) => {
         refuseUnlessManaged(account);
-        if (account.role === 'RESEARCHER' && input.centerIds.length === 0) {
-            throw new AppError(400, "Choose at least one lab for a Researcher.");
-        }
+        if (account.role === 'RESEARCHER' && input.centerIds.length === 0) throw new AppError(400, NO_LAB_MESSAGE);
         if (account.headOf && !input.centerIds.includes(account.headOf.centerId)) throw new AppError(409, HEAD_FIRST_MESSAGE);
         return labs.map(lab => lab.short_code).join(', ') || 'none';
     }));
