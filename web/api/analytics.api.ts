@@ -1,8 +1,9 @@
 /**
  * Analytics API: the read-only dashboard data for the three live analytics views.
- * Layer: api. Called by DirectorAnalyticsView, LabHeadAnalyticsView, and StaffAnalyticsView. Calls client.ts.
- * Used by: Director, Lab Head, and Staff analytics.
+ * Layer: api. Called by DirectorAnalyticsView, LabHeadAnalyticsView, StaffAnalyticsView, and InsightsPanel. Calls client.ts.
+ * Used by: Director, Lab Head, and Staff analytics, and the Insights panel on the home screens.
  */
+import type { InsightsData } from "@shared/types/analytics";
 import { apiGet, apiGetRaw, type ApiResult } from "./client";
 
 // Every function except getDirectorAnalytics returns the untouched Response,
@@ -87,4 +88,18 @@ export function getLocationStatusRaw(): Promise<Response> {
  */
 export function getInspectionProgressRaw(): Promise<Response> {
   return apiGetRaw("/api/analytics/advanced/inspection-progress");
+}
+
+/**
+ * Loads the advice notes for the signed-in role: all of them, both views, sorted by the server.
+ *
+ * @param centerId one lab, for the Staff and Director views; leave out for the viewer's whole scope (a Lab Head always gets their own lab)
+ * @returns the answer without `success`
+ * @throws if the server refuses or cannot be reached, so the panel shows its error line
+ */
+export async function getInsights(centerId?: number | null): Promise<InsightsData> {
+  const query = centerId ? `?centerId=${centerId}` : "";
+  const res = await apiGet(`/api/analytics/insights${query}`);
+  if (!res.success) throw new Error(res.error || "Insights are unavailable.");
+  return res as unknown as InsightsData;
 }
