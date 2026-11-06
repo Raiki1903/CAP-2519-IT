@@ -197,9 +197,10 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = ""
         <h3 className="text-sm font-extrabold text-foreground uppercase tracking-wider mb-2.5">
           Equipment Loan Requests
         </h3>
-        <div className="overflow-x-auto rounded-lg border border-border">
+        {/* Fixed height: the list scrolls, and the header stays. The table's own sideways scroll moves to this box. */}
+        <div className="max-h-80 overflow-auto rounded-lg border border-border [&_[data-slot=table-container]]:overflow-visible">
           <Table>
-            <TableHeader className="bg-muted/40">
+            <TableHeader className="sticky top-0 z-10 bg-muted">
               <TableRow>
                 <TableHead className="text-xs font-bold">Loan ID</TableHead>
                 <TableHead className="text-xs font-bold">Asset Tag / Name</TableHead>
