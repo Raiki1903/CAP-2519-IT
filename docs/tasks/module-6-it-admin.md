@@ -117,3 +117,21 @@ Schema changes, new packages, direct account creation by the IT Admin, password 
 | 2026-11-07 | A24 | Tickets page: each row has an Open button (the row itself is not a click target, so a keyboard can reach it). The dialog offers only the moves in `TICKET_STATUS_MOVES`; a closed ticket is read-only. Remarks show a count of the trimmed text and are not cut at the limit, as in the Reject dialog. Server sentences show inside the dialog; a done change shows in a page notice. |
 | 2026-11-07 | A25 | Support tickets section: sits below the profile form on the Account page (outside its `<form>`, which cannot nest), and the type starts on Question. Title and description are counted as trimmed text and not cut. The line above the form says asset problems go through Report an issue. The rest of the Account page, including its hard-coded colours, is not touched. |
 | 2026-11-07 | A26 | `features/tickets/TicketStatusBadge.tsx` holds the status badge and the `ticketTime` format that the Tickets page, the ticket dialog and the Support tickets section share. |
+
+## For Macy
+
+**What shipped (issue #158), by manuscript function.**
+
+- **1.6.2.6.1 Accounts.** The IT Admin's **Users** page lists every account after sign-up (Pending ones stay on Approvals) with tabs for All, Active, Inactive and Rejected, and a search by name, email or ID number. On it the IT Admin changes an account's role (one role, as at approval) and its labs, deactivates and reactivates it. The **Labs** tab on the same page shows the 10 labs with their Head and changes a lab's Head. The rules: the IT Admin never changes their own account; a Researcher keeps at least one lab; a lab's Head is an Active Researcher who belongs to that lab and heads one lab only, so an account that heads a lab keeps the Researcher role and its lab; deactivating is refused while the account heads a lab or has any open loan, a request still waiting included. A change reaches a person who is already logged in within 60 seconds.
+- **1.6.2.6.3 Logs.** The **Activity Log** page is read only: time, event, who acted, who it was about, the asset tag and the details, newest first, 50 rows a page, with filters for the event, the days and the asset tag. Besides the logins, sign-up decisions and asset steps of earlier batches, this work writes a row for each role change, lab change, Head change, deactivation, reactivation, anonymization and ticket status change. No row holds an email, a typed login or a password.
+- **1.6.2.6.4 Tickets.** Every person (every role) has a **Support tickets** section on their Account page: a type (Bug, Account Access, Question, Other), a title and a description, and below it their own tickets with the status and the IT Admin's answer. The IT Admin's **Tickets** page lists all tickets with status and type filters, and moves each one on: Open to In Progress, Resolved or Rejected; In Progress to Resolved or Rejected. Resolved and Rejected need remarks, are final, and record who closed the ticket and when. Problems with an asset do not use this: they go through Report an issue and Maintenance, as the manuscript says.
+- **1.6.2.6.5 Privacy (Data Privacy Act, CAP1DEF comment 2).** **Anonymize** is a step on the Users page for an Inactive or Rejected account that is cleared (no unreturned equipment). The name becomes "Former researcher", the email `anonymized-<id>@invalid`, and the ID number, the photo and the labs are removed; the password is cleared, so the account can never log in again. The person's loans, inspections, tickets and log rows stay, under the new name. The email and ID number are free for a new sign-up. It cannot be undone, and an anonymized account can no longer be changed.
+
+**Numbers.** The API tests grew from 759 to 888 passed. The typecheck count stays at 25 (old errors). There is no schema change.
+
+**Recommendations items (not built).**
+
+1. Direct account creation by the IT Admin. People still sign up, and the IT Admin approves them.
+2. Automatic anonymization after graduation or after a set time. Today the IT Admin anonymizes by hand, one account at a time.
+
+Also not part of this work: a password reset by the IT Admin, email or bell notices for tickets, ticket attachments, and any asset action for the IT Admin.
