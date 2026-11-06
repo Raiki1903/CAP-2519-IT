@@ -253,6 +253,10 @@ describe("insight wording", () => {
   it("gives one or two ranked alternatives for every rule", () => {
     for (const texts of Object.values(INSIGHT_ALTERNATIVES)) expect([1, 2]).toContain(texts.length);
     expect(insightOf(hit, "staff").alternatives.map(a => a.rank)).toEqual([1, 2]);
+    expect(insightOf(hit, "staff").alternatives.map(a => a.text)).toEqual([
+      "Look over its past repair records.",
+      "Take no further step if TSG finds a check isn't needed.",
+    ]);
   });
 
   it("uses neutral words and no em dash", () => {

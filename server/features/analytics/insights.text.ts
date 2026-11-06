@@ -58,27 +58,30 @@ export const INSIGHT_ACTIONS: Record<InsightRuleId, Record<InsightAudience, stri
     },
 };
 
-/** One or two other ways to look at each rule's note, best first. Same for every audience. */
+/**
+ * One or two other actions the person could take for each rule's note, best first. Same for every audience.
+ * From Macy's plan section 5. COND-05 has none there, so its two are ours.
+ */
 export const INSIGHT_ALTERNATIVES: Record<InsightRuleId, string[]> = {
     'WAR-01': [
-        'Check whether the asset is still in regular use before spending time on it.',
-        'Look at its last inspection to see whether a check is already planned.',
+        'Look over its past repair records.',
+        "Take no further step if TSG finds a check isn't needed.",
     ],
     'LOAN-02': [
-        'The borrower may have returned it without the return being recorded.',
-        'The return date may have been agreed to change outside the system.',
+        'Contact the borrower directly.',
+        'Check whether a different return arrangement was agreed.',
     ],
     'REP-03': [
-        'The tickets may have different causes, so look at each ticket before assuming one fault.',
-        'Heavy use may explain the tickets more than a fault in the asset.',
+        'Look over its condition and inspection history.',
+        'Weigh more repairs against a future replacement review.',
     ],
     'LIFE-04': [
-        'Age alone does not mean the asset needs replacing: its condition and use matter too.',
-        'The review point is a demo value, so compare it with how the lab uses this kind of asset.',
+        'Keep it in service if a check finds it still suits the work.',
+        'Discuss future replacement planning.',
     ],
     'COND-05': [
-        'The two inspections may have been done by different people, so the difference can come from how they judged it.',
-        'A single drop may be a one-time event, so look at whether it keeps going down.',
+        'Read the inspection remarks to see what changed.',
+        'Plan another inspection to see whether the drop continues.',
     ],
 };
 
