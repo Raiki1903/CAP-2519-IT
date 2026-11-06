@@ -162,3 +162,33 @@ Stored procedures, DEMAND-05, admin-editable thresholds, saved dismissals or ins
 | 2026-11-06 | Stop 3: average and busiest weeks | The average is over loans closed within the weeks shown (the brief did not say all time or the window), whole days from release day to closing day, one decimal, `null` with none. Busiest weeks are the three with most loans out, newer first on a tie, none when all are zero. |
 | 2026-11-06 | Stop 3: no share-of-time figure | The planned `timeOnLoanShare` in the contract (share of time on loan per lab) is not in section 7 and was not built; its contract bullet is gone. The old `averageLoanDays` bullet (open loans counted to now) is replaced by the closed-loans-only rule in section 7. |
 | 2026-11-06 | Stop 3: chart | `LoansPerWeekChart` is a bar chart of loans out per week, the busiest weeks in `primary` and the others in `secondary`, with the busiest weeks and the average loan length written under it. It is on Director Analytics (the existing lab filter picks the lab through its `centerId`, as for insights) and Lab Head Analytics (own lab), after the existing charts of the Director page and under the operational section of the Lab Head page. It has its own loading, error ("Loans per week are currently unavailable.") and empty ("No loans have been handed over in the last 12 weeks.") states. |
+
+---
+
+## For Macy
+
+**What shipped (issue #155).**
+
+- `GET /api/analytics/insights`: five rule-based advice notes, read-only, worked out on each request with plain Prisma queries. No stored procedures, views, triggers, AI, email or writes. Each note has a priority, an issue line, a preferred action worded for the viewer's role (Lab Head, TSG Staff and Secretary, Director), a "Why" section with the evidence rows and your section 5 alternatives, and a chart key.
+- The notes show in an Insights section (tabs Operational and Strategic) at the top of the Staff, Lab Head and Director Analytics pages, and as the top 3 on Staff System Overview, Director Overview and the Lab Head Requests page. A Lab Head sees only the lab they head. Dismiss lasts until the page reloads and saves nothing.
+- `GET /api/analytics/utilization` and the "Loans out per week" chart (CAP1DEF 8) on Director Analytics (with its lab filter) and Lab Head Analytics: loans out and released per week for the last 12 weeks, the three busiest weeks, and the average loan length.
+
+**Rule thresholds.**
+
+| Rule | Fires when | Priority |
+|---|---|---|
+| WAR-01 | warranty ends in 0 to 90 days | HIGH up to 30 days, else MEDIUM |
+| LOAN-02 | On Loan or Return Requested, more than 7 days past the return date | HIGH over 14 days, else MEDIUM |
+| REP-03 | 3 or more tickets of any type, not Cancelled, reported in the last 180 days | HIGH if a ticket is open or the condition is Critical Defect, else MEDIUM |
+| LIFE-04 | months since purchase reach Monitor 60, Router 60, Dev Kit 48 (demo values, a review point and not policy) | PLANNING |
+| COND-05 | the two newest TSG inspections are on different days and the newest condition is worse | HIGH if Critical Defect, else MEDIUM |
+
+COND-05 replaces DEMAND-05. The alternatives for COND-05 are ours, because your section 5 has none for it.
+
+**Recommendations items.**
+
+1. Stored procedures or views with an EXECUTE-only reporting account, if the data grows. The inspection rule reads every TSG inspection and keeps the two newest per asset in the service, which is fine at today's size.
+2. DEMAND-05, the cross-lab borrowing review.
+3. Category age limits set by policy, instead of the demo values in `LIFECYCLE_LIMIT_MONTHS`.
+4. Persistent insight history, saved dismissals and admin-editable thresholds (none exist: each request starts fresh).
+5. A share-of-time-on-loan figure per lab (the planned `timeOnLoanShare`), which is not built.
