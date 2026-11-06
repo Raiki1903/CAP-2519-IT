@@ -13,4 +13,6 @@ export const PAGE_TITLES = {
   assetInformation: "Asset Information",
   reports: "Reports and Analytics",
   administration: "System Administration",
+  activityLog: "Activity Log",
+  tickets: "Tickets",
 } as const;
