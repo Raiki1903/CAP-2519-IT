@@ -315,8 +315,8 @@ Written for Raiki, to run by hand. The agent did not run them. Every check uses 
 7. **To read the database**, SELECT only, never a `password` column. PowerShell, it asks for the root password: `& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p adric_uat_check -e "<SELECT>"`. One check (5-H14) runs a single UPDATE on `adric_uat_check`, and says so. `condition` is a reserved word, so the SELECTs in 5-H8 and 5-H14 write it with backticks. PowerShell drops a single backtick inside double quotes, so in the command type each one twice (``` ``condition`` ```).
 8. These checks leave loans, tickets, disposals, inspections and activity rows in `adric_uat_check`. The next UAT reset removes them.
 
-**5-H1. TSG releases a loan on Joel's Releases tab; the merge left his screen working.** Role: UAT Staff One. Screen: "Asset Loaning and Return", Releases tab. Database: `adric_uat_check` (writes two releases, two Loan Release inspections).
-- The sidebar has one "Asset Loaning and Return" item and no "Pending Returns" item. The Releases tab lists L1 (A1) and L2 (M1).
+**5-H1. TSG releases a loan on Joel's Releases tab; the merge left his screen working.** Role: UAT Staff One. Screen: "Asset Loans", Releases tab. Database: `adric_uat_check` (writes two releases, two Loan Release inspections).
+- The sidebar has one "Asset Loans" item and no "Pending Returns" item. The Releases tab lists L1 (A1) and L2 (M1).
 - On A1's row click Release. In the dialog type a wrong tag: "Confirm & Release Asset" stays disabled. Type A1's tag: it turns on. Leave the condition Operational, click it.
 - Expect: the green line "Loan #<L1> released successfully. Opening Accountability Form...", and a new browser tab with the Accountability Form for A1 (allow pop-ups for `localhost:5173` if the browser blocks it), borrower UAT Custodian One. The row leaves the Releases tab. Close the form tab. Release M1 (L2) the same way.
 - Asset Inventory: A1 and M1 show On Loan, held by UAT Custodian One.
@@ -478,8 +478,8 @@ fetch("http://localhost:4000/api/maintenance/<T1>/status",{method:"PUT",credenti
 - Database: `SELECT status FROM asset_loans WHERE loan_id=<L3>` shows RETURNED. `SELECT status FROM assets WHERE asset_tag='<A2>'` shows AVAILABLE.
 
 **5-H20. Nearby: the other screens still load.** Roles: UAT Staff One, UAT Director One, UAT Custodian Three, UAT LabHead CITe4D One. Screens: see below. Database: `adric_uat_check` (writes nothing).
-- UAT Staff One: System Overview (the card "Open Maintenance Tickets" counts the open tickets, and the "Pending Returns" card opens "Asset Loaning and Return"), Asset Inventory (both tabs), Repairs, Inspections (the log below the queue), Analytics.
+- UAT Staff One: System Overview (the card "Open Maintenance Tickets" counts the open tickets, and the "Pending Returns" card opens "Asset Loans"), Asset Inventory (both tabs), Repairs, Inspections (the log below the queue), Analytics.
 - UAT Director One: Overview, Analytics, Disposal Approvals, Inventory Report.
-- UAT Custodian Three (the Secretary): the Staff view loads; "Asset Loaning and Return" is not in her sidebar; Repairs lists tickets to read, with no step buttons.
+- UAT Custodian Three (the Secretary): the Staff view loads; "Asset Loans" is not in her sidebar; Repairs lists tickets to read, with no step buttons.
 - UAT LabHead CITe4D One: Requests, Lab Inventory, Analytics.
 - Expect on every page: no red error box, no failed call in DevTools, Network, and the repair numbers match the Repairs page.
