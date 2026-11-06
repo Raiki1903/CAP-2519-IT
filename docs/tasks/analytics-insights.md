@@ -162,6 +162,12 @@ Stored procedures, DEMAND-05, admin-editable thresholds, saved dismissals or ins
 | 2026-11-06 | Stop 3: average and busiest weeks | The average is over loans closed within the weeks shown (the brief did not say all time or the window), whole days from release day to closing day, one decimal, `null` with none. Busiest weeks are the three with most loans out, newer first on a tie, none when all are zero. |
 | 2026-11-06 | Stop 3: no share-of-time figure | The planned `timeOnLoanShare` in the contract (share of time on loan per lab) is not in section 7 and was not built; its contract bullet is gone. The old `averageLoanDays` bullet (open loans counted to now) is replaced by the closed-loans-only rule in section 7. |
 | 2026-11-06 | Stop 3: chart | `LoansPerWeekChart` is a bar chart of loans out per week, the busiest weeks in `primary` and the others in `secondary`, with the busiest weeks and the average loan length written under it. It is on Director Analytics (the existing lab filter picks the lab through its `centerId`, as for insights) and Lab Head Analytics (own lab), after the existing charts of the Director page and under the operational section of the Lab Head page. It has its own loading, error ("Loans per week are currently unavailable.") and empty ("No loans have been handed over in the last 12 weeks.") states. |
+| 2026-11-06 | After the hand checks: two changes to Macy's plan (Raiki) | H1 to H9 all passed on the first layout. Raiki then changed two items from Macy's plan: the landing preview (FR-06) is dropped, and the Operational and Strategic tabs (FR-05) are replaced by priority sections. This reverses the "top 3 on the home screens" part of section 6 of this brief and the "Screens: where the panel goes" row above. The server and the API are unchanged. |
+| 2026-11-06 | Rework 1: Insights only on Analytics | The top 3 and its "See all in Analytics" link are removed from Staff System Overview, the Director Overview and the Lab Head Requests page. The preview code that only they used is deleted: the panel's `variant`, `analyticsPath` and `className` props, the preview branch, and the router link. The three home screens are back to their code from before this work. Done as `git revert` of the home-screen commit plus the panel clean-up, in one refactor commit. |
+| 2026-11-06 | Rework 2: Insights block | A header row (title, the count of notes not dismissed, and a Hide or Show button) over one wide card with three sections side by side: High, Medium, Planning, each with its count. Shown by default; Hide collapses it to the header row. Hide and Dismiss are component state only, so a reload brings everything back. The sections stack on a screen narrower than 1024 px (the `lg` breakpoint). |
+| 2026-11-06 | Rework 2: tabs dropped, sections scroll | The Operational and Strategic tabs are gone: Planning is the strategic one, so the "view" of a note no longer shows on screen (the server still sends it, and `?view=` still works). Each section has a fixed height of 31rem, which fits three cards at a 1440 px window (a card is about 155 px there), and scrolls for the rest. An empty section says "None"; when all three are empty the card says "No insights right now." Loading and error states are as before (the skeleton and "Insights are currently unavailable." under the header, with the charts still showing). Why, Dismiss and the related-chart line are kept. |
+| 2026-11-06 | Rework 2: compact card | `InsightCard` is now a plain bordered box with the same left accent and priority badge, smaller type and padding, and the Why and Dismiss buttons on one row. It no longer uses the `Card` component, whose padding and gap could not be made compact. |
+| 2026-11-06 | Rework 3: Lab Head loan requests table | On Lab Head Analytics the "Equipment Loan Requests" table has a fixed height of 20rem and scrolls inside its card, with the header row kept in view (sticky). The table's own sideways scroll moved to the same box. |
 
 ---
 
@@ -170,7 +176,7 @@ Stored procedures, DEMAND-05, admin-editable thresholds, saved dismissals or ins
 **What shipped (issue #155).**
 
 - `GET /api/analytics/insights`: five rule-based advice notes, read-only, worked out on each request with plain Prisma queries. No stored procedures, views, triggers, AI, email or writes. Each note has a priority, an issue line, a preferred action worded for the viewer's role (Lab Head, TSG Staff and Secretary, Director), a "Why" section with the evidence rows and your section 5 alternatives, and a chart key.
-- The notes show in an Insights section (tabs Operational and Strategic) at the top of the Staff, Lab Head and Director Analytics pages, and as the top 3 on Staff System Overview, Director Overview and the Lab Head Requests page. A Lab Head sees only the lab they head. Dismiss lasts until the page reloads and saves nothing.
+- The notes show in an Insights block at the top of the Staff, Lab Head and Director Analytics pages: one wide card with High, Medium and Planning side by side, a Hide or Show button, and a scrolling list in each section. Raiki dropped the landing preview (FR-06) and the Operational and Strategic tabs (FR-05) from your plan after the hand checks. A Lab Head sees only the lab they head. Dismiss and Hide last until the page reloads and save nothing.
 - `GET /api/analytics/utilization` and the "Loans out per week" chart (CAP1DEF 8) on Director Analytics (with its lab filter) and Lab Head Analytics: loans out and released per week for the last 12 weeks, the three busiest weeks, and the average loan length.
 
 **Rule thresholds.**
@@ -197,7 +203,7 @@ COND-05 replaces DEMAND-05. The alternatives for COND-05 are ours, because your 
 
 ## Stop 4 browser checks
 
-Done by the agent with Playwright on the local `adric_uat_check` copy only (never CCS Cloud), on 2026-11-06, started with `C:\dev\uat-data\start-local-uat.ps1`. Raiki ran `C:\dev\uat-data\uat-insights-setup.sql` first. Screenshots are in `%TEMP%\insights-checks\`.
+Done by the agent with Playwright on the local `adric_uat_check` copy only (never CCS Cloud), on 2026-11-06, started with `C:\dev\uat-data\start-local-uat.ps1`. Raiki ran `C:\dev\uat-data\uat-insights-setup.sql` first. Screenshots are in `%TEMP%\insights-checks\`. This is the first layout (home previews and tabs); the reworked layout is checked below.
 
 - **TSG (UAT Staff One):** System Overview shows the top 3 (UATI-005 and UATI-011 High loans, UATI-001 High warranty) and "See all in Analytics". Analytics shows 15 Operational and 1 Strategic. Every qualifying case appears with the right priority. UATI-003 (warranty 91 days) and UATI-006 (loan 7 days late) are absent. Why shows the evidence rows and "Other options", Dismiss lowers the tab count, the Strategic tab shows UATI-008, and the related-chart line shows on a warranty card ("Warranties Ending in 90 Days") and a repair card ("Repair Operations Kanban Board").
 - **Secretary:** not checked in the browser, because the UAT account list has no Secretary account. The Secretary is app role Staff, the same guard and the same panel as TSG, and the API test calls the route as the Secretary. UAT Staff Two (also TSG) was not opened.
@@ -230,63 +236,53 @@ For Raiki. Database: the **local `adric_uat_check` copy only**, with the test da
 
 | # | Result (pass or fail) | Notes |
 |---|---|---|
-| H1 | | |
-| H2 | | |
-| H3 | | |
-| H4 | | |
-| H5 | | |
-| H6 | | |
-| H7 | | |
-| H8 | | |
-| H9 | | |
+| H1 | Pass | Raiki: passed on the first layout. Describes the home-screen preview, removed after the rework. |
+| H2 | Pass | Raiki: passed on the first layout. Describes the Operational and Strategic tabs, replaced after the rework. |
+| H3 | Pass | Raiki: passed on the first layout. Describes the Operational and Strategic tabs, replaced after the rework. |
+| H4 | Pass | Raiki: passed on the first layout. Describes the home-screen preview, removed after the rework. |
+| H5 | Pass | Raiki: passed on the first layout. Describes the Operational and Strategic tabs, replaced after the rework. |
+| H6 | Pass | Raiki: passed on the first layout. Describes the home-screen preview, removed after the rework. |
+| H7 | Pass | Raiki: passed on the first layout. Describes the Operational and Strategic tabs, replaced after the rework. |
+| H8 | Pass | Raiki: passed on the first layout. |
+| H9 | Pass | Raiki: passed on the first layout. |
 
-## Pull request text (draft)
+## Stop 4 browser checks: reworked layout
 
-Title: `feat(analytics): rule-based insights and loans per week (#155)`
+Done by the agent with Playwright on the local `adric_uat_check` copy only, on 2026-11-06, with the same test data and a 1440 px window unless said. The app was started with `C:\dev\uat-data\start-local-uat.ps1` (a leftover app of Raiki's was already on ports 4000 and 5173, so the agent stopped it first and started its own). Screenshots are in `%TEMP%\insights-checks\` (`v2-01` to `v2-16`); the screenshots of the first layout were deleted. The agent signed in with a session cookie made by a script outside the repo, so no password was typed into the browser tool.
 
-Copy the text between the lines into the sections of `.github/pull_request_template.md`.
+- **Home screens:** Staff System Overview, the Lab Head Requests page and the Director Overview have no Insights block and no "See all in Analytics" link.
+- **Staff Analytics:** header "Insights (16)" with Hide. Three sections side by side: High 4, Medium 11, Planning 1. The Medium section scrolls (1870 px of cards in a 496 px box). Hide leaves only the header row with the count and a Show button; Show brings the block back. Dismiss lowers the section count and the total (High 4 to 3, total 16 to 15). Why on a warranty card shows the date and the two other options, and the card names "Warranties Ending in 90 Days".
+- **Lab Head Analytics (CITe4D):** total 10, High 2, Medium 7, Planning 1, every card CITe4D. The Equipment Loan Requests table is 318 px tall with 31 rows, scrolls, and keeps its header row at the top.
+- **Director Analytics:** All Laboratories 16 (4, 11, 1). CAR gives 3 (2, 1, 0): the Planning section says "None" and the loans chart average is 5.3 days. CITe4D gives 10 (2, 7, 1) and 2.9 days. The panel and the chart still follow the lab filter.
+- **Narrow window (420 px):** High, Medium and Planning stack one under the other, and the page does not scroll sideways.
+- **Console:** only the `favicon.ico` 404.
 
----
+## Stop 4 hand checks: reworked layout
 
-## What changed
+For Raiki, after the rework. H1 to H9 above were run on the first layout; H1, H4 and H6 describe the home-screen preview that was removed, and H2, H3, H5 and H7 describe the tabs. H10 and up replace them. Database: the **local `adric_uat_check` copy only**, with the test data of `C:\dev\uat-data\uat-insights-setup.sql` (run the checks on the day you ran the setup, or UATI-003 and UATI-006 start to show). Never CCS Cloud. Start the app with `C:\dev\uat-data\start-local-uat.ps1`. The totals are the totals on 2026-11-06, with the demo data's own notes in them.
 
-Adds read-only advice notes ("insights") to Analytics and a "Loans out per week" chart.
+| # | Role and screen | Clicks | What you should see |
+|---|---|---|---|
+| H10 | TSG Staff (`uat.staff1`), **System Overview** | Log in. | No Insights block and no "See all in Analytics" link: the page starts with the three count cards. |
+| H11 | Lab Head of CITe4D (`uat.labhead.cite4d1`), **Requests**, and Director (`uat.director1`), **Overview** | Log in as each. | No Insights block on either page. The Requests page starts with the "Loan Requests" title. |
+| H12 | TSG Staff, **Analytics** | Click **Analytics** in the menu. | A header row "Insights (16)" with a **Hide** button, over one wide card with three sections side by side: High 4, Medium 11, Planning 1. No Operational or Strategic tabs. Each section is the same height. High has UATI-001, UATI-005, UATI-010 and UATI-011; Medium has UATI-002, UATI-004, UATI-007 and UATI-009; Planning has UATI-008. UATI-003 and UATI-006 are not there. |
+| H13 | TSG Staff, **Analytics** | Scroll inside the Medium section with the mouse wheel. Then click **Hide**. Then **Show**. Then reload the page. | The Medium section scrolls on its own while the page stays put. Hide leaves only the "Insights (16)" row with a **Show** button; Show brings the block back. After the reload the block is shown. |
+| H14 | TSG Staff, **Analytics** | On the UATI-001 card (High) click **Why**. Then click **Dismiss** on the first High card. Reload. | Why shows "Warranty ends 2026-11-26" and two "Other options"; the card also says "Related chart on this page: Warranties Ending in 90 Days". After Dismiss the High count drops from 4 to 3 and the header from 16 to 15. After the reload they are 4 and 16 again. |
+| H15 | Lab Head of CITe4D, **Analytics** | Click **Analytics**. Scroll to "Equipment Loan Requests". | "Insights (10)": High 2, Medium 7, Planning 1, every card labelled CITe4D and none from CAR (UATI-010, UATI-011). The loan requests table is about 320 px tall, shows its first rows and a scroll bar, and the header row stays at the top while you scroll to the last loan. "Loans out per week" is below, as before. |
+| H16 | Director, **Analytics** | Click **Analytics**. Choose **CAR** in "Lab Filter". Then **CITe4D**. Then "All Laboratories". | All: "Insights (16)" with 4, 11, 1. CAR: "Insights (3)" with 2, 1, 0, only CAR cards, the Planning section says "None", and the loans chart average is 5.3 days. CITe4D: "Insights (10)" with 2, 7, 1 and 2.9 days. The block and the chart change together. |
+| H17 | Director, **Analytics**, narrow window | Make the browser window about 420 px wide (or press F12 and pick a phone size). | High, Medium and Planning are stacked one under the other, each with its own scroll. The page does not scroll sideways. |
+| H18 | Researcher (`uat.custodian1`), and nearby behavior on Staff and Director **Analytics** | Log in as the Researcher and open My Loans. Then, as TSG Staff and as Director, scroll below the Insights block on **Analytics**. | The Researcher has no Insights anywhere. On Staff and Director Analytics the charts that were there before still load (repair board, location status and warranty charts; "Value by Funding Source", "Asset Use" and "Loans out per week"). |
 
-- **Insights:** `GET /api/analytics/insights` works out five rules on each request: WAR-01 warranty ending soon, LOAN-02 loan well past its return date, REP-03 repeated repairs, LIFE-04 due for a lifecycle review, COND-05 condition dropping. Each note has a priority, an issue line, a suggested step worded for the role, a "Why" section (evidence and other options) and a chart key. A Lab Head gets only the lab they head; TSG Staff, the Secretary and the Director get every lab, or one with `centerId`.
-- **Screens:** an Insights section (tabs Operational and Strategic) at the top of the Staff, Lab Head and Director Analytics pages, and the top 3 on Staff System Overview, Director Overview and the Lab Head Requests page. Dismiss lasts until the page reloads. No button starts a workflow.
-- **Loans per week:** `GET /api/analytics/utilization` and a bar chart on Director Analytics (it follows the lab filter) and Lab Head Analytics: loans out and released per week for 12 weeks, the three busiest weeks and the average loan length.
-- Plain Prisma queries. No stored procedures, views, schema change, new package or write. LIFE-04 age limits (Monitor 60, Router 60, Dev Kit 48 months) are demo values, "a review point, not policy".
+## Stop 4 hand checks: reworked layout, results
 
-## Why
-
-Closes #155. Brief: `docs/tasks/analytics-insights.md` (with the Decision Log, the hand checks and a "For Macy" note). Source of intent: Macy's Actionable Analytics plan v2.1, adapted where the brief says so. CAP1DEF comment 8 (time element for utilization) is the loans per week chart. The contract has the two new routes in section 7.9.
-
-## How I tested it
-
-- [x] `npm run build` passes
-- [x] I clicked through the screens this change touches (the agent, with Playwright on the local `adric_uat_check` copy: TSG, Lab Head, Director, Researcher; the Secretary has no UAT account, so it is covered by the API test). Raiki's hand checks H1 to H9 are in the task file.
-- [x] No secrets or personal data in the diff
-
-Typecheck 25 errors (unchanged). Build passes. Tests 759 passed (696 before this work: +36 rule unit tests, +15 insights API tests, +12 loans per week API tests).
-
-## This PR (pick one)
-
-- [ ] Moves code only (no behavior change)
-- [x] Changes behavior
-
-(One commit, "refactor(analytics): move the lab scope check out of the insights service", only moves code.)
-
-## Screenshots
-
-In `%TEMP%\insights-checks\` on Raiki's PC. The data is the local UAT copy, so crop the lab head and director names before posting.
-
-## Notes for the reviewer
-
-- Start with `server/features/analytics/insights.rules.ts` (the five rules) and `tests/unit/insightRules.test.ts`.
-- "Today" is `serverToday()`, the server's local day, as for the overdue flag. The deploy runs with `TZ=Asia/Manila`; on a UTC host the notes can be a day off between midnight and 8 AM Manila time (the `serverToday()` fix is after Nov 9).
-- The inspection rule loads every TSG inspection and keeps the two newest per asset in the service. Fine at today's size.
-- The alternatives are from Macy's plan section 5; COND-05 has none there, so its two are ours.
-- Both new routes answer `{ success, ...fields }` with no `data` wrapper, unlike the older analytics routes.
-- No Secretary account in the UAT data, so the Secretary view was not opened in the browser.
-
----
+| # | Result (pass or fail) | Notes |
+|---|---|---|
+| H10 | | |
+| H11 | | |
+| H12 | | |
+| H13 | | |
+| H14 | | |
+| H15 | | |
+| H16 | | |
+| H17 | | |
+| H18 | | |
