@@ -101,3 +101,33 @@ export async function setLabHead(req: Request<{ centerId: string }>, res: Respon
     console.log(`Head of lab ${centerId} set by user ${itAdminId}`);
     res.json({ success: true, lab });
 }
+
+/**
+ * Handles PUT /api/users/:userId/deactivate: makes an Active account Inactive.
+ * Answers `{ success, user }`, or the AppError's status and message (400 own account; 404 no such account; 409 not
+ * Active, heads a lab, or has an open loan), or 500.
+ */
+export async function deactivateUser(req: Request<{ userId: string }>, res: Response): Promise<void> {
+    const userId = readUserId(req.params.userId);
+    const itAdminId = sessionUserOf(req).userId;
+
+    const user = await usersService.deactivateUser(userId, itAdminId);
+
+    console.log(`User ${userId} deactivated by user ${itAdminId}`);
+    res.json({ success: true, user });
+}
+
+/**
+ * Handles PUT /api/users/:userId/reactivate: makes an Inactive account Active again.
+ * Answers `{ success, user }`, or the AppError's status and message (404 no such account; 409 anonymized or not
+ * Inactive), or 500.
+ */
+export async function reactivateUser(req: Request<{ userId: string }>, res: Response): Promise<void> {
+    const userId = readUserId(req.params.userId);
+    const itAdminId = sessionUserOf(req).userId;
+
+    const user = await usersService.reactivateUser(userId, itAdminId);
+
+    console.log(`User ${userId} reactivated by user ${itAdminId}`);
+    res.json({ success: true, user });
+}

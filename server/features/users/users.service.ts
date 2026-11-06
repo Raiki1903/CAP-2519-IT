@@ -214,3 +214,41 @@ export async function setLabHead(centerId: number, input: SetLabHeadInput, itAdm
     if (change.outcome === 'NO_ACCOUNT') throw new AppError(404, "No account has this id.");
     return change.lab;
 }
+
+/**
+ * Deactivates an Active account: it can no longer log in or act. Refused while the account heads a lab, or has any
+ * open loan, a request still waiting included (D3), so no loan loses its borrower halfway through.
+ *
+ * @param userId the account
+ * @param itAdminId the session user who deactivates it (never from the body)
+ * @returns the account, now Inactive
+ * @throws AppError 400 if the account is the IT Admin's own
+ * @throws AppError 404 if there is no such account
+ * @throws AppError 409 if the account is not Active, heads a lab, or has an open loan
+ */
+export async function deactivateUser(userId: number, itAdminId: number): Promise<User> {
+    refuseOwnAccount(userId, itAdminId);
+    return changedUser(await usersRepository.setAccountStatus(userId, 'INACTIVE', 'USER_DEACTIVATED', itAdminId, (account) => {
+        if (account.status !== 'ACTIVE') throw new AppError(409, "Only an Active account can be deactivated.");
+        if (account.headOf) throw new AppError(409, HEAD_FIRST_MESSAGE);
+        if (account.openLoanStatuses.length > 0) throw new AppError(409, "This account still has an open loan or loan request.");
+        return null;
+    }));
+}
+
+/**
+ * Reactivates an Inactive account that was not anonymized: it can log in and act again.
+ *
+ * @param userId the account
+ * @param itAdminId the session user who reactivates it (never from the body)
+ * @returns the account, now Active
+ * @throws AppError 404 if there is no such account
+ * @throws AppError 409 if the account is anonymized or not Inactive
+ */
+export async function reactivateUser(userId: number, itAdminId: number): Promise<User> {
+    return changedUser(await usersRepository.setAccountStatus(userId, 'ACTIVE', 'USER_REACTIVATED', itAdminId, (account) => {
+        if (account.anonymized) throw new AppError(409, "This account is anonymized and can't be reactivated.");
+        if (account.status !== 'INACTIVE') throw new AppError(409, "Only an Inactive account can be reactivated.");
+        return null;
+    }));
+}

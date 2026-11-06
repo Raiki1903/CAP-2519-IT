@@ -17,4 +17,6 @@ usersRouter.put('/api/users/:userId/approve', requireAuth, requireActive, requir
 usersRouter.put('/api/users/:userId/reject', requireAuth, requireActive, requireItAdmin, usersController.rejectSignUp);
 usersRouter.put('/api/users/:userId/role', requireAuth, requireActive, requireItAdmin, usersController.changeRole);
 usersRouter.put('/api/users/:userId/labs', requireAuth, requireActive, requireItAdmin, usersController.changeLabs);
+usersRouter.put('/api/users/:userId/deactivate', requireAuth, requireActive, requireItAdmin, usersController.deactivateUser);
+usersRouter.put('/api/users/:userId/reactivate', requireAuth, requireActive, requireItAdmin, usersController.reactivateUser);
 usersRouter.put('/api/research-centers/:centerId/head', requireAuth, requireActive, requireItAdmin, usersController.setLabHead);

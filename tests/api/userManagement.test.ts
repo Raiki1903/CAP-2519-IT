@@ -1,20 +1,26 @@
 /**
  * The IT Admin's account management after sign-up (module 6): the users list and its filters, changing an
- * account's role and labs, and setting a lab's Head.
+ * account's role and labs, setting a lab's Head, and deactivating and reactivating an account.
  * Covers GET /api/users with status, role, centerId, and q, PUT /api/users/:userId/role,
- * PUT /api/users/:userId/labs, and PUT /api/research-centers/:centerId/head. Workflow: account management.
- * Fixtures: the seeded accounts and LAB (headed by the Lab Head). A second lab (TEST2) is made here, and each Head
- * test makes labs of its own (HEAD1 onward). Each test makes the accounts it changes, so the seeded ones stay as seeded; the Lab Head only gets steps that leave it as it was.
+ * PUT /api/users/:userId/labs, PUT /api/research-centers/:centerId/head, PUT /api/users/:userId/deactivate, and
+ * PUT /api/users/:userId/reactivate, and that an Inactive account is refused. Workflow: account management.
+ * Fixtures: the seeded accounts and LAB (headed by the Lab Head). A second lab (TEST2) is made here, each Head test
+ * makes labs of its own (HEAD1 onward), and each loan a test needs gets an extra asset (TEST-0801 onward). Each test
+ * makes the accounts it changes, so the seeded ones stay as seeded; the Lab Head only gets steps that leave it as it was.
  */
-import type { activity_log_event_type, users_account_status } from "@prisma/client";
+import type { activity_log_event_type, asset_loans_status, users_account_status } from "@prisma/client";
 import { beforeAll, describe, expect, it } from "vitest";
 import { hashPassword } from "../../server/shared/services/passwords";
+import { signSessionToken, SESSION_COOKIE_NAME } from "../../server/shared/services/session";
+import { addExtraAsset } from "../setup/extraAssets";
 import { LAB, ROLE_IDS, USERS, type RoleName } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
+import { TEST_SESSION_SECRET } from "../setup/testServer";
 
-const { api, db, as } = useApiHarness();
+const { api, db, as, withCookie } = useApiHarness();
 const asItAdmin = as(USERS.admin);
 const FORBIDDEN = "Your role is not allowed to do this.";
+const NOT_ACTIVE = "This account is not active. Contact the IT Admin.";
 const PASSWORD = "test-password-managed";
 const SECOND_LAB = { centerId: 2, name: "Test Second Lab", shortCode: "TEST2" };
 
@@ -50,6 +56,17 @@ async function makeAccount(options: { status?: users_account_status; role?: Role
   if (role) await db.user_roles.create({ data: { user_id: row.user_id, role_id: ROLE_IDS[role] } });
   if (centerIds.length > 0) await db.user_centers.createMany({ data: centerIds.map((centerId) => ({ user_id: row.user_id, center_id: centerId })) });
   return { userId: row.user_id, email: row.email, lastName: row.last_name };
+}
+
+let loanCount = 0;
+
+/** Gives the account a loan in this status, on an extra asset of its own (TEST-0801 onward). */
+async function giveLoan(userId: number, status: asset_loans_status) {
+  loanCount += 1;
+  const asset = await addExtraAsset(db, { tag: `TEST-${String(800 + loanCount).padStart(4, "0")}` });
+  return db.asset_loans.create({
+    data: { asset_id: asset.assetId, borrower_id: userId, purpose: "Test purpose: managed account", return_by: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), status },
+  });
 }
 
 const idsOf = (res: { body: any }): number[] => res.body.users.map((u: { userId: number }) => u.userId);
@@ -375,6 +392,99 @@ describe("PUT /api/research-centers/:centerId/head", () => {
   });
 });
 
+describe("PUT /api/users/:userId/deactivate and /reactivate", () => {
+  const deactivate = (userId: number) => asItAdmin.put(`/api/users/${userId}/deactivate`);
+  const reactivate = (userId: number) => asItAdmin.put(`/api/users/${userId}/reactivate`);
+
+  it("deactivates an Active account with no open loan: Inactive, decided by the IT Admin, a USER_DEACTIVATED row", async () => {
+    const { userId } = await makeAccount();
+    await giveLoan(userId, "RETURNED");
+
+    const res = await deactivate(userId);
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({ userId, accountStatus: "INACTIVE" });
+    expect(await db.users.findUniqueOrThrow({ where: { user_id: userId } })).toMatchObject({ account_status: "INACTIVE", status_decided_by_id: USERS.admin.userId });
+    expect(await logRowsFor(userId, "USER_DEACTIVATED")).toMatchObject([{ actor_id: USERS.admin.userId }]);
+  });
+
+  it("refuses the Inactive account on its next request (403) and at login (403 with the Inactive message)", async () => {
+    const { userId, email } = await makeAccount();
+    expect((await api.post("/api/auth/login", { email, password: PASSWORD })).status).toBe(200);
+    await deactivate(userId);
+
+    // A cookie the server has never seen, as an open session looks once the 60-second session cache has passed.
+    // The server runs in its own process, so the test cannot clear its cache.
+    const token = signSessionToken(userId, Math.floor(Date.now() / 1000) + 3600, TEST_SESSION_SECRET);
+    const next = await withCookie(`${SESSION_COOKIE_NAME}=${token}`).get("/api/assets");
+    const login = await api.post("/api/auth/login", { email, password: PASSWORD });
+
+    expect(next.status).toBe(403);
+    expect(next.body).toEqual({ success: false, error: NOT_ACTIVE });
+    expect(login.status).toBe(403);
+    expect(login.body).toEqual({ success: false, error: NOT_ACTIVE });
+  });
+
+  it.each(["PENDING_APPROVAL", "PENDING_RELEASE", "ON_LOAN", "RETURN_REQUESTED"] as const)(
+    "answers 409 while the account has a loan in %s, and the account stays Active",
+    async (status) => {
+      const { userId } = await makeAccount();
+      await giveLoan(userId, status);
+
+      const res = await deactivate(userId);
+
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ success: false, error: "This account still has an open loan or loan request." });
+      expect((await db.users.findUniqueOrThrow({ where: { user_id: userId } })).account_status).toBe("ACTIVE");
+      expect(await logRowsFor(userId, "USER_DEACTIVATED")).toEqual([]);
+    },
+  );
+
+  it("answers 409 for the account that heads a lab, 409 for one not Active, and 400 for the IT Admin's own", async () => {
+    const inactive = await makeAccount({ status: "INACTIVE" });
+
+    const head = await deactivate(USERS.labHead.userId);
+    const notActive = await deactivate(inactive.userId);
+    const own = await deactivate(USERS.admin.userId);
+
+    expect(head.status).toBe(409);
+    expect(head.body).toEqual({ success: false, error: "Change the lab's Head first." });
+    expect(notActive.status).toBe(409);
+    expect(notActive.body).toEqual({ success: false, error: "Only an Active account can be deactivated." });
+    expect(own.status).toBe(400);
+    expect(own.body).toEqual({ success: false, error: "You can't change your own account here." });
+    expect((await db.users.findUniqueOrThrow({ where: { user_id: USERS.labHead.userId } })).account_status).toBe("ACTIVE");
+  });
+
+  it("reactivates an Inactive account, which can log in again, and writes USER_REACTIVATED", async () => {
+    const { userId, email } = await makeAccount();
+    await deactivate(userId);
+
+    const res = await reactivate(userId);
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.accountStatus).toBe("ACTIVE");
+    expect(await logRowsFor(userId, "USER_REACTIVATED")).toMatchObject([{ actor_id: USERS.admin.userId }]);
+    expect((await api.post("/api/auth/login", { email, password: PASSWORD })).status).toBe(200);
+  });
+
+  it("answers 409 to reactivate an account that is not Inactive, or is anonymized, and 404 for no such account", async () => {
+    const anonymized = await makeAccount({ status: "INACTIVE" });
+    await db.users.update({ where: { user_id: anonymized.userId }, data: { anonymized_at: new Date() } });
+
+    const active = await reactivate(USERS.custodianA.userId);
+    const gone = await reactivate(anonymized.userId);
+    const missing = await reactivate(999999);
+
+    expect(active.status).toBe(409);
+    expect(active.body).toEqual({ success: false, error: "Only an Inactive account can be reactivated." });
+    expect(gone.status).toBe(409);
+    expect(gone.body).toEqual({ success: false, error: "This account is anonymized and can't be reactivated." });
+    expect(missing.status).toBe(404);
+    expect((await db.users.findUniqueOrThrow({ where: { user_id: anonymized.userId } })).account_status).toBe("INACTIVE");
+  });
+});
+
 describe("who may use the account management endpoints", () => {
   const target = USERS.custodianB.userId;
   const routes: [string, string][] = [
@@ -382,6 +492,8 @@ describe("who may use the account management endpoints", () => {
     ["PUT", `/api/users/${target}/role`],
     ["PUT", `/api/users/${target}/labs`],
     ["PUT", `/api/research-centers/${LAB.centerId}/head`],
+    ["PUT", `/api/users/${target}/deactivate`],
+    ["PUT", `/api/users/${target}/reactivate`],
   ];
   const send = (client: ReturnType<typeof as> | typeof api, method: string, path: string) =>
     method === "GET" ? client.get(path) : client.put(path, {});

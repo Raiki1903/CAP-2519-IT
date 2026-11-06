@@ -306,3 +306,28 @@ export function setLabHead(
         return { outcome: 'DONE', lab: { centerId, code: lab.short_code, headUserId: newHeadId } };
     });
 }
+
+/**
+ * Sets the account's status (deactivate or reactivate), decided now by the IT Admin, and writes the event's row.
+ *
+ * @param userId the account
+ * @param status its status from now on
+ * @param eventType USER_DEACTIVATED or USER_REACTIVATED
+ * @param itAdminId the session user who decides it
+ * @param decide the service's rules, run on the locked account
+ * @returns the account as it is now, or null if there is none with this id
+ */
+export function setAccountStatus(
+    userId: number,
+    status: 'ACTIVE' | 'INACTIVE',
+    eventType: 'USER_DEACTIVATED' | 'USER_REACTIVATED',
+    itAdminId: number,
+    decide: DecideChange,
+): Promise<UserRow | null> {
+    return changeAccount(userId, itAdminId, eventType, decide, async (tx) => {
+        await tx.users.update({
+            where: { user_id: userId },
+            data: { account_status: status, status_decided_at: new Date(), status_decided_by_id: itAdminId },
+        });
+    });
+}
