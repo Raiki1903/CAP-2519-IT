@@ -7,7 +7,7 @@
  */
 import type { Request, Response } from 'express';
 import * as usersService from './users.service';
-import { readApproveSignUp, readRejectSignUp, readUserId, readUserListQuery } from './users.validation';
+import { readApproveSignUp, readChangeLabs, readChangeRole, readRejectSignUp, readUserId, readUserListQuery } from './users.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
@@ -48,5 +48,38 @@ export async function rejectSignUp(req: Request<{ userId: string }>, res: Respon
     const user = await usersService.rejectSignUp(userId, input, itAdminId);
 
     console.log(`Sign-up of user ${userId} rejected by user ${itAdminId}`);
+    res.json({ success: true, user });
+}
+
+/**
+ * Handles PUT /api/users/:userId/role: gives an Active or Inactive account one role.
+ * Answers `{ success, user }`, or the AppError's status and message (400 bad role or own account; 404 no such
+ * account; 409 Pending, Rejected, anonymized, or heads a lab), or 500.
+ */
+export async function changeRole(req: Request<{ userId: string }>, res: Response): Promise<void> {
+    const userId = readUserId(req.params.userId);
+    const input = readChangeRole(req.body);
+    const itAdminId = sessionUserOf(req).userId;
+
+    const user = await usersService.changeRole(userId, input, itAdminId);
+
+    console.log(`Role of user ${userId} changed by user ${itAdminId}`);
+    res.json({ success: true, user });
+}
+
+/**
+ * Handles PUT /api/users/:userId/labs: replaces the labs of an Active or Inactive account.
+ * Answers `{ success, user }`, or the AppError's status and message (400 bad list, unknown lab, no lab for a
+ * Researcher, or own account; 404 no such account; 409 Pending, Rejected, anonymized, or the lab it heads left out),
+ * or 500.
+ */
+export async function changeLabs(req: Request<{ userId: string }>, res: Response): Promise<void> {
+    const userId = readUserId(req.params.userId);
+    const input = readChangeLabs(req.body);
+    const itAdminId = sessionUserOf(req).userId;
+
+    const user = await usersService.changeLabs(userId, input, itAdminId);
+
+    console.log(`Labs of user ${userId} changed by user ${itAdminId}`);
     res.json({ success: true, user });
 }

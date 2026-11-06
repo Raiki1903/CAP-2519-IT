@@ -51,6 +51,17 @@ export interface ApproveSignUpInput {
   centerIds: number[];
 }
 
+/** The body of PUT /api/users/:userId/role. */
+export interface ChangeRoleInput {
+  role: DatabaseRole;
+}
+
+/** The body of PUT /api/users/:userId/labs. */
+export interface ChangeLabsInput {
+  /** The account's labs from now on, each once: at least one for a Researcher. */
+  centerIds: number[];
+}
+
 /** The body of PUT /api/users/:userId/reject. */
 export interface RejectSignUpInput {
   /** Trimmed, at most REJECT_REMARKS_MAX_LENGTH characters; null when none were given. */

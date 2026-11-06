@@ -7,7 +7,7 @@
 import { ACCOUNT_STATUSES, type AccountStatus } from '@shared/constants/accountStatuses';
 import { REJECT_REMARKS_MAX_LENGTH } from '@shared/constants/signUp';
 import { DATABASE_ROLES, type DatabaseRole } from '@shared/enums/role';
-import type { ApproveSignUpInput, RejectSignUpInput, UserListFilters } from '@shared/types/users';
+import type { ApproveSignUpInput, ChangeLabsInput, ChangeRoleInput, RejectSignUpInput, UserListFilters } from '@shared/types/users';
 import { AppError } from '../../shared/errors/AppError';
 
 /** The 400 message for a role that is not one of the five database roles. */
@@ -105,4 +105,32 @@ export function readRejectSignUp(body: any): RejectSignUpInput {
         throw new AppError(400, `Remarks must be at most ${REJECT_REMARKS_MAX_LENGTH} characters.`);
     }
     return { remarks: trimmed || null };
+}
+
+/**
+ * Reads the body of a role change: one database role.
+ *
+ * @param body the request body
+ * @returns the role
+ * @throws AppError 400 for an unknown or missing role
+ */
+export function readChangeRole(body: any): ChangeRoleInput {
+    const role = body?.role;
+    if (!DATABASE_ROLES.includes(role)) throw new AppError(400, ROLE_MESSAGE);
+    return { role: role as DatabaseRole };
+}
+
+/**
+ * Reads the body of a lab change: the account's labs from now on. Whether a Researcher has one is the service's rule.
+ *
+ * @param body the request body
+ * @returns the labs, each once
+ * @throws AppError 400 if the labs are missing or are not a list of lab ids
+ */
+export function readChangeLabs(body: any): ChangeLabsInput {
+    const ids = body?.centerIds;
+    if (!Array.isArray(ids) || !ids.every(id => Number.isInteger(id) && id > 0)) {
+        throw new AppError(400, "The labs must be a list of lab ids.");
+    }
+    return { centerIds: [...new Set<number>(ids)] };
 }

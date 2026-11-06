@@ -1,11 +1,13 @@
 /**
- * The IT Admin's account management after sign-up (module 6): the users list and its filters.
- * Covers GET /api/users with status, role, centerId, and q. Workflow: account management.
- * Fixtures: the seeded accounts and LAB (headed by the Lab Head). Each test makes the accounts it changes, so the
- * seeded ones stay as seeded.
+ * The IT Admin's account management after sign-up (module 6): the users list and its filters, and changing an
+ * account's role and labs.
+ * Covers GET /api/users with status, role, centerId, and q, PUT /api/users/:userId/role, and
+ * PUT /api/users/:userId/labs. Workflow: account management.
+ * Fixtures: the seeded accounts and LAB (headed by the Lab Head). A second lab (TEST2) is made here. Each test makes
+ * the accounts it changes, so the seeded ones stay as seeded; the Lab Head only gets steps that leave it as it was.
  */
-import type { users_account_status } from "@prisma/client";
-import { describe, expect, it } from "vitest";
+import type { activity_log_event_type, users_account_status } from "@prisma/client";
+import { beforeAll, describe, expect, it } from "vitest";
 import { hashPassword } from "../../server/shared/services/passwords";
 import { LAB, ROLE_IDS, USERS, type RoleName } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
@@ -14,6 +16,13 @@ const { api, db, as } = useApiHarness();
 const asItAdmin = as(USERS.admin);
 const FORBIDDEN = "Your role is not allowed to do this.";
 const PASSWORD = "test-password-managed";
+const SECOND_LAB = { centerId: 2, name: "Test Second Lab", shortCode: "TEST2" };
+
+beforeAll(async () => {
+  await db.research_centers.create({
+    data: { center_id: SECOND_LAB.centerId, name: SECOND_LAB.name, short_code: SECOND_LAB.shortCode, location: "LAGUNA" },
+  });
+});
 
 let accountCount = 0;
 
@@ -44,6 +53,8 @@ async function makeAccount(options: { status?: users_account_status; role?: Role
 }
 
 const idsOf = (res: { body: any }): number[] => res.body.users.map((u: { userId: number }) => u.userId);
+const logRowsFor = (userId: number, eventType: activity_log_event_type) =>
+  db.activity_log.findMany({ where: { target_user_id: userId, event_type: eventType }, orderBy: { log_id: "asc" } });
 
 describe("GET /api/users with filters", () => {
   it("with no filter, lists every account but the Pending ones, by last name, with no password or photo", async () => {
@@ -122,8 +133,149 @@ describe("GET /api/users with filters", () => {
   });
 });
 
+describe("PUT /api/users/:userId/role", () => {
+  it("gives an Active Researcher one new role, and writes ROLE_CHANGED with the IT Admin as actor", async () => {
+    const { userId, email } = await makeAccount();
+
+    const res = await asItAdmin.put(`/api/users/${userId}/role`, { role: "TSG_STAFF" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({ userId, role: "TSG_STAFF", roleLabel: "TSG Staff", accountStatus: "ACTIVE" });
+    const roles = await db.user_roles.findMany({ where: { user_id: userId }, include: { roles: true } });
+    expect(roles.map((ur) => ur.roles.role_name)).toEqual(["TSG_STAFF"]);
+    const logs = await logRowsFor(userId, "ROLE_CHANGED");
+    expect(logs).toMatchObject([{ actor_id: USERS.admin.userId, details: "From RESEARCHER to TSG_STAFF" }]);
+    expect(logs[0].details).not.toContain(email);
+  });
+
+  it("changes the role of an Inactive account too", async () => {
+    const { userId } = await makeAccount({ status: "INACTIVE", role: "TSG_STAFF" });
+
+    const res = await asItAdmin.put(`/api/users/${userId}/role`, { role: "ADRIC_SECRETARY" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({ role: "ADRIC_SECRETARY", accountStatus: "INACTIVE" });
+  });
+
+  it.each([
+    ["a Pending sign-up", { status: "PENDING", role: null }, "This sign-up is still pending. Decide it on the Approvals page."],
+    ["a Rejected sign-up", { status: "REJECTED", role: null }, "This sign-up was rejected and can't be changed."],
+  ] as const)("answers 409 for %s, and changes nothing", async (_label, options, message) => {
+    const { userId } = await makeAccount(options);
+
+    const res = await asItAdmin.put(`/api/users/${userId}/role`, { role: "RESEARCHER" });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: message });
+    expect(await db.user_roles.count({ where: { user_id: userId } })).toBe(0);
+    expect(await logRowsFor(userId, "ROLE_CHANGED")).toEqual([]);
+  });
+
+  it("answers 409 for an anonymized account", async () => {
+    const { userId } = await makeAccount({ status: "INACTIVE" });
+    await db.users.update({ where: { user_id: userId }, data: { anonymized_at: new Date() } });
+
+    const res = await asItAdmin.put(`/api/users/${userId}/role`, { role: "TSG_STAFF" });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: "This account is anonymized and can't be changed." });
+  });
+
+  it("answers 409 \"Change the lab's Head first.\" for the account that heads a lab, unless the role stays Researcher", async () => {
+    const refused = await asItAdmin.put(`/api/users/${USERS.labHead.userId}/role`, { role: "TSG_STAFF" });
+    const kept = await asItAdmin.put(`/api/users/${USERS.labHead.userId}/role`, { role: "RESEARCHER" });
+
+    expect(refused.status).toBe(409);
+    expect(refused.body).toEqual({ success: false, error: "Change the lab's Head first." });
+    expect(kept.status).toBe(200);
+    expect(kept.body.user).toMatchObject({ role: "RESEARCHER", headOf: { centerId: LAB.centerId } });
+  });
+
+  it("answers 400 for the IT Admin's own account, 400 for a bad role, and 404 for no such account", async () => {
+    const own = await asItAdmin.put(`/api/users/${USERS.admin.userId}/role`, { role: "RESEARCHER" });
+    const badRole = await asItAdmin.put(`/api/users/${USERS.custodianB.userId}/role`, { role: "LAB_HEAD" });
+    const missing = await asItAdmin.put("/api/users/999999/role", { role: "RESEARCHER" });
+
+    expect(own.status).toBe(400);
+    expect(own.body).toEqual({ success: false, error: "You can't change your own account here." });
+    expect(badRole.status).toBe(400);
+    expect(missing.status).toBe(404);
+    expect(missing.body).toEqual({ success: false, error: "No account has this id." });
+    const adminRoles = await db.user_roles.findMany({ where: { user_id: USERS.admin.userId }, include: { roles: true } });
+    expect(adminRoles.map((ur) => ur.roles.role_name)).toEqual(["IT_ADMIN"]);
+  });
+});
+
+describe("PUT /api/users/:userId/labs", () => {
+  it("replaces a Researcher's labs, and writes LABS_CHANGED with the new codes", async () => {
+    const { userId } = await makeAccount();
+
+    const res = await asItAdmin.put(`/api/users/${userId}/labs`, { centerIds: [SECOND_LAB.centerId, LAB.centerId, LAB.centerId] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.labs).toEqual([{ centerId: LAB.centerId, code: LAB.shortCode }, { centerId: SECOND_LAB.centerId, code: SECOND_LAB.shortCode }]);
+    expect(await logRowsFor(userId, "LABS_CHANGED")).toMatchObject([{ actor_id: USERS.admin.userId, details: "TEST, TEST2" }]);
+  });
+
+  it("lets another role have no lab, and the log row says none", async () => {
+    const { userId } = await makeAccount({ role: "TSG_STAFF", centerIds: [LAB.centerId] });
+
+    const res = await asItAdmin.put(`/api/users/${userId}/labs`, { centerIds: [] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.labs).toEqual([]);
+    expect((await logRowsFor(userId, "LABS_CHANGED"))[0].details).toBe("none");
+  });
+
+  it.each([
+    ["a Researcher with no labs", [], "Choose at least one lab for a Researcher."],
+    ["an unknown lab", [LAB.centerId, 999999], "One of the labs you chose is not a known lab."],
+  ])("answers 400 for %s, and the labs stay", async (_label, centerIds, message) => {
+    const { userId } = await makeAccount();
+
+    const res = await asItAdmin.put(`/api/users/${userId}/labs`, { centerIds });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ success: false, error: message });
+    expect((await db.user_centers.findMany({ where: { user_id: userId } })).map((uc) => uc.center_id)).toEqual([LAB.centerId]);
+    expect(await logRowsFor(userId, "LABS_CHANGED")).toEqual([]);
+  });
+
+  it("answers 400 when the labs are missing or not ids", async () => {
+    const missing = await asItAdmin.put(`/api/users/${USERS.custodianB.userId}/labs`, {});
+    const notIds = await asItAdmin.put(`/api/users/${USERS.custodianB.userId}/labs`, { centerIds: ["1"] });
+
+    expect(missing.status).toBe(400);
+    expect(notIds.body).toEqual({ success: false, error: "The labs must be a list of lab ids." });
+  });
+
+  it("answers 409 when the lab the account heads is left out, and the account keeps it", async () => {
+    const res = await asItAdmin.put(`/api/users/${USERS.labHead.userId}/labs`, { centerIds: [SECOND_LAB.centerId] });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: "Change the lab's Head first." });
+    expect((await db.user_centers.findMany({ where: { user_id: USERS.labHead.userId } })).map((uc) => uc.center_id)).toEqual([LAB.centerId]);
+  });
+
+  it("answers 409 for a Pending sign-up, and 400 for the IT Admin's own account", async () => {
+    const { userId } = await makeAccount({ status: "PENDING", role: null, centerIds: [LAB.centerId] });
+
+    const pending = await asItAdmin.put(`/api/users/${userId}/labs`, { centerIds: [SECOND_LAB.centerId] });
+    const own = await asItAdmin.put(`/api/users/${USERS.admin.userId}/labs`, { centerIds: [LAB.centerId] });
+
+    expect(pending.status).toBe(409);
+    expect(own.status).toBe(400);
+    expect(await db.user_centers.count({ where: { user_id: USERS.admin.userId } })).toBe(0);
+  });
+});
+
 describe("who may use the account management endpoints", () => {
-  const routes: [string, string][] = [["GET", "/api/users"]];
+  const target = USERS.custodianB.userId;
+  const routes: [string, string][] = [
+    ["GET", "/api/users"],
+    ["PUT", `/api/users/${target}/role`],
+    ["PUT", `/api/users/${target}/labs`],
+  ];
   const send = (client: ReturnType<typeof as> | typeof api, method: string, path: string) =>
     method === "GET" ? client.get(path) : client.put(path, {});
 

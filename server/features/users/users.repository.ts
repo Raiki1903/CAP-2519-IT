@@ -5,7 +5,8 @@
  * shared/services/activityLog.ts.
  * Used by: the IT Admin's Approvals and Users pages.
  */
-import type { Prisma, roles_role_name } from '@prisma/client';
+import type { Prisma, activity_log_event_type, asset_loans_status, roles_role_name, users_account_status } from '@prisma/client';
+import { OPEN_LOAN_STATUSES } from '@shared/constants/loanStatuses';
 import type { UserListFilters } from '@shared/types/users';
 import { prisma } from '../../config/prisma';
 import { logActivity } from '../../shared/services/activityLog';
@@ -138,5 +139,119 @@ export function rejectSignUp(userId: number, itAdminId: number, remarks: string 
         await logActivity(tx, { eventType: 'SIGNUP_REJECTED', actorId: itAdminId, targetUserId: userId, details: remarks });
 
         return { outcome: 'DONE', user: await tx.users.findUniqueOrThrow({ where: { user_id: userId }, select: USER_SELECT }) };
+    });
+}
+
+/** What a change to one account is decided on, read after its row is locked. */
+export interface LockedAccount {
+    userId: number;
+    /** First and last name, as the log row's details show it. */
+    name: string;
+    status: users_account_status;
+    anonymized: boolean;
+    /** The account's database role, or null when it has none (a Pending or Rejected sign-up). */
+    role: roles_role_name | null;
+    centerIds: number[];
+    /** The lab the account heads, or null. */
+    headOf: { centerId: number; code: string } | null;
+    /** The status of each of the account's loans that is not final, the person being the borrower. */
+    openLoanStatuses: asset_loans_status[];
+}
+
+/**
+ * Decides a change on the locked account. It throws to refuse the change, and then nothing is written; otherwise it
+ * returns the log row's details.
+ */
+export type DecideChange = (account: LockedAccount) => string | null;
+
+/**
+ * Locks the account and reads what a change is decided on, in the caller's transaction. Every change starts here, so
+ * two changes on one account run one after the other and the second sees what the first wrote.
+ *
+ * @returns the account, or null if there is none with this id
+ */
+async function lockAccount(tx: Prisma.TransactionClient, userId: number): Promise<LockedAccount | null> {
+    await lockUser(tx, userId);
+    const row = await tx.users.findUnique({
+        where: { user_id: userId },
+        select: {
+            first_name: true,
+            last_name: true,
+            account_status: true,
+            anonymized_at: true,
+            user_roles: { select: { roles: { select: { role_name: true } } } },
+            user_centers: { select: { center_id: true } },
+            headed_center: { select: { center_id: true, short_code: true } },
+            asset_loans: { where: { status: { in: [...OPEN_LOAN_STATUSES] } }, select: { status: true } },
+        },
+    });
+    if (!row) return null;
+    return {
+        userId,
+        name: `${row.first_name} ${row.last_name}`,
+        status: row.account_status,
+        anonymized: row.anonymized_at !== null,
+        role: row.user_roles[0]?.roles.role_name ?? null,
+        centerIds: row.user_centers.map(uc => uc.center_id),
+        headOf: row.headed_center ? { centerId: row.headed_center.center_id, code: row.headed_center.short_code } : null,
+        openLoanStatuses: row.asset_loans.map(loan => loan.status),
+    };
+}
+
+/**
+ * Runs one change to an account in one transaction: locks the account, lets `decide` refuse it or give the log
+ * details, applies `write`, and logs the event with the IT Admin as actor and the account as target.
+ *
+ * @returns the account as it is now, or null if there is none with this id
+ */
+function changeAccount(
+    userId: number,
+    itAdminId: number,
+    eventType: activity_log_event_type,
+    decide: DecideChange,
+    write: (tx: Prisma.TransactionClient) => Promise<void>,
+): Promise<UserRow | null> {
+    return prisma.$transaction(async (tx) => {
+        const account = await lockAccount(tx, userId);
+        if (!account) return null;
+        const details = decide(account);
+
+        await write(tx);
+        await logActivity(tx, { eventType, actorId: itAdminId, targetUserId: userId, details });
+
+        return tx.users.findUniqueOrThrow({ where: { user_id: userId }, select: USER_SELECT });
+    });
+}
+
+/**
+ * Gives the account one role in place of the one it has, and writes a ROLE_CHANGED row.
+ *
+ * @param userId the account
+ * @param roleName its role from now on
+ * @param itAdminId the session user who changes it
+ * @param decide the service's rules, run on the locked account
+ * @returns the account as it is now, or null if there is none with this id
+ */
+export function changeRole(userId: number, roleName: roles_role_name, itAdminId: number, decide: DecideChange): Promise<UserRow | null> {
+    return changeAccount(userId, itAdminId, 'ROLE_CHANGED', decide, async (tx) => {
+        const role = await tx.roles.findFirstOrThrow({ where: { role_name: roleName } });
+        await tx.user_roles.deleteMany({ where: { user_id: userId } });
+        await tx.user_roles.create({ data: { user_id: userId, role_id: role.role_id } });
+    });
+}
+
+/**
+ * Replaces the account's labs with `centerIds`, and writes a LABS_CHANGED row.
+ *
+ * @param userId the account
+ * @param centerIds its labs from now on, each once; may be empty
+ * @param itAdminId the session user who changes them
+ * @param decide the service's rules, run on the locked account
+ * @returns the account as it is now, or null if there is none with this id
+ */
+export function changeLabs(userId: number, centerIds: number[], itAdminId: number, decide: DecideChange): Promise<UserRow | null> {
+    return changeAccount(userId, itAdminId, 'LABS_CHANGED', decide, async (tx) => {
+        await tx.user_centers.deleteMany({ where: { user_id: userId } });
+        await tx.user_centers.createMany({ data: centerIds.map(centerId => ({ user_id: userId, center_id: centerId })) });
     });
 }

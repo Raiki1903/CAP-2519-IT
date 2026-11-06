@@ -4,9 +4,9 @@
  * Used by: the IT Admin's Approvals and Users pages.
  */
 import { DATABASE_ROLE_LABELS, type DatabaseRole } from '@shared/enums/role';
-import type { ApproveSignUpInput, RejectSignUpInput, User, UserListFilters } from '@shared/types/users';
+import type { ApproveSignUpInput, ChangeLabsInput, ChangeRoleInput, RejectSignUpInput, User, UserListFilters } from '@shared/types/users';
 import * as usersRepository from './users.repository';
-import type { SignUpDecision, UserRow } from './users.repository';
+import type { LockedAccount, SignUpDecision, UserRow } from './users.repository';
 import { AppError } from '../../shared/errors/AppError';
 
 /** An account in the contract's User shape. A Pending sign-up has no role yet, so role and roleLabel are null. */
@@ -95,4 +95,91 @@ export async function approveSignUp(userId: number, input: ApproveSignUpInput, i
  */
 export async function rejectSignUp(userId: number, input: RejectSignUpInput, itAdminId: number): Promise<User> {
     return decidedUser(await usersRepository.rejectSignUp(userId, itAdminId, input.remarks));
+}
+
+/** The 400 message when the IT Admin tries to change their own account. */
+const OWN_ACCOUNT_MESSAGE = "You can't change your own account here.";
+
+/** The 409 message when the account heads a lab and the change would undo that. */
+const HEAD_FIRST_MESSAGE = "Change the lab's Head first.";
+
+/**
+ * Refuses a change to the IT Admin's own account. This also keeps the last IT Admin from locking everyone out.
+ *
+ * @throws AppError 400 if the account is the IT Admin's own
+ */
+function refuseOwnAccount(userId: number, itAdminId: number): void {
+    if (userId === itAdminId) throw new AppError(400, OWN_ACCOUNT_MESSAGE);
+}
+
+/**
+ * Refuses a role or lab change to an account that is not Active or Inactive: a Pending sign-up goes through
+ * Approvals, and a Rejected or anonymized account is kept as it is.
+ *
+ * @throws AppError 409 for a Pending, Rejected, or anonymized account
+ */
+function refuseUnlessManaged(account: LockedAccount): void {
+    if (account.anonymized) throw new AppError(409, "This account is anonymized and can't be changed.");
+    if (account.status === 'PENDING') throw new AppError(409, "This sign-up is still pending. Decide it on the Approvals page.");
+    if (account.status === 'REJECTED') throw new AppError(409, "This sign-up was rejected and can't be changed.");
+}
+
+/**
+ * The account a change left.
+ *
+ * @throws AppError 404 if there is no such account
+ */
+function changedUser(row: UserRow | null): User {
+    if (!row) throw new AppError(404, "No account has this id.");
+    return toUser(row);
+}
+
+/**
+ * Gives an Active or Inactive account one role in place of the one it has. The account that heads a lab stays a
+ * Researcher, because a lab's Head is a Researcher office account.
+ *
+ * @param userId the account
+ * @param input the new role
+ * @param itAdminId the session user who changes it (never from the body)
+ * @returns the account with its new role
+ * @throws AppError 400 if the account is the IT Admin's own
+ * @throws AppError 404 if there is no such account
+ * @throws AppError 409 if the account is Pending, Rejected, or anonymized, or heads a lab and the role is not Researcher
+ */
+export async function changeRole(userId: number, input: ChangeRoleInput, itAdminId: number): Promise<User> {
+    refuseOwnAccount(userId, itAdminId);
+    return changedUser(await usersRepository.changeRole(userId, input.role, itAdminId, (account) => {
+        refuseUnlessManaged(account);
+        if (account.headOf && input.role !== 'RESEARCHER') throw new AppError(409, HEAD_FIRST_MESSAGE);
+        return `From ${account.role ?? 'none'} to ${input.role}`;
+    }));
+}
+
+/**
+ * Replaces the labs of an Active or Inactive account. A Researcher keeps at least one lab, and the account that
+ * heads a lab keeps that lab.
+ *
+ * @param userId the account
+ * @param input the labs from now on, each once
+ * @param itAdminId the session user who changes them (never from the body)
+ * @returns the account with its new labs
+ * @throws AppError 400 if the account is the IT Admin's own, a lab does not exist, or a Researcher would have none
+ * @throws AppError 404 if there is no such account
+ * @throws AppError 409 if the account is Pending, Rejected, or anonymized, or the lab it heads is left out
+ */
+export async function changeLabs(userId: number, input: ChangeLabsInput, itAdminId: number): Promise<User> {
+    refuseOwnAccount(userId, itAdminId);
+    const labs = await usersRepository.findLabs(input.centerIds);
+    if (labs.length !== input.centerIds.length) {
+        throw new AppError(400, "One of the labs you chose is not a known lab.");
+    }
+
+    return changedUser(await usersRepository.changeLabs(userId, input.centerIds, itAdminId, (account) => {
+        refuseUnlessManaged(account);
+        if (account.role === 'RESEARCHER' && input.centerIds.length === 0) {
+            throw new AppError(400, "Choose at least one lab for a Researcher.");
+        }
+        if (account.headOf && !input.centerIds.includes(account.headOf.centerId)) throw new AppError(409, HEAD_FIRST_MESSAGE);
+        return labs.map(lab => lab.short_code).join(', ') || 'none';
+    }));
 }
