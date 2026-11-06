@@ -26,6 +26,8 @@ export interface User {
   role: DatabaseRole | null;
   roleLabel: string | null;
   accountStatus: AccountStatus;
+  /** When the IT Admin anonymized the account (ISO time), or null. An anonymized account can't be changed any more. */
+  anonymizedAt: string | null;
   /** Every lab the account belongs to, by code. For a Pending sign-up, the labs it asked for. */
   labs: UserLab[];
   headOf: UserLab | null;

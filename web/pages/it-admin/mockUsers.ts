@@ -20,6 +20,7 @@ export const MOCK_USERS: User[] = [
     accountStatus: "ACTIVE",
     labs: [],
     headOf: null,
+    anonymizedAt: null,
   },
   {
     userId: 2,
@@ -36,6 +37,7 @@ export const MOCK_USERS: User[] = [
       { centerId: 2, code: "CAR" },
     ],
     headOf: { centerId: 1, code: "CITe4D" },
+    anonymizedAt: null,
   },
   {
     userId: 3,
@@ -49,6 +51,7 @@ export const MOCK_USERS: User[] = [
     accountStatus: "ACTIVE",
     labs: [],
     headOf: null,
+    anonymizedAt: null,
   },
   {
     userId: 4,
@@ -62,6 +65,7 @@ export const MOCK_USERS: User[] = [
     accountStatus: "ACTIVE",
     labs: [],
     headOf: null,
+    anonymizedAt: null,
   },
   {
     userId: 5,
@@ -75,6 +79,7 @@ export const MOCK_USERS: User[] = [
     accountStatus: "ACTIVE",
     labs: [],
     headOf: null,
+    anonymizedAt: null,
   },
   {
     userId: 6,
@@ -88,6 +93,7 @@ export const MOCK_USERS: User[] = [
     accountStatus: "INACTIVE",
     labs: [{ centerId: 3, code: "HXIL" }],
     headOf: null,
+    anonymizedAt: null,
   },
   {
     userId: 7,
@@ -101,6 +107,7 @@ export const MOCK_USERS: User[] = [
     accountStatus: "REJECTED",
     labs: [{ centerId: 4, code: "CeLT" }],
     headOf: null,
+    anonymizedAt: null,
   },
 ];
 

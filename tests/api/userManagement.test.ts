@@ -89,7 +89,7 @@ describe("GET /api/users with filters", () => {
     expect(ids.filter((id) => seededByName.some((u) => u.userId === id))).toEqual(seededByName.map((u) => u.userId));
     expect(JSON.stringify(res.body)).not.toMatch(/password|user_?img|photo|scrypt\$|VGVzdCBwaG90bw/i);
     expect(res.body.users.find((u: { userId: number }) => u.userId === USERS.labHead.userId)).toMatchObject({
-      role: "RESEARCHER", accountStatus: "ACTIVE", labs: [{ centerId: LAB.centerId, code: LAB.shortCode }], headOf: { centerId: LAB.centerId, code: LAB.shortCode },
+      role: "RESEARCHER", accountStatus: "ACTIVE", anonymizedAt: null, labs: [{ centerId: LAB.centerId, code: LAB.shortCode }], headOf: { centerId: LAB.centerId, code: LAB.shortCode },
     });
   });
 
@@ -518,6 +518,10 @@ describe("PUT /api/users/:userId/anonymize", () => {
     expect(res.body.user).toMatchObject({
       userId: person.userId, firstName: "Former", lastName: "researcher", email: `anonymized-${person.userId}@invalid`, idNumber: null, accountStatus: "INACTIVE", labs: [],
     });
+    const stored = await db.users.findUniqueOrThrow({ where: { user_id: person.userId } });
+    expect(res.body.user.anonymizedAt).toBe(stored.anonymized_at!.toISOString());
+    const listed = await asItAdmin.get("/api/users?status=INACTIVE&q=Former");
+    expect(listed.body.users.find((u: { userId: number }) => u.userId === person.userId).anonymizedAt).toBe(res.body.user.anonymizedAt);
     const row = await db.users.findUniqueOrThrow({ where: { user_id: person.userId }, include: { user_roles: true } });
     expect(row).toMatchObject({ first_name: "Former", last_name: "researcher", email: `anonymized-${person.userId}@invalid`, id_number: null, password: "", user_img: null });
     expect(row.anonymized_at).toBeInstanceOf(Date);

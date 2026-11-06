@@ -351,7 +351,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 
 `Retirement`: `{ retirementId, asset, status, statusLabel, reason, pathway, pathwayLabel, previousStatus, previousStatusLabel, requestedBy, requestedAt, decidedBy, decidedAt, decisionRemarks, completedBy, completedAt, dispositionReference, assessmentInspection }`.
 
-`User`: `{ userId, firstName, lastName, email, idNumber, userType, role, roleLabel, accountStatus, labs: [{ centerId, code }], headOf: { centerId, code } or null }`. Sent only to the IT Admin and to the person themself. `role` is a database role key, or null for a Pending sign-up; for a Pending sign-up, `labs` are the labs it asked for.
+`User`: `{ userId, firstName, lastName, email, idNumber, userType, role, roleLabel, accountStatus, anonymizedAt, labs: [{ centerId, code }], headOf: { centerId, code } or null }`. Sent only to the IT Admin and to the person themself. `role` is a database role key, or null for a Pending sign-up; for a Pending sign-up, `labs` are the labs it asked for. `anonymizedAt` is the ISO time of the anonymize step, or null; an anonymized account can no longer be changed.
 
 `Ticket`: `{ ticketId, createdBy, type, typeLabel, title, description, status, statusLabel, resolutionRemarks, resolvedBy, resolvedAt, createdAt, updatedAt }`.
 

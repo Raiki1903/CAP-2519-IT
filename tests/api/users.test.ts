@@ -74,6 +74,7 @@ describe("GET /api/users?status=PENDING", () => {
       role: null,
       roleLabel: null,
       accountStatus: "PENDING",
+      anonymizedAt: null,
       labs: [{ centerId: LAB.centerId, code: LAB.shortCode }, { centerId: SECOND_LAB.centerId, code: SECOND_LAB.shortCode }],
       headOf: null,
     });

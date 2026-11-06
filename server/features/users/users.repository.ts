@@ -21,6 +21,7 @@ const USER_SELECT = {
     id_number: true,
     user_type: true,
     account_status: true,
+    anonymized_at: true,
     user_roles: { select: { roles: { select: { role_name: true } } } },
     user_centers: { select: { research_centers: { select: { center_id: true, short_code: true } } }, orderBy: { research_centers: { short_code: 'asc' } } },
     headed_center: { select: { center_id: true, short_code: true } },

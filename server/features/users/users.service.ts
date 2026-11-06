@@ -26,6 +26,7 @@ function toUser(row: UserRow): User {
         role,
         roleLabel: role ? DATABASE_ROLE_LABELS[role] : null,
         accountStatus: row.account_status,
+        anonymizedAt: row.anonymized_at ? row.anonymized_at.toISOString() : null,
         labs: row.user_centers.map(uc => ({ centerId: uc.research_centers.center_id, code: uc.research_centers.short_code })),
         headOf: row.headed_center ? { centerId: row.headed_center.center_id, code: row.headed_center.short_code } : null,
     };
