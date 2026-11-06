@@ -1,7 +1,7 @@
 /**
- * Insight priority styles: one badge colour, one card accent, and one label per insight priority, so every insight card
+ * Insight priority styles: one badge colour, one section dot colour, one card accent, and one label per insight priority, so every insight card
  * colours a priority the same way. Theme colours only.
- * Layer: feature component (style table). Called by InsightCard. Calls nothing.
+ * Layer: feature component (style table). Called by InsightsPanel and InsightCard. Calls nothing.
  * Used by: the Insights section of the Staff, Lab Head, and Director analytics.
  */
 import type { InsightPriority } from "@shared/types/analytics";
@@ -20,6 +20,13 @@ const INSIGHT_PRIORITY_BADGE: Record<InsightPriority, string> = {
   PLANNING: "bg-primary/10 text-primary border-primary/30",
 };
 
+/** The colour of the dot before a section label, for each priority. */
+const INSIGHT_PRIORITY_DOT: Record<InsightPriority, string> = {
+  HIGH: "bg-destructive",
+  MEDIUM: "bg-chart-5",
+  PLANNING: "bg-primary",
+};
+
 /** The left-border colour of a card for each priority. */
 const INSIGHT_PRIORITY_ACCENT: Record<InsightPriority, string> = {
   HIGH: "border-l-destructive",
@@ -34,6 +41,15 @@ const INSIGHT_PRIORITY_ACCENT: Record<InsightPriority, string> = {
  */
 export function insightPriorityBadgeClass(priority: InsightPriority): string {
   return INSIGHT_PRIORITY_BADGE[priority] ?? "bg-muted";
+}
+
+/**
+ * Returns the background colour of the dot before a section label.
+ *
+ * @param priority HIGH, MEDIUM, or PLANNING
+ */
+export function insightPriorityDotClass(priority: InsightPriority): string {
+  return INSIGHT_PRIORITY_DOT[priority] ?? "bg-muted-foreground";
 }
 
 /**

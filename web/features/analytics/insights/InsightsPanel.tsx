@@ -18,7 +18,7 @@ import { Button } from "@web/components/ui/button";
 import { Card } from "@web/components/ui/card";
 import { cn } from "@web/components/ui/utils";
 import { InsightCard } from "./InsightCard";
-import { INSIGHT_PRIORITY_LABELS, insightPriorityBadgeClass } from "./insightPriorityStyles";
+import { INSIGHT_PRIORITY_LABELS, insightPriorityDotClass } from "./insightPriorityStyles";
 
 const NONE_MESSAGE = "No insights right now.";
 const ERROR_MESSAGE = "Insights are currently unavailable.";
@@ -101,9 +101,8 @@ export function InsightsPanel({ centerId = null, charts = {} }: InsightsPanelPro
                     return (
                       <div key={priority} className="flex flex-col gap-2 p-3" aria-label={`${INSIGHT_PRIORITY_LABELS[priority]} insights`}>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={cn("text-xs", insightPriorityBadgeClass(priority))}>
-                            {INSIGHT_PRIORITY_LABELS[priority]}
-                          </Badge>
+                          <span className={cn("h-3 w-3 flex-shrink-0 rounded-full", insightPriorityDotClass(priority))} aria-hidden="true" />
+                          <span className="text-sm font-bold text-foreground">{INSIGHT_PRIORITY_LABELS[priority]}</span>
                           <span className="text-xs font-bold text-muted-foreground">{items.length}</span>
                         </div>
                         {/* Fixed height, about three cards; the rest scrolls. */}
