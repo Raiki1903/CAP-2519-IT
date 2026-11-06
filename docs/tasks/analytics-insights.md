@@ -277,12 +277,12 @@ For Raiki, after the rework. H1 to H9 above were run on the first layout; H1, H4
 
 | # | Result (pass or fail) | Notes |
 |---|---|---|
-| H10 | | |
-| H11 | | |
-| H12 | | |
-| H13 | | |
-| H14 | | |
-| H15 | | |
-| H16 | | |
-| H17 | | |
-| H18 | | |
+| H10 | Pass | Raiki: passed. |
+| H11 | Pass | Raiki: passed. |
+| H12 | Pass | Raiki: passed. |
+| H13 | Pass | Raiki: passed. |
+| H14 | Pass | Raiki: passed. |
+| H15 | Pass | Raiki: passed. |
+| H16 | Pass | Raiki: passed. |
+| H17 | Pass | Raiki: passed. |
+| H18 | Pass | Raiki: passed. |
