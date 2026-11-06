@@ -1,7 +1,7 @@
 /**
  * Staff analytics: repair board, condition heatmap, warranty timeline, location status, and inspection progress widgets.
  * Layer: feature component. Called by pages/staff/HealthPage.tsx.
- * Calls: api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), features/repairs/RepairProgressDialog.tsx, state/serverData.tsx, state/session.tsx.
+ * Calls: features/analytics/insights/InsightsPanel.tsx, api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), features/repairs/RepairProgressDialog.tsx, state/serverData.tsx, state/session.tsx.
  * Used by: Staff.
  */
 import React from "react";
@@ -14,6 +14,7 @@ import { MAINTENANCE_STATUSES, MAINTENANCE_STATUS_LABELS } from "@shared/constan
 import * as assetsApi from "@web/api/assets.api";
 import * as analyticsApi from "@web/api/analytics.api";
 import { ASSET_STATUSES, ASSET_STATUS_LABELS } from "@shared/enums/assetStatus";
+import { InsightsPanel } from "@web/features/analytics/insights/InsightsPanel";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { Badge } from "@web/components/ui/badge";
@@ -668,6 +669,11 @@ export const StaffAnalyticsView: React.FC = () => {
 
   return (
     <div className="space-y-8 text-foreground font-sans">
+      <InsightsPanel
+        variant="full"
+        charts={{ warranty: "Warranties Ending in 90 Days", repairs: "Repair Operations Kanban Board" }}
+      />
+
       {/* Global Filter Toolbar */}
       <div className="flex flex-wrap items-center gap-4 bg-muted/40 border border-border rounded-xl p-4 shadow-2xs">
         <span className="text-xs font-extrabold text-foreground uppercase tracking-wider flex items-center gap-1.5">
