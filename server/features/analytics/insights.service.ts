@@ -1,17 +1,16 @@
 /**
- * Insights service: works out who may see which lab, runs the five rules over the rows in scope, and sorts the notes.
- * Layer: service. Called by analytics.controller.ts. Calls insights.repository.ts, analytics.repository.ts (findLab),
+ * Insights service: runs the five rules over the rows in the viewer's scope and sorts the notes.
+ * Layer: service. Called by analytics.controller.ts. Calls insights.repository.ts, analytics.scope.ts (which lab),
  * insights.rules.ts, insights.text.ts, and shared/services/assetState.ts (serverToday).
  * Used by: the Staff, Lab Head, and Director analytics insights.
  * Evaluated on each request. Nothing is stored and nothing is written.
  */
-import type { Insight, InsightPriority, InsightScope, InsightsData } from '@shared/types/analytics';
+import type { Insight, InsightPriority, InsightsData } from '@shared/types/analytics';
 import type { AssetCategory } from '@shared/enums/assetCategory';
 import type { AssetCondition } from '@shared/enums/assetCondition';
 import type { SessionIdentity } from '@shared/types/auth';
-import { AppError } from '../../shared/errors/AppError';
 import { serverToday } from '../../shared/services/assetState';
-import * as analyticsRepository from './analytics.repository';
+import { resolveScope } from './analytics.scope';
 import * as insightsRepository from './insights.repository';
 import {
     REPAIR_WINDOW_DAYS, conditionDropRule, daysBefore, lifecycleRule, overdueLoanRule, repeatRepairsRule, warrantyRule,
@@ -20,42 +19,7 @@ import {
 import { insightOf, type InsightAudience } from './insights.text';
 import type { InsightsQuery } from './insights.validation';
 
-/** The 403 message for a Lab Head who asks for another lab. */
-export const OTHER_LAB_MESSAGE = "Lab Heads see only their own lab.";
-
-/** The 403 message for a Lab Head account that heads no lab. */
-export const NO_LAB_MESSAGE = "Only the account that heads a lab has lab insights.";
-
-/** The 400 message for a lab that does not exist. */
-export const UNKNOWN_LAB_MESSAGE = "That lab does not exist.";
-
-/** The 403 message for a role that has no insights (Researcher, IT Admin). */
-export const NO_INSIGHTS_MESSAGE = "Your role has no insights.";
-
 const PRIORITY_ORDER: Record<InsightPriority, number> = { HIGH: 0, MEDIUM: 1, PLANNING: 2 };
-
-/**
- * The lab to read, and whose words to use, for one viewer. A Lab Head is always limited to the lab they head; Staff and
- * the Director may pick a lab, which must exist.
- *
- * @throws AppError 403 for a role with no insights, a Lab Head with no lab, or a Lab Head asking for another lab
- * @throws AppError 400 when Staff or the Director ask for a lab that does not exist
- */
-async function resolveScope(viewer: SessionIdentity, requested: number | null): Promise<{ scope: InsightScope; audience: InsightAudience }> {
-    if (viewer.role === 'LabHead') {
-        if (viewer.headOfCenterId === null) throw new AppError(403, NO_LAB_MESSAGE);
-        if (requested !== null && requested !== viewer.headOfCenterId) throw new AppError(403, OTHER_LAB_MESSAGE);
-        const lab = await analyticsRepository.findLab(viewer.headOfCenterId);
-        if (!lab) throw new AppError(403, NO_LAB_MESSAGE);
-        return { scope: { type: 'lab', centerId: lab.center_id, code: lab.short_code }, audience: 'labHead' };
-    }
-    if (viewer.role !== 'Staff' && viewer.role !== 'AdRICDirector') throw new AppError(403, NO_INSIGHTS_MESSAGE);
-    const audience: InsightAudience = viewer.role === 'Staff' ? 'staff' : 'director';
-    if (requested === null) return { scope: { type: 'all', centerId: null, code: null }, audience };
-    const lab = await analyticsRepository.findLab(requested);
-    if (!lab) throw new AppError(400, UNKNOWN_LAB_MESSAGE);
-    return { scope: { type: 'lab', centerId: lab.center_id, code: lab.short_code }, audience };
-}
 
 /** Groups rows by their asset id. */
 function groupByAsset<T>(rows: T[], assetIdOf: (row: T) => number): Map<number, T[]> {
@@ -87,7 +51,8 @@ function byUrgency(a: { hit: InsightHit; insight: Insight }, b: { hit: InsightHi
  * @throws AppError 403 or 400 as resolveScope says
  */
 export async function insightsFor(viewer: SessionIdentity, query: InsightsQuery, asOf: string = serverToday()): Promise<InsightsData> {
-    const { scope, audience } = await resolveScope(viewer, query.centerId);
+    const scope = await resolveScope(viewer, query.centerId);
+    const audience: InsightAudience = viewer.role === 'LabHead' ? 'labHead' : viewer.role === 'Staff' ? 'staff' : 'director';
 
     const [assetRows, loanRows, ticketRows, inspectionRows] = await Promise.all([
         insightsRepository.findAssets(scope.centerId),

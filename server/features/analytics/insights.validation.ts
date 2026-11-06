@@ -24,6 +24,20 @@ export const BAD_VIEW_MESSAGE = "view must be operational, strategic, or all.";
 export const BAD_CENTER_MESSAGE = "centerId must be a lab id.";
 
 /**
+ * Reads the optional `centerId` of an analytics query. Also used by the loans per week query.
+ *
+ * @param query the request's query
+ * @returns the lab id, or null when none was sent
+ * @throws AppError 400 when it is not a positive whole number
+ */
+export function readCenterIdQuery(query: Request['query']): number | null {
+    const raw = query.centerId;
+    if (raw === undefined || raw === '') return null;
+    if (typeof raw !== 'string' || !/^\d+$/.test(raw) || Number(raw) < 1) throw new AppError(400, BAD_CENTER_MESSAGE);
+    return Number(raw);
+}
+
+/**
  * Reads the insights query. `view` defaults to all and `centerId` to none.
  *
  * @param query the request's query
@@ -32,8 +46,5 @@ export const BAD_CENTER_MESSAGE = "centerId must be a lab id.";
 export function readInsightsQuery(query: Request['query']): InsightsQuery {
     const view = query.view ?? 'all';
     if (view !== 'operational' && view !== 'strategic' && view !== 'all') throw new AppError(400, BAD_VIEW_MESSAGE);
-    const raw = query.centerId;
-    if (raw === undefined || raw === '') return { view, centerId: null };
-    if (typeof raw !== 'string' || !/^\d+$/.test(raw) || Number(raw) < 1) throw new AppError(400, BAD_CENTER_MESSAGE);
-    return { view, centerId: Number(raw) };
+    return { view, centerId: readCenterIdQuery(query) };
 }
