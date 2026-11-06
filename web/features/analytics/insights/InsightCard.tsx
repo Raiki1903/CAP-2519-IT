@@ -2,7 +2,7 @@
  * Insight card: one advice note with its priority, issue, and suggested next step, a Why section with the evidence and
  * other options, and a Dismiss button. Read-only: no button starts a workflow.
  * Layer: feature component. Called by InsightsPanel.tsx. Calls insightPriorityStyles.ts and components/ui (card, badge, button).
- * Used by: the Insights section of the Staff, Lab Head, and Director analytics, and the three home previews.
+ * Used by: the Insights section of the Staff, Lab Head, and Director analytics.
  */
 import { useState } from "react";
 import { ChevronDown, ChevronUp, X } from "lucide-react";

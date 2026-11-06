@@ -1,7 +1,7 @@
 /**
  * Analytics API: the read-only dashboard data for the three live analytics views.
  * Layer: api. Called by DirectorAnalyticsView, LabHeadAnalyticsView, StaffAnalyticsView, InsightsPanel, and LoansPerWeekChart. Calls client.ts.
- * Used by: Director, Lab Head, and Staff analytics, and the Insights panel on the home screens.
+ * Used by: Director, Lab Head, and Staff analytics, and the Insights panel on those pages.
  */
 import type { InsightsData, UtilizationData } from "@shared/types/analytics";
 import { apiGet, apiGetRaw, type ApiResult } from "./client";

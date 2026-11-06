@@ -2,7 +2,7 @@
  * Insight priority styles: one badge colour, one card accent, and one label per insight priority, so every insight card
  * colours a priority the same way. Theme colours only.
  * Layer: feature component (style table). Called by InsightCard. Calls nothing.
- * Used by: the Insights section of the Staff, Lab Head, and Director analytics, and the three home previews.
+ * Used by: the Insights section of the Staff, Lab Head, and Director analytics.
  */
 import type { InsightPriority } from "@shared/types/analytics";
 

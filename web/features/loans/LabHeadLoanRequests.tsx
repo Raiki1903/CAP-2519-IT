@@ -1,8 +1,7 @@
 /**
  * Lab Head screen tab: Equipment loan requests and out-on-loan custody tracking.
  * Layer: feature component. Called by pages/lab-head/LabHeadDashboard.tsx when activeTab === "custody".
- * Calls: api/loans.api.ts (listLabRequests, approveLoan, declineLoan), AccountabilityFormButton.tsx, loanStatusStyles.ts,
- * features/analytics/insights/InsightsPanel.tsx (the top three insights).
+ * Calls: api/loans.api.ts (listLabRequests, approveLoan, declineLoan), AccountabilityFormButton.tsx, loanStatusStyles.ts.
  * Used by: Lab Head to approve/decline loan requests for their lab and monitor equipment out on loan.
  */
 import { useState, useEffect, useCallback } from "react";
@@ -17,8 +16,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 import * as loansApi from "@web/api/loans.api";
-import { roleToSlug } from "@web/state/session";
-import { InsightsPanel } from "@web/features/analytics/insights/InsightsPanel";
 import type { Loan } from "@shared/types/loans";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -151,7 +148,6 @@ export function LabHeadLoanRequests({ userLab }: LabHeadLoanRequestsProps) {
 
   return (
     <div>
-      <InsightsPanel variant="preview" className="mb-6" analyticsPath={`/${roleToSlug.LabHead}/health`} />
       <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-foreground mb-1">Loan Requests</h1>

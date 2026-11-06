@@ -867,7 +867,7 @@ export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "" }) =
         </div>
       </div>
 
-      <InsightsPanel variant="full" charts={{ overdueLoans: "Overdue Loans" }} />
+      <InsightsPanel charts={{ overdueLoans: "Overdue Loans" }} />
 
       <LabHeadOperationalSection lab={lab} />
 

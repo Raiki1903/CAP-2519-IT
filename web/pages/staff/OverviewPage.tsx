@@ -2,7 +2,7 @@
  * Staff Overview: asset, repair, and return counts, quick links to the other tabs, campus totals, alerts, and recent registrations.
  * Layer: page. Called by app/routes.tsx at /staff/overview.
  * Calls: features/assets/useStaffAssets.ts, features/repairs/useRepairTickets.ts, features/returns/usePendingReturns.ts
- * (the Pending Returns count), features/assets/campusCounts.ts, features/analytics/insights/InsightsPanel.tsx, state/session.tsx.
+ * (the Pending Returns count), features/assets/campusCounts.ts, state/session.tsx.
  * Used by: Staff.
  */
 import { useNavigate } from "react-router";
@@ -11,7 +11,6 @@ import { usePendingReturns } from "@web/features/returns/usePendingReturns";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { countAssetsByCampus } from "@web/features/assets/campusCounts";
 import { useRepairTickets } from "@web/features/repairs/useRepairTickets";
-import { InsightsPanel } from "@web/features/analytics/insights/InsightsPanel";
 import { Button } from "@web/components/ui/button";
 import { Badge } from "@web/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
@@ -53,8 +52,6 @@ export function OverviewPage() {
         <h1 className="text-foreground text-2xl font-extrabold tracking-tight mb-1">System Overview</h1>
         <p className="text-muted-foreground text-xs">Assets, repairs, and returns at a glance, with shortcuts.</p>
       </div>
-
-      <InsightsPanel variant="preview" analyticsPath={`/${overviewSlug}/health`} />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border border-border bg-card shadow-sm rounded-xl">

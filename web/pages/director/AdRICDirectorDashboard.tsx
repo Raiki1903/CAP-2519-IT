@@ -2,14 +2,13 @@
  * Director screen: Overview, Analytics, Disposal Approvals, and the Inventory Report, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
  * Calls: features/disposals/DisposalDecisionControls.tsx (api/retirements.api.ts decideRetirement()), features/lookups/useLookups.ts (the labs and their campus),
- * features/assets/campusCounts.ts, features/assets/assetSearch.ts (the search placeholder), features/analytics/director/DirectorAnalyticsView.tsx, features/analytics/insights/InsightsPanel.tsx, state/serverData.tsx.
+ * features/assets/campusCounts.ts, features/assets/assetSearch.ts (the search placeholder), features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
  * Used by: AdRIC Director (disposal decisions, inventory reports).
  */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import DirectorAnalyticsView from "@web/features/analytics/director/DirectorAnalyticsView";
-import { InsightsPanel } from "@web/features/analytics/insights/InsightsPanel";
-import { roleToSlug, useSession } from "@web/state/session";
+import { useSession } from "@web/state/session";
 import { useServerData, type Asset } from "@web/state/serverData";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { countAssetsByCampus } from "@web/features/assets/campusCounts";
@@ -218,8 +217,6 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
     return (
       <div className="space-y-6">
-        <InsightsPanel variant="preview" analyticsPath={`/${roleToSlug.AdRICDirector}/analytics`} />
-
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>

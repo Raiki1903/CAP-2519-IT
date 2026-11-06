@@ -670,7 +670,6 @@ export const StaffAnalyticsView: React.FC = () => {
   return (
     <div className="space-y-8 text-foreground font-sans">
       <InsightsPanel
-        variant="full"
         charts={{ warranty: "Warranties Ending in 90 Days", repairs: "Repair Operations Kanban Board" }}
       />
 

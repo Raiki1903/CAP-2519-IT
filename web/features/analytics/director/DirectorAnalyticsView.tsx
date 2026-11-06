@@ -638,7 +638,6 @@ export const DirectorAnalyticsView: React.FC = () => {
       </div>
 
       <InsightsPanel
-        variant="full"
         centerId={(lookups?.labs ?? []).find(l => l.code === selectedLabFilter)?.centerId ?? null}
       />
 
