@@ -94,7 +94,7 @@ export function InsightsPanel({ centerId = null, charts = {} }: InsightsPanelPro
                           <span className="text-xs font-bold text-muted-foreground">{items.length}</span>
                         </div>
                         {/* Fixed height, about three cards; the rest scrolls. */}
-                        <div className="h-[26rem] space-y-2 overflow-y-auto pr-1">
+                        <div className="h-[31rem] space-y-2 overflow-y-auto pr-1">
                           {items.length === 0 ? (
                             <p className="py-2 text-xs text-muted-foreground">None</p>
                           ) : (
