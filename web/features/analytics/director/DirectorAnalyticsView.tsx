@@ -1,7 +1,7 @@
 /**
  * Director analytics: portfolio value, location and status, funding, and utilization widgets.
  * Layer: feature component. Called by pages/director/AdRICDirectorDashboard.tsx (analytics tab).
- * Calls: api/analytics.api.ts getDirectorAnalytics(), state/serverData.tsx (assets, reports, loans, pending disposals).
+ * Calls: features/analytics/insights/InsightsPanel.tsx, features/analytics/utilization/LoansPerWeekChart.tsx, api/analytics.api.ts getDirectorAnalytics(), state/serverData.tsx (assets, reports, loans, pending disposals).
  * Used by: AdRIC Director.
  */
 import React, { useState, useEffect, useMemo } from "react";
@@ -9,6 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useServerData } from "@web/state/serverData";
 import * as analyticsApi from "@web/api/analytics.api";
+import { InsightsPanel } from "@web/features/analytics/insights/InsightsPanel";
+import { LoansPerWeekChart } from "@web/features/analytics/utilization/LoansPerWeekChart";
 import { CAMPUS_LABELS } from "@shared/constants/campuses";
 import { useFormLookups } from "@web/features/lookups/useLookups";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
@@ -635,6 +637,10 @@ export const DirectorAnalyticsView: React.FC = () => {
         </div>
       </div>
 
+      <InsightsPanel
+        centerId={(lookups?.labs ?? []).find(l => l.code === selectedLabFilter)?.centerId ?? null}
+      />
+
       <MacroFinancialSection
         selectedLabFilter={selectedLabFilter}
         startDate={startDate}
@@ -647,6 +653,8 @@ export const DirectorAnalyticsView: React.FC = () => {
 
 
       <TopUtilizationWidget selectedLabFilter={selectedLabFilter} />
+
+      <LoansPerWeekChart centerId={(lookups?.labs ?? []).find(l => l.code === selectedLabFilter)?.centerId ?? null} />
     </div>
   );
 };
