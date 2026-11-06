@@ -62,6 +62,19 @@ export interface ChangeLabsInput {
   centerIds: number[];
 }
 
+/** The body of PUT /api/research-centers/:centerId/head. */
+export interface SetLabHeadInput {
+  /** The account that heads the lab from now on, or null to leave the lab with no Head. */
+  userId: number | null;
+}
+
+/** A lab and its Head, as PUT /api/research-centers/:centerId/head answers it. */
+export interface LabHead {
+  centerId: number;
+  code: string;
+  headUserId: number | null;
+}
+
 /** The body of PUT /api/users/:userId/reject. */
 export interface RejectSignUpInput {
   /** Trimmed, at most REJECT_REMARKS_MAX_LENGTH characters; null when none were given. */

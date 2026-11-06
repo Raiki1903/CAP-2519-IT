@@ -1,10 +1,10 @@
 /**
- * The IT Admin's account management after sign-up (module 6): the users list and its filters, and changing an
- * account's role and labs.
- * Covers GET /api/users with status, role, centerId, and q, PUT /api/users/:userId/role, and
- * PUT /api/users/:userId/labs. Workflow: account management.
- * Fixtures: the seeded accounts and LAB (headed by the Lab Head). A second lab (TEST2) is made here. Each test makes
- * the accounts it changes, so the seeded ones stay as seeded; the Lab Head only gets steps that leave it as it was.
+ * The IT Admin's account management after sign-up (module 6): the users list and its filters, changing an
+ * account's role and labs, and setting a lab's Head.
+ * Covers GET /api/users with status, role, centerId, and q, PUT /api/users/:userId/role,
+ * PUT /api/users/:userId/labs, and PUT /api/research-centers/:centerId/head. Workflow: account management.
+ * Fixtures: the seeded accounts and LAB (headed by the Lab Head). A second lab (TEST2) is made here, and each Head
+ * test makes labs of its own (HEAD1 onward). Each test makes the accounts it changes, so the seeded ones stay as seeded; the Lab Head only gets steps that leave it as it was.
  */
 import type { activity_log_event_type, users_account_status } from "@prisma/client";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -269,12 +269,119 @@ describe("PUT /api/users/:userId/labs", () => {
   });
 });
 
+describe("PUT /api/research-centers/:centerId/head", () => {
+  let labCount = 0;
+
+  /** A lab of its own, with no Head. */
+  async function makeLab() {
+    labCount += 1;
+    const lab = await db.research_centers.create({ data: { name: `Test Head Lab ${labCount}`, short_code: `HEAD${labCount}`, location: "MANILA" } });
+    return { centerId: lab.center_id, code: lab.short_code };
+  }
+
+  const headOf = async (centerId: number) => (await db.research_centers.findUniqueOrThrow({ where: { center_id: centerId } })).head_user_id;
+  const setHead = (centerId: number, userId: number | null) => asItAdmin.put(`/api/research-centers/${centerId}/head`, { userId });
+
+  it("makes an Active Researcher member the Head, and writes HEAD_CHANGED with the new Head as target", async () => {
+    const lab = await makeLab();
+    const member = await makeAccount({ centerIds: [lab.centerId] });
+
+    const res = await setHead(lab.centerId, member.userId);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true, lab: { centerId: lab.centerId, code: lab.code, headUserId: member.userId } });
+    expect(await headOf(lab.centerId)).toBe(member.userId);
+    expect(await logRowsFor(member.userId, "HEAD_CHANGED")).toMatchObject([{ actor_id: USERS.admin.userId, details: `${lab.code}: none to Test ${member.lastName}` }]);
+  });
+
+  it("replaces the old Head in the same step, and then leaves the lab with no Head", async () => {
+    const lab = await makeLab();
+    const first = await makeAccount({ centerIds: [lab.centerId] });
+    const second = await makeAccount({ centerIds: [lab.centerId] });
+    await setHead(lab.centerId, first.userId);
+
+    const replaced = await setHead(lab.centerId, second.userId);
+
+    expect(replaced.status).toBe(200);
+    expect(await headOf(lab.centerId)).toBe(second.userId);
+    const list = await asItAdmin.get(`/api/users?centerId=${lab.centerId}`);
+    expect(list.body.users.find((u: { userId: number }) => u.userId === first.userId).headOf).toBeNull();
+    expect((await logRowsFor(second.userId, "HEAD_CHANGED"))[0].details).toBe(`${lab.code}: Test ${first.lastName} to Test ${second.lastName}`);
+
+    const cleared = await setHead(lab.centerId, null);
+
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.lab.headUserId).toBeNull();
+    expect(await headOf(lab.centerId)).toBeNull();
+    expect((await logRowsFor(second.userId, "HEAD_CHANGED")).map((row) => row.details)).toEqual([
+      `${lab.code}: Test ${first.lastName} to Test ${second.lastName}`,
+      `${lab.code}: Test ${second.lastName} to none`,
+    ]);
+  });
+
+  it.each([
+    ["not a member of the lab", { status: "ACTIVE", role: "RESEARCHER", inLab: false }, (code: string) => `The new Head must be a member of ${code}.`],
+    ["not a Researcher", { status: "ACTIVE", role: "TSG_STAFF", inLab: true }, () => "The new Head must be a Researcher account."],
+    ["Inactive", { status: "INACTIVE", role: "RESEARCHER", inLab: true }, () => "The new Head must be an Active account."],
+  ] as const)("answers 400 when the person is %s, and the lab keeps no Head", async (_label, options, message) => {
+    const lab = await makeLab();
+    const person = await makeAccount({ status: options.status, role: options.role, centerIds: options.inLab ? [lab.centerId] : [] });
+
+    const res = await setHead(lab.centerId, person.userId);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ success: false, error: message(lab.code) });
+    expect(await headOf(lab.centerId)).toBeNull();
+    expect(await logRowsFor(person.userId, "HEAD_CHANGED")).toEqual([]);
+  });
+
+  it("answers 409 when the person already heads another lab", async () => {
+    const [headed, other] = [await makeLab(), await makeLab()];
+    const person = await makeAccount({ centerIds: [headed.centerId, other.centerId] });
+    await setHead(headed.centerId, person.userId);
+
+    const res = await setHead(other.centerId, person.userId);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: `This account already heads ${headed.code}.` });
+    expect(await headOf(other.centerId)).toBeNull();
+  });
+
+  it("sets the same person as Head of two labs at once only once: one 200, one 409, never 500", async () => {
+    const [labX, labY] = [await makeLab(), await makeLab()];
+    const person = await makeAccount({ centerIds: [labX.centerId, labY.centerId] });
+
+    const answers = await Promise.all([setHead(labX.centerId, person.userId), setHead(labY.centerId, person.userId)]);
+
+    expect(answers.map((a) => a.status).sort()).toEqual([200, 409]);
+    expect(await db.research_centers.count({ where: { head_user_id: person.userId } })).toBe(1);
+    expect(await logRowsFor(person.userId, "HEAD_CHANGED")).toHaveLength(1);
+  });
+
+  it("answers 404 for no such lab or account, and 400 for a bad lab id or body", async () => {
+    const lab = await makeLab();
+
+    const noLab = await setHead(999999, USERS.custodianA.userId);
+    const noAccount = await setHead(lab.centerId, 999999);
+    const badId = await asItAdmin.put("/api/research-centers/abc/head", { userId: null });
+    const noBody = await asItAdmin.put(`/api/research-centers/${lab.centerId}/head`, {});
+
+    expect(noLab.status).toBe(404);
+    expect(noLab.body).toEqual({ success: false, error: "No lab has this id." });
+    expect(noAccount.status).toBe(404);
+    expect(badId.status).toBe(400);
+    expect(noBody.status).toBe(400);
+    expect(noBody.body).toEqual({ success: false, error: "Send userId: the new Head's account id, or null for no Head." });
+  });
+});
+
 describe("who may use the account management endpoints", () => {
   const target = USERS.custodianB.userId;
   const routes: [string, string][] = [
     ["GET", "/api/users"],
     ["PUT", `/api/users/${target}/role`],
     ["PUT", `/api/users/${target}/labs`],
+    ["PUT", `/api/research-centers/${LAB.centerId}/head`],
   ];
   const send = (client: ReturnType<typeof as> | typeof api, method: string, path: string) =>
     method === "GET" ? client.get(path) : client.put(path, {});

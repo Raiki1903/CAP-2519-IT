@@ -10,7 +10,7 @@ import { OPEN_LOAN_STATUSES } from '@shared/constants/loanStatuses';
 import type { UserListFilters } from '@shared/types/users';
 import { prisma } from '../../config/prisma';
 import { logActivity } from '../../shared/services/activityLog';
-import { lockUser } from '../../shared/services/rowLocks';
+import { lockCenter, lockUser } from '../../shared/services/rowLocks';
 
 /** What a user read includes: the roles, every lab (by code), and the lab the account heads. Never the password. */
 const USER_SELECT = {
@@ -253,5 +253,56 @@ export function changeLabs(userId: number, centerIds: number[], itAdminId: numbe
     return changeAccount(userId, itAdminId, 'LABS_CHANGED', decide, async (tx) => {
         await tx.user_centers.deleteMany({ where: { user_id: userId } });
         await tx.user_centers.createMany({ data: centerIds.map(centerId => ({ user_id: userId, center_id: centerId })) });
+    });
+}
+
+/** A lab as a Head change is decided on, read after its row is locked. */
+export interface LockedLab {
+    centerId: number;
+    code: string;
+    /** The lab's Head now, or null. */
+    head: { userId: number; name: string } | null;
+}
+
+/** How a Head change went: done with the lab's new Head, or refused because the lab or the account is not there. */
+export type HeadChange = { outcome: 'DONE'; lab: { centerId: number; code: string; headUserId: number | null } } | { outcome: 'NO_LAB' } | { outcome: 'NO_ACCOUNT' };
+
+/**
+ * Makes `newHeadId` the lab's Head in place of the one it has, or leaves the lab with no Head, in one transaction,
+ * and writes a HEAD_CHANGED row: the new Head as target, or the old Head when the lab is left with none.
+ * The lab row and the new Head's account are both locked before anything is read, so two changes that name the same
+ * person for two labs run one after the other and the second sees the first.
+ *
+ * @param centerId the lab
+ * @param newHeadId the account that heads it from now on, or null for no Head
+ * @param itAdminId the session user who changes it
+ * @param decide the service's rules, run on the locked lab and account: throws to refuse, or returns the log details
+ * @returns DONE with the lab, or NO_LAB or NO_ACCOUNT with nothing changed
+ */
+export function setLabHead(
+    centerId: number,
+    newHeadId: number | null,
+    itAdminId: number,
+    decide: (lab: LockedLab, newHead: LockedAccount | null) => string,
+): Promise<HeadChange> {
+    return prisma.$transaction(async (tx) => {
+        await lockCenter(tx, centerId);
+        if (newHeadId !== null) await lockUser(tx, newHeadId);
+
+        const lab = await tx.research_centers.findUnique({
+            where: { center_id: centerId },
+            select: { center_id: true, short_code: true, head: { select: { user_id: true, first_name: true, last_name: true } } },
+        });
+        if (!lab) return { outcome: 'NO_LAB' };
+        const newHead = newHeadId === null ? null : await lockAccount(tx, newHeadId);
+        if (newHeadId !== null && !newHead) return { outcome: 'NO_ACCOUNT' };
+
+        const oldHead = lab.head ? { userId: lab.head.user_id, name: `${lab.head.first_name} ${lab.head.last_name}` } : null;
+        const details = decide({ centerId, code: lab.short_code, head: oldHead }, newHead);
+
+        await tx.research_centers.update({ where: { center_id: centerId }, data: { head_user_id: newHeadId } });
+        await logActivity(tx, { eventType: 'HEAD_CHANGED', actorId: itAdminId, targetUserId: newHeadId ?? oldHead?.userId ?? null, details });
+
+        return { outcome: 'DONE', lab: { centerId, code: lab.short_code, headUserId: newHeadId } };
     });
 }

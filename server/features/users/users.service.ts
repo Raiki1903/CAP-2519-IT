@@ -4,7 +4,9 @@
  * Used by: the IT Admin's Approvals and Users pages.
  */
 import { DATABASE_ROLE_LABELS, type DatabaseRole } from '@shared/enums/role';
-import type { ApproveSignUpInput, ChangeLabsInput, ChangeRoleInput, RejectSignUpInput, User, UserListFilters } from '@shared/types/users';
+import type {
+    ApproveSignUpInput, ChangeLabsInput, ChangeRoleInput, LabHead, RejectSignUpInput, SetLabHeadInput, User, UserListFilters,
+} from '@shared/types/users';
 import * as usersRepository from './users.repository';
 import type { LockedAccount, SignUpDecision, UserRow } from './users.repository';
 import { AppError } from '../../shared/errors/AppError';
@@ -182,4 +184,33 @@ export async function changeLabs(userId: number, input: ChangeLabsInput, itAdmin
         if (account.headOf && !input.centerIds.includes(account.headOf.centerId)) throw new AppError(409, HEAD_FIRST_MESSAGE);
         return labs.map(lab => lab.short_code).join(', ') || 'none';
     }));
+}
+
+/**
+ * Makes an Active Researcher member of the lab its Head, in place of the one it has, or leaves the lab with no Head.
+ * The account that heads a lab is the lab's Researcher office account, and it heads one lab at most.
+ *
+ * @param centerId the lab
+ * @param input the new Head's account, or null for no Head
+ * @param itAdminId the session user who changes it (never from the body)
+ * @returns the lab with its Head
+ * @throws AppError 400 if the new Head is not Active, not a Researcher, or not a member of the lab
+ * @throws AppError 404 if there is no such lab or account
+ * @throws AppError 409 if the new Head already heads another lab
+ */
+export async function setLabHead(centerId: number, input: SetLabHeadInput, itAdminId: number): Promise<LabHead> {
+    const change = await usersRepository.setLabHead(centerId, input.userId, itAdminId, (lab, newHead) => {
+        if (newHead) {
+            if (newHead.status !== 'ACTIVE') throw new AppError(400, "The new Head must be an Active account.");
+            if (newHead.role !== 'RESEARCHER') throw new AppError(400, "The new Head must be a Researcher account.");
+            if (!newHead.centerIds.includes(lab.centerId)) throw new AppError(400, `The new Head must be a member of ${lab.code}.`);
+            if (newHead.headOf && newHead.headOf.centerId !== lab.centerId) {
+                throw new AppError(409, `This account already heads ${newHead.headOf.code}.`);
+            }
+        }
+        return `${lab.code}: ${lab.head?.name ?? 'none'} to ${newHead?.name ?? 'none'}`;
+    });
+    if (change.outcome === 'NO_LAB') throw new AppError(404, "No lab has this id.");
+    if (change.outcome === 'NO_ACCOUNT') throw new AppError(404, "No account has this id.");
+    return change.lab;
 }

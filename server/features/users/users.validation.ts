@@ -7,7 +7,7 @@
 import { ACCOUNT_STATUSES, type AccountStatus } from '@shared/constants/accountStatuses';
 import { REJECT_REMARKS_MAX_LENGTH } from '@shared/constants/signUp';
 import { DATABASE_ROLES, type DatabaseRole } from '@shared/enums/role';
-import type { ApproveSignUpInput, ChangeLabsInput, ChangeRoleInput, RejectSignUpInput, UserListFilters } from '@shared/types/users';
+import type { ApproveSignUpInput, ChangeLabsInput, ChangeRoleInput, RejectSignUpInput, SetLabHeadInput, UserListFilters } from '@shared/types/users';
 import { AppError } from '../../shared/errors/AppError';
 
 /** The 400 message for a role that is not one of the five database roles. */
@@ -133,4 +133,31 @@ export function readChangeLabs(body: any): ChangeLabsInput {
         throw new AppError(400, "The labs must be a list of lab ids.");
     }
     return { centerIds: [...new Set<number>(ids)] };
+}
+
+/**
+ * Reads the lab id in the URL.
+ *
+ * @param value the :centerId parameter
+ * @returns the id
+ * @throws AppError 400 if it is not a positive whole number
+ */
+export function readCenterId(value: string): number {
+    return readPositiveId(value, "The lab id must be a positive whole number.");
+}
+
+/**
+ * Reads the body of a Head change: the new Head's account id, or null for no Head.
+ *
+ * @param body the request body
+ * @returns the account id, or null
+ * @throws AppError 400 if userId is missing, or is neither null nor a positive whole number
+ */
+export function readSetLabHead(body: any): SetLabHeadInput {
+    const userId = body?.userId;
+    if (userId === null) return { userId: null };
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+        throw new AppError(400, "Send userId: the new Head's account id, or null for no Head.");
+    }
+    return { userId };
 }

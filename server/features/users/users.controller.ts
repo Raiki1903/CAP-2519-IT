@@ -7,7 +7,9 @@
  */
 import type { Request, Response } from 'express';
 import * as usersService from './users.service';
-import { readApproveSignUp, readChangeLabs, readChangeRole, readRejectSignUp, readUserId, readUserListQuery } from './users.validation';
+import {
+    readApproveSignUp, readCenterId, readChangeLabs, readChangeRole, readRejectSignUp, readSetLabHead, readUserId, readUserListQuery,
+} from './users.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /**
@@ -82,4 +84,20 @@ export async function changeLabs(req: Request<{ userId: string }>, res: Response
 
     console.log(`Labs of user ${userId} changed by user ${itAdminId}`);
     res.json({ success: true, user });
+}
+
+/**
+ * Handles PUT /api/research-centers/:centerId/head: sets the lab's Head, or leaves it with none.
+ * Answers `{ success, lab }`, or the AppError's status and message (400 bad body, or the new Head is not an Active
+ * Researcher member of the lab; 404 no such lab or account; 409 heads another lab), or 500.
+ */
+export async function setLabHead(req: Request<{ centerId: string }>, res: Response): Promise<void> {
+    const centerId = readCenterId(req.params.centerId);
+    const input = readSetLabHead(req.body);
+    const itAdminId = sessionUserOf(req).userId;
+
+    const lab = await usersService.setLabHead(centerId, input, itAdminId);
+
+    console.log(`Head of lab ${centerId} set by user ${itAdminId}`);
+    res.json({ success: true, lab });
 }
