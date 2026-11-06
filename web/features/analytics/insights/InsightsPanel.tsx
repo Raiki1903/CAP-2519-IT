@@ -1,7 +1,8 @@
 /**
  * Insights panel: the advice notes for the signed-in role, as one block at the top of an Analytics page. A header row
- * (title, total count, Hide or Show) and one wide card with three sections side by side: High, Medium, and Planning.
- * Read-only; Dismiss hides a card until the page reloads, and Hide or Show is component state too.
+ * (icon, title, description, count badge, Collapse or Expand) in the same pattern as the Repair Operations Kanban Board, and
+ * three sections side by side: High, Medium, and Planning. Read-only; Dismiss hides a card until the page reloads, and
+ * Collapse or Expand is component state too.
  * Layer: feature component. Called by StaffAnalyticsView, LabHeadAnalyticsView, and DirectorAnalyticsView.
  * Calls api/analytics.api.ts getInsights(), InsightCard.tsx, and insightPriorityStyles.ts.
  * Used by: TSG Staff, Secretary, Lab Head, Director.
@@ -9,7 +10,7 @@
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Lightbulb } from "lucide-react";
+import { ChevronDown, ChevronUp, Lightbulb } from "lucide-react";
 import type { Insight, InsightChartKey, InsightPriority } from "@shared/types/analytics";
 import * as analyticsApi from "@web/api/analytics.api";
 import { Badge } from "@web/components/ui/badge";
@@ -50,7 +51,7 @@ function InsightsSkeleton() {
  */
 export function InsightsPanel({ centerId = null, charts = {} }: InsightsPanelProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [hidden, setHidden] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["analytics-insights", centerId],
@@ -62,27 +63,39 @@ export function InsightsPanel({ centerId = null, charts = {} }: InsightsPanelPro
   const shown: Insight[] = (data?.insights ?? []).filter(insight => !dismissed.has(insight.id));
 
   return (
-    <section className="space-y-3" aria-label="Insights">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-lg font-extrabold text-foreground">
-          <Lightbulb className="w-5 h-5 text-primary" /> Insights
-          {data && <span className="text-sm font-bold text-muted-foreground">({shown.length})</span>}
-        </h2>
-        <Button variant="outline" size="sm" aria-expanded={!hidden} onClick={() => setHidden(isHidden => !isHidden)}>
-          {hidden ? "Show" : "Hide"}
-        </Button>
-      </div>
+    <section aria-label="Insights">
+      <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
+              <Lightbulb className="w-5 h-5 text-[#005A36]" /> Insights
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Notes on what may need attention, from the records.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {data && <Badge className="bg-[#005A36] text-white font-extrabold text-xs px-3 py-1">{shown.length} Insights</Badge>}
+            <Button
+              variant="outline"
+              size="sm"
+              aria-expanded={isOpen}
+              onClick={() => setIsOpen(!isOpen)}
+              className="text-xs font-bold gap-1 border-border text-foreground hover:bg-muted"
+            >
+              {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {isOpen ? "Collapse" : "Expand"}
+            </Button>
+          </div>
+        </div>
 
-      {!hidden && (
-        <>
-          {isLoading && <InsightsSkeleton />}
-          {isError && <p className="text-sm text-muted-foreground">{ERROR_MESSAGE}</p>}
-          {data && (
-            <Card className="rounded-xl border border-border bg-card p-0 shadow-sm">
-              {shown.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">{NONE_MESSAGE}</p>
+        {isOpen && (
+          <>
+            {isLoading && <InsightsSkeleton />}
+            {isError && <p className="text-sm text-muted-foreground">{ERROR_MESSAGE}</p>}
+            {data &&
+              (shown.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{NONE_MESSAGE}</p>
               ) : (
-                <div className="grid grid-cols-1 divide-y divide-border lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+                <div className="grid grid-cols-1 divide-y divide-border rounded-lg border border-border lg:grid-cols-3 lg:divide-x lg:divide-y-0">
                   {SECTIONS.map(priority => {
                     const items = shown.filter(insight => insight.priority === priority);
                     return (
@@ -107,11 +120,10 @@ export function InsightsPanel({ centerId = null, charts = {} }: InsightsPanelPro
                     );
                   })}
                 </div>
-              )}
-            </Card>
-          )}
-        </>
-      )}
+              ))}
+          </>
+        )}
+      </Card>
     </section>
   );
 }
