@@ -1,0 +1,106 @@
+/**
+ * Mock users dataset for IT Admin account management until GET /api/users supports active accounts.
+ * Layer: page fixture. Called by web/pages/it-admin/UsersPage.tsx.
+ * Calls: shared/types/users.ts.
+ * Used by: the IT Admin's Users page.
+ */
+import type { User } from "@shared/types/users";
+
+/** Initial mock users array representing DLSU accounts across roles, labs, and account statuses. */
+export const MOCK_USERS: User[] = [
+  {
+    userId: 1,
+    firstName: "System",
+    lastName: "Admin",
+    email: "itadmin@dlsu.edu.ph",
+    idNumber: 12000001,
+    userType: "FACULTY",
+    role: "IT_ADMIN",
+    roleLabel: "IT Admin",
+    accountStatus: "ACTIVE",
+    labs: [],
+    headOf: null,
+  },
+  {
+    userId: 2,
+    firstName: "Teresa",
+    lastName: "Santos",
+    email: "teresa.santos@dlsu.edu.ph",
+    idNumber: 11800002,
+    userType: "FACULTY",
+    role: "RESEARCHER",
+    roleLabel: "Researcher",
+    accountStatus: "ACTIVE",
+    labs: [
+      { centerId: 1, code: "CITe4D" },
+      { centerId: 2, code: "CAR" },
+    ],
+    headOf: { centerId: 1, code: "CITe4D" },
+  },
+  {
+    userId: 3,
+    firstName: "Mark",
+    lastName: "Reyes",
+    email: "mark.reyes@dlsu.edu.ph",
+    idNumber: 11900003,
+    userType: "STAFF",
+    role: "TSG_STAFF",
+    roleLabel: "TSG Staff",
+    accountStatus: "ACTIVE",
+    labs: [],
+    headOf: null,
+  },
+  {
+    userId: 4,
+    firstName: "Elena",
+    lastName: "Cruz",
+    email: "elena.cruz@dlsu.edu.ph",
+    idNumber: 11500004,
+    userType: "FACULTY",
+    role: "ADRIC_DIRECTOR",
+    roleLabel: "AdRIC Director",
+    accountStatus: "ACTIVE",
+    labs: [],
+    headOf: null,
+  },
+  {
+    userId: 5,
+    firstName: "Patricia",
+    lastName: "Ramos",
+    email: "patricia.ramos@dlsu.edu.ph",
+    idNumber: 12100005,
+    userType: "STAFF",
+    role: "ADRIC_SECRETARY",
+    roleLabel: "AdRIC Secretary",
+    accountStatus: "ACTIVE",
+    labs: [],
+    headOf: null,
+  },
+  {
+    userId: 6,
+    firstName: "Carlos",
+    lastName: "Dizon",
+    email: "carlos.dizon@dlsu.edu.ph",
+    idNumber: 12200006,
+    userType: "STUDENT",
+    role: "RESEARCHER",
+    roleLabel: "Researcher",
+    accountStatus: "INACTIVE",
+    labs: [{ centerId: 3, code: "HXIL" }],
+    headOf: null,
+  },
+  {
+    userId: 7,
+    firstName: "Julian",
+    lastName: "Mendoza",
+    email: "julian.mendoza@dlsu.edu.ph",
+    idNumber: 12300007,
+    userType: "STUDENT",
+    role: null,
+    roleLabel: null,
+    accountStatus: "REJECTED",
+    labs: [{ centerId: 4, code: "CeLT" }],
+    headOf: null,
+  },
+];
+
