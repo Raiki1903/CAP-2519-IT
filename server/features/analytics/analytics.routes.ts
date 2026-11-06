@@ -11,7 +11,7 @@ import { requireAuth } from '../../shared/middleware/requireAuth';
 import { requireActive } from '../../shared/middleware/permissions';
 import { requireRole } from '../../shared/middleware/requireRole';
 
-/** The nine live analytics endpoints. Paths are written out in full, so app.ts mounts the router at the root. */
+/** The ten live analytics endpoints. Paths are written out in full, so app.ts mounts the router at the root. */
 export const analyticsRouter = express.Router();
 
 // Every route needs a session and one role (the approved 13b role table, rows 33 to 40). idle-time, idle-frequency, and
@@ -27,3 +27,5 @@ analyticsRouter.get('/api/analytics/lab-head', requireAuth, requireActive, requi
 analyticsRouter.get('/api/analytics/tsg', requireAuth, requireActive, requireRole('Staff'), analyticsController.getTsgAnalytics);
 // Insights: the three analytics views (Staff, which includes the Secretary, Lab Head, and Director). The service limits a Lab Head to their own lab.
 analyticsRouter.get('/api/analytics/insights', requireAuth, requireActive, requireRole('Staff', 'LabHead', 'AdRICDirector'), analyticsController.getInsights);
+// Loans per week: the same three views, and the service limits a Lab Head to their own lab.
+analyticsRouter.get('/api/analytics/utilization', requireAuth, requireActive, requireRole('Staff', 'LabHead', 'AdRICDirector'), analyticsController.getUtilization);

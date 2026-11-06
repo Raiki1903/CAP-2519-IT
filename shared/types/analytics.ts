@@ -256,3 +256,46 @@ export interface InsightsData {
   /** Sorted HIGH, MEDIUM, PLANNING, then the most urgent first, then by id. */
   insights: Insight[];
 }
+
+// ---------------------------------------------------------------------------
+// Loans per week: GET /api/analytics/utilization
+// ---------------------------------------------------------------------------
+
+/** One week of loans, Monday to Sunday in the server's time zone. */
+export interface UtilizationWeek {
+  /** The Monday, yyyy-mm-dd. */
+  weekStart: string;
+  /** Released loans that were out on any day of the week (from the release day to the closing day, or today if still open). */
+  loansOut: number;
+  /** Loans released during the week. */
+  loansReleased: number;
+}
+
+/** The weeks of one lab, or of all labs together, with the figures drawn under the chart. */
+export interface UtilizationSeries {
+  /** Oldest first, one entry for each requested week, this week last. */
+  weeks: UtilizationWeek[];
+  /** Mean whole days from release to closing over the closed loans in the weeks shown, one decimal; null when there are none. */
+  averageLoanDays: number | null;
+  /** The Mondays of up to three weeks with the most loans out, busiest first. Empty when no loan was out. */
+  busiestWeeks: string[];
+}
+
+/** One lab's series. A lab with no loan in the weeks shown is left out. */
+export interface LabUtilization extends UtilizationSeries {
+  centerId: number;
+  code: string;
+}
+
+/** The fields of GET /api/analytics/utilization next to `success: true`. This route has no `data` wrapper. */
+export interface UtilizationData {
+  /** Today in the server's time zone, yyyy-mm-dd. */
+  asOfDate: string;
+  /** How many weeks are shown, this week included. */
+  weekCount: number;
+  scope: InsightScope;
+  /** Every lab in scope added together: what the chart draws. */
+  total: UtilizationSeries;
+  /** The same figures per home lab of the asset, by lab code. */
+  labs: LabUtilization[];
+}

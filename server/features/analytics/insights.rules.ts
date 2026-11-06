@@ -101,6 +101,17 @@ export function daysBefore(day: string, days: number): Date {
     return new Date(Date.parse(`${day}T00:00:00Z`) - days * MS_PER_DAY);
 }
 
+/** The yyyy-mm-dd that is `days` after a yyyy-mm-dd. */
+export function addDays(day: string, days: number): string {
+    return new Date(Date.parse(`${day}T00:00:00Z`) + days * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+/** The Monday of the week a yyyy-mm-dd falls in. */
+export function mondayOf(day: string): string {
+    const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
+    return addDays(day, -((weekday + 6) % 7));
+}
+
 /**
  * Whole months from one yyyy-mm-dd to another: a month counts once its day of the month is reached. A purchase on the
  * 31st completes a month only in a month that has a 31st, which keeps the rule a plain calendar one.

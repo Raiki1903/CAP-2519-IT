@@ -2,8 +2,9 @@
  * Analytics controller: reads the query, calls the service, and writes the JSON answers.
  * Layer: controller. Called by analytics.routes.ts. Calls analytics.validation.ts and analytics.service.ts.
  * Used by: the Director, Lab Head, and Staff analytics views.
- * Every route but insights answers `{ success: true, data }`, and none of those refuses with 400 or 404. The insights route
- * answers `{ success: true, ...fields }`; its 400 and 403 are thrown by insights.validation.ts and insights.service.ts.
+ * Every route but insights and utilization answers `{ success: true, data }`, and none of those refuses with 400 or 404. The
+ * insights and utilization routes answer `{ success: true, ...fields }`; their 400 and 403 are thrown by the insights.* and
+ * utilization.* validation and service files, and by analytics.scope.ts.
  * Errors are not caught here: any failure falls through to shared/middleware/errorHandler.ts, which answers a generic 500
  * and logs the detail on the server.
  */
@@ -12,6 +13,8 @@ import * as analyticsService from './analytics.service';
 import { readCategoryQuery, readDirectorFilters, readLabHeadFilters, readLabQuery } from './analytics.validation';
 import * as insightsService from './insights.service';
 import { readInsightsQuery } from './insights.validation';
+import * as utilizationService from './utilization.service';
+import { readUtilizationQuery } from './utilization.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 /** Handles GET /api/analytics/advanced/idle-time: how long the ACTIVE assets have been idle, in three groups. Optional `?lab`. */
@@ -78,5 +81,15 @@ export async function getTsgAnalytics(req: Request, res: Response): Promise<void
 export async function getInsights(req: Request, res: Response): Promise<void> {
     const query = readInsightsQuery(req.query);
     const data = await insightsService.insightsFor(sessionUserOf(req), query);
+    res.json({ success: true, ...data });
+}
+
+/**
+ * Handles GET /api/analytics/utilization: loans out and released per week, per lab and in total. Optional `?weeks` (1 to 52,
+ * default 12) and `?centerId`. "Today" is never read from the query.
+ */
+export async function getUtilization(req: Request, res: Response): Promise<void> {
+    const query = readUtilizationQuery(req.query);
+    const data = await utilizationService.utilizationFor(sessionUserOf(req), query);
     res.json({ success: true, ...data });
 }
