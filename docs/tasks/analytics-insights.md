@@ -130,3 +130,23 @@ Typecheck must stay 25 or lower; build passes; all tests pass.
 ## 11. Not in this work
 
 Stored procedures, DEMAND-05, admin-editable thresholds, saved dismissals or insight history, email or bell notifications, any action button, new packages, schema changes, the Sankey (gone already), changes to existing charts beyond adding the panel and the P2 chart.
+
+---
+
+## Decision Log
+
+| Date | Item | What changed and why |
+|---|---|---|
+| 2026-11-06 | D1 | Plain Prisma queries in `server/features/analytics/` (repository, service). No stored procedures, views or triggers. Stored procedures go to Recommendations. |
+| 2026-11-06 | D2 | Five rules: WAR-01, LOAN-02, REP-03, LIFE-04, COND-05. COND-05 replaces DEMAND-05 (Macy's documented fallback). DEMAND-05 (cross-lab borrowing) goes to Recommendations. |
+| 2026-11-06 | D3 | LIFE-04 age limits are demo-only: Monitor 60, Router 60, Dev Kit 48 months. Other categories never fire. The note says "review point, not policy". |
+| 2026-11-06 | D4 | Evaluated on request. Nothing stored, no scheduler. |
+| 2026-11-06 | D5 | The loans per week chart (CAP1DEF 8) is P2: built only after P1 is done and checked. |
+| 2026-11-06 | LOAN-02 adaptation | Counts Return Requested as well as On Loan, because the asset is still the borrower's until TSG receives it (the contract's overdue rule). Macy's draft had only On Loan. |
+| 2026-11-06 | REP-03 adaptation | Counts every ticket type, not only TSG Maintenance. The server allows one open ticket per asset, so duplicate borrower reports cannot inflate the count, and a borrower report or a damaged return is a real repair incident. Tickets are read one row each, so no join multiplies rows. |
+| 2026-11-06 | "Today" (Raiki, Q1 = B) | `asOf` comes from `serverToday()` in `assetState.ts`, the server's local day, so LOAN-02 agrees with the overdue flag, the warranty check at receipt and the reminders. The deploy starts the API with `TZ=Asia/Manila` under pm2. DATE columns (`warranty_expiry`, `procurement_date`, `return_by`) are compared as their UTC yyyy-mm-dd, like `dateOnly()` in `assetState.ts`. DateTime columns (`reported_at`, `inspected_at`) use the local day, `serverToday(d)`, as `notifications.service.ts` does. The service still takes `asOf` as a parameter for tests. A fix for `serverToday()` on a UTC host comes after Nov 9. |
+| 2026-11-06 | Route answer shape | The fields sit next to `success: true` with no `data` wrapper, as the brief's section 5 shows. The other analytics routes use `{ success, data }`. |
+| 2026-11-06 | Contract row | The planned "Insights" row in `lifecycle.md` section 7.9 (replace soon, most requested, loans per week) is replaced by the section 5 shape. The snapshot and inventory report rows are untouched. The loan-length bullets under the table stay for the loans per week route (P2). |
+| 2026-11-06 | Rule details the brief left open | REP-03: a ticket reported exactly 180 days back counts, 181 does not. LIFE-04: whole months follow the calendar day (bought on the 8th, a month is complete on the 8th). COND-05: "the two latest" means the two newest TSG inspections; if they fall on the same day the rule does not look further back. |
+| 2026-11-06 | Sort order | HIGH, MEDIUM, PLANNING, then a per-rule urgency number (fewest warranty days, most days late, most tickets, most months old, biggest condition drop), then `id`. The brief names no number for COND-05, so the size of the drop is used. Numbers from different rules are compared as they are, which is only a tie-break inside one priority. |
+| 2026-11-06 | Alternatives text | Macy's plan file (`AdRIC_AMS_Actionable_Analytics_Implementation_Plan.md`) was not available to the agent. The one or two alternatives per rule in `insights.text.ts` are written by the agent in neutral words, for Macy to replace or confirm. |
