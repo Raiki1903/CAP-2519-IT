@@ -131,3 +131,18 @@ export async function reactivateUser(req: Request<{ userId: string }>, res: Resp
     console.log(`User ${userId} reactivated by user ${itAdminId}`);
     res.json({ success: true, user });
 }
+
+/**
+ * Handles PUT /api/users/:userId/anonymize: replaces the personal data of an Inactive or Rejected, cleared account.
+ * Answers `{ success, user }`, or the AppError's status and message (400 own account; 404 no such account; 409
+ * already anonymized, not Inactive or Rejected, or not cleared), or 500.
+ */
+export async function anonymizeUser(req: Request<{ userId: string }>, res: Response): Promise<void> {
+    const userId = readUserId(req.params.userId);
+    const itAdminId = sessionUserOf(req).userId;
+
+    const user = await usersService.anonymizeUser(userId, itAdminId);
+
+    console.log(`User ${userId} anonymized by user ${itAdminId}`);
+    res.json({ success: true, user });
+}

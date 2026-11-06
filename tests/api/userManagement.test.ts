@@ -1,9 +1,10 @@
 /**
  * The IT Admin's account management after sign-up (module 6): the users list and its filters, changing an
- * account's role and labs, setting a lab's Head, and deactivating and reactivating an account.
+ * account's role and labs, setting a lab's Head, deactivating and reactivating an account, and anonymizing one.
  * Covers GET /api/users with status, role, centerId, and q, PUT /api/users/:userId/role,
- * PUT /api/users/:userId/labs, PUT /api/research-centers/:centerId/head, PUT /api/users/:userId/deactivate, and
- * PUT /api/users/:userId/reactivate, and that an Inactive account is refused. Workflow: account management.
+ * PUT /api/users/:userId/labs, PUT /api/research-centers/:centerId/head, PUT /api/users/:userId/deactivate,
+ * PUT /api/users/:userId/reactivate, and PUT /api/users/:userId/anonymize, and that an Inactive or anonymized account
+ * cannot log in. Workflow: account management and the Data Privacy Act.
  * Fixtures: the seeded accounts and LAB (headed by the Lab Head). A second lab (TEST2) is made here, each Head test
  * makes labs of its own (HEAD1 onward), and each loan a test needs gets an extra asset (TEST-0801 onward). Each test
  * makes the accounts it changes, so the seeded ones stay as seeded; the Lab Head only gets steps that leave it as it was.
@@ -55,7 +56,7 @@ async function makeAccount(options: { status?: users_account_status; role?: Role
   });
   if (role) await db.user_roles.create({ data: { user_id: row.user_id, role_id: ROLE_IDS[role] } });
   if (centerIds.length > 0) await db.user_centers.createMany({ data: centerIds.map((centerId) => ({ user_id: row.user_id, center_id: centerId })) });
-  return { userId: row.user_id, email: row.email, lastName: row.last_name };
+  return { userId: row.user_id, email: row.email, lastName: row.last_name, idNumber: row.id_number };
 }
 
 let loanCount = 0;
@@ -485,6 +486,100 @@ describe("PUT /api/users/:userId/deactivate and /reactivate", () => {
   });
 });
 
+describe("PUT /api/users/:userId/anonymize", () => {
+  const anonymize = (userId: number) => asItAdmin.put(`/api/users/${userId}/anonymize`);
+
+  it("replaces each personal field, removes the photo and the labs, and keeps the loans and the log rows", async () => {
+    const person = await makeAccount({ centerIds: [LAB.centerId, SECOND_LAB.centerId], photo: "data:image/png;base64,VGVzdCBwaG90bw==" });
+    const loan = await giveLoan(person.userId, "RETURNED");
+    await asItAdmin.put(`/api/users/${person.userId}/deactivate`);
+
+    const res = await anonymize(person.userId);
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({
+      userId: person.userId, firstName: "Former", lastName: "researcher", email: `anonymized-${person.userId}@invalid`, idNumber: null, accountStatus: "INACTIVE", labs: [],
+    });
+    const row = await db.users.findUniqueOrThrow({ where: { user_id: person.userId }, include: { user_roles: true } });
+    expect(row).toMatchObject({ first_name: "Former", last_name: "researcher", email: `anonymized-${person.userId}@invalid`, id_number: null, password: "", user_img: null });
+    expect(row.anonymized_at).toBeInstanceOf(Date);
+    expect(row.user_roles).toHaveLength(1);
+    expect(await db.user_centers.count({ where: { user_id: person.userId } })).toBe(0);
+    expect(await db.asset_loans.findUniqueOrThrow({ where: { loan_id: loan.loan_id } })).toMatchObject({ borrower_id: person.userId, status: "RETURNED" });
+    expect(await logRowsFor(person.userId, "USER_DEACTIVATED")).toHaveLength(1);
+    const logs = await logRowsFor(person.userId, "USER_ANONYMIZED");
+    expect(logs).toMatchObject([{ actor_id: USERS.admin.userId }]);
+    expect(JSON.stringify(logs)).not.toContain(person.email);
+  });
+
+  it("leaves no way to log in, and frees the email and ID number for a new sign-up", async () => {
+    const person = await makeAccount({ status: "INACTIVE" });
+    await anonymize(person.userId);
+
+    const oldEmail = await api.post("/api/auth/login", { email: person.email, password: PASSWORD });
+    const newEmail = await api.post("/api/auth/login", { email: `anonymized-${person.userId}@invalid`, password: "" });
+    const anyPassword = await api.post("/api/auth/login", { email: `anonymized-${person.userId}@invalid`, password: PASSWORD });
+    const signUpAgain = await api.post("/api/auth/register-request", {
+      firstName: "Test", lastName: "Returning", email: person.email, idNumber: person.idNumber, userType: "STUDENT", password: PASSWORD, centerIds: [LAB.centerId],
+    });
+
+    expect(oldEmail.status).toBe(401);
+    // Login refuses an empty password before it looks at any account.
+    expect(newEmail.status).toBe(400);
+    expect(anyPassword.status).toBe(401);
+    expect(signUpAgain.status, JSON.stringify(signUpAgain.body)).toBe(201);
+  });
+
+  it("anonymizes a Rejected sign-up", async () => {
+    const { userId } = await makeAccount({ status: "REJECTED", role: null });
+
+    const res = await anonymize(userId);
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({ firstName: "Former", accountStatus: "REJECTED" });
+  });
+
+  it.each([
+    ["Active", { status: "ACTIVE", role: "RESEARCHER" }, "Only an Inactive or Rejected account can be anonymized."],
+    ["Pending", { status: "PENDING", role: null }, "Only an Inactive or Rejected account can be anonymized."],
+  ] as const)("answers 409 for an %s account, and changes nothing", async (_label, options, message) => {
+    const person = await makeAccount(options);
+
+    const res = await anonymize(person.userId);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: message });
+    expect(await db.users.findUniqueOrThrow({ where: { user_id: person.userId } })).toMatchObject({ email: person.email, anonymized_at: null });
+  });
+
+  it("answers 409 for an account that is not cleared, and keeps its data", async () => {
+    const person = await makeAccount({ status: "INACTIVE" });
+    await giveLoan(person.userId, "ON_LOAN");
+
+    const res = await anonymize(person.userId);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ success: false, error: "This account still has unreturned equipment, so it is not cleared." });
+    expect((await db.users.findUniqueOrThrow({ where: { user_id: person.userId } })).email).toBe(person.email);
+    expect(await logRowsFor(person.userId, "USER_ANONYMIZED")).toEqual([]);
+  });
+
+  it("answers 409 a second time, 400 for the IT Admin's own account, and 404 for no such account", async () => {
+    const { userId } = await makeAccount({ status: "INACTIVE" });
+    expect((await anonymize(userId)).status).toBe(200);
+
+    const again = await anonymize(userId);
+    const own = await anonymize(USERS.admin.userId);
+    const missing = await anonymize(999999);
+
+    expect(again.status).toBe(409);
+    expect(again.body).toEqual({ success: false, error: "This account is already anonymized." });
+    expect(own.status).toBe(400);
+    expect(missing.status).toBe(404);
+    expect(await logRowsFor(userId, "USER_ANONYMIZED")).toHaveLength(1);
+  });
+});
+
 describe("who may use the account management endpoints", () => {
   const target = USERS.custodianB.userId;
   const routes: [string, string][] = [
@@ -494,6 +589,7 @@ describe("who may use the account management endpoints", () => {
     ["PUT", `/api/research-centers/${LAB.centerId}/head`],
     ["PUT", `/api/users/${target}/deactivate`],
     ["PUT", `/api/users/${target}/reactivate`],
+    ["PUT", `/api/users/${target}/anonymize`],
   ];
   const send = (client: ReturnType<typeof as> | typeof api, method: string, path: string) =>
     method === "GET" ? client.get(path) : client.put(path, {});

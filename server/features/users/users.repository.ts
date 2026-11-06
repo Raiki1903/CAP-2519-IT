@@ -1,6 +1,6 @@
 /**
- * Account row access for the IT Admin: the users list with its filters, Pending sign-ups, and approving or rejecting
- * one with its role, labs, and log row.
+ * Account row access for the IT Admin: the users list with its filters; approving or rejecting a Pending sign-up; and
+ * each later change (role, labs, a lab's Head, status, anonymizing), each in one transaction with its log row.
  * Layer: repository. Called by users.service.ts. Calls config/prisma.ts, shared/services/rowLocks.ts, and
  * shared/services/activityLog.ts.
  * Used by: the IT Admin's Approvals and Users pages.
@@ -329,5 +329,34 @@ export function setAccountStatus(
             where: { user_id: userId },
             data: { account_status: status, status_decided_at: new Date(), status_decided_by_id: itAdminId },
         });
+    });
+}
+
+/**
+ * Anonymizes the account for the Data Privacy Act, and writes a USER_ANONYMIZED row. Each personal field is replaced
+ * as the contract's Anonymize table says, the photo is removed, and so are the account's labs. The empty password
+ * never verifies, so the account can never log in again. Loans, inspections, tickets, and log rows stay, under
+ * "Former researcher".
+ *
+ * @param userId the account
+ * @param itAdminId the session user who anonymizes it
+ * @param decide the service's rules, run on the locked account
+ * @returns the account as it is now, or null if there is none with this id
+ */
+export function anonymizeUser(userId: number, itAdminId: number, decide: DecideChange): Promise<UserRow | null> {
+    return changeAccount(userId, itAdminId, 'USER_ANONYMIZED', decide, async (tx) => {
+        await tx.users.update({
+            where: { user_id: userId },
+            data: {
+                first_name: 'Former',
+                last_name: 'researcher',
+                email: `anonymized-${userId}@invalid`,
+                id_number: null,
+                password: '',
+                user_img: null,
+                anonymized_at: new Date(),
+            },
+        });
+        await tx.user_centers.deleteMany({ where: { user_id: userId } });
     });
 }

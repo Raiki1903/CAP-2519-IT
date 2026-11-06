@@ -1,8 +1,10 @@
 /**
- * Users service: the IT Admin's rules for accounts: the users list, and for Pending sign-ups, approving or rejecting one.
+ * Users service: the IT Admin's rules for accounts: the users list; approving or rejecting a Pending sign-up; and,
+ * after sign-up, the role, the labs, a lab's Head, deactivating, reactivating, and anonymizing.
  * Layer: service. Called by users.controller.ts. Calls users.repository.ts.
  * Used by: the IT Admin's Approvals and Users pages.
  */
+import { UNCLEARED_LOAN_STATUSES } from '@shared/constants/loanStatuses';
 import { DATABASE_ROLE_LABELS, type DatabaseRole } from '@shared/enums/role';
 import type {
     ApproveSignUpInput, ChangeLabsInput, ChangeRoleInput, LabHead, RejectSignUpInput, SetLabHeadInput, User, UserListFilters,
@@ -249,6 +251,31 @@ export async function reactivateUser(userId: number, itAdminId: number): Promise
     return changedUser(await usersRepository.setAccountStatus(userId, 'ACTIVE', 'USER_REACTIVATED', itAdminId, (account) => {
         if (account.anonymized) throw new AppError(409, "This account is anonymized and can't be reactivated.");
         if (account.status !== 'INACTIVE') throw new AppError(409, "Only an Inactive account can be reactivated.");
+        return null;
+    }));
+}
+
+/**
+ * Anonymizes an Inactive or Rejected account that is cleared (no unreturned equipment), for a person who has left.
+ * The step cannot be undone. The person's email and ID number are free again for a new sign-up.
+ *
+ * @param userId the account
+ * @param itAdminId the session user who anonymizes it (never from the body)
+ * @returns the account, now "Former researcher" with no labs
+ * @throws AppError 400 if the account is the IT Admin's own
+ * @throws AppError 404 if there is no such account
+ * @throws AppError 409 if the account is already anonymized, is not Inactive or Rejected, or is not cleared
+ */
+export async function anonymizeUser(userId: number, itAdminId: number): Promise<User> {
+    refuseOwnAccount(userId, itAdminId);
+    return changedUser(await usersRepository.anonymizeUser(userId, itAdminId, (account) => {
+        if (account.anonymized) throw new AppError(409, "This account is already anonymized.");
+        if (account.status !== 'INACTIVE' && account.status !== 'REJECTED') {
+            throw new AppError(409, "Only an Inactive or Rejected account can be anonymized.");
+        }
+        if (account.openLoanStatuses.some(status => UNCLEARED_LOAN_STATUSES.includes(status))) {
+            throw new AppError(409, "This account still has unreturned equipment, so it is not cleared.");
+        }
         return null;
     }));
 }
