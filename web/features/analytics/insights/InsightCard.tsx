@@ -1,6 +1,6 @@
 /**
  * Insight card: one advice note with its priority, issue, and suggested next step, a Why section with the evidence and
- * other options, and a Dismiss button. Compact, to fit three to a column of the Insights block. Read-only: no button
+ * other options, and a Dismiss button in the top right corner. Compact, to fit three to a column of the Insights block. Read-only: no button
  * starts a workflow.
  * Layer: feature component. Called by InsightsPanel.tsx. Calls insightPriorityStyles.ts and components/ui (badge, button).
  * Used by: the Insights section of the Staff, Lab Head, and Director analytics.
@@ -33,12 +33,23 @@ export function InsightCard({ insight, chartTitle, onDismiss }: InsightCardProps
 
   return (
     <div className={cn("rounded-lg border border-border border-l-4 bg-card p-2.5 text-xs shadow-sm", insightPriorityAccentClass(insight.priority))}>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Badge variant="outline" className={cn("px-1.5 py-0 text-[10px]", insightPriorityBadgeClass(insight.priority))}>
-          {INSIGHT_PRIORITY_LABELS[insight.priority]}
-        </Badge>
-        <h3 className="text-xs font-extrabold text-foreground">{insight.title}</h3>
-        <span className="font-mono text-[11px] text-muted-foreground">{insight.assetTag} · {insight.labCode}</span>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Badge variant="outline" className={cn("px-1.5 py-0 text-[10px]", insightPriorityBadgeClass(insight.priority))}>
+            {INSIGHT_PRIORITY_LABELS[insight.priority]}
+          </Badge>
+          <h3 className="text-xs font-extrabold text-foreground">{insight.title}</h3>
+          <span className="font-mono text-[11px] text-muted-foreground">{insight.assetTag} · {insight.labCode}</span>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-mr-1 -mt-0.5 h-6 shrink-0 px-1 text-[11px] text-muted-foreground"
+          onClick={() => onDismiss(insight.id)}
+          aria-label={`Dismiss ${insight.title} for ${insight.assetTag}`}
+        >
+          <X size={12} /> Dismiss
+        </Button>
       </div>
       <p className="mt-1 text-foreground">{insight.issue}</p>
       <p className="mt-0.5 text-muted-foreground">
@@ -47,7 +58,7 @@ export function InsightCard({ insight, chartTitle, onDismiss }: InsightCardProps
       </p>
       {chartTitle && <p className="mt-0.5 text-[11px] text-muted-foreground">Related chart on this page: {chartTitle}</p>}
 
-      <div className="mt-1 flex items-center justify-between">
+      <div className="mt-1">
         <Button
           variant="ghost"
           size="sm"
@@ -56,15 +67,6 @@ export function InsightCard({ insight, chartTitle, onDismiss }: InsightCardProps
           onClick={() => setShowWhy(open => !open)}
         >
           {showWhy ? <ChevronUp size={12} /> : <ChevronDown size={12} />} Why
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-1 text-[11px] text-muted-foreground"
-          onClick={() => onDismiss(insight.id)}
-          aria-label={`Dismiss ${insight.title} for ${insight.assetTag}`}
-        >
-          <X size={12} /> Dismiss
         </Button>
       </div>
 
