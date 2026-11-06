@@ -203,7 +203,7 @@ COND-05 replaces DEMAND-05. The alternatives for COND-05 are ours, because your 
 
 ## Stop 4 browser checks
 
-Done by the agent with Playwright on the local `adric_uat_check` copy only (never CCS Cloud), on 2026-11-06, started with `C:\dev\uat-data\start-local-uat.ps1`. Raiki ran `C:\dev\uat-data\uat-insights-setup.sql` first. Screenshots are in `%TEMP%\insights-checks\`. This is the first layout (home previews and tabs); the reworked layout is checked below.
+Done by the agent with Playwright on the local `adric_uat_check` copy only (never CCS Cloud), on 2026-11-06, started with `C:\dev\uat-data\start-local-uat.ps1`. Raiki ran `C:\dev\uat-data\uat-insights-setup.sql` first. Its screenshots were deleted after the rework. This is the first layout (home previews and tabs); the reworked layout is checked below.
 
 - **TSG (UAT Staff One):** System Overview shows the top 3 (UATI-005 and UATI-011 High loans, UATI-001 High warranty) and "See all in Analytics". Analytics shows 15 Operational and 1 Strategic. Every qualifying case appears with the right priority. UATI-003 (warranty 91 days) and UATI-006 (loan 7 days late) are absent. Why shows the evidence rows and "Other options", Dismiss lowers the tab count, the Strategic tab shows UATI-008, and the related-chart line shows on a warranty card ("Warranties Ending in 90 Days") and a repair card ("Repair Operations Kanban Board").
 - **Secretary:** not checked in the browser, because the UAT account list has no Secretary account. The Secretary is app role Staff, the same guard and the same panel as TSG, and the API test calls the route as the Secretary. UAT Staff Two (also TSG) was not opened.
