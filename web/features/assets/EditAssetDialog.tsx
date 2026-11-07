@@ -10,6 +10,7 @@ import { useState } from "react";
 import * as assetsApi from "@web/api/assets.api";
 import type { AssetUpdateInput } from "@shared/types/assets";
 import { useFormLookups } from "@web/features/lookups/useLookups";
+import { compressImage, ASSET_PHOTO_MAX_SIDE, PHOTO_UNREADABLE_MESSAGE } from "@web/features/images/compressImage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Button } from "@web/components/ui/button";
 import { Input } from "@web/components/ui/input";
@@ -196,21 +197,24 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
             <Input
               type="file"
               accept=".jpg,.jpeg,.png"
-              onChange={e => {
-                const file = e.target.files?.[0];
+              onChange={async e => {
+                const input = e.target;
+                const file = input.files?.[0];
                 if (!file) return;
                 if (!/\.(jpg|jpeg|png)$/i.test(file.name)) {
                   alert("Security Error: Only valid .jpg and .png image files are permitted!");
-                  e.target.value = "";
+                  input.value = "";
                   return;
                 }
-                // TODO(M-17): the photo is sent and stored as a base64 string inside the asset row. Phase 3.
-                const reader = new FileReader();
-                reader.onload = ev => {
-                  setForm({ ...form, imageUrl: ev.target?.result as string });
+                try {
+                  // TODO(M-17): the photo is sent and stored as a base64 string inside the asset row. Phase 3.
+                  const photo = await compressImage(file, ASSET_PHOTO_MAX_SIDE);
+                  setForm(f => ({ ...f, imageUrl: photo }));
                   setError(null);
-                };
-                reader.readAsDataURL(file);
+                } catch {
+                  setError(PHOTO_UNREADABLE_MESSAGE);
+                  input.value = "";
+                }
               }}
               className="text-xs w-full text-slate-500 cursor-pointer"
             />

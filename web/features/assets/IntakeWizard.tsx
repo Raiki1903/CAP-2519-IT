@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Label } from "@web/components/ui/label";
 import { Separator } from "@web/components/ui/separator";
 import { useFormLookups } from "@web/features/lookups/useLookups";
+import { compressImage, ASSET_PHOTO_MAX_SIDE, PHOTO_UNREADABLE_MESSAGE } from "@web/features/images/compressImage";
 
 interface IntakeForm {
   name: string;
@@ -167,20 +168,23 @@ export function IntakeWizard() {
                 <Input
                   type="file"
                   accept=".jpg,.jpeg,.png"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
+                  onChange={async e => {
+                    const input = e.target;
+                    const file = input.files?.[0];
                     if (!file) return;
                     if (!/\.(jpg|jpeg|png)$/i.test(file.name)) {
                       alert("Security Error: Only valid .jpg and .png image files are permitted!");
-                      e.target.value = "";
+                      input.value = "";
                       return;
                     }
-                    // TODO(M-17): the photo is sent and stored as a base64 string inside the asset row. Phase 3.
-                    const reader = new FileReader();
-                    reader.onload = ev => {
-                      setForm({ ...form, image: ev.target?.result as string });
-                    };
-                    reader.readAsDataURL(file);
+                    try {
+                      // TODO(M-17): the photo is sent and stored as a base64 string inside the asset row. Phase 3.
+                      const photo = await compressImage(file, ASSET_PHOTO_MAX_SIDE);
+                      setForm(f => ({ ...f, image: photo }));
+                    } catch {
+                      alert(PHOTO_UNREADABLE_MESSAGE);
+                      input.value = "";
+                    }
                   }}
                   className="text-xs text-slate-500 cursor-pointer"
                 />
