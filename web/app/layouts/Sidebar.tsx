@@ -64,7 +64,8 @@ const roleConfig: Record<Role, {
   AdRICDirector: {
     nav: [
       { id: "overview",           label: "Overview",            icon: Monitor       },
-      { id: "analytics",          label: "Analytics",            icon: BarChart3     },
+      { id: "inventory",          label: "Asset Inventory",     icon: Package       },
+      { id: "analytics",         label: "Analytics",            icon: BarChart3     },
       { id: "clearance-disposal", label: "Disposal Approvals",    icon: ClipboardCheck },
       { id: "reports",            label: "Inventory Report",    icon: ClipboardList },
     ],
