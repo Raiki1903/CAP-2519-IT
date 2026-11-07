@@ -124,7 +124,8 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="overview" replace /> },
           { path: "overview",           element: <AdRICDirectorDashboard activeTab="overview" /> },
-          { path: "analytics",          element: <AdRICDirectorDashboard activeTab="analytics" /> },
+          { path: "inventory",          element: <InventoryPage readOnly /> },
+          { path: "analytics",         element: <AdRICDirectorDashboard activeTab="analytics" /> },
           { path: "clearance-disposal", element: <AdRICDirectorDashboard activeTab="clearance-disposal" /> },
           { path: "reports",            element: <AdRICDirectorDashboard activeTab="reports" /> },
           { path: "account",            element: <AccountDetailsPage /> },

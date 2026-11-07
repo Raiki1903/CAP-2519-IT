@@ -1,9 +1,9 @@
 /**
- * Staff Inventory: every asset, in gallery or table view, with search, filters, sorting, and the active and decommissioned sub-tabs.
- * Layer: page. Called by app/routes.tsx at /staff/inventory.
+ * Asset Inventory: every asset, in gallery or table view, with search, filters, sorting, and the in-service and disposed sub-tabs.
+ * Layer: page. Called by app/routes.tsx at /staff/inventory (with edit, decommission, and delete) and at /adric-director/inventory (read-only).
  * Calls: features/assets (useStaffAssets, assetSearch, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx,
  * features/lookups/useLookups.ts (the funding filter), state/serverData.tsx syncFromDb().
- * Used by: Staff asset editing, deletion, and disposal requests.
+ * Used by: Staff asset editing, deletion, and disposal requests; the AdRIC Director's view of the inventory.
  */
 import { useState } from "react";
 import { useServerData } from "@web/state/serverData";
@@ -28,9 +28,11 @@ import { Search, LayoutGrid, Table2, Pencil, Archive, Trash2 } from "lucide-reac
 /**
  * Lists the assets and opens the edit, decommission, and delete dialogs for an active one.
  * Each dialog saves through its own feature component; this page reloads its list afterwards.
- * Takes no props.
+ *
+ * @param readOnly when true (the AdRIC Director's page), the Edit, Decommission, and Delete buttons, the table's
+ *   Action column, and the three dialogs are left out. Search, filters, sorting, views, and the detail modal stay.
  */
-export function InventoryPage() {
+export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
   const { syncFromDb } = useServerData();
   const { lookups } = useFormLookups();
   const { displayedAssets, fetchDbAssets } = useStaffAssets();
@@ -154,9 +156,9 @@ export function InventoryPage() {
                 key={eq.id}
                 eq={eq}
                 onSelect={() => setSelectedAsset(openAsset(eq))}
-                onDelete={inventorySubTab === "active" ? () => setAssetToDelete(eq.id) : undefined}
-                onEdit={inventorySubTab === "active" ? () => setEditingAsset(eq) : undefined}
-                onDecommission={inventorySubTab === "active" ? () => setDisposalAsset(eq) : undefined}
+                onDelete={!readOnly && inventorySubTab === "active" ? () => setAssetToDelete(eq.id) : undefined}
+                onEdit={!readOnly && inventorySubTab === "active" ? () => setEditingAsset(eq) : undefined}
+                onDecommission={!readOnly && inventorySubTab === "active" ? () => setDisposalAsset(eq) : undefined}
               />
             ))}
           </div>
@@ -165,7 +167,7 @@ export function InventoryPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
-                  {["", "Asset ID", "Name", "Category", "Availability", "Custodian", "Location", "Condition", "Funding", "Action"].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
+                  {["", "Asset ID", "Name", "Category", "Availability", "Custodian", "Location", "Condition", "Funding", ...(readOnly ? [] : ["Action"])].map(h => <TableHead key={h} className="text-[10px] font-bold tracking-wider">{h}</TableHead>)}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -180,7 +182,7 @@ export function InventoryPage() {
                     <TableCell className="text-xs text-muted-foreground">{eq.currentLocation || eq.location}</TableCell>
                     <TableCell><ConditionState value={eq.assetCondition} /></TableCell>
                     <TableCell><Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">{eq.funding}</Badge></TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    {!readOnly && <TableCell onClick={(e) => e.stopPropagation()}>
                       {inventorySubTab === "active" ? (
                         <div className="flex items-center gap-1">
                           <Button
@@ -214,7 +216,7 @@ export function InventoryPage() {
                       ) : (
                         <span className="text-[10px] uppercase font-bold text-red-500 tracking-wider">Decommissioned</span>
                       )}
-                    </TableCell>
+                    </TableCell>}
                   </TableRow>
                 ))}
               </TableBody>
@@ -226,7 +228,7 @@ export function InventoryPage() {
       <AssetDetailModal asset={selectedAsset} onClose={() => setSelectedAsset(null)} />
 
       {/* Edit Asset Dialog */}
-      {editingAsset && (
+      {!readOnly && editingAsset && (
         <EditAssetDialog
           key={editingAsset.id}
           asset={editingAsset}
@@ -239,7 +241,7 @@ export function InventoryPage() {
       )}
 
       {/* Disposal Form Dialog */}
-      {disposalAsset && (
+      {!readOnly && disposalAsset && (
         <DisposalFormDialog
           key={disposalAsset.id}
           asset={disposalAsset}
@@ -249,7 +251,7 @@ export function InventoryPage() {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <DeleteAssetDialog assetToDelete={assetToDelete} onClose={() => setAssetToDelete(null)} onDeleted={fetchDbAssets} />
+      {!readOnly && <DeleteAssetDialog assetToDelete={assetToDelete} onClose={() => setAssetToDelete(null)} onDeleted={fetchDbAssets} />}
     </div>
   );
 }
