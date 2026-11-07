@@ -171,7 +171,7 @@ Move-Item pending_registrations.json C:\dev\uat-data\
 Remove-Item pending_registrations.json
 ```
 
-**A rejected sign-up keeps its email and ID number.** The account is Rejected, not deleted, so the same person gets 409 "An account with this email or ID number already exists. Ask the IT Admin." when they sign up again. To free the email and ID number, the IT Admin anonymizes the account (contract section 4: the name, email and ID number are replaced, and the history stays). That is module 6's Users page; until it ships, no screen does it, and nobody changes the database by hand.
+**A rejected sign-up keeps its email and ID number.** The account is Rejected, not deleted, so the same person gets 409 "An account with this email or ID number already exists. Ask the IT Admin." when they sign up again. To free the email and ID number, the IT Admin anonymizes the account (contract section 4: the name, email and ID number are replaced, and the history stays). Anonymize is a step on the IT Admin's Users page, and nobody changes the database by hand.
 
 **Failed logins** are counted in the server's memory: 5 failures for one email from one address within 15 minutes block that pair for 15 minutes (429). A server restart clears the count. On a local copy, restart the app (`start-local-uat.ps1`) to try again at once.
 
