@@ -139,7 +139,7 @@ Also not part of this work: a password reset by the IT Admin, email or bell noti
 
 ## Hand checks (Stop 4)
 
-Written for Raiki, to run by hand. The agent did not run them, and used no browser. Every check uses **`adric_uat_check` only** (the local copy), on branch `feat/module-6-it-admin`. Nothing here touches CCS Cloud. Find this section by searching the exact heading text `Hand checks (Stop 4)` in `docs/tasks/module-6-it-admin.md`; the checks are H1 to H21. Each ends with a Pass line for you to fill in.
+Written for Raiki, to run by hand. After they were written, an agent ran H1 to H21 with Playwright (two browser contexts as the two windows) and filled the Pass lines; Raiki added and removed the filler rows of H20 himself. Every check uses **`adric_uat_check` only** (the local copy), on branch `feat/module-6-it-admin`. Nothing here touches CCS Cloud. Find this section by searching the exact heading text `Hand checks (Stop 4)` in `docs/tasks/module-6-it-admin.md`; the checks are H1 to H21. Each ends with a Pass line.
 
 **Order.** Users first (H1 to H10), then Labs (H11, H12), then Tickets (H13 to H16), then who may open the IT Admin pages (H17), then the Activity Log (H18 to H20, last on purpose, so it shows every step above), then the nearby screens (H21). Each check builds on the one before it, so run them in order and in one sitting.
 
