@@ -85,6 +85,7 @@ export function IntakeWizard() {
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const { lookups, failed: lookupsFailed } = useFormLookups();
   const labs = lookups?.labs ?? [];
@@ -106,6 +107,7 @@ export function IntakeWizard() {
 
       syncFromDb();
       setForm(createEmptyForm(startingLab));
+      setPhotoError(null);
       setStep(1);
     } catch (err: any) {
       console.error("❌ Asset registration failed:", err);
@@ -172,6 +174,7 @@ export function IntakeWizard() {
                     const input = e.target;
                     const file = input.files?.[0];
                     if (!file) return;
+                    setPhotoError(null);
                     if (!/\.(jpg|jpeg|png)$/i.test(file.name)) {
                       alert("Security Error: Only valid .jpg and .png image files are permitted!");
                       input.value = "";
@@ -182,12 +185,13 @@ export function IntakeWizard() {
                       const photo = await compressImage(file, ASSET_PHOTO_MAX_SIDE);
                       setForm(f => ({ ...f, image: photo }));
                     } catch {
-                      alert(PHOTO_UNREADABLE_MESSAGE);
+                      setPhotoError(PHOTO_UNREADABLE_MESSAGE);
                       input.value = "";
                     }
                   }}
                   className="text-xs text-slate-500 cursor-pointer"
                 />
+                {photoError && <p className="text-[11px] font-semibold text-red-600">{photoError}</p>}
                 {form.image && (
                   <div className="mt-1 flex items-center gap-2 bg-muted/30 p-1.5 rounded border border-border">
                     <img src={form.image} alt="Preview" className="w-8 h-8 object-cover rounded border" />
