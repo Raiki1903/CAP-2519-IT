@@ -32,6 +32,7 @@ import {
 } from "@web/components/ui/select";
 import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
+import { compressImage, ASSET_PHOTO_MAX_SIDE, PHOTO_UNREADABLE_MESSAGE } from "@web/features/images/compressImage";
 import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { SUGGESTED_HEALTH_SCORE, type AssetCondition } from "@shared/enums/assetCondition";
 
@@ -325,13 +326,14 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
           : isHealthy ? "border-emerald-400"
             : "border-border";
 
-  const handleImageFiles = (files: FileList | null) => {
+  const handleImageFiles = async (files: FileList | null) => {
     if (!files) return;
-    Array.from(files).slice(0, 5 - reportImages.length).forEach(f => {
-      const reader = new FileReader();
-      reader.onload = ev => { if (ev.target?.result) setReportImages(p => [...p, ev.target!.result as string]); };
-      reader.readAsDataURL(f);
-    });
+    setReportError(null);
+    const picked = Array.from(files).slice(0, 5 - reportImages.length);
+    const results = await Promise.allSettled(picked.map(f => compressImage(f, ASSET_PHOTO_MAX_SIDE)));
+    const photos = results.flatMap(r => (r.status === "fulfilled" ? [r.value] : []));
+    if (photos.length > 0) setReportImages(p => [...p, ...photos].slice(0, 5));
+    if (photos.length < results.length) setReportError(PHOTO_UNREADABLE_MESSAGE);
   };
 
   const handleSubmitReport = async () => {
@@ -722,7 +724,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                 <div className="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center"><Upload size={18} className="text-emerald-600" /></div>
                 <p className="text-sm font-bold text-foreground text-center">Take or upload a current physical picture of the asset</p>
                 <p className="text-xs text-muted-foreground text-center">to confirm status and check-in presence</p>
-                <p className="text-[11px] text-muted-foreground">PNG, JPG, HEIC · up to 5 photos · 10MB each</p>
+                <p className="text-[11px] text-muted-foreground">PNG or JPG · up to 5 photos</p>
               </div>
               <input ref={fileInputRef} type="file" multiple accept="image/*" onChange={e => handleImageFiles(e.target.files)} className="hidden" />
               {reportImages.length > 0 && (
