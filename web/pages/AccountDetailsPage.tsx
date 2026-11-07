@@ -9,6 +9,7 @@ import { useState, useRef, useEffect } from "react";
 import { useSession, roleLabel } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
 import { SupportTickets } from "@web/features/tickets/SupportTickets";
+import { compressImage, PROFILE_PHOTO_MAX_SIDE, PHOTO_UNREADABLE_MESSAGE } from "@web/features/images/compressImage";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Label } from "@web/components/ui/label";
 import { Input } from "@web/components/ui/input";
@@ -49,6 +50,7 @@ export function AccountDetailsPage() {
   const [dbUser, setDbUser] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   // Fetch live user credentials directly from MySQL Database in Prisma Studio
   useEffect(() => {
@@ -82,22 +84,25 @@ export function AccountDetailsPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      if (ev.target?.result) {
-        const uploadedImg = ev.target.result as string;
-        setAvatar(uploadedImg);
-        try {
-          await updateProfile(firstName || currentUser?.firstName || "", lastName || currentUser?.lastName || "", uploadedImg);
-        } catch (err) {
-          console.error("Failed to save uploaded picture", err);
-        }
-      }
-    };
-    reader.readAsDataURL(file);
+    setPhotoError(null);
+    let uploadedImg: string;
+    try {
+      uploadedImg = await compressImage(file, PROFILE_PHOTO_MAX_SIDE);
+    } catch {
+      setPhotoError(PHOTO_UNREADABLE_MESSAGE);
+      input.value = "";
+      return;
+    }
+    setAvatar(uploadedImg);
+    try {
+      await updateProfile(firstName || currentUser?.firstName || "", lastName || currentUser?.lastName || "", uploadedImg);
+    } catch (err) {
+      console.error("Failed to save uploaded picture", err);
+    }
   };
 
   const handlePresetSelect = async (presetUrl: string) => {
@@ -199,6 +204,7 @@ export function AccountDetailsPage() {
                   className="hidden"
                 />
                 <p className="text-[10px] text-muted-foreground">Select from presets or upload a custom institutional avatar photo.</p>
+                {photoError && <p className="text-[11px] font-semibold text-red-600">{photoError}</p>}
               </div>
             </div>
 
