@@ -48,7 +48,8 @@ export function CompleteDisposalDialog({ retirement, onClose, onDone }: { retire
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-md">
+      {/* z-[60]: this opens over AssetDetailModal, whose card is at z-index 51. */}
+      <DialogContent className="max-w-md z-[60]" overlayClassName="z-[60]">
         <DialogHeader>
           <DialogTitle className="text-sm font-bold text-foreground">Complete the disposal</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">

@@ -56,15 +56,20 @@ function DialogOverlay({
   );
 }
 
-/** The dialog window, with its overlay and a close button. */
+/**
+ * The dialog window, with its overlay and a close button.
+ *
+ * @param overlayClassName optional classes for the overlay, for example a higher z-index when the dialog opens over another modal
+ */
 function DialogContent({
   className,
+  overlayClassName,
   children,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content>) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { overlayClassName?: string }) {
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
