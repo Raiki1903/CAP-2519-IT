@@ -1,7 +1,7 @@
 /**
  * Builds the Express app: the middleware, in order, then the routes, then the error handler.
  * Layer: server app. Called by main.ts. Calls the routes files of features/loans, notifications, retirements, maintenance,
- * inspections, auth, users, assets, analytics, and lookups, shared/middleware/errorHandler.ts, and config/env.ts (the web origin for CORS).
+ * inspections, auth, users, activity-log, tickets, assets, analytics, and lookups, shared/middleware/errorHandler.ts, and config/env.ts (the web origin for CORS).
  * Used by: every request to the API.
  */
 import express from 'express';
@@ -13,6 +13,8 @@ import { maintenanceRouter } from './features/maintenance/maintenance.routes';
 import { inspectionsRouter } from './features/inspections/inspections.routes';
 import { authRouter } from './features/auth/auth.routes';
 import { usersRouter } from './features/users/users.routes';
+import { activityLogRouter } from './features/activity-log/activityLog.routes';
+import { ticketsRouter } from './features/tickets/tickets.routes';
 import { assetsRouter } from './features/assets/assets.routes';
 import { analyticsRouter } from './features/analytics/analytics.routes';
 import { lookupsRouter } from './features/lookups/lookups.routes';
@@ -47,6 +49,8 @@ app.use(maintenanceRouter);
 app.use(inspectionsRouter);
 app.use(authRouter);
 app.use(usersRouter);
+app.use(activityLogRouter);
+app.use(ticketsRouter);
 app.use(assetsRouter);
 app.use(analyticsRouter);
 app.use(lookupsRouter);

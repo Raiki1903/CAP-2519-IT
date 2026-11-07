@@ -74,16 +74,25 @@ describe("GET /api/users?status=PENDING", () => {
       role: null,
       roleLabel: null,
       accountStatus: "PENDING",
+      anonymizedAt: null,
       labs: [{ centerId: LAB.centerId, code: LAB.shortCode }, { centerId: SECOND_LAB.centerId, code: SECOND_LAB.shortCode }],
       headOf: null,
     });
   });
 
-  it.each(["", "?status=ACTIVE", "?status=pending", "?status=PENDING&role=RESEARCHER", "?q=Test"])("answers 400 for the query %j", async (query) => {
+  it.each([
+    ["?status=pending", "Choose a status: PENDING, ACTIVE, INACTIVE, or REJECTED."],
+    ["?status=PENDING&status=ACTIVE", 'Send the filter "status" once.'],
+    ["?role=LAB_HEAD", "Choose a role: Researcher, TSG Staff, AdRIC Director, AdRIC Secretary, or IT Admin."],
+    ["?centerId=abc", "The lab id must be a positive whole number."],
+    ["?centerId=999999", "No lab has this id."],
+    ["?sort=name", 'Unknown filter "sort". Use status, role, centerId, or q.'],
+    [`?q=${"x".repeat(101)}`, "The search can be at most 100 characters."],
+  ])("answers 400 for the query %j", async (query, message) => {
     const res = await asItAdmin.get(`/api/users${query}`);
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ success: false, error: "Only status=PENDING is available for now." });
+    expect(res.body).toEqual({ success: false, error: message });
   });
 });
 

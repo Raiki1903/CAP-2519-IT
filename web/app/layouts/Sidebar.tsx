@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Shield, LogOut, Monitor, Users, Wrench, QrCode,
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
-  ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck, ArrowLeftRight
+  ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck, ArrowLeftRight, ScrollText, LifeBuoy
 } from "lucide-react";
 import { useSession, roleToSlug, roleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
@@ -72,6 +72,9 @@ const roleConfig: Record<Role, {
   ITAdmin: {
     nav: [
       { id: "approvals", label: "Approvals", icon: ShieldCheck },
+      { id: "users", label: "Users", icon: Users },
+      { id: "activity-log", label: PAGE_TITLES.activityLog, icon: ScrollText },
+      { id: "tickets", label: PAGE_TITLES.tickets, icon: LifeBuoy },
     ],
   },
 };

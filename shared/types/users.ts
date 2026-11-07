@@ -26,9 +26,24 @@ export interface User {
   role: DatabaseRole | null;
   roleLabel: string | null;
   accountStatus: AccountStatus;
+  /** When the IT Admin anonymized the account (ISO time), or null. An anonymized account can't be changed any more. */
+  anonymizedAt: string | null;
   /** Every lab the account belongs to, by code. For a Pending sign-up, the labs it asked for. */
   labs: UserLab[];
   headOf: UserLab | null;
+}
+
+/**
+ * The filters of GET /api/users, each optional and one value each. With no status, every account but the Pending
+ * ones is listed.
+ */
+export interface UserListFilters {
+  status?: AccountStatus;
+  role?: DatabaseRole;
+  /** A lab the account belongs to. */
+  centerId?: number;
+  /** Part of the name, email, or ID number, trimmed; any case. */
+  q?: string;
 }
 
 /** The body of PUT /api/users/:userId/approve. */
@@ -36,6 +51,30 @@ export interface ApproveSignUpInput {
   role: DatabaseRole;
   /** The account's labs from now on, each once: at least one for a Researcher, zero or more for the other roles. */
   centerIds: number[];
+}
+
+/** The body of PUT /api/users/:userId/role. */
+export interface ChangeRoleInput {
+  role: DatabaseRole;
+}
+
+/** The body of PUT /api/users/:userId/labs. */
+export interface ChangeLabsInput {
+  /** The account's labs from now on, each once: at least one for a Researcher. */
+  centerIds: number[];
+}
+
+/** The body of PUT /api/research-centers/:centerId/head. */
+export interface SetLabHeadInput {
+  /** The account that heads the lab from now on, or null to leave the lab with no Head. */
+  userId: number | null;
+}
+
+/** A lab and its Head, as PUT /api/research-centers/:centerId/head answers it. */
+export interface LabHead {
+  centerId: number;
+  code: string;
+  headUserId: number | null;
 }
 
 /** The body of PUT /api/users/:userId/reject. */

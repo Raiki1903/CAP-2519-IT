@@ -1,6 +1,6 @@
 /**
- * The help ticket types and statuses (user_tickets.type and .status), and their labels.
- * Layer: shared. Imported by the server and web/ once the ticket endpoints exist (module 6). Imports nothing.
+ * The help ticket types and statuses (user_tickets.type and .status), their labels, and the field limits.
+ * Layer: shared. Imported by server/features/tickets/ and web/ (module 6). Imports nothing.
  * Used by: help tickets to the IT Admin.
  */
 
@@ -31,3 +31,23 @@ export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   RESOLVED: "Resolved",
   REJECTED: "Rejected",
 };
+
+/** The longest ticket title, the length of user_tickets.title. */
+export const TICKET_TITLE_MAX_LENGTH = 150;
+
+/** The longest ticket description. */
+export const TICKET_DESCRIPTION_MAX_LENGTH = 2000;
+
+/** The longest resolution remarks. */
+export const TICKET_REMARKS_MAX_LENGTH = 1000;
+
+/** The statuses the IT Admin may move a ticket to, from each status. Resolved and Rejected are final. */
+export const TICKET_STATUS_MOVES: Record<TicketStatus, readonly TicketStatus[]> = {
+  OPEN: ["IN_PROGRESS", "RESOLVED", "REJECTED"],
+  IN_PROGRESS: ["RESOLVED", "REJECTED"],
+  RESOLVED: [],
+  REJECTED: [],
+};
+
+/** The statuses that close a ticket: they need resolution remarks, and record who closed it and when. */
+export const TICKET_CLOSING_STATUSES: readonly TicketStatus[] = ["RESOLVED", "REJECTED"];

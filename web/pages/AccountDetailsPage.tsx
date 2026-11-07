@@ -1,12 +1,14 @@
 /**
  * Account screen: the signed-in user's name, lab, and profile picture, with a form to change them.
  * Layer: page. Called by app/routes.tsx at /<role>/account, for every role.
- * Calls: api/auth.api.ts getMe(), state/session.tsx updateProfile().
+ * Calls: api/auth.api.ts getMe(), state/session.tsx updateProfile(), features/tickets/SupportTickets.tsx (the Support
+ * tickets section below the profile form).
  * Used by: every role.
  */
 import { useState, useRef, useEffect } from "react";
 import { useSession, roleLabel } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
+import { SupportTickets } from "@web/features/tickets/SupportTickets";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Label } from "@web/components/ui/label";
 import { Input } from "@web/components/ui/input";
@@ -320,6 +322,8 @@ export function AccountDetailsPage() {
           </Button>
         </div>
       </form>
+
+      <SupportTickets />
     </div>
   );
 }

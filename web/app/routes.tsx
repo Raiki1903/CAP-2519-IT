@@ -21,6 +21,9 @@ import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";
 import { ApprovalsPage } from "@web/pages/it-admin/ApprovalsPage";
+import { UsersPage } from "@web/pages/it-admin/UsersPage";
+import { ActivityLogPage } from "@web/pages/it-admin/ActivityLogPage";
+import { TicketsPage } from "@web/pages/it-admin/TicketsPage";
 import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
 import { AccountabilityFormPage } from "@web/pages/shared/AccountabilityFormPage";
 import { ClearancePrintPage } from "@web/pages/staff/ClearancePrintPage";
@@ -134,6 +137,9 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="approvals" replace /> },
           { path: "approvals", element: <ApprovalsPage /> },
+          { path: "users",     element: <UsersPage /> },
+          { path: "activity-log", element: <ActivityLogPage /> },
+          { path: "tickets",   element: <TicketsPage /> },
           { path: "account",   element: <AccountDetailsPage /> },
         ],
       },
