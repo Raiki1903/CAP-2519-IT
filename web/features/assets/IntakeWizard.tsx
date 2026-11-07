@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Label } from "@web/components/ui/label";
 import { Separator } from "@web/components/ui/separator";
 import { useFormLookups } from "@web/features/lookups/useLookups";
+import { compressImage, ASSET_PHOTO_MAX_SIDE, PHOTO_UNREADABLE_MESSAGE } from "@web/features/images/compressImage";
 
 interface IntakeForm {
   name: string;
@@ -84,6 +85,7 @@ export function IntakeWizard() {
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const { lookups, failed: lookupsFailed } = useFormLookups();
   const labs = lookups?.labs ?? [];
@@ -105,6 +107,7 @@ export function IntakeWizard() {
 
       syncFromDb();
       setForm(createEmptyForm(startingLab));
+      setPhotoError(null);
       setStep(1);
     } catch (err: any) {
       console.error("❌ Asset registration failed:", err);
@@ -167,23 +170,28 @@ export function IntakeWizard() {
                 <Input
                   type="file"
                   accept=".jpg,.jpeg,.png"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
+                  onChange={async e => {
+                    const input = e.target;
+                    const file = input.files?.[0];
                     if (!file) return;
+                    setPhotoError(null);
                     if (!/\.(jpg|jpeg|png)$/i.test(file.name)) {
                       alert("Security Error: Only valid .jpg and .png image files are permitted!");
-                      e.target.value = "";
+                      input.value = "";
                       return;
                     }
-                    // TODO(M-17): the photo is sent and stored as a base64 string inside the asset row. Phase 3.
-                    const reader = new FileReader();
-                    reader.onload = ev => {
-                      setForm({ ...form, image: ev.target?.result as string });
-                    };
-                    reader.readAsDataURL(file);
+                    try {
+                      // TODO(M-17): the photo is sent and stored as a base64 string inside the asset row. Phase 3.
+                      const photo = await compressImage(file, ASSET_PHOTO_MAX_SIDE);
+                      setForm(f => ({ ...f, image: photo }));
+                    } catch {
+                      setPhotoError(PHOTO_UNREADABLE_MESSAGE);
+                      input.value = "";
+                    }
                   }}
                   className="text-xs text-slate-500 cursor-pointer"
                 />
+                {photoError && <p className="text-[11px] font-semibold text-red-600">{photoError}</p>}
                 {form.image && (
                   <div className="mt-1 flex items-center gap-2 bg-muted/30 p-1.5 rounded border border-border">
                     <img src={form.image} alt="Preview" className="w-8 h-8 object-cover rounded border" />

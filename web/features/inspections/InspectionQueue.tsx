@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useServerData } from "@web/state/serverData";
 import * as inspectionsApi from "@web/api/inspections.api";
 import { EMPTY_INSPECTION, InspectionFields, toInspectionInput, type InspectionFieldsValue } from "@web/features/inspections/InspectionFields";
+import { compressImage, ASSET_PHOTO_MAX_SIDE, PHOTO_UNREADABLE_MESSAGE } from "@web/features/images/compressImage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import { Button } from "@web/components/ui/button";
@@ -226,14 +227,16 @@ export function InspectionQueue({ onReportSaved }: { onReportSaved: () => Promis
                     accept="image/*"
                     id="inspection-img-input"
                     className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setPhoto(reader.result as string);
-                        };
-                        reader.readAsDataURL(file);
+                    onChange={async (e) => {
+                      const input = e.target;
+                      const file = input.files?.[0];
+                      if (!file) return;
+                      setSubmitError(null);
+                      try {
+                        setPhoto(await compressImage(file, ASSET_PHOTO_MAX_SIDE));
+                      } catch {
+                        setSubmitError(PHOTO_UNREADABLE_MESSAGE);
+                        input.value = "";
                       }
                     }}
                   />

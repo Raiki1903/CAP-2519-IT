@@ -14,6 +14,7 @@ import { Label } from "@web/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@web/components/ui/select";
 import { useFormLookups } from "@web/features/lookups/useLookups";
 import { LabMultiSelect } from "@web/features/labs/LabMultiSelect";
+import { compressImage, PROFILE_PHOTO_MAX_SIDE, PHOTO_UNREADABLE_MESSAGE } from "@web/features/images/compressImage";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@shared/constants/passwords";
 import {
   ID_NUMBER_MESSAGE, ID_NUMBER_PATTERN, NO_LAB_MESSAGE, SIGN_UP_EMAIL_DOMAIN, SIGN_UP_EMAIL_MESSAGE,
@@ -63,16 +64,17 @@ export function Register() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (ev.target?.result) {
-        setAvatar(ev.target.result as string);
-      }
-    };
-    reader.readAsDataURL(file);
+    setError("");
+    try {
+      setAvatar(await compressImage(file, PROFILE_PHOTO_MAX_SIDE));
+    } catch {
+      setError(PHOTO_UNREADABLE_MESSAGE);
+      input.value = "";
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
