@@ -241,7 +241,8 @@ export function ServerDataProvider({ children }: { children: React.ReactNode }) 
 
   // Every list needs a session, so nothing loads until someone is logged in (after login, or when a page load
   // restores the session). A logout empties the lists, so the next person in this tab never sees them.
-  // The IT Admin has no asset screens, so none of these lists is loaded for it.
+  // None of these lists is loaded for the IT Admin: its one asset screen, the read-only Asset Inventory, loads its own
+  // list (features/assets/useStaffAssets.ts).
   useEffect(() => {
     if (!role || role === "ITAdmin") {
       setAssets([]);

@@ -1,9 +1,10 @@
 /**
  * Full asset list: loads every asset when a page that shows them opens.
  * Layer: feature component (data hook). Called by the pages in pages/staff/ that show assets
- * (Overview, Inventory, Inspections, Returns, QR Tags); the Inventory page is also the AdRIC Director's read-only Asset Inventory.
+ * (Overview, Inventory, Inspections, Returns, QR Tags); the Inventory page is also the AdRIC Director's and the IT
+ * Admin's read-only Asset Inventory. The IT Admin gets no shared list, so its page shows only the list loaded here.
  * Calls: api/assets.api.ts listAssets(), state/serverData.tsx (the shared asset list).
- * Used by: Staff and the AdRIC Director.
+ * Used by: Staff, the AdRIC Director, and the IT Admin.
  */
 import { useState, useEffect, useRef } from "react";
 import { useServerData } from "@web/state/serverData";

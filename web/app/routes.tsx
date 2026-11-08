@@ -132,13 +132,15 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // IT Admin routes. Module 6 adds Users, Activity Log, and Tickets pages here.
+      // IT Admin routes. Asset Inventory is the Director's read-only page: the IT Admin takes no asset steps there,
+      // and deletes remarks from the asset modal.
       {
         path: "it-admin",
         children: [
           { index: true, element: <Navigate to="approvals" replace /> },
           { path: "approvals", element: <ApprovalsPage /> },
           { path: "users",     element: <UsersPage /> },
+          { path: "inventory", element: <InventoryPage readOnly /> },
           { path: "activity-log", element: <ActivityLogPage /> },
           { path: "tickets",   element: <TicketsPage /> },
           { path: "account",   element: <AccountDetailsPage /> },
