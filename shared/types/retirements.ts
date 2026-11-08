@@ -75,7 +75,7 @@ export interface RetirementRecordAsset {
   tsgTag: string | null;
 }
 
-/** The answer of GET /api/retirements/:retirementId (contract 7.5), for the printable Asset Disposal Record. */
+/** The answer of GET /api/retirements/:retirementId (contract 7.5), for the printable Asset Retirement Record. */
 export interface RetirementRecord {
   retirement: Retirement;
   asset: RetirementRecordAsset;

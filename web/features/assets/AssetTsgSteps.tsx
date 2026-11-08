@@ -1,5 +1,5 @@
 /**
- * TSG asset steps in the asset modal: mark an asset missing, mark a Missing asset found, and complete an approved disposal.
+ * TSG asset steps in the asset modal: mark an asset missing, mark a Missing asset found, and complete an approved retirement.
  * Layer: feature component. Called by features/assets/AssetDetailModal.tsx, for a TSG account only.
  * Calls: api/assets.api.ts markMissing() and markFound(), features/inspections/InspectionFields.tsx,
  * features/disposals/CompleteDisposalDialog.tsx, state/serverData.tsx (the disposal list, syncFromDb).
@@ -17,8 +17,8 @@ import { Search, PackageX, Trash2 } from "lucide-react";
 
 /**
  * Shows the step the asset's status allows. Available or On Loan: Mark Missing, with the reason (a held loan ends by
- * loss). Missing: Mark Found, with a Recovery inspection. Pending Retirement: the Complete Disposal button once the
- * disposal is Approved, else a note that it waits for a decision. Any other status shows nothing. A refusal shows the
+ * loss). Missing: Mark Found, with a Recovery inspection. Pending Retirement: the Complete Retirement button once the
+ * retirement is Approved, else a note that it waits for a decision. Any other status shows nothing. A refusal shows the
  * server's sentence.
  *
  * @param asset the asset (its tag and status)
@@ -62,13 +62,13 @@ export function AssetTsgSteps({ asset }: { asset: { id: string; status: string }
       <div className="mt-3 rounded-xl border border-red-200 bg-red-50/50 p-3 text-xs">
         {disposal?.status === "APPROVED" ? (
           <div className="flex items-center justify-between gap-3">
-            <p className="text-red-800"><strong>DISP-{disposal.retirementId}</strong> was approved. Complete it once the asset has left.</p>
+            <p className="text-red-800"><strong>RET-{disposal.retirementId}</strong> was approved. Complete it once the asset has left.</p>
             <Button size="sm" className="bg-red-700 hover:bg-red-800 text-white font-bold text-xs" onClick={() => setOpen("complete")}>
-              <Trash2 size={12} /> Complete Disposal
+              <Trash2 size={12} /> Complete Retirement
             </Button>
           </div>
         ) : (
-          <p className="text-red-800">{disposal ? `DISP-${disposal.retirementId} is waiting for the Director or the Secretary to decide it.` : "A disposal is waiting for a decision."}</p>
+          <p className="text-red-800">{disposal ? `RET-${disposal.retirementId} is waiting for the Director or the Secretary to decide it.` : "A retirement is waiting for a decision."}</p>
         )}
         {open === "complete" && disposal && (
           <CompleteDisposalDialog retirement={disposal} onClose={() => setOpen(null)} onDone={syncFromDb} />

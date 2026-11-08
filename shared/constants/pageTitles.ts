@@ -8,7 +8,7 @@
 /** One title per module. */
 export const PAGE_TITLES = {
   maintenance: "Repair and Maintenance",
-  disposal: "Asset Disposal",
+  disposal: "Asset Retirement",
   loans: "Asset Loans",
   assetInformation: "Asset Information",
   reports: "Reports and Analytics",

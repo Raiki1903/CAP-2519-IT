@@ -5,7 +5,7 @@
  * /idle-frequency, /loan-recommender. Not the 22 that step 12 moves to legacy/analytics-endpoints/ (test plan, section 3).
  * Workflow: read-only dashboards (Director, Lab Head, Staff).
  * Fixtures: the whole seed, since every endpoint counts every asset: six assets with values 1000 to 6000 and funding
- * "Test Grant", the loans LOAN-1 and LOAN-2, the repair MNT-1, the approved disposal DISP-1, the report RPT-1 of
+ * "Test Grant", the loans LOAN-1 and LOAN-2, the repair MNT-1, the approved disposal RET-1, the report RPT-1 of
  * 2026-03-01, the research center TEST with no projects. A test that needs more (a project, an overdue loan, a
  * warranty relative to today, an asset at another lab) adds it with extraAssets.ts (tags TEST-0701 onward) and
  * removes it in a finally block, so every test starts from the seed. Nothing here changes a seeded row. An asset's lab

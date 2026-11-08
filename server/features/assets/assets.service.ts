@@ -182,7 +182,7 @@ export async function listAssets(viewer: SessionIdentity, filters: AssetListFilt
             borrowedOn,
             dueDate,
             daysLeft,
-            disposalId: disposal ? `DISP-${disposal.retirement_id}` : undefined,
+            disposalId: disposal ? `RET-${disposal.retirement_id}` : undefined,
             disposalDetails,
             image: asset.image_url,
             image_url: asset.image_url,

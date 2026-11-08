@@ -207,7 +207,7 @@ export function RepairProgressDialog({ ticket, canAct, startMode = "view", onClo
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-bold"
                   >
                     <option value="RESOLVED">Resolved (the asset is Available again, back home)</option>
-                    <option value="BEYOND_REPAIR">Beyond Repair (the asset stays in Maintenance until a disposal is requested)</option>
+                    <option value="BEYOND_REPAIR">Beyond Repair (the asset stays in Maintenance until a retirement is requested)</option>
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">

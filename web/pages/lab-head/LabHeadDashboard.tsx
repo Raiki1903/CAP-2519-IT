@@ -697,7 +697,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                 <Table className="min-w-full text-[11px]">
                   <TableHeader>
                     <TableRow className="bg-emerald-50/30">
-                      {["Asset ID", "Disposal ID", "Asset Name", "Retirement Date", "Last Custodian", "Reason", "Disposal Pathway", "Retired By"].map(h => (
+                      {["Asset ID", "Retirement ID", "Asset Name", "Retirement Date", "Last Custodian", "Reason", "Pathway", "Retired By"].map(h => (
                         <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
                       ))}
                     </TableRow>
@@ -709,7 +709,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                       decommissionedAssets.map(a => (
                         <TableRow key={a.id}>
                           <TableCell className="font-bold text-red-800">{a.id}</TableCell>
-                          <TableCell className="font-bold text-emerald-800">{a.disposalId || a.id.replace("EQ", "DISP")}</TableCell>
+                          <TableCell className="font-bold text-emerald-800">{a.disposalId || a.id.replace("EQ", "RET")}</TableCell>
                           <TableCell className="font-semibold">{a.name}</TableCell>
                           <TableCell>{a.disposalDetails?.decommissionDate || "—"}</TableCell>
                           <TableCell>{a.disposalDetails?.lastCustodian || "—"}</TableCell>

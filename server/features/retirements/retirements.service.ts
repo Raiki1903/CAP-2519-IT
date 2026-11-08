@@ -31,13 +31,13 @@ import { sendEmail, emailTemplate } from '../../shared/services/mailer';
 import { escapeHtml } from '../../shared/utils/html';
 
 /** The 409 message when an asset in Maintenance is not ready for disposal. (Contract section 3, note 3) */
-export const NOT_BEYOND_REPAIR_MESSAGE = "Finish the maintenance ticket first. Only an asset found beyond repair can be disposed of from Maintenance.";
+export const NOT_BEYOND_REPAIR_MESSAGE = "Finish the maintenance ticket first. Only an asset found beyond repair can be retired from Maintenance.";
 
 /** The 403 message when the requester tries to decide their own disposal. */
-export const OWN_REQUEST_MESSAGE = "You requested this disposal, so someone else must decide it.";
+export const OWN_REQUEST_MESSAGE = "You requested this retirement, so someone else must decide it.";
 
 /** The 403 message when a Lab Head asks for the disposal record of another lab's asset. */
-export const NOT_YOUR_LAB_DISPOSAL_MESSAGE = "This asset belongs to another lab. Only that lab's Head can see its disposal record.";
+export const NOT_YOUR_LAB_DISPOSAL_MESSAGE = "This asset belongs to another lab. Only that lab's Head can see its retirement record.";
 
 /** A date-time as ISO 8601, or null. */
 const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
@@ -105,7 +105,7 @@ export async function listRetirements(statuses: RetirementStatus[] | null, viewe
 /** The disposal with this id, or a 404. */
 async function existingRetirement(retirementId: number) {
     const retirement = await retirementsRepository.findById(retirementId);
-    if (!retirement) throw new AppError(404, `No disposal request found with id ${retirementId}.`);
+    if (!retirement) throw new AppError(404, `No retirement request found with id ${retirementId}.`);
     return retirement;
 }
 
@@ -123,7 +123,7 @@ async function existingRetirement(retirementId: number) {
 export async function getRetirementRecord(retirementId: number, viewer: SessionIdentity): Promise<RetirementRecord> {
     const row = await existingRetirement(retirementId);
     const asset = await assetsRepository.findById(row.asset_id);
-    if (!asset) throw new AppError(404, `No disposal request found with id ${retirementId}.`);
+    if (!asset) throw new AppError(404, `No retirement request found with id ${retirementId}.`);
     if (!hasAccessRole(viewer, ["TSG_STAFF", "ADRIC_DIRECTOR", "ADRIC_SECRETARY"]) && viewer.headOfCenterId !== asset.center_id) {
         throw new AppError(403, NOT_YOUR_LAB_DISPOSAL_MESSAGE);
     }
@@ -159,7 +159,7 @@ export async function getRetirementRecord(retirementId: number, viewer: SessionI
 
 /** The 409 message when a disposal's status does not allow the step. */
 function wrongStatus(retirement: { retirement_id: number; status: asset_retirements_status }, step: string): AppError {
-    return new AppError(409, `DISP-${retirement.retirement_id} is ${RETIREMENT_STATUS_LABELS[retirement.status]}, so it ${step}.`);
+    return new AppError(409, `RET-${retirement.retirement_id} is ${RETIREMENT_STATUS_LABELS[retirement.status]}, so it ${step}.`);
 }
 
 /**
@@ -184,7 +184,7 @@ export async function requestRetirement(assetTag: string, data: RequestBody, req
     const retirement = await retirementsRepository.withAssetLock(existing.asset_id, async (tx) => {
         const asset = await retirementsRepository.findAssetIn(tx, existing.asset_id);
         const open = await retirementsRepository.findOpenRetirementIn(tx, asset.asset_id);
-        if (open) throw new AppError(409, `${asset.asset_tag} already has an open disposal request (DISP-${open.retirement_id}).`);
+        if (open) throw new AppError(409, `${asset.asset_tag} already has an open retirement request (RET-${open.retirement_id}).`);
         assertActionAllowed(asset, "REQUEST_RETIREMENT");
         if (asset.status === "MAINTENANCE") {
             const tickets = await retirementsRepository.findTicketStateIn(tx, asset.asset_id);
@@ -296,9 +296,9 @@ export function notifyDeciders(retirementId: number): Promise<void> {
         const requester = `${row.users.first_name} ${row.users.last_name}`;
         return sendEmail(
             [...new Set([...directors, ...secretaries])],
-            `New disposal request DISP-${row.retirement_id} (${row.assets.asset_tag})`,
-            emailTemplate("New disposal request", `
-                <p><strong>${escapeHtml(requester)}</strong> asked to dispose of <strong>${escapeHtml(row.assets.name)}</strong> (${escapeHtml(row.assets.asset_tag)}), request DISP-${row.retirement_id}.</p>
+            `New retirement request RET-${row.retirement_id} (${row.assets.asset_tag})`,
+            emailTemplate("New retirement request", `
+                <p><strong>${escapeHtml(requester)}</strong> asked to retire <strong>${escapeHtml(row.assets.name)}</strong> (${escapeHtml(row.assets.asset_tag)}), request RET-${row.retirement_id}.</p>
                 <p><strong>Reason:</strong> ${escapeHtml(row.reason)}</p>
                 <p><strong>Pathway:</strong> ${escapeHtml(row.pathway ? RETIREMENT_PATHWAY_LABELS[row.pathway] : "Not named yet")}</p>
                 <p>The Director or the Secretary approves or denies it in AdRIC Asset Management. The person who requested it cannot decide it.</p>
@@ -323,15 +323,15 @@ export function notifyDecision(retirementId: number): Promise<void> {
         const email = await authRepository.getUserEmail(row.requested_by_id);
         if (!email) return;
         const approved = row.status === asset_retirements_status.APPROVED;
-        const what = `Your disposal request DISP-${row.retirement_id} for <strong>${escapeHtml(row.assets.name)}</strong> (${escapeHtml(row.assets.asset_tag)})`;
+        const what = `Your retirement request RET-${row.retirement_id} for <strong>${escapeHtml(row.assets.name)}</strong> (${escapeHtml(row.assets.asset_tag)})`;
         const body = approved
-            ? `<p>${what} was approved.</p><p>TSG completes the disposal with its pathway and reference. Until then the asset stays Pending Retirement.</p>`
+            ? `<p>${what} was approved.</p><p>TSG completes the retirement with its pathway and reference. Until then the asset stays Pending Retirement.</p>`
             : `<p>${what} was denied. The asset is back to ${escapeHtml(row.previous_status ? ASSET_STATUS_LABELS[row.previous_status] : ASSET_STATUS_LABELS.AVAILABLE)}.</p>
                <p><strong>Remarks:</strong> ${escapeHtml(row.decision_remarks ?? "")}</p>`;
         return sendEmail(
             email,
-            `Disposal request DISP-${row.retirement_id} ${approved ? "approved" : "denied"}`,
-            emailTemplate(`Disposal request ${approved ? "approved" : "denied"}`, body),
+            `Retirement request RET-${row.retirement_id} ${approved ? "approved" : "denied"}`,
+            emailTemplate(`Retirement request ${approved ? "approved" : "denied"}`, body),
         );
     }).catch(error => {
         console.error(`Failed to send the decision email for disposal ${retirementId}:`, error?.name || 'Error');

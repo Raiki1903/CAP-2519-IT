@@ -4,7 +4,7 @@
  * (also the Director's and the IT Admin's read-only Asset Inventory).
  * Calls: api/assets.api.ts getAssetHistory(), api/maintenance.api.ts reportIssue() (TSG's flag), features/lookups/useLookups.ts,
  * features/assets/AssetRemarks.tsx (the Remarks section), features/assets/AssetTsgSteps.tsx (Missing, Found, complete a
- * disposal), state/serverData.tsx reloadLoans(), and the loan, return, and repair forms.
+ * retirement), state/serverData.tsx reloadLoans(), and the loan, return, and repair forms.
  * Used by: Custodian requests, Lab Head custody review, TSG maintenance flagging and Record Return, and every role's remarks.
  */
 import { useState, useEffect } from "react";
@@ -414,14 +414,14 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                         </div>
                       </div>
 
-                      {/* Disposal details card */}
+                      {/* Retirement details card */}
                       {asset.status === "RETIRED" && (
                         <div className="bg-red-50/50 border border-red-200/50 rounded-xl p-4 mt-4">
                           <p className="text-xs font-bold text-red-800">Asset Retired</p>
                           <p className="text-[10px] text-red-600/80 mt-1">This hardware unit has been permanently retired and is no longer in service.</p>
                           {asset.disposalDetails && (
                             <div className="mt-3 text-left border-t border-red-200/30 pt-2.5 space-y-1 font-mono text-[10px] text-red-800">
-                              <p><strong>Disposal ID:</strong> {asset.disposalId}</p>
+                              <p><strong>Retirement ID:</strong> {asset.disposalId}</p>
                               <p><strong>Retired By:</strong> {asset.disposalDetails.decommissionedBy ?? "Not shown"}</p>
                               <p><strong>Last Custodian:</strong> {asset.disposalDetails.lastCustodian ?? "Not shown"}</p>
                               <p><strong>Pathway:</strong> {asset.disposalDetails.disposalPathway}</p>
@@ -433,10 +433,10 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                               size="sm"
                               variant="outline"
                               className="h-7 text-[10px] font-bold px-2 mt-3 gap-1.5 bg-white"
-                              onClick={() => window.open(`/retirements/${asset.disposalId!.replace(/^DISP-/, "")}/record`, "_blank")}
+                              onClick={() => window.open(`/retirements/${asset.disposalId!.replace(/^RET-/, "")}/record`, "_blank")}
                             >
                               <Printer size={12} />
-                              Print Disposal Record
+                              Print Retirement Record
                             </Button>
                           )}
                         </div>

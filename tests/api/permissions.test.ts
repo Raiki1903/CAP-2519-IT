@@ -119,7 +119,7 @@ describe("the person who requested a retirement does not decide it", () => {
 
     const own = await as(USERS.secretary).put(`/api/retirements/${disposal.retirement_id}/decision`, { decision: "approve" });
     expect(own.status).toBe(403);
-    expect(own.body.error).toBe("You requested this disposal, so someone else must decide it.");
+    expect(own.body.error).toBe("You requested this retirement, so someone else must decide it.");
     expect((await db.asset_retirements.findUniqueOrThrow({ where: { retirement_id: disposal.retirement_id } })).status).toBe("PENDING");
 
     const other = await as(USERS.director).put(`/api/retirements/${disposal.retirement_id}/decision`, { decision: "approve" });

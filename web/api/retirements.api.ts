@@ -30,7 +30,7 @@ export function listRetirements(): Promise<ApiResult> {
 /**
  * The printable disposal record: one disposal, the asset fields it shows, and the present value at completion.
  *
- * @param retirementId numeric disposal id, without the "DISP-" prefix
+ * @param retirementId numeric disposal id, without the "RET-" prefix
  * @returns `success`, `retirement`, `asset`, and `presentValueAtCompletion`; or `error`
  */
 export function getRetirement(retirementId: number | string): Promise<ApiResult> {
@@ -40,7 +40,7 @@ export function getRetirement(retirementId: number | string): Promise<ApiResult>
 /**
  * The Director or the Secretary approves or denies a Pending disposal. The requester is refused by the server.
  *
- * @param retirementId numeric disposal id, without the "DISP-" prefix
+ * @param retirementId numeric disposal id, without the "RET-" prefix
  * @param body "approve", or "deny" with the remarks
  * @returns `success` and the decided `retirement`; or `error`
  */

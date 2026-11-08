@@ -3,7 +3,7 @@
  * the Secretary.
  * Layer: feature component. Called by pages/director/AdRICDirectorDashboard.tsx and features/notifications/NotificationCenter.tsx.
  * Calls: api/retirements.api.ts decideRetirement(), state/session.tsx (who is signed in).
- * Used by: the Director's Disposal Approvals tab and the bell of the Director and the Secretary.
+ * Used by: the Director's Retirement Approvals tab and the bell of the Director and the Secretary.
  */
 import { useState } from "react";
 import type { Retirement } from "@shared/types/retirements";
@@ -28,7 +28,7 @@ export function DisposalDecisionControls({ retirement, onDecided }: { retirement
 
   const isRequester = !("hidden" in retirement.requestedBy) && retirement.requestedBy.userId === currentUser?.userId;
   if (isRequester) {
-    return <p className="text-[10px] text-muted-foreground italic">You requested this disposal, so someone else decides it.</p>;
+    return <p className="text-[10px] text-muted-foreground italic">You requested this retirement, so someone else decides it.</p>;
   }
 
   const decide = async (decision: "approve" | "deny") => {
@@ -56,7 +56,7 @@ export function DisposalDecisionControls({ retirement, onDecided }: { retirement
           Deny
         </Button>
         <Button size="sm" disabled={working} className="bg-[#005A36] hover:bg-[#004225] text-white text-[10px] font-bold h-8 border-none" onClick={() => decide("approve")}>
-          {working && !denying ? "Working…" : "Approve Disposal"}
+          {working && !denying ? "Working…" : "Approve Retirement"}
         </Button>
       </div>
       {denying && (

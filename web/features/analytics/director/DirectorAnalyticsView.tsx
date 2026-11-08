@@ -178,13 +178,13 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
         <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Pending Disposal Items</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Pending Retirement Items</p>
               {waiting ? waitingFor("h-9 w-28") : (
                 <h2 className="text-3xl font-extrabold text-amber-600 mt-1 font-mono">
                   {pendingDisposalsCount} Items
                 </h2>
               )}
-              <p className="text-[11px] text-muted-foreground mt-1">Filtered disposal requests waiting for your approval</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Filtered retirement requests waiting for your approval</p>
             </div>
             <div className="p-3 bg-amber-50 dark:bg-amber-500/10 rounded-xl text-amber-600">
               <AlertTriangle size={28} />
