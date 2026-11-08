@@ -1,6 +1,6 @@
 /**
- * The demo seed's data: the 10 research centers, 11 demo accounts, 12 demo assets (one per status), and the lookup rows.
- * All invented or about institutions; nothing about real people.
+ * The demo seed's data: the 10 research centers, 30 demo accounts, 12 demo assets (one per status), and the lookup rows.
+ * All invented or about institutions; the personal names are from the pre-UAT dummy data, never real people.
  * Layer: database tooling. Read by prisma/seed.ts. Imports Prisma's enum types.
  * Used by: npm run seed.
  */
@@ -35,38 +35,107 @@ export const DEMO_LABS: DemoLab[] = [
   { name: "Technology, Education, Entertainment, Empathy, Design (TE3D) House", shortCode: "TE3D", location: "LAGUNA" },
 ];
 
-/** One demo account. Every name is invented; the password is not here (SEED_PASSWORD, set when seeding). */
+/**
+ * One demo account, as it is on the day the seed runs, with the account steps the IT Admin took on it. Days count back
+ * from that day. The password is not here (SEED_PASSWORD, set when seeding).
+ */
 export interface DemoAccount {
   userId: number;
+  firstName: string;
   lastName: string;
+  /** The sign-up email. An anonymized account is written with the placeholder anonymizeUser leaves instead. */
   email: string;
-  /** The account's one role, or null for a sign-up that has none yet. */
+  /** The account's one role now, or null for a sign-up that has none. */
   role: roles_role_name | null;
   userType: users_user_type;
   status: users_account_status;
-  /** Short codes of the labs the account belongs to (user_centers). */
+  /** Short codes of the labs the account belongs to now (user_centers); for an anonymized account, the labs it had. */
   labs: string[];
   /** Short code of the lab the account heads (research_centers.head_user_id), or null. */
   heads: string | null;
+  /** Days ago the IT Admin approved or rejected the sign-up; null when nobody did (the first IT Admin, a Pending one). */
+  decidedDaysAgo: number | null;
+  /** The role it was approved with, when the IT Admin changed it later (ROLE_CHANGED). */
+  approvedAs?: roles_role_name;
+  /** Days ago the role changed to `role`. */
+  roleChangedDaysAgo?: number;
+  /** The labs it was approved with, when the IT Admin changed them later (LABS_CHANGED). */
+  approvedLabs?: string[];
+  /** Days ago the labs changed to `labs`. */
+  labsChangedDaysAgo?: number;
+  /** Days ago the IT Admin set it as Head of `heads` (HEAD_CHANGED). */
+  headSinceDaysAgo?: number;
+  /** Days ago the IT Admin deactivated it. */
+  deactivatedDaysAgo?: number;
+  /** Days ago the IT Admin anonymized it. Its labs are gone and it is written as "Former researcher". */
+  anonymizedDaysAgo?: number;
+  /** The IT Admin's remarks on a rejected sign-up (the SIGNUP_REJECTED row's details). */
+  rejectRemarks?: string;
+}
+
+/** Lab Head office account for a lab: a Researcher, member and Head of that lab since the IT Admin approved it. */
+function labHead(userId: number, code: string, decidedDaysAgo: number): DemoAccount {
+  return {
+    userId, firstName: "Demo", lastName: `Lab Head ${code}`, email: `demo.labhead.${code.toLowerCase()}@dlsu.edu.ph`,
+    role: "RESEARCHER", userType: "FACULTY", status: "ACTIVE", labs: [code], heads: code,
+    decidedDaysAgo, headSinceDaysAgo: decidedDaysAgo,
+  };
+}
+
+/** A personal Researcher account. */
+function researcher(userId: number, letter: string, firstName: string, lastName: string, userType: users_user_type, labs: string[], decidedDaysAgo: number): DemoAccount {
+  return {
+    userId, firstName, lastName, email: `demo.researcher.${letter}@dlsu.edu.ph`,
+    role: "RESEARCHER", userType, status: "ACTIVE", labs, heads: null, decidedDaysAgo,
+  };
 }
 
 /**
- * The demo accounts. The Lab Heads are the labs' office accounts (Researcher role, set as the lab's Head).
- * Addresses are @dlsu.edu.ph because the login page accepts no other domain.
+ * The demo accounts. The Lab Heads are the labs' office accounts (Researcher role, set as the lab's Head). Accounts 1 to
+ * 11 keep the emails, roles, labs and Heads the manuals and smoke tests use. Personal names from 20 on come from the
+ * pre-UAT dummy data. Addresses are @dlsu.edu.ph because the login page accepts no other domain.
  */
 export const DEMO_ACCOUNTS: DemoAccount[] = [
-  { userId: 1, lastName: "IT Admin", email: "demo.admin@dlsu.edu.ph", role: "IT_ADMIN", userType: "STAFF", status: "ACTIVE", labs: [], heads: null },
-  { userId: 2, lastName: "Director", email: "demo.director@dlsu.edu.ph", role: "ADRIC_DIRECTOR", userType: "FACULTY", status: "ACTIVE", labs: [], heads: null },
-  { userId: 3, lastName: "Secretary", email: "demo.secretary@dlsu.edu.ph", role: "ADRIC_SECRETARY", userType: "STAFF", status: "ACTIVE", labs: [], heads: null },
-  { userId: 4, lastName: "TSG Staff A", email: "demo.tsg@dlsu.edu.ph", role: "TSG_STAFF", userType: "STAFF", status: "ACTIVE", labs: [], heads: null },
-  { userId: 5, lastName: "TSG Staff B", email: "demo.tsg.b@dlsu.edu.ph", role: "TSG_STAFF", userType: "STAFF", status: "ACTIVE", labs: [], heads: null },
-  { userId: 6, lastName: "Lab Head CITe4D", email: "demo.labhead.cite4d@dlsu.edu.ph", role: "RESEARCHER", userType: "FACULTY", status: "ACTIVE", labs: ["CITe4D"], heads: "CITe4D" },
-  { userId: 7, lastName: "Lab Head CAR", email: "demo.labhead.car@dlsu.edu.ph", role: "RESEARCHER", userType: "FACULTY", status: "ACTIVE", labs: ["CAR"], heads: "CAR" },
-  { userId: 8, lastName: "Researcher A", email: "demo.researcher.a@dlsu.edu.ph", role: "RESEARCHER", userType: "STUDENT", status: "ACTIVE", labs: ["CITe4D"], heads: null },
-  { userId: 9, lastName: "Researcher B", email: "demo.researcher.b@dlsu.edu.ph", role: "RESEARCHER", userType: "FACULTY", status: "ACTIVE", labs: ["CITe4D", "CAR"], heads: null },
-  { userId: 10, lastName: "Researcher C", email: "demo.researcher.c@dlsu.edu.ph", role: "RESEARCHER", userType: "STUDENT", status: "ACTIVE", labs: ["HXIL"], heads: null },
-  { userId: 11, lastName: "Pending Applicant", email: "demo.pending@dlsu.edu.ph", role: null, userType: "STUDENT", status: "PENDING", labs: ["CeLT"], heads: null },
+  { userId: 1, firstName: "Demo", lastName: "IT Admin", email: "demo.admin@dlsu.edu.ph", role: "IT_ADMIN", userType: "STAFF", status: "ACTIVE", labs: [], heads: null, decidedDaysAgo: null },
+  { userId: 2, firstName: "Demo", lastName: "Director", email: "demo.director@dlsu.edu.ph", role: "ADRIC_DIRECTOR", userType: "FACULTY", status: "ACTIVE", labs: [], heads: null, decidedDaysAgo: 196 },
+  {
+    userId: 3, firstName: "Demo", lastName: "Secretary", email: "demo.secretary@dlsu.edu.ph", role: "ADRIC_SECRETARY", userType: "STAFF", status: "ACTIVE", labs: [], heads: null,
+    decidedDaysAgo: 196, approvedAs: "TSG_STAFF", roleChangedDaysAgo: 195,
+  },
+  { userId: 4, firstName: "Demo", lastName: "TSG Staff A", email: "demo.tsg@dlsu.edu.ph", role: "TSG_STAFF", userType: "STAFF", status: "ACTIVE", labs: [], heads: null, decidedDaysAgo: 196 },
+  { userId: 5, firstName: "Demo", lastName: "TSG Staff B", email: "demo.tsg.b@dlsu.edu.ph", role: "TSG_STAFF", userType: "STAFF", status: "ACTIVE", labs: [], heads: null, decidedDaysAgo: 196 },
+  labHead(6, "CITe4D", 195),
+  labHead(7, "CAR", 195),
+  { userId: 8, firstName: "Demo", lastName: "Researcher A", email: "demo.researcher.a@dlsu.edu.ph", role: "RESEARCHER", userType: "STUDENT", status: "ACTIVE", labs: ["CITe4D"], heads: null, decidedDaysAgo: 192 },
+  { userId: 9, firstName: "Demo", lastName: "Researcher B", email: "demo.researcher.b@dlsu.edu.ph", role: "RESEARCHER", userType: "FACULTY", status: "ACTIVE", labs: ["CITe4D", "CAR"], heads: null, decidedDaysAgo: 192 },
+  { userId: 10, firstName: "Demo", lastName: "Researcher C", email: "demo.researcher.c@dlsu.edu.ph", role: "RESEARCHER", userType: "STUDENT", status: "ACTIVE", labs: ["HXIL"], heads: null, decidedDaysAgo: 191 },
+  { userId: 11, firstName: "Demo", lastName: "Pending Applicant", email: "demo.pending@dlsu.edu.ph", role: null, userType: "STUDENT", status: "PENDING", labs: ["CeLT"], heads: null, decidedDaysAgo: null },
+  labHead(12, "CeHCI", 195),
+  labHead(13, "HXIL", 195),
+  labHead(14, "GAME", 194),
+  labHead(15, "CeLT", 194),
+  labHead(16, "Bio", 71),
+  labHead(17, "CNIS", 194),
+  labHead(18, "CIVI", 194),
+  labHead(19, "TE3D", 194),
+  researcher(20, "d", "Maria", "Santos", "FACULTY", ["CeHCI", "CeLT"], 191),
+  researcher(21, "e", "Carlos", "Reyes", "STUDENT", ["CNIS"], 190),
+  researcher(22, "f", "Lorenzo", "Celis", "STUDENT", ["GAME"], 190),
+  researcher(23, "g", "Hannah", "Cruz", "FACULTY", ["GAME", "TE3D"], 189),
+  researcher(24, "h", "Nicolas", "Sy", "STUDENT", ["CIVI"], 122),
+  researcher(25, "i", "Victor", "Ibarra", "STUDENT", ["HXIL"], 150),
+  researcher(26, "j", "Grace", "Alcantara", "STUDENT", ["TE3D"], 131),
+  { ...researcher(27, "k", "Teresa", "Diaz", "FACULTY", ["Bio", "CIVI"], 96), approvedLabs: ["CIVI"], labsChangedDaysAgo: 68 },
+  { ...researcher(28, "l", "Felix", "Torres", "STUDENT", ["CAR"], 189), status: "INACTIVE", deactivatedDaysAgo: 35 },
+  { ...researcher(29, "m", "Arthur", "Pendleton", "STUDENT", ["GAME"], 189), status: "INACTIVE", deactivatedDaysAgo: 84, anonymizedDaysAgo: 60 },
+  {
+    userId: 30, firstName: "Demo", lastName: "Rejected Applicant", email: "demo.rejected@dlsu.edu.ph", role: null, userType: "STUDENT", status: "REJECTED",
+    labs: [], heads: null, decidedDaysAgo: 21, rejectRemarks: "Not yet a member of an AdRIC lab. Sign up again once your adviser adds you to one.",
+  },
 ];
+
+/** The first IT Admin, who approves, rejects and changes every other account. */
+export const DEMO_IT_ADMIN_ID = 1;
 
 /** The borrower of the demo asset that is on loan. */
 export const DEMO_BORROWER_ID = 8;

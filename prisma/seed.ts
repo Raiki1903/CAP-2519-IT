@@ -1,8 +1,8 @@
 /**
  * The demo seed (npm run seed): fills an empty local database, built by prisma/migrations, with roles, labs, demo accounts,
  * demo assets in every status, and any missing lookup rows.
- * Layer: database tooling, not part of the server. Run by npm run seed. Calls seedTarget.ts, seedData.ts, Prisma with the MariaDB adapter,
- * and the server's password helper.
+ * Layer: database tooling, not part of the server. Run by npm run seed. Calls seedTarget.ts, seedData.ts, seedHistory.ts,
+ * Prisma with the MariaDB adapter, and the server's password helper.
  * Used by: a teammate setting up a local copy of the app (docs/guides/DATABASE-MIGRATIONS.md). Never CCS Cloud, never the tests.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
@@ -19,6 +19,7 @@ import {
   DEMO_METRICS,
   DEMO_TSG_ID,
 } from "./seedData";
+import { accountSteps, clockFor } from "./seedHistory";
 import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, type SeedTarget } from "./seedTarget";
 
 /** Every table the migrations create. The seed needs all of them, and fills only empty ones. */
@@ -92,7 +93,9 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
   const roleId = new Map(roleNames.map((name, i) => [name, i + 1]));
   const labs = DEMO_LABS.map((lab, i) => ({ ...lab, centerId: i + 1 }));
   const labByCode = new Map(labs.map((lab) => [lab.shortCode, lab]));
-  const passwordHashes = await Promise.all(DEMO_ACCOUNTS.map(() => hashPassword(password)));
+  const clock = clockFor(new Date());
+  const { decisions, activity } = accountSteps(clock);
+  const passwordHashes = await Promise.all(DEMO_ACCOUNTS.map((a) => (a.anonymizedDaysAgo !== undefined ? "" : hashPassword(password))));
 
   await prisma.$transaction(
     async (tx) => {
@@ -119,22 +122,29 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
       });
 
       await tx.users.createMany({
-        data: DEMO_ACCOUNTS.map((a, i) => ({
-          user_id: a.userId,
-          first_name: "Demo",
-          last_name: a.lastName,
-          email: a.email,
-          password: passwordHashes[i],
-          id_number: 80000000 + a.userId,
-          user_type: a.userType,
-          account_status: a.status,
-        })),
+        data: DEMO_ACCOUNTS.map((a, i) => {
+          // An anonymized account is written exactly as users.repository.ts anonymizeUser leaves it.
+          const anonymized = a.anonymizedDaysAgo !== undefined;
+          return {
+            user_id: a.userId,
+            first_name: anonymized ? "Former" : a.firstName,
+            last_name: anonymized ? "researcher" : a.lastName,
+            email: anonymized ? `anonymized-${a.userId}@invalid` : a.email,
+            password: passwordHashes[i],
+            id_number: anonymized ? null : 80000000 + a.userId,
+            user_type: a.userType,
+            account_status: a.status,
+            ...decisions.get(a.userId),
+          };
+        }),
       });
       await tx.user_roles.createMany({
         data: DEMO_ACCOUNTS.filter((a) => a.role).map((a) => ({ user_id: a.userId, role_id: roleId.get(a.role!)! })),
       });
       await tx.user_centers.createMany({
-        data: DEMO_ACCOUNTS.flatMap((a) => a.labs.map((code) => ({ user_id: a.userId, center_id: labByCode.get(code)!.centerId }))),
+        data: DEMO_ACCOUNTS.filter((a) => a.anonymizedDaysAgo === undefined).flatMap((a) =>
+          a.labs.map((code) => ({ user_id: a.userId, center_id: labByCode.get(code)!.centerId })),
+        ),
       });
       for (const head of DEMO_ACCOUNTS.filter((a) => a.heads)) {
         await tx.research_centers.update({ where: { center_id: labByCode.get(head.heads!)!.centerId }, data: { head_user_id: head.userId } });
@@ -240,6 +250,8 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
         },
       });
 
+      await tx.activity_log.createMany({ data: [...activity].sort((a, b) => a.created_at.getTime() - b.created_at.getTime()) });
+
       const missing = assets.find((a) => a.status === "MISSING")!;
       await tx.activity_log.create({
         data: { actor_id: DEMO_TSG_ID, event_type: "ASSET_MARKED_MISSING", asset_id: missing.assetId, details: "Demo: not found at the routine count." },
@@ -272,7 +284,10 @@ async function main(): Promise<void> {
     `[seed] Done: ${Object.values(roles_role_name).length} roles, ${DEMO_LABS.length} labs, ${DEMO_ACCOUNTS.length} demo accounts, ` +
       `${DEMO_ASSETS.length} demo assets, one in each status.`,
   );
-  console.log(`[seed] Log in as ${DEMO_ACCOUNTS.map((a) => a.email).join(", ")}, with the password from SEED_PASSWORD.`);
+  console.log(
+    `[seed] Log in as ${DEMO_ACCOUNTS.filter((a) => a.status === "ACTIVE").map((a) => a.email).join(", ")}, with the password from SEED_PASSWORD.`,
+  );
+  console.log("[seed] Not active (cannot log in): demo.pending (Pending), demo.rejected (Rejected), demo.researcher.l (Inactive), and one anonymized account.");
 }
 
 main().catch((error) => {

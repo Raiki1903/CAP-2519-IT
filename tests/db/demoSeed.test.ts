@@ -36,13 +36,16 @@ describe("prisma/seed.ts", () => {
     await db.$disconnect();
   });
 
-  it("writes a hash of SEED_PASSWORD for every demo account, each with its own salt", async () => {
-    const rows = await db.users.findMany({ select: { password: true } });
+  it("writes a hash of SEED_PASSWORD for every demo account but the anonymized one, each with its own salt", async () => {
+    const rows = await db.users.findMany({ select: { password: true, anonymized_at: true } });
+    const hashed = rows.filter((r) => r.anonymized_at === null);
 
     expect(rows).toHaveLength(DEMO_ACCOUNTS.length);
-    expect(rows.every((r) => isPasswordHash(r.password))).toBe(true);
-    expect(new Set(rows.map((r) => r.password)).size).toBe(rows.length);
-    expect(await verifyPassword(DEMO_PASSWORD, rows[0].password)).toBe(true);
+    expect(hashed.every((r) => isPasswordHash(r.password))).toBe(true);
+    expect(new Set(hashed.map((r) => r.password)).size).toBe(hashed.length);
+    expect(await verifyPassword(DEMO_PASSWORD, hashed[0].password)).toBe(true);
+    // anonymizeUser clears the password to an empty string, which never verifies.
+    expect(rows.filter((r) => r.anonymized_at !== null).map((r) => r.password)).toEqual([""]);
   });
 
   it("prints neither the password nor a hash", () => {
