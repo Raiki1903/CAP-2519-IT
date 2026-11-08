@@ -1,7 +1,7 @@
 /**
  * The demo seed's data: the 10 research centers, 30 demo accounts, 7 projects, 58 demo assets, and the lookup rows.
  * All invented or about institutions; the personal names are from the pre-UAT dummy data, never real people.
- * Layer: database tooling. Read by prisma/seed.ts and prisma/seedHistory.ts. Imports Prisma's enum types.
+ * Layer: database tooling. Read by prisma/seed.ts, seedHistory.ts, seedSteps.ts and seedStory.ts. Imports Prisma's enum types.
  * Used by: npm run seed.
  */
 import type {

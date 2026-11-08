@@ -1,11 +1,11 @@
 /**
- * The demo seed's history: every dated row, worked out from the day the seed runs, so the history always ends today.
- * Each row is written the way the service that owns the step writes it (the same columns, the same activity_log
- * details text), so the database reads as if people had used the app.
- * Layer: database tooling. Read by prisma/seed.ts. Imports Prisma's types and prisma/seedData.ts.
+ * The demo history's base: the clock every date is counted back from (the day the seed runs, so the history always
+ * ends today), the row types, the IT Admin's account steps, and each asset's registration. Each row is written the way
+ * the service that owns the step writes it (the same columns, the same activity_log details text).
+ * Layer: database tooling. Read by prisma/seed.ts, seedSteps.ts and seedStory.ts. Imports Prisma's types and prisma/seedData.ts.
  * Used by: npm run seed.
  */
-import type { Prisma, asset_condition, asset_inspections_type, assets_status } from "@prisma/client";
+import type { Prisma, asset_condition, asset_inspections_type } from "@prisma/client";
 import { DEMO_ACCOUNTS, DEMO_ASSETS, DEMO_IT_ADMIN_ID, DEMO_TSG_IDS, type DemoAccount, type DemoAsset } from "./seedData";
 
 /** A moment or a day, counted back from the day the seed runs, in the computer's local time. */
@@ -163,24 +163,3 @@ export function registrationSteps(clock: SeedClock): { inspections: InspectionRo
   return { inspections, activity };
 }
 
-/** Every dated row of the demo history, before ids. */
-export interface SeedHistory {
-  /** What the IT Admin's steps left on each account row, by user id. */
-  decisions: Map<number, AccountDecision>;
-  /** Each asset's status now, by asset id; an asset not listed is Available. */
-  statuses: Map<number, assets_status>;
-  inspections: InspectionRow[];
-  activity: ActivityRow[];
-}
-
-/** Builds the whole demo history for a seed run on the clock's day. */
-export function buildHistory(clock: SeedClock): SeedHistory {
-  const accounts = accountSteps(clock);
-  const registration = registrationSteps(clock);
-  return {
-    decisions: accounts.decisions,
-    statuses: new Map(),
-    inspections: registration.inspections,
-    activity: [...accounts.activity, ...registration.activity],
-  };
-}

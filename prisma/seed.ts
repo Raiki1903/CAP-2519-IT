@@ -2,7 +2,7 @@
  * The demo seed (npm run seed): fills an empty local database, built by prisma/migrations, with roles, labs, demo accounts,
  * projects, demo assets with their history, and any missing lookup rows.
  * Layer: database tooling, not part of the server. Run by npm run seed. Calls seedTarget.ts, seedData.ts, seedHistory.ts,
- * seedImages.ts, Prisma with the MariaDB adapter, and the server's password helper.
+ * seedStory.ts, seedImages.ts, Prisma with the MariaDB adapter, and the server's password helper.
  * Used by: a teammate setting up a local copy of the app (docs/guides/DATABASE-MIGRATIONS.md). Never CCS Cloud, never the tests.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
@@ -19,7 +19,8 @@ import {
   DEMO_METRICS,
   DEMO_PROJECTS,
 } from "./seedData";
-import { buildHistory, clockFor, nameOf, SEEDED_ASSETS } from "./seedHistory";
+import { clockFor, nameOf, SEEDED_ASSETS } from "./seedHistory";
+import { buildHistory } from "./seedStory";
 import { categoryPicture } from "./seedImages";
 import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, type SeedTarget } from "./seedTarget";
 
@@ -204,6 +205,38 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
         data: inspections.flatMap((row) =>
           Object.entries(row.metrics).map(([key, value]) => ({ inspection_id: row.id!, metric_id: metricId.get(key)!, value })),
         ),
+      });
+
+      const issueTypeId = new Map((await tx.issue_types.findMany()).map((t) => [t.key, t.issue_type_id]));
+      const centerOf = (code: string) => labByCode.get(code)!.centerId;
+      const loans = byTime(history.loans, (r) => r.requested_at);
+      await tx.asset_loans.createMany({
+        data: loans.map(({ projectCode, destinationLab, releaseInspection, returnInspection, ...row }, i) => ({
+          loan_id: i + 1,
+          ...row,
+          project_id: projectCode ? projectId.get(projectCode)! : null,
+          destination_center_id: centerOf(destinationLab),
+          release_inspection_id: releaseInspection?.id ?? null,
+          return_inspection_id: returnInspection?.id ?? null,
+        })),
+      });
+      const tickets = byTime(history.tickets, (r) => r.reported_at);
+      await tx.asset_maintenance.createMany({
+        data: tickets.map(({ issueKey, triggerInspection, completionInspection, ...row }, i) => ({
+          maintenance_id: i + 1,
+          ...row,
+          issue_type_id: issueTypeId.get(issueKey)!,
+          trigger_inspection_id: triggerInspection?.id ?? null,
+          completion_inspection_id: completionInspection?.id ?? null,
+        })),
+      });
+      const retirements = byTime(history.retirements, (r) => r.requested_at);
+      await tx.asset_retirements.createMany({
+        data: retirements.map(({ assessmentInspection, ...row }, i) => ({
+          retirement_id: i + 1,
+          ...row,
+          assessment_inspection_id: assessmentInspection?.id ?? null,
+        })),
       });
 
       await tx.activity_log.createMany({ data: byTime(history.activity, (r) => r.created_at) });
