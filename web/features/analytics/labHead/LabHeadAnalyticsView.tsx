@@ -1,5 +1,5 @@
 /**
- * Lab Head analytics: utilization, category mix, project allocation, delinquencies, and accountability widgets for one lab.
+ * Lab Head analytics: utilization, category mix, project allocation, and the overdue loans table for one lab.
  * Layer: feature component. Called by pages/lab-head/LabHeadDashboard.tsx (health tab).
  * Calls: api/analytics.api.ts getLabHeadAnalyticsRaw(), features/analytics/insights/InsightsPanel.tsx, features/analytics/utilization/LoansPerWeekChart.tsx.
  * Used by: Lab Head.
@@ -20,10 +20,6 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  ScatterChart,
-  Scatter,
-  ZAxis,
-  Cell,
   Treemap,
   XAxis,
   YAxis,
@@ -555,304 +551,13 @@ export const DelinquencyTable: React.FC<{ lab: string }> = ({ lab }) => {
   );
 };
 
-// 3. Diagnostic — Accountability Scatter Plot (Maximizable)
-/**
- * Scatter plot of custodians by overdue count and delay. Calls analyticsApi.getLabHeadAnalyticsRaw().
- *
- * @param lab the lab to show
- */
-export const BottleneckScatterWidget: React.FC<{ lab: string }> = ({ lab }) => {
-  const [isMaximized, setIsMaximized] = useState(false);
-
-  const { data: analyticsData } = useQuery({
-    queryKey: ["labhead-scatter-data", lab],
-    queryFn: async () => {
-      try {
-        const res = await analyticsApi.getLabHeadAnalyticsRaw(`labPrefix=${encodeURIComponent(lab)}&lab=${encodeURIComponent(lab)}`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success) return json.data;
-        }
-      } catch (e) { }
-      return null;
-    }
-  });
-
-  const scatterData = analyticsData?.scatterData || [];
-  const criticalCount = scatterData.filter((item: any) => item.severity === "Critical Bottleneck").length;
-
-  return (
-    <>
-      <motion.div variants={cardAnimation} initial="hidden" animate="visible">
-        <Card className="border border-border bg-card text-card-foreground shadow-sm rounded-xl">
-          <CardHeader className="pb-3 flex flex-row flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-red-600" />
-                <CardTitle className="text-sm font-bold text-foreground">
-                  Overdue Loans by Borrower ({lab})
-                </CardTitle>
-              </div>
-              <CardDescription className="text-muted-foreground text-xs mt-0.5">
-                Scatter plot mapping research cohorts by average days overdue (X-Axis) vs unreturned equipment count (Y-Axis).
-              </CardDescription>
-            </div>
-            {scatterData.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="bg-red-600 text-white font-bold text-xs px-3 py-1">
-                  {criticalCount} Critical Bottlenecks
-                </Badge>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsMaximized(true)}
-                  className="text-xs gap-1 border-red-600/30 text-red-700 hover:bg-red-50 font-bold shrink-0"
-                >
-                  <Maximize2 size={13} /> Expand
-                </Button>
-              </div>
-            )}
-          </CardHeader>
-
-          <CardContent>
-            {scatterData.length === 0 ? (
-              <div className="h-72 flex items-center justify-center p-6 bg-muted/10 rounded-xl border border-dashed border-border text-center">
-                <p className="text-xs text-muted-foreground">No active overdue bottlenecks or delinquent cohorts found for {lab}.</p>
-              </div>
-            ) : (
-              <div className="h-72 bg-muted/10 p-4 rounded-xl border border-border">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ScatterChart margin={{ top: 10, right: 30, left: 0, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
-                    <XAxis
-                      type="number"
-                      dataKey="avgDaysOverdue"
-                      name="Avg Days Overdue"
-                      unit=" days"
-                      stroke="#64748B"
-                      fontSize={11}
-                      domain={[0, "auto"]}
-                    />
-                    <YAxis
-                      type="number"
-                      dataKey="unreturnedCount"
-                      name="Unreturned Items"
-                      unit=" items"
-                      stroke="#64748B"
-                      fontSize={11}
-                      domain={[0, "auto"]}
-                    />
-                    <ZAxis type="number" dataKey="bubbleSize" range={[120, 450]} />
-                    <Tooltip
-                      cursor={{ strokeDasharray: "3 3" }}
-                      content={({ payload }) => {
-                        if (payload && payload.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-lg text-xs space-y-1">
-                              <span className="font-black text-slate-900 block">{data.cohort}</span>
-                              <div className="text-slate-600 font-mono text-[11px]">
-                                <div>Avg Overdue: <strong className="text-red-600">{data.avgDaysOverdue} days</strong></div>
-                                <div>Unreturned Assets: <strong>{data.unreturnedCount} items</strong></div>
-                                <div>Status: <strong style={{ color: data.color }}>{data.severity}</strong></div>
-                              </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Scatter name="Student Cohorts" data={scatterData}>
-                      {scatterData.map((entry: any, index: number) => (
-                        <Cell key={`cell-scatter-${index}`} fill={entry.color} />
-                      ))}
-                    </Scatter>
-                  </ScatterChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Maximized Scatter Plot Window Tab Dialog Modal */}
-      <Dialog open={isMaximized} onOpenChange={setIsMaximized}>
-        <DialogContent className="w-[96vw] max-w-7xl max-h-[92vh] overflow-y-auto bg-card border-border text-card-foreground rounded-2xl p-6 sm:p-8 shadow-2xl my-auto">
-          <DialogHeader className="border-b border-border pb-3">
-            <DialogTitle className="text-lg sm:text-xl font-extrabold text-red-700 flex items-center gap-2">
-              <Clock className="w-6 h-6 text-red-600" />
-              Overdue Loans by Borrower ({lab})
-            </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Full-screen scatter plot distribution plotting average days overdue against unreturned equipment count.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6 my-4">
-            <div className="h-[420px] bg-muted/20 p-5 rounded-xl border border-border">
-              <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 20, right: 40, left: 10, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
-                  <XAxis type="number" dataKey="avgDaysOverdue" name="Avg Days Overdue" unit=" days" stroke="#64748B" fontSize={12} domain={[0, "auto"]} />
-                  <YAxis type="number" dataKey="unreturnedCount" name="Unreturned Items" unit=" items" stroke="#64748B" fontSize={12} domain={[0, "auto"]} />
-                  <ZAxis type="number" dataKey="bubbleSize" range={[200, 600]} />
-                  <Tooltip cursor={{ strokeDasharray: "3 3" }} />
-                  <Scatter name="Student Cohorts" data={scatterData}>
-                    {scatterData.map((entry: any, index: number) => (
-                      <Cell key={`cell-scatter-max-${index}`} fill={entry.color} />
-                    ))}
-                  </Scatter>
-                </ScatterChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <DialogFooter className="border-t border-border pt-3">
-            <Button onClick={() => setIsMaximized(false)} className="bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-6">
-              Close Window Tab
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-};
-
-// 4. Authentic 2D Heatmap Matrix Widget
-/**
- * Heatmap of accountability by custodian group. Calls analyticsApi.getLabHeadAnalyticsRaw().
- *
- * @param lab the lab to show
- */
-export const AccountabilityHeatmapWidget: React.FC<{ lab: string }> = ({ lab }) => {
-  const [hoveredCell, setHoveredCell] = useState<{ cohort: string; range: string; count: number } | null>(null);
-
-  const columns = ["0 - 3 Days", "4 - 7 Days", "8 - 14 Days", "15 - 30 Days", "30+ Days (Critical)"];
-
-  const { data: analyticsData } = useQuery({
-    queryKey: ["labhead-heatmap-data", lab],
-    queryFn: async () => {
-      try {
-        const res = await analyticsApi.getLabHeadAnalyticsRaw(`labPrefix=${encodeURIComponent(lab)}&lab=${encodeURIComponent(lab)}`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success) return json.data;
-        }
-      } catch (e) { }
-      return null;
-    }
-  });
-
-  const heatmapMatrix = analyticsData?.heatmapData || [];
-  const totalDelinquentAssets = heatmapMatrix.reduce((acc: number, row: any) => acc + (row.totalOverdue || 0), 0);
-
-  const getHeatmapColor = (count: number) => {
-    if (count === 0) return "bg-slate-100/70 dark:bg-slate-800/40 text-slate-400 font-mono";
-    if (count <= 2) return "bg-emerald-200 text-emerald-950 font-extrabold border border-emerald-300/80 shadow-2xs";
-    if (count <= 4) return "bg-amber-400 text-amber-950 font-black border border-amber-500/80 shadow-xs";
-    if (count <= 7) return "bg-red-500 text-white font-black border border-red-600 shadow-sm";
-    return "bg-red-950 text-white font-black border border-red-900 shadow-md animate-pulse";
-  };
-
-  return (
-    <motion.div variants={cardAnimation} initial="hidden" animate="visible">
-      <Card className="border border-border bg-card text-card-foreground shadow-sm rounded-xl overflow-hidden">
-        <CardHeader className="pb-3 flex flex-row items-center justify-between border-b border-border bg-muted/20">
-          <div>
-            <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-red-600" />
-              <CardTitle className="text-sm font-bold text-foreground">
-                Overdue Loans by Group ({lab})
-              </CardTitle>
-            </div>
-            <CardDescription className="text-muted-foreground text-xs mt-0.5">
-              2D Heatmap matrix mapping delay intensity across research cohorts and overdue duration ranges.
-            </CardDescription>
-          </div>
-          <Badge className="bg-red-600 text-white font-bold text-xs px-3 py-1">
-            {totalDelinquentAssets} Total Delinquent Assets
-          </Badge>
-        </CardHeader>
-
-        <CardContent className="p-6">
-          {heatmapMatrix.length === 0 ? (
-            <div className="py-12 text-center bg-muted/10 rounded-xl border border-dashed border-border p-6">
-              <p className="text-xs text-muted-foreground">No overdue equipment or delinquent cohorts logged for {lab}.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-border bg-muted/10 p-4">
-              <div className="min-w-[650px]">
-                <div className="grid grid-cols-12 gap-1 mb-2 text-center text-xs font-black uppercase text-muted-foreground">
-                  <div className="col-span-4 text-left pl-2">Research Project Cohort</div>
-                  {columns.map((col, idx) => (
-                    <div key={idx} className="col-span-1 text-[11px] font-bold text-foreground py-1 bg-muted/30 rounded-md">
-                      {col}
-                    </div>
-                  ))}
-                  <div className="col-span-3 text-right pr-2">Total Delinquent</div>
-                </div>
-
-                <div className="space-y-1.5">
-                  {heatmapMatrix.map((row: any, rowIdx: number) => (
-                    <div key={rowIdx} className="grid grid-cols-12 gap-1.5 items-center">
-                      <div className="col-span-4 text-xs font-black text-foreground truncate pl-2" title={row.cohort}>
-                        {row.cohort}
-                      </div>
-
-                      {row.counts.map((count: number, colIdx: number) => (
-                        <div
-                          key={colIdx}
-                          onMouseEnter={() => setHoveredCell({ cohort: row.cohort, range: columns[colIdx], count })}
-                          onMouseLeave={() => setHoveredCell(null)}
-                          className={`col-span-1 h-12 rounded-lg flex items-center justify-center text-sm transition-all transform hover:scale-105 hover:z-10 cursor-pointer ${getHeatmapColor(count)}`}
-                        >
-                          {count > 0 ? count : "—"}
-                        </div>
-                      ))}
-
-                      <div className="col-span-3 text-right pr-2">
-                        <Badge className={row.totalOverdue >= 10 ? "bg-red-600 text-white font-bold text-xs" : "bg-amber-600 text-white font-bold text-xs"}>
-                          {row.totalOverdue} Assets Overdue
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-5 pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-xs text-muted-foreground font-medium">
-              {hoveredCell ? (
-                <span className="text-foreground font-bold flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block" />
-                  {hoveredCell.cohort} • {hoveredCell.range}: <strong className="text-red-600 font-extrabold">{hoveredCell.count} Unreturned Assets</strong>
-                </span>
-              ) : (
-                <span>Hover over any heatmap cell to inspect exact cohort delay frequency.</span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 text-[11px] font-bold text-muted-foreground">
-              <span>Low (Cold)</span>
-              <div className="h-3.5 w-32 rounded-full bg-gradient-to-r from-emerald-200 via-amber-400 to-red-900 shadow-2xs border border-border" />
-              <span>Critical (Hot)</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-};
-
 // Master Lab Head Dashboard Analytics View
 /**
- * The Lab Head's analytics screen: lays out five widgets for one lab.
+ * The Lab Head's analytics screen: lays out the remaining widgets for one lab.
  *
  * @param lab the lab the account heads, shown in the headings; the server answers for that lab whatever is sent
  */
-// TODO(M-01): all five widgets fetch GET /api/analytics/lab-head on their own, four with the same query, so one screen sends that request five times. Step 12 (analytics).
+// TODO(M-01): all widgets fetch GET /api/analytics/lab-head on their own, most with the same query, so one screen sends that request several times. Step 12 (analytics).
 export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "" }) => {
   return (
     <div className="space-y-8 text-foreground font-sans">
@@ -877,10 +582,6 @@ export const LabHeadAnalyticsView: React.FC<{ lab?: string }> = ({ lab = "" }) =
       <ProjectAllocationWidget lab={lab} />
 
       <DelinquencyTable lab={lab} />
-
-      <BottleneckScatterWidget lab={lab} />
-
-      <AccountabilityHeatmapWidget lab={lab} />
     </div>
   );
 };
