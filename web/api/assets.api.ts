@@ -1,10 +1,10 @@
 /**
- * Assets API: the asset registry calls (list, history, create, edit, delete, mark missing and found).
- * Layer: api. Called by the four role dashboards, AssetDetailModal, AssetTsgSteps, StaffAnalyticsView, and state/serverData.tsx. Calls client.ts; types from @shared/types/assets.
- * Used by: every role's inventory view, Staff asset registration and editing, TSG's Missing and Found.
+ * Assets API: the asset registry calls (list, history, remarks, create, edit, delete, mark missing and found).
+ * Layer: api. Called by the four role dashboards, AssetDetailModal, AssetRemarks, AssetTsgSteps, StaffAnalyticsView, and state/serverData.tsx. Calls client.ts; types from @shared/types/assets.
+ * Used by: every role's inventory view, the asset detail modal's remarks, Staff asset registration and editing, TSG's Missing and Found.
  */
 import type { AssetCreateInput, AssetUpdateInput, InspectionInput } from "@shared/types/assets";
-import { apiDelete, apiGet, apiGetRaw, apiPostRaw, apiPut, apiPutRaw, type ApiResult } from "./client";
+import { apiDelete, apiGet, apiGetRaw, apiPost, apiPostRaw, apiPut, apiPutRaw, type ApiResult } from "./client";
 
 /** Reads the answer to `createAssetRaw` or `updateAssetRaw`; see client.ts. */
 export { readResult } from "./client";
@@ -36,6 +36,38 @@ export function listAssetsRaw(): Promise<Response> {
  */
 export function getAssetHistory(assetTag: string): Promise<ApiResult> {
   return apiGet(`/api/assets/${encodeURIComponent(assetTag)}/history`);
+}
+
+/**
+ * Lists the asset's remarks, newest first, without the deleted ones.
+ *
+ * @param assetTag the asset's tag
+ * @returns `success`, `remarks` (each an AssetRemark from @shared/types/assets, with `canDelete`), and `canAdd`; or `error`
+ */
+export function listRemarks(assetTag: string): Promise<ApiResult> {
+  return apiGet(`/api/assets/${encodeURIComponent(assetTag)}/remarks`);
+}
+
+/**
+ * Adds a remark to the asset.
+ *
+ * @param assetTag the asset's tag
+ * @param text the remark, at most 500 characters after trimming
+ * @returns `success` and the new `remark`; or `error` with the server's sentence
+ */
+export function addRemark(assetTag: string, text: string): Promise<ApiResult> {
+  return apiPost(`/api/assets/${encodeURIComponent(assetTag)}/remarks`, { text });
+}
+
+/**
+ * Deletes a remark. The server keeps the row and records who deleted it and when.
+ *
+ * @param assetTag the asset's tag
+ * @param remarkId the remark
+ * @returns `success` and `deleted` (the remark id); or `error` with the server's sentence
+ */
+export function deleteRemark(assetTag: string, remarkId: number): Promise<ApiResult> {
+  return apiDelete(`/api/assets/${encodeURIComponent(assetTag)}/remarks/${remarkId}`);
 }
 
 /**
