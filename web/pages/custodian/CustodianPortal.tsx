@@ -207,6 +207,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         manufacturer: matched.manufacturer || "—",
         category: matched.category || "DEV_KIT",
         funding: matched.funding || "DOST",
+        project: matched.project,
         procured: matched.procured || "",
         warranty: matched.warranty || "",
         location: matched.location || "Manila",
