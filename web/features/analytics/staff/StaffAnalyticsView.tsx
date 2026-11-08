@@ -59,7 +59,7 @@ const cardAnimation = {
 // One colour per asset status, in the order of ASSET_STATUSES.
 const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#8B5CF6", "#64748B", "#EF4444"];
 
-// Maintenance & Lifecycle View (Task 3: Repairs Kanban Board, Condition Heatmap with Traffic Light Indicators, 90-day Warranty Expiry Timeline)
+// Maintenance & Lifecycle View (Task 3: Operations Board, Condition Indicators, Warranties Notice)
 /**
  * Repair board, condition heatmap, and 90-day warranty timeline. Calls analyticsApi.getTsgAnalyticsRaw(). The board has a
  * column for every maintenance status; a card opens RepairProgressDialog, where the server decides which steps are allowed.
@@ -112,7 +112,7 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
     return true;
   });
 
-  // Filter Condition Heatmap Items by Lab and Category
+  // Filter Condition Indicators items by Lab and Category
   const filteredConditionItems = rawConditionSummary.conditionItems.filter((item: any) => {
     if (selectedLab !== "All Labs") {
       const matchLoc = item.location?.toLowerCase().includes(selectedLab.toLowerCase());
@@ -149,7 +149,7 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-[#005A36]" /> Repair Operations Kanban Board (`asset_maintenance`)
+              <Wrench className="w-5 h-5 text-[#005A36]" /> Operations Board
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               One column for each status of a maintenance ticket. Open a card to see the ticket and make its next step.
@@ -234,21 +234,18 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
         />
       )}
 
-      {/* 2 & 3. Condition Heatmap & 90-Day Warranty Expiry Timeline */}
+      {/* 2 & 3. Condition Indicators & Warranties Notice */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Condition Heatmap/Grid with Traffic Light Indicators */}
+        {/* Condition Indicators grid */}
         <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Activity className="w-5 h-5 text-[#005A36]" /> Condition Heatmap: Traffic Light Indicators
+              <Activity className="w-5 h-5 text-[#005A36]" /> Condition Indicators
             </h3>
             <Badge variant="outline" className="text-xs font-bold border-border">
               {filteredConditionItems.length} Assets Filtered
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground mb-4">
-            Green ('GOOD'/'PERFECT'/'OPERATIONAL'), Yellow ('DEGRADED'/'MINOR_DRIFT'), Red ('CRITICAL DEFECT').
-          </p>
 
           <div className="grid grid-cols-3 gap-3 mb-4 text-center">
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 rounded-xl">
@@ -294,11 +291,11 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
           </div>
         </Card>
 
-        {/* Calendar/Timeline View (90-Day Warranty Expiry) */}
+        {/* Warranties Notice */}
         <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-[#005A36]" /> Calendar/Timeline View: 90-Day Warranty Expiry
+              <Calendar className="w-5 h-5 text-[#005A36]" /> Warranties Notice
             </h3>
             <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-extrabold text-xs">
               {rawWarrantyExpiringSoon.length} Equipment Items
@@ -526,7 +523,7 @@ export const WarrantyCalendarWidget: React.FC = () => {
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-amber-600" />
               <CardTitle className="text-sm font-bold text-foreground">
-                Warranties Ending in 90 Days
+                90-Day Warranty Expiry
               </CardTitle>
             </div>
             <Badge variant="outline" className="border-amber-300 text-amber-800 bg-amber-50 font-extrabold text-xs">
@@ -670,7 +667,7 @@ export const StaffAnalyticsView: React.FC = () => {
   return (
     <div className="space-y-8 text-foreground font-sans">
       <InsightsPanel
-        charts={{ warranty: "Warranties Ending in 90 Days", repairs: "Repair Operations Kanban Board" }}
+        charts={{ warranty: "90-Day Warranty Expiry", repairs: "Operations Board" }}
       />
 
       {/* Global Filter Toolbar */}

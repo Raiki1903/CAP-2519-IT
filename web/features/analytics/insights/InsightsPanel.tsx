@@ -1,6 +1,6 @@
 /**
  * Insights panel: the advice notes for the signed-in role, as one block at the top of an Analytics page. A header row
- * (icon, title, description, count badge, Collapse or Expand) in the same pattern as the Repair Operations Kanban Board, and
+ * (icon, title, description, count badge, Collapse or Expand) in the same pattern as the Operations Board, and
  * three sections side by side: High, Medium, and Planning. Read-only; Dismiss hides a card until the page reloads, and
  * Collapse or Expand is component state too.
  * Layer: feature component. Called by StaffAnalyticsView, LabHeadAnalyticsView, and DirectorAnalyticsView.
