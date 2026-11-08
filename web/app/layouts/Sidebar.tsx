@@ -150,7 +150,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                   <Shield size={14} className="text-primary-foreground" />
                 </div>
                 <div className="leading-tight overflow-hidden">
-                  <p className="text-white text-[11px] font-extrabold tracking-wide truncate" style={{ fontFamily: "'Montserrat', sans-serif" }}>EquipmentMS</p>
+                  <p className="text-white text-[11px] font-extrabold tracking-wide truncate" style={{ fontFamily: "'Montserrat', sans-serif" }}>AdRIC AMS</p>
                   <p className="text-[8px] font-semibold tracking-[2px]" style={{ color: "#34D399" }}>DLSU AdRIC</p>
                 </div>
               </motion.div>

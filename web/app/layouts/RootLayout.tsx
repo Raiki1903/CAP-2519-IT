@@ -101,7 +101,7 @@ export function RootLayout() {
               <Shield size={12} className="text-white" />
             </div>
             <div className="leading-tight">
-              <p className="text-white text-[10px] font-extrabold tracking-wide uppercase" style={{ fontFamily: "'Montserrat', sans-serif" }}>EquipmentMS</p>
+              <p className="text-white text-[10px] font-extrabold tracking-wide uppercase" style={{ fontFamily: "'Montserrat', sans-serif" }}>AdRIC AMS</p>
               <p className="text-[7px] font-semibold tracking-[1px] text-[#34D399]">DLSU AdRIC</p>
             </div>
           </div>

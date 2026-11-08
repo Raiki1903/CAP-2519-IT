@@ -96,7 +96,7 @@ export function Login() {
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[#005A36] mb-4 shadow-md shadow-emerald-950/10">
               <Shield size={24} className="text-white" />
             </div>
-            <h2 className="text-lg font-extrabold text-[#005A36] tracking-wider uppercase">EquipmentMS</h2>
+            <h2 className="text-lg font-extrabold text-[#005A36] tracking-wider uppercase">AdRIC AMS</h2>
             <p className="text-[10px] text-muted-foreground tracking-[2px] font-bold uppercase mt-1">
               DLSU Laboratory Infrastructure
             </p>
