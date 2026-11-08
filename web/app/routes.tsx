@@ -27,6 +27,7 @@ import { TicketsPage } from "@web/pages/it-admin/TicketsPage";
 import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
 import { AccountabilityFormPage } from "@web/pages/shared/AccountabilityFormPage";
 import { ClearancePrintPage } from "@web/pages/staff/ClearancePrintPage";
+import { DisposalRecordPrintPage } from "@web/pages/shared/DisposalRecordPrintPage";
 import { NotFound } from "@web/pages/NotFound";
 
 /**
@@ -64,6 +65,12 @@ export const router = createBrowserRouter([
   {
     path: "/staff/clearance/:userId",
     Component: ClearancePrintPage,
+  },
+  // A print page like the Accountability Form and the Clearance Record: no sidebar. The server decides who may open
+  // it (TSG, the Director, the Secretary, or the asset's Lab Head; 403 for anyone else).
+  {
+    path: "/retirements/:retirementId/record",
+    Component: DisposalRecordPrintPage,
   },
   { path: "/its/*", Component: OldStaffUrlRedirect },
   { path: "/tsg/*", Component: OldStaffUrlRedirect },
