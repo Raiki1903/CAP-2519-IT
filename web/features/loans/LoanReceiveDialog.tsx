@@ -118,8 +118,8 @@ export function LoanReceiveDialog({
       }
 
       const destinationMessage = hasDamage
-        ? "Equipment received with damage and sent to Repairs."
-        : `Equipment received and returned to ${loan.destinationLab?.code ?? "home lab"}.`;
+        ? "Asset received with damage and sent to Repairs."
+        : `Asset received and returned to ${loan.destinationLab?.code ?? "home lab"}.`;
 
       onSuccess(destinationMessage);
       onOpenChange(false);
@@ -138,7 +138,7 @@ export function LoanReceiveDialog({
             Receive Returned Asset: {loan.asset.tag}
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Verify the tag, inspect the equipment condition, and file damage reports if required.
+            Verify the tag, inspect the asset condition, and file damage reports if required.
           </DialogDescription>
         </DialogHeader>
 
@@ -146,7 +146,7 @@ export function LoanReceiveDialog({
         <div className="bg-muted/30 border border-border rounded-lg p-3 text-xs space-y-1.5">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <span className="text-muted-foreground">Equipment:</span>{" "}
+              <span className="text-muted-foreground">Asset:</span>{" "}
               <span className="font-semibold text-foreground">{loan.asset.name}</span>
             </div>
             <div>

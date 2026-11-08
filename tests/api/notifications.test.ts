@@ -192,7 +192,7 @@ describe("GET /api/notifications/mine, the Batch 5 kinds", () => {
       data: { asset_id: byDirector.assetId, requested_by_id: USERS.director.userId, reason: "Test: the Director's own request", status: "PENDING", previous_status: "AVAILABLE" },
     });
 
-    const card = { kind: "DISPOSAL_DECISION_WAITING", label: "Disposal request waiting for your decision", retirementId, assetTag: "TEST-0321", centerId: LAB.centerId, date: localToday() };
+    const card = { kind: "DISPOSAL_DECISION_WAITING", label: "Retirement request waiting for your decision", retirementId, assetTag: "TEST-0321", centerId: LAB.centerId, date: localToday() };
     expect(of(await mine(USERS.director), "DISPOSAL_DECISION_WAITING")).toEqual([card]);
     expect(of(await mine(USERS.secretary), "DISPOSAL_DECISION_WAITING").map(n => n.retirementId)).toEqual([retirementId, own.retirement_id]);
     for (const user of [USERS.staffTsg, USERS.labHead, USERS.custodianA, USERS.admin]) {

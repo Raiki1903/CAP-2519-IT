@@ -2,7 +2,7 @@
  * Lookup row access: the research centers, funding sources, issue types, metric definitions, and projects the forms
  * pick from.
  * Layer: repository. Called by lookups.service.ts. Calls config/prisma.ts.
- * Used by: Edit Asset, Register Equipment, the borrow form, Report an issue, the inspection forms, and the sign-up page.
+ * Used by: Edit Asset, Register Asset, the borrow form, Report an issue, the inspection forms, and the sign-up page.
  */
 import { prisma } from '../../config/prisma';
 

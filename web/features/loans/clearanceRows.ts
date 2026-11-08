@@ -1,7 +1,7 @@
 /**
  * Rows of the Clearance tab: one per borrower, built from the loans the server lists.
  * Layer: feature component (pure helper). Called by pages/staff/LoansPage.tsx and ClearanceTab.tsx. Calls shared/constants/loanStatuses.ts.
- * Used by: TSG, to pick the person whose Equipment Return and Clearance Record to prepare.
+ * Used by: TSG, to pick the person whose Asset Return and Clearance Record to prepare.
  */
 import { LOAN_STATUSES, UNCLEARED_LOAN_STATUSES, type LoanStatus } from "@shared/constants/loanStatuses";
 import type { Loan } from "@shared/types/loans";

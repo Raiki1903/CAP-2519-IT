@@ -1,12 +1,14 @@
 /**
- * Staff analytics: repair board, condition heatmap, warranty timeline, location status, and inspection progress widgets.
- * Layer: feature component. Called by pages/staff/HealthPage.tsx.
+ * Staff analytics: condition indicators, 90-day warranty timeline, and location status widgets. The Operations
+ * Board, Warranties Notice, and Inspection Progress widgets used to live here too; they now live in this same
+ * file but render on the Staff Overview (pages/staff/OverviewPage.tsx) instead.
+ * Layer: feature component. Called by pages/staff/HealthPage.tsx and pages/staff/OverviewPage.tsx.
  * Calls: features/analytics/insights/InsightsPanel.tsx, api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), features/repairs/RepairProgressDialog.tsx, state/serverData.tsx, state/session.tsx.
  * Used by: Staff.
  */
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "motion/react";
+import { motion, type Variants } from "motion/react";
 import { useServerData } from "@web/state/serverData";
 import { useSession } from "@web/state/session";
 import { RepairProgressDialog } from "@web/features/repairs/RepairProgressDialog";
@@ -51,7 +53,7 @@ import {
 import { Button } from "@web/components/ui/button";
 import { cn } from "@web/components/ui/utils";
 
-const cardAnimation = {
+const cardAnimation: Variants = {
   hidden: { opacity: 0, y: 12 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } }
 };
@@ -59,25 +61,22 @@ const cardAnimation = {
 // One colour per asset status, in the order of ASSET_STATUSES.
 const STATUS_PIE_COLORS = ["#005A36", "#3B82F6", "#F59E0B", "#8B5CF6", "#64748B", "#EF4444"];
 
-// Maintenance & Lifecycle View (Task 3: Repairs Kanban Board, Condition Heatmap with Traffic Light Indicators, 90-day Warranty Expiry Timeline)
+// Condition Indicators (Task 3)
 /**
- * Repair board, condition heatmap, and 90-day warranty timeline. Calls analyticsApi.getTsgAnalyticsRaw(). The board has a
- * column for every maintenance status; a card opens RepairProgressDialog, where the server decides which steps are allowed.
+ * Condition heatmap for assets, scoped to the date range, lab, and category filters. Calls analyticsApi.getTsgAnalyticsRaw().
  *
  * @param startDate start of the date range, or empty for no limit
  * @param endDate end of the date range, or empty for no limit
  * @param selectedLab lab to scope to, or "All Labs"
  * @param selectedCategory category to scope to, or "All Categories"
  */
-export const StaffTechnicalMaintenanceSection: React.FC<{
+export const ConditionIndicatorsSection: React.FC<{
   startDate: string;
   endDate: string;
   selectedLab: string;
   selectedCategory: string;
 }> = ({ startDate, endDate, selectedLab, selectedCategory }) => {
-  const [isKanbanOpen, setIsKanbanOpen] = React.useState<boolean>(true);
-
-  const { data, refetch } = useQuery({
+  const { data } = useQuery({
     queryKey: ["tsg-technical-maintenance", startDate, endDate],
     queryFn: async () => {
       try {
@@ -87,7 +86,6 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
         const res = await analyticsApi.getTsgAnalyticsRaw(params.toString());
         if (res.ok) {
           const json = await res.json();
-          console.log("📊 [Staff API Response]:", json);
           if (json.success) return json.data;
         }
       } catch (e) {}
@@ -95,24 +93,9 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
     }
   });
 
-  const { tickets, syncFromDb } = useServerData();
-  const { currentUser } = useSession();
-  const [openTicketId, setOpenTicketId] = React.useState<number | null>(null);
-  const openTicket = tickets.find(t => t.maintenanceId === openTicketId) ?? null;
-
-  const rawRepairs = data?.repairs || [];
   const rawConditionSummary = data?.conditionSummary || { goodCount: 0, degradedCount: 0, criticalCount: 0, conditionItems: [] };
-  const rawWarrantyExpiringSoon = data?.warrantyExpiringSoon || [];
 
-  // Filter Repairs by Date Range, Lab, and Category
-  const repairs = rawRepairs.filter((r: any) => {
-    if (startDate && r.createdAt && new Date(r.createdAt) < new Date(startDate)) return false;
-    if (endDate && r.createdAt && new Date(r.createdAt) > new Date(endDate + "T23:59:59")) return false;
-    if (selectedLab !== "All Labs" && !r.assetId?.startsWith(selectedLab + "-") && !r.assetName?.toLowerCase().includes(selectedLab.toLowerCase())) return false;
-    return true;
-  });
-
-  // Filter Condition Heatmap Items by Lab and Category
+  // Filter Condition Indicators items by Lab and Category
   const filteredConditionItems = rawConditionSummary.conditionItems.filter((item: any) => {
     if (selectedLab !== "All Labs") {
       const matchLoc = item.location?.toLowerCase().includes(selectedLab.toLowerCase());
@@ -130,26 +113,119 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
   const degradedCount = filteredConditionItems.filter((i: any) => i.trafficLight === "YELLOW").length;
   const criticalCount = filteredConditionItems.filter((i: any) => i.trafficLight === "RED").length;
 
-  // One column per maintenance status, so no ticket is left off the board.
-  const KANBAN_BADGE_COLORS: Record<string, string> = {
-    PENDING_RECEIPT: "bg-red-500 text-white",
-    INSPECTING: "bg-amber-500 text-white",
-    REPAIRING: "bg-amber-600 text-white",
-    EXTERNAL_SERVICE: "bg-blue-500 text-white",
-    RESOLVED: "bg-emerald-600 text-white",
-    BEYOND_REPAIR: "bg-red-700 text-white",
-    CANCELLED: "bg-slate-500 text-white",
-  };
-  const KANBAN_COLUMNS = MAINTENANCE_STATUSES.map(id => ({ id, title: MAINTENANCE_STATUS_LABELS[id], badgeColor: KANBAN_BADGE_COLORS[id] }));
+  return (
+    <motion.div variants={cardAnimation} initial="hidden" animate="visible">
+      <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <Activity className="w-5 h-5 text-[#005A36]" /> Condition Indicators
+          </h3>
+          <Badge variant="outline" className="text-xs font-bold border-border">
+            {filteredConditionItems.length} Assets Filtered
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 mb-4 text-center">
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 rounded-xl">
+            <span className="text-[9px] font-extrabold text-emerald-700 uppercase tracking-widest block">Green: GOOD / OPERATIONAL</span>
+            <span className="text-2xl font-black text-emerald-700 font-mono">{goodCount}</span>
+          </div>
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-xl">
+            <span className="text-[9px] font-extrabold text-amber-700 uppercase tracking-widest block">Yellow: DEGRADED</span>
+            <span className="text-2xl font-black text-amber-700 font-mono">{degradedCount}</span>
+          </div>
+          <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-xl">
+            <span className="text-[9px] font-extrabold text-red-700 uppercase tracking-widest block">Red: CRITICAL DEFECT</span>
+            <span className="text-2xl font-black text-red-700 font-mono">{criticalCount}</span>
+          </div>
+        </div>
+
+        <div className="max-h-56 overflow-y-auto pr-1 space-y-2">
+          {filteredConditionItems.map((item: any) => {
+            const isGreen = item.trafficLight === "GREEN";
+            const isYellow = item.trafficLight === "YELLOW";
+
+            return (
+              <div key={item.assetTag} className="flex items-center justify-between p-2.5 bg-muted/20 border border-border rounded-lg text-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className={cn("w-3 h-3 rounded-full flex-shrink-0", isGreen ? "bg-emerald-500 shadow-emerald-500/50" : isYellow ? "bg-amber-500 shadow-amber-500/50" : "bg-red-500 animate-pulse")} />
+                  <div>
+                    <span className="font-bold text-foreground block">{item.name} ({item.assetTag})</span>
+                    <span className="text-[10px] text-muted-foreground">{item.category} · {item.location}</span>
+                  </div>
+                </div>
+                <Badge className={cn("text-[10px] font-bold", isGreen ? "bg-emerald-50 text-emerald-700 border-emerald-200" : isYellow ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-red-50 text-red-700 border-red-200")}>
+                  {item.condition.replace(/_/g, " ")}
+                </Badge>
+              </div>
+            );
+          })}
+
+          {filteredConditionItems.length === 0 && (
+            <div className="p-6 text-center text-xs text-muted-foreground italic bg-muted/10 rounded-xl border border-dashed border-border">
+              No asset conditions matching selected filters.
+            </div>
+          )}
+        </div>
+      </Card>
+    </motion.div>
+  );
+};
+
+// One column per maintenance status, so no ticket is left off the board.
+const KANBAN_BADGE_COLORS: Record<string, string> = {
+  PENDING_RECEIPT: "bg-red-500 text-white",
+  INSPECTING: "bg-amber-500 text-white",
+  REPAIRING: "bg-amber-600 text-white",
+  EXTERNAL_SERVICE: "bg-blue-500 text-white",
+  RESOLVED: "bg-emerald-600 text-white",
+  BEYOND_REPAIR: "bg-red-700 text-white",
+  CANCELLED: "bg-slate-500 text-white",
+};
+const KANBAN_COLUMNS = MAINTENANCE_STATUSES.map(id => ({ id, title: MAINTENANCE_STATUS_LABELS[id], badgeColor: KANBAN_BADGE_COLORS[id] }));
+
+// The Staff Overview and Analytics both read repairs and the warranty list from the same unfiltered call, so
+// Operations Board and WarrantiesNoticeWidget share this query key: when both are on the page, it fetches once.
+const STAFF_OVERVIEW_MAINTENANCE_QUERY_KEY = ["staff-overview-maintenance"];
+async function fetchStaffOverviewMaintenance() {
+  try {
+    const res = await analyticsApi.getTsgAnalyticsRaw("");
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success) return json.data;
+    }
+  } catch (e) {}
+  return null;
+}
+
+// Operations Board: moved from Staff Analytics to the Staff Overview (pages/staff/OverviewPage.tsx).
+/**
+ * The repair ticket board: one column per maintenance status, with two tickets visible per column and the rest
+ * scrollable. A card opens RepairProgressDialog, where the server decides which steps are allowed. Unfiltered,
+ * because the Overview has no date, lab, or category filters. Calls analyticsApi.getTsgAnalyticsRaw(). Takes no props.
+ */
+export const OperationsBoard: React.FC = () => {
+  const [isKanbanOpen, setIsKanbanOpen] = React.useState<boolean>(true);
+
+  const { data, refetch } = useQuery({
+    queryKey: STAFF_OVERVIEW_MAINTENANCE_QUERY_KEY,
+    queryFn: fetchStaffOverviewMaintenance
+  });
+
+  const { tickets, syncFromDb } = useServerData();
+  const { currentUser } = useSession();
+  const [openTicketId, setOpenTicketId] = React.useState<number | null>(null);
+  const openTicket = tickets.find(t => t.maintenanceId === openTicketId) ?? null;
+
+  const repairs = data?.repairs || [];
 
   return (
-    <motion.div variants={cardAnimation} initial="hidden" animate="visible" className="space-y-6">
-      {/* 1. Kanban Board (Repairs) */}
+    <motion.div variants={cardAnimation} initial="hidden" animate="visible">
       <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-[#005A36]" /> Repair Operations Kanban Board (`asset_maintenance`)
+              <Wrench className="w-5 h-5 text-[#005A36]" /> Operations Board
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               One column for each status of a maintenance ticket. Open a card to see the ticket and make its next step.
@@ -177,8 +253,8 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
               const columnTickets = repairs.filter((r: any) => r.progressStatus === col.title);
 
               return (
-                <div key={col.id} className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col justify-between max-h-[480px]">
-                  <div className="flex flex-col h-full overflow-hidden">
+                <div key={col.id} className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col">
+                  <div className="flex flex-col">
                     <div className="flex items-center justify-between border-b border-border pb-2 mb-3 shrink-0">
                       <span className="font-extrabold text-xs text-foreground uppercase tracking-wider">{col.title}</span>
                       <Badge className={cn("text-[10px] font-extrabold px-2 py-0.5", col.badgeColor)}>
@@ -186,7 +262,8 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
                       </Badge>
                     </div>
 
-                    <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+                    {/* Fixed height, about two tickets; the rest scrolls. */}
+                    <div className="h-72 space-y-3 overflow-y-auto pr-1">
                       {columnTickets.map((ticket: any) => (
                         <div
                           key={ticket.repairId}
@@ -233,102 +310,58 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
           onChanged={async () => { await syncFromDb(); await refetch(); }}
         />
       )}
+    </motion.div>
+  );
+};
 
-      {/* 2 & 3. Condition Heatmap & 90-Day Warranty Expiry Timeline */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Condition Heatmap/Grid with Traffic Light Indicators */}
-        <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Activity className="w-5 h-5 text-[#005A36]" /> Condition Heatmap: Traffic Light Indicators
-            </h3>
-            <Badge variant="outline" className="text-xs font-bold border-border">
-              {filteredConditionItems.length} Assets Filtered
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground mb-4">
-            Green ('GOOD'/'PERFECT'/'OPERATIONAL'), Yellow ('DEGRADED'/'MINOR_DRIFT'), Red ('CRITICAL DEFECT').
-          </p>
+// Warranties Notice: moved from Staff Analytics to the Staff Overview (pages/staff/OverviewPage.tsx).
+/**
+ * Assets losing manufacturer warranty support within 90 days, unfiltered, in a fixed-height scroll area that
+ * shows about three to five items. Calls analyticsApi.getTsgAnalyticsRaw(). Takes no props.
+ */
+export const WarrantiesNoticeWidget: React.FC = () => {
+  const { data } = useQuery({
+    queryKey: STAFF_OVERVIEW_MAINTENANCE_QUERY_KEY,
+    queryFn: fetchStaffOverviewMaintenance
+  });
 
-          <div className="grid grid-cols-3 gap-3 mb-4 text-center">
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 rounded-xl">
-              <span className="text-[9px] font-extrabold text-emerald-700 uppercase tracking-widest block">Green: GOOD / OPERATIONAL</span>
-              <span className="text-2xl font-black text-emerald-700 font-mono">{goodCount}</span>
-            </div>
-            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-xl">
-              <span className="text-[9px] font-extrabold text-amber-700 uppercase tracking-widest block">Yellow: DEGRADED</span>
-              <span className="text-2xl font-black text-amber-700 font-mono">{degradedCount}</span>
-            </div>
-            <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded-xl">
-              <span className="text-[9px] font-extrabold text-red-700 uppercase tracking-widest block">Red: CRITICAL DEFECT</span>
-              <span className="text-2xl font-black text-red-700 font-mono">{criticalCount}</span>
-            </div>
-          </div>
+  const rawWarrantyExpiringSoon = data?.warrantyExpiringSoon || [];
 
-          <div className="max-h-56 overflow-y-auto pr-1 space-y-2">
-            {filteredConditionItems.map((item: any) => {
-              const isGreen = item.trafficLight === "GREEN";
-              const isYellow = item.trafficLight === "YELLOW";
+  return (
+    <motion.div variants={cardAnimation} initial="hidden" animate="visible">
+      <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-[#005A36]" /> Warranties Notice
+          </h3>
+          <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-extrabold text-xs">
+            {rawWarrantyExpiringSoon.length} Asset Items
+          </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Assets losing manufacturer warranty support within the next 90 days.
+        </p>
 
-              return (
-                <div key={item.assetTag} className="flex items-center justify-between p-2.5 bg-muted/20 border border-border rounded-lg text-xs">
-                  <div className="flex items-center gap-2.5">
-                    <span className={cn("w-3 h-3 rounded-full flex-shrink-0", isGreen ? "bg-emerald-500 shadow-emerald-500/50" : isYellow ? "bg-amber-500 shadow-amber-500/50" : "bg-red-500 animate-pulse")} />
-                    <div>
-                      <span className="font-bold text-foreground block">{item.name} ({item.assetTag})</span>
-                      <span className="text-[10px] text-muted-foreground">{item.category} · {item.location}</span>
-                    </div>
-                  </div>
-                  <Badge className={cn("text-[10px] font-bold", isGreen ? "bg-emerald-50 text-emerald-700 border-emerald-200" : isYellow ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-red-50 text-red-700 border-red-200")}>
-                    {item.condition.replace(/_/g, " ")}
-                  </Badge>
-                </div>
-              );
-            })}
-
-            {filteredConditionItems.length === 0 && (
-              <div className="p-6 text-center text-xs text-muted-foreground italic bg-muted/10 rounded-xl border border-dashed border-border">
-                No asset conditions matching selected filters.
+        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+          {rawWarrantyExpiringSoon.map((w: any) => (
+            <div key={w.assetTag} className="p-3 bg-muted/20 border border-border rounded-xl flex items-center justify-between text-xs">
+              <div>
+                <span className="font-bold text-foreground block">{w.name} <span className="font-mono text-primary">({w.assetTag})</span></span>
+                <span className="text-[11px] text-muted-foreground">Manufacturer: {w.manufacturer} · Warranty Expiry: {w.warrantyExpiry}</span>
               </div>
-            )}
-          </div>
-        </Card>
+              <Badge className={cn("text-[10px] font-extrabold px-2.5 py-1", w.isExpired ? "bg-red-600 text-white" : w.daysRemaining < 30 ? "bg-amber-600 text-white" : "bg-blue-600 text-white")}>
+                {w.isExpired ? "EXPIRED" : `${w.daysRemaining} days remaining`}
+              </Badge>
+            </div>
+          ))}
 
-        {/* Calendar/Timeline View (90-Day Warranty Expiry) */}
-        <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-[#005A36]" /> Calendar/Timeline View: 90-Day Warranty Expiry
-            </h3>
-            <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-extrabold text-xs">
-              {rawWarrantyExpiringSoon.length} Equipment Items
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground mb-4">
-            Equipment losing manufacturer warranty support within the next 90 days.
-          </p>
-
-          <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-            {rawWarrantyExpiringSoon.map((w: any) => (
-              <div key={w.assetTag} className="p-3 bg-muted/20 border border-border rounded-xl flex items-center justify-between text-xs">
-                <div>
-                  <span className="font-bold text-foreground block">{w.name} <span className="font-mono text-primary">({w.assetTag})</span></span>
-                  <span className="text-[11px] text-muted-foreground">Manufacturer: {w.manufacturer} · Warranty Expiry: {w.warrantyExpiry}</span>
-                </div>
-                <Badge className={cn("text-[10px] font-extrabold px-2.5 py-1", w.isExpired ? "bg-red-600 text-white" : w.daysRemaining < 30 ? "bg-amber-600 text-white" : "bg-blue-600 text-white")}>
-                  {w.isExpired ? "EXPIRED" : `${w.daysRemaining} days remaining`}
-                </Badge>
-              </div>
-            ))}
-
-            {rawWarrantyExpiringSoon.length === 0 && (
-              <div className="p-6 text-center text-xs text-muted-foreground italic bg-muted/10 rounded-xl border border-dashed border-border">
-                No equipment warranties expiring within the next 90 days.
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
+          {rawWarrantyExpiringSoon.length === 0 && (
+            <div className="p-6 text-center text-xs text-muted-foreground italic bg-muted/10 rounded-xl border border-dashed border-border">
+              No asset warranties expiring within the next 90 days.
+            </div>
+          )}
+        </div>
+      </Card>
     </motion.div>
   );
 };
@@ -391,7 +424,7 @@ export const LocationStatusWidget: React.FC<{
             </CardTitle>
           </div>
           <CardDescription className="text-muted-foreground text-xs">
-            Equipment count per physical research laboratory & warehouse facility stacked by operational state.
+            Asset count per physical research laboratory & warehouse facility stacked by operational state.
           </CardDescription>
           {isLoading && <p className="text-xs text-muted-foreground mt-1">Loading the asset counts...</p>}
           {isError && <p className="text-xs font-semibold text-red-600 mt-1">Could not load the asset counts. Reload the page.</p>}
@@ -526,7 +559,7 @@ export const WarrantyCalendarWidget: React.FC = () => {
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-amber-600" />
               <CardTitle className="text-sm font-bold text-foreground">
-                Warranties Ending in 90 Days
+                90-Day Warranty Expiry
               </CardTitle>
             </div>
             <Badge variant="outline" className="border-amber-300 text-amber-800 bg-amber-50 font-extrabold text-xs">
@@ -540,7 +573,7 @@ export const WarrantyCalendarWidget: React.FC = () => {
         <CardContent>
           {expiringAssets.length === 0 ? (
             <div className="p-8 text-center text-xs text-muted-foreground italic bg-muted/10 rounded-xl border border-dashed border-border">
-              No equipment warranties expiring within the next 90 days.
+              No asset warranties expiring within the next 90 days.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -670,7 +703,7 @@ export const StaffAnalyticsView: React.FC = () => {
   return (
     <div className="space-y-8 text-foreground font-sans">
       <InsightsPanel
-        charts={{ warranty: "Warranties Ending in 90 Days", repairs: "Repair Operations Kanban Board" }}
+        charts={{ warranty: "90-Day Warranty Expiry", repairs: "Operations Board" }}
       />
 
       {/* Global Filter Toolbar */}
@@ -738,7 +771,7 @@ export const StaffAnalyticsView: React.FC = () => {
         )}
       </div>
 
-      <StaffTechnicalMaintenanceSection
+      <ConditionIndicatorsSection
         startDate={startDate}
         endDate={endDate}
         selectedLab={selectedLab}
@@ -750,10 +783,7 @@ export const StaffAnalyticsView: React.FC = () => {
         selectedCategory={selectedCategory}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <WarrantyCalendarWidget />
-        <InspectionProgressTracker />
-      </div>
+      <WarrantyCalendarWidget />
     </div>
   );
 };

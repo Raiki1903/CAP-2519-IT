@@ -325,7 +325,7 @@ export function LabHeadLoanRequests({ userLab }: LabHeadLoanRequestsProps) {
             <p className="text-xs text-muted-foreground py-6 text-center">Loading out-on-loan items...</p>
           ) : filteredOut.length === 0 ? (
             <div className="p-6 text-center text-xs text-muted-foreground bg-muted/20 border border-dashed border-border rounded-xl">
-              No equipment currently out on loan from {userLab || "your lab"}.
+              No assets currently out on loan from {userLab || "your lab"}.
             </div>
           ) : (
             <div className="flex flex-col gap-3">

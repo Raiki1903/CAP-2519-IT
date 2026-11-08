@@ -29,7 +29,7 @@ export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   LOAN_OVERDUE: "Loan overdue",
   STATUS_CHECK_DUE: "Status check due",
   RECEIPT_WAITING: "Reported issue waiting for receipt",
-  DISPOSAL_DECISION_WAITING: "Disposal request waiting for your decision",
+  DISPOSAL_DECISION_WAITING: "Retirement request waiting for your decision",
   MAINTENANCE_OPEN: "Your maintenance ticket",
 };
 

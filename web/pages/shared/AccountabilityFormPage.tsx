@@ -44,7 +44,7 @@ function formatDate(dateStr?: string | null): string {
 }
 
 /**
- * Displays the official CCS AdRIC Equipment Accountability Form
+ * Displays the official CCS AdRIC Asset Accountability Form
  * and handles PDF printing with policy-standard file naming.
  */
 export function AccountabilityFormPage() {
@@ -155,7 +155,7 @@ export function AccountabilityFormPage() {
               Advanced Research and Innovation Center (AdRIC)
             </h1>
             <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wide mt-0.5">
-              Equipment Accountability Form
+              Asset Accountability Form
             </p>
           </div>
           <div className="text-right">
@@ -165,18 +165,18 @@ export function AccountabilityFormPage() {
           </div>
         </div>
 
-        {/* Section 1: Equipment and Borrower Details */}
+        {/* Section 1: Asset and Borrower Details */}
         <div className="grid grid-cols-2 gap-6 pt-2">
           <div className="space-y-1.5 border border-slate-200 p-3 rounded-lg bg-slate-50/50">
             <p className="text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-1">
-              Equipment Information
+              Asset Information
             </p>
             <div>
               <span className="text-slate-500 font-medium">Asset Tag:</span>{" "}
               <span className="font-mono font-bold text-slate-950">{asset.tag || loan.asset.tag}</span>
             </div>
             <div>
-              <span className="text-slate-500 font-medium">Equipment Name:</span>{" "}
+              <span className="text-slate-500 font-medium">Asset Name:</span>{" "}
               <span className="font-semibold text-slate-950">{asset.name || loan.asset.name}</span>
             </div>
             <div>
@@ -265,7 +265,7 @@ export function AccountabilityFormPage() {
           <div>
             <span className="text-slate-500 font-medium">Remarks:</span>{" "}
             <span className="text-slate-950">
-              {releaseInspection?.remarks || loan.releaseInspection?.remarks || "Equipment released in verified working condition."}
+              {releaseInspection?.remarks || loan.releaseInspection?.remarks || "Asset released in verified working condition."}
             </span>
           </div>
         </div>

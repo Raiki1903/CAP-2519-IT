@@ -55,7 +55,7 @@ export function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommissio
                   size="icon"
                   className="h-6 w-6 rounded-md bg-white hover:bg-amber-50 text-amber-600 border-amber-200 opacity-90 shadow-sm"
                   onClick={(e) => { e.stopPropagation(); onDecommission(); }}
-                  title="Decommission Asset"
+                  title="Retire Asset"
                 >
                   <Archive size={11} />
                 </Button>
@@ -93,7 +93,7 @@ export function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommissio
         {isDisposed ? (
           <div className="flex items-center justify-between text-[10px] text-red-700 pt-2 border-t border-red-100 font-mono mt-1">
             <span>By: {eq.disposalDetails?.decommissionedBy || "AdRIC Director"}</span>
-            <span className="font-bold">{eq.disposalDetails?.decommissionDate || "Disposed"}</span>
+            <span className="font-bold">{eq.disposalDetails?.decommissionDate || "Retired"}</span>
           </div>
         ) : (
           <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border mt-1">

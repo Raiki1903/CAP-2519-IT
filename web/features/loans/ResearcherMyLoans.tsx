@@ -162,7 +162,7 @@ export function ResearcherMyLoans() {
         <div>
           <h1 className="text-foreground mb-1">My Loans</h1>
           <p className="text-muted-foreground text-sm">
-            Equipment you have borrowed, requests awaiting processing, and your past borrowing history.
+            Assets you have borrowed, requests awaiting processing, and your past borrowing history.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchMyLoans} disabled={loading}>
@@ -176,7 +176,7 @@ export function ResearcherMyLoans() {
         <Card>
           <CardContent className="pt-4 pb-4">
             <p className="text-2xl font-extrabold text-foreground">{outLoans.length}</p>
-            <p className="text-xs text-muted-foreground">Equipment in Custody</p>
+            <p className="text-xs text-muted-foreground">Assets in Custody</p>
           </CardContent>
         </Card>
         <Card>
@@ -245,7 +245,7 @@ export function ResearcherMyLoans() {
             <p className="text-xs text-muted-foreground py-6 text-center">Loading borrowed assets...</p>
           ) : filteredOut.length === 0 ? (
             <div className="p-6 text-center text-xs text-muted-foreground bg-muted/20 border border-dashed border-border rounded-xl">
-              You do not have any borrowed equipment currently in your custody.
+              You do not have any borrowed assets currently in your custody.
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -541,7 +541,7 @@ export function ResearcherMyLoans() {
       <Dialog open={Boolean(returnTarget)} onOpenChange={(open) => { if (!open) setReturnTarget(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Ask to Return Equipment</DialogTitle>
+            <DialogTitle>Ask to Return Asset</DialogTitle>
             <DialogDescription>
               {returnTarget && (
                 <span>
@@ -566,13 +566,13 @@ export function ResearcherMyLoans() {
                 id="return-remarks"
                 value={returnRemarks}
                 onChange={(e) => setReturnRemarks(e.target.value)}
-                placeholder="Mention equipment condition, returned accessories, or preferred drop-off time..."
+                placeholder="Mention asset condition, returned accessories, or preferred drop-off time..."
                 rows={3}
                 maxLength={255}
                 className="mt-1.5 text-xs"
               />
               <div className="flex justify-between items-center text-[11px] text-muted-foreground mt-1">
-                <span>TSG will inspect the equipment upon handover.</span>
+                <span>TSG will inspect the asset upon handover.</span>
                 <span>{returnRemarks.length} / 255</span>
               </div>
             </div>

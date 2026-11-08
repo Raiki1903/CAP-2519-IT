@@ -169,7 +169,7 @@ export function InspectionQueue({ onReportSaved }: { onReportSaved: () => Promis
                     </TableHeader>
                     <TableBody>
                       {g.assets.map(entry => (
-                        <TableRow key={entry.asset.tag} className="transition-colors hover:bg-muted/10">
+                        <TableRow key={entry.asset.tag}>
                           <TableCell>
                             <p className="text-xs font-semibold text-foreground">{entry.asset.name}</p>
                             <p className="text-[10px] text-muted-foreground font-mono">{entry.asset.tag}</p>

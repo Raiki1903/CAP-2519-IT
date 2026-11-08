@@ -1,5 +1,5 @@
 /**
- * Custodian screen: My Assets, Available Equipment, QR Scan, and the condition report form, one tab at a time.
+ * Custodian screen: My Assets, Available Assets, QR Scan, and the condition report form, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /custodian/* (the tab comes from the URL).
  * Calls: api/assets.api.ts listAssets(), api/inspections.api.ts submitInspectionRaw(), api/maintenance.api.ts reportIssue(),
  * features/lookups/useLookups.ts, features/assets/AssetDetailModal.tsx, features/assets/assetSearch.ts,
@@ -8,7 +8,7 @@
  */
 import { useState, useRef, useEffect } from "react";
 import jsQR from "jsqr";
-import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, ClipboardCheck, RefreshCw, Zap, LayoutGrid, List } from "lucide-react";
+import { Camera, Package, Calendar, CheckCircle, AlertTriangle, Upload, X, Send, Loader, Zap, LayoutGrid, List } from "lucide-react";
 import { AssetImagePlaceholder } from "@web/features/assets/AssetImagePlaceholder";
 import { ResearcherMyLoans } from "@web/features/loans/ResearcherMyLoans";
 import { AssetDetailModal, type AssetDetail } from "@web/features/assets/AssetDetailModal";
@@ -77,7 +77,7 @@ const statusPills = [
  */
 // "Mine" is decided by comparing names, so two custodians with the same name see each other's assets. (issue #32)
 export function CustodianPortal({ activeTab }: { activeTab: string }) {
-  const { cycleMode, currentUser } = useSession();
+  const { currentUser } = useSession();
   const { assets, syncFromDb } = useServerData();
   const { lookups } = useFormLookups();
   const currentUserName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Custodian User";
@@ -101,7 +101,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter states for Available Equipment
+  // Filter states for Available Assets
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterLoc, setFilterLoc] = useState("All");
@@ -422,7 +422,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     return <ResearcherMyLoans />;
   }
 
-  // ── Available Equipment ───────────────────────────────────────────────────
+  // ── Available Assets ───────────────────────────────────────────────────
   if (activeTab === "available") {
     const availableAssets = displayedAssets.filter(a =>
       a.status === "AVAILABLE" &&
@@ -436,10 +436,10 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
       <div>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-foreground mb-1">Available Equipment</h1>
+            <h1 className="text-foreground mb-1">Available Assets</h1>
             <p className="text-muted-foreground text-sm">Assets you can request to borrow, from every lab.</p>
             {loadingDbAssets && (
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5"><Loader size={11} className="animate-spin" />Loading equipment from database…</p>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5"><Loader size={11} className="animate-spin" />Loading assets from database…</p>
             )}
             {!loadingDbAssets && dbAssetsError && (
               <p className="text-xs text-amber-700 mt-1 flex items-center gap-1.5"><AlertTriangle size={11} />{dbAssetsError} Showing the last list loaded.</p>
@@ -582,7 +582,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                 <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center"><CheckCircle size={24} className="text-emerald-500" /></div>
                 <p className="text-sm font-bold text-foreground">Asset Found</p>
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 w-full text-left space-y-1">
-                  <p className="text-xs font-bold text-emerald-900">{scannedAssetData?.id || scanResult} · {scannedAssetData?.name || "Equipment"}</p>
+                  <p className="text-xs font-bold text-emerald-900">{scannedAssetData?.id || scanResult} · {scannedAssetData?.name || "Asset"}</p>
                   <p className="text-[11px] text-emerald-700 font-medium">
                     Availability: <strong className="font-bold">{assetStatusLabel(scannedAssetData?.status || "Active")}</strong> · Lab: {scannedAssetData?.lab || "CITe4D"} · {scannedAssetData?.location || "Manila"}
                   </p>
@@ -628,23 +628,6 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   // ── Health Report ─────────────────────────────────────────────────────────
   return (
     <div className="max-w-xl mx-auto">
-      {/* Inspection cycle context header */}
-      <div className={cn("rounded-xl p-4 mb-5 flex items-center justify-between border", cycleMode === "Trimestral" ? "bg-emerald-50 border-emerald-200" : "bg-blue-50 border-blue-200")}>
-        <div className="flex items-center gap-3">
-          <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center", cycleMode === "Trimestral" ? "bg-emerald-100" : "bg-blue-100")}>
-            {cycleMode === "Trimestral" ? <RefreshCw size={16} className="text-emerald-700" /> : <ClipboardCheck size={16} className="text-blue-700" />}
-          </div>
-          <div>
-            <p className={cn("text-[10px] font-extrabold tracking-widest", cycleMode === "Trimestral" ? "text-emerald-700" : "text-blue-700")}>ACTIVE INSPECTION CYCLE</p>
-            <p className="text-sm font-bold text-foreground">{cycleMode === "Trimestral" ? "Termly (Trimestral) Inspection" : "Annual Inspection Baseline Check"}</p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-[10px] text-muted-foreground tracking-wide">SCHEDULED BY STAFF</p>
-          <p className={cn("text-xs font-semibold", cycleMode === "Trimestral" ? "text-emerald-700" : "text-blue-700")}>{cycleMode === "Trimestral" ? "Every Trimester" : "Once Per Year"}</p>
-        </div>
-      </div>
-
       <div className="mb-5">
         <h1 className="text-foreground mb-1">Send Asset Inspection Report</h1>
         <p className="text-muted-foreground text-sm">Report the condition of an asset you hold. Staff see it in the inspection log.</p>

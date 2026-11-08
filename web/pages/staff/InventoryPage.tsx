@@ -103,7 +103,7 @@ export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
           onClick={() => setInventorySubTab("disposed")}
           className={cn("pb-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all", inventorySubTab === "disposed" ? "border-emerald-700 text-emerald-800" : "border-transparent text-muted-foreground")}
         >
-          Disposed ({displayedAssets.filter(a => a.status === "RETIRED").length})
+          Retired ({displayedAssets.filter(a => a.status === "RETIRED").length})
         </button>
       </div>
 
@@ -201,7 +201,7 @@ export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
                             size="icon"
                             className="h-7 w-7 text-amber-600 hover:text-amber-800 hover:bg-amber-50"
                             onClick={() => setDisposalAsset(eq)}
-                            title="Decommission Asset"
+                            title="Retire Asset"
                           >
                             <Archive size={13} />
                           </Button>
@@ -216,7 +216,7 @@ export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-[10px] uppercase font-bold text-red-500 tracking-wider">Decommissioned</span>
+                        <span className="text-[10px] uppercase font-bold text-red-500 tracking-wider">Retired</span>
                       )}
                     </TableCell>}
                   </TableRow>

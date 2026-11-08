@@ -178,13 +178,13 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
         <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Pending Disposal Items</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Pending Retirement Items</p>
               {waiting ? waitingFor("h-9 w-28") : (
                 <h2 className="text-3xl font-extrabold text-amber-600 mt-1 font-mono">
                   {pendingDisposalsCount} Items
                 </h2>
               )}
-              <p className="text-[11px] text-muted-foreground mt-1">Filtered disposal requests waiting for your approval</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Filtered retirement requests waiting for your approval</p>
             </div>
             <div className="p-3 bg-amber-50 dark:bg-amber-500/10 rounded-xl text-amber-600">
               <AlertTriangle size={28} />
@@ -300,7 +300,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
   const inner = useMemo(() => {
     const map: Record<string, number> = {};
     filteredAssets.forEach(a => {
-      const cat = a.category || "General Equipment";
+      const cat = a.category || "General Asset";
       const val = Number(a.cost || a.acquisition_value || 0);
       map[cat] = (map[cat] || 0) + val;
     });
@@ -321,7 +321,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-0.5">
-              Capital allocation breakdown showing total monetary valuation grouped by grant agency source (outer ring) and equipment category (inner ring).
+              Capital allocation breakdown showing total monetary valuation grouped by grant agency source (outer ring) and asset category (inner ring).
             </CardDescription>
           </div>
           <Badge className="bg-[#005A36] text-white font-bold text-xs px-3 py-1">
@@ -389,7 +389,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
 
               <div className="pt-2 border-t border-border">
                 <h4 className="text-xs font-extrabold text-foreground uppercase tracking-wider mb-2">
-                  Equipment Category Sub-Allocations (Inner Ring)
+                  Asset Category Sub-Allocations (Inner Ring)
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {inner.map((item: any, idx: number) => {
@@ -547,7 +547,7 @@ export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selecte
                 </TableHeader>
                 <TableBody>
                   {topAssets.map((item: any, index: number) => (
-                    <TableRow key={item.assetId} className="hover:bg-muted/30 border-b border-border text-xs">
+                    <TableRow key={item.assetId} className="border-b border-border text-xs">
                       <TableCell className="font-extrabold text-[#005A36]">#{index + 1}</TableCell>
                       <TableCell className="font-medium text-foreground">
                         <div>{item.assetName}</div>

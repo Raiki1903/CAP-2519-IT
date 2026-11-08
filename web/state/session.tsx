@@ -97,10 +97,6 @@ interface SessionContextType {
   setRole: (role: Role | null) => void;
   currentUser: SessionUser | null;
   updateProfile: (firstName: string, lastName: string, profilePicture: string) => Promise<void>;
-  cycleMode: "Annual" | "Trimestral";
-  setCycleMode: (mode: "Annual" | "Trimestral") => void;
-  theme: "classic-dark" | "light-slate";
-  setTheme: (t: "classic-dark" | "light-slate") => void;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
   /** True after the server refused the session (a 401), until the next login. The login page says so. */
@@ -168,7 +164,7 @@ const SessionContext = createContext<SessionContextType | null>(null);
  *   error). The person stays where they are, with the login marker kept, and RootLayout offers Retry.
  * - `updateProfile(...)`: saves name and picture with authApi.updateAccount. The lab is read-only on the account page,
  *   so none is sent; the session takes the account's lab from the answer (issue #73).
- * - `cycleMode`, `theme`, `sidebarCollapsed` and their setters.
+ * - `sidebarCollapsed` and its setter.
  *
  * @param children the rest of the app
  */
@@ -237,30 +233,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, []);
 
-  // TODO(F-38): cycle mode is shown as a policy for the whole institution, but it is one cookie per browser. Phase 3.
-  const [cycleMode, setCycleModeState] = useState<"Annual" | "Trimestral">(() => {
-    const c = getCookie("pref_cycle_mode");
-    return (c === "Annual" || c === "Trimestral") ? c : "Trimestral";
-  });
-
-  const [theme, setThemeState] = useState<"classic-dark" | "light-slate">(() => {
-    const c = getCookie("pref_theme");
-    return (c === "classic-dark" || c === "light-slate") ? c : "classic-dark";
-  });
-
   const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(() => {
     return getCookie("pref_sidebar_collapsed") === "true";
   });
-
-  // Tailwind's dark styles switch on a "dark" class on the <html> element.
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "classic-dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-  }, [theme]);
 
   // Restores the session on page load.
   // The server's session is the HttpOnly adric_session cookie, which page scripts cannot read; the marker only says a
@@ -272,11 +247,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     OLD_SESSION_COOKIES.forEach(eraseCookie);
     if (getCookie(SESSION_MARKER_COOKIE)) restoreSession();
   }, []);
-
-  const setCycleMode = (mode: "Annual" | "Trimestral") => {
-    setCycleModeState(mode);
-    setCookie("pref_cycle_mode", mode, 365);
-  };
 
   const setRole = (newRole: Role | null) => {
     if (newRole === null) {
@@ -336,18 +306,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setCookie("pref_sidebar_collapsed", String(v), 365);
   };
 
-  const setTheme = (t: "classic-dark" | "light-slate") => {
-    setThemeState(t);
-    setCookie("pref_theme", t, 365);
-  };
-
   return (
     <SessionContext.Provider
       value={{
         role, setRole,
         currentUser, updateProfile,
-        cycleMode, setCycleMode,
-        theme, setTheme,
         sidebarCollapsed, setSidebarCollapsed,
         sessionEnded, restoring, restoreAttempt, restoreFailed, retryRestore
       }}

@@ -49,7 +49,7 @@ export const INSIGHT_ACTIONS: Record<InsightRuleId, Record<InsightAudience, stri
     'LIFE-04': {
         labHead: "Review whether it still suits the lab's work.",
         staff: 'Check its condition if a review is due.',
-        director: 'Review replacement planning. This is not a disposal approval.',
+        director: 'Review replacement planning. This is not a retirement approval.',
     },
     'COND-05': {
         labHead: 'Consider asking TSG why the condition dropped.',

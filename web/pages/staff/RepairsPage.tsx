@@ -78,7 +78,7 @@ export function RepairsPage() {
               </TableHeader>
               <TableBody>
                 {openTickets.map(t => (
-                  <TableRow key={t.maintenanceId} className={cn("transition-colors hover:bg-muted/10", t.status === "PENDING_RECEIPT" && "bg-orange-50/15 hover:bg-orange-50/25")}>
+                  <TableRow key={t.maintenanceId} className={cn(t.status === "PENDING_RECEIPT" && "bg-orange-50/15")}>
                     <TableCell>
                       <Badge variant="outline" className="text-[9px] font-extrabold tracking-wider uppercase px-2 bg-amber-100 text-amber-700 border-amber-200">
                         {t.issueType?.name ?? t.typeLabel}
@@ -138,7 +138,7 @@ export function RepairsPage() {
               </TableHeader>
               <TableBody>
                 {closedTickets.map(t => (
-                  <TableRow key={t.maintenanceId} className="transition-colors hover:bg-muted/10">
+                  <TableRow key={t.maintenanceId}>
                     <TableCell>
                       <Badge variant="outline" className="text-[9px] font-extrabold tracking-wider uppercase px-2 bg-slate-50 text-slate-500 border-slate-200">
                         {t.issueType?.name ?? t.typeLabel}

@@ -1,7 +1,7 @@
 /**
  * The Clearance tab of the Asset Loans page: the people who have borrowed, with a button to prepare each one's clearance record.
  * Layer: feature component. Called by pages/staff/LoansPage.tsx. Calls components/ui, clearanceRows.ts.
- * Used by: TSG, to open the printable Equipment Return and Clearance Record (/staff/clearance/:userId) in a new tab.
+ * Used by: TSG, to open the printable Asset Return and Clearance Record (/staff/clearance/:userId) in a new tab.
  */
 import { ClipboardCheck } from "lucide-react";
 import { Button } from "@web/components/ui/button";
@@ -25,7 +25,7 @@ export function ClearanceTab({ rows, searching }: { rows: ClearanceRow[]; search
         <h3 className="text-foreground font-bold text-sm tracking-wide uppercase">Clearance Records</h3>
       </div>
       <p className="text-xs text-muted-foreground mb-4">
-        People who have borrowed equipment. Prepare a borrower's Equipment Return and Clearance Record to print it.
+        People who have borrowed assets. Prepare a borrower's Asset Return and Clearance Record to print it.
       </p>
 
       {rows.length === 0 ? (
@@ -45,7 +45,7 @@ export function ClearanceTab({ rows, searching }: { rows: ClearanceRow[]; search
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <TableRow key={r.userId} className="transition-colors hover:bg-muted/10">
+                <TableRow key={r.userId}>
                   <TableCell className="text-xs font-bold text-foreground">{r.name}</TableCell>
                   <TableCell className="text-xs font-mono text-foreground">{r.openLoans}</TableCell>
                   <TableCell className="text-xs font-mono text-muted-foreground">{r.loansOnRecord}</TableCell>

@@ -34,7 +34,7 @@ export function CompleteDisposalDialog({ retirement, onClose, onDone }: { retire
     try {
       const data = await retirementsApi.completeRetirement(retirement.retirementId, { pathway, dispositionReference: reference.trim() });
       if (!data.success) {
-        setError(data.error || "The disposal could not be completed. Please try again.");
+        setError(data.error || "The retirement could not be completed. Please try again.");
         return;
       }
       await onDone();
@@ -51,9 +51,9 @@ export function CompleteDisposalDialog({ retirement, onClose, onDone }: { retire
       {/* z-[60]: this opens over AssetDetailModal, whose card is at z-index 51. */}
       <DialogContent className="max-w-md z-[60]" overlayClassName="z-[60]">
         <DialogHeader>
-          <DialogTitle className="text-sm font-bold text-foreground">Complete the disposal</DialogTitle>
+          <DialogTitle className="text-sm font-bold text-foreground">Complete the retirement</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            DISP-{retirement.retirementId} was approved for {retirement.asset.name} ({retirement.asset.tag}). Once you complete it the asset is Retired and nothing more can be done to it.
+            RET-{retirement.retirementId} was approved for {retirement.asset.name} ({retirement.asset.tag}). Once you complete it the asset is Retired and nothing more can be done to it.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3 py-2">
@@ -76,7 +76,7 @@ export function CompleteDisposalDialog({ retirement, onClose, onDone }: { retire
         <DialogFooter className="gap-2">
           <Button variant="outline" size="sm" disabled={saving} onClick={onClose}>Cancel</Button>
           <Button size="sm" disabled={saving || !reference.trim()} onClick={complete} className="bg-red-700 hover:bg-red-800 text-white font-bold text-xs">
-            {saving ? "Saving…" : "Complete disposal"}
+            {saving ? "Saving…" : "Complete retirement"}
           </Button>
         </DialogFooter>
       </DialogContent>

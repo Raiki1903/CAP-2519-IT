@@ -157,7 +157,7 @@ export function ClearancePrintPage() {
             Advanced Research and Innovation Center (AdRIC)
           </p>
           <h1 className="text-lg font-extrabold uppercase tracking-wide text-slate-950 mt-2">
-            Equipment Return and Clearance Record
+            Asset Return and Clearance Record
           </h1>
           <p className="text-[11px] text-slate-500 mt-0.5">
             Appendix 4 - CCS Equipment Monitoring Policies
@@ -227,12 +227,12 @@ export function ClearancePrintPage() {
         {/* Released Loans Record Table */}
         <div className="mb-8">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-2 border-b border-slate-300 pb-1">
-            Equipment Loan and Return History
+            Asset Loan and Return History
           </h2>
 
           {loans.length === 0 ? (
             <p className="text-xs text-slate-500 py-3 italic">
-              No equipment loan records registered for this account.
+              No asset loan records registered for this account.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -252,7 +252,7 @@ export function ClearancePrintPage() {
                   {loans.map((loan) => {
                     const ret = loan.returnInspection;
                     return (
-                      <tr key={loan.loanId} className="border-b border-slate-200 hover:bg-slate-50/50">
+                      <tr key={loan.loanId} className="border-b border-slate-200">
                         <td className="p-2 border-r border-slate-200 font-bold text-slate-800">
                           LOAN-{loan.loanId}
                         </td>
@@ -321,7 +321,7 @@ export function ClearancePrintPage() {
 
         {/* Footer Policy Reference */}
         <div className="mt-12 text-[10px] text-slate-400 text-center border-t border-slate-200 pt-3">
-          This clearance record certifies equipment custody status at the date of evaluation under DLSU CCS AdRIC policy.
+          This clearance record certifies asset custody status at the date of evaluation under DLSU CCS AdRIC policy.
         </div>
       </div>
     </div>

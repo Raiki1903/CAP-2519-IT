@@ -203,7 +203,7 @@ export function NotificationCenter() {
         requests.push({
           id: `LOAN-${n.loanId}`,
           type: "loan",
-          title: `Equipment Loan Request: ${assetNameOf(n.assetTag)}`,
+          title: `Asset Loan Request: ${assetNameOf(n.assetTag)}`,
           description: loan
             ? `Borrower: ${loan.borrower || "A researcher"} • Purpose: "${loan.purpose || "Research Project Use"}"`
             : n.label,
@@ -259,9 +259,9 @@ export function NotificationCenter() {
     retirements.forEach(r => {
       const requester = "hidden" in r.requestedBy ? "TSG" : r.requestedBy.name;
       const base = {
-        id: `DISP-${r.retirementId}`,
+        id: `RET-${r.retirementId}`,
         type: "disposal" as const,
-        title: `Disposal Request: ${r.asset.name}`,
+        title: `Retirement Request: ${r.asset.name}`,
         date: r.requestedAt,
         targetTab: "disposals",
         meta: r,
@@ -279,7 +279,7 @@ export function NotificationCenter() {
           description: `Approved${r.decisionRemarks ? `: "${r.decisionRemarks}"` : ""}. Complete it with the pathway and the disposition reference.`,
           date: r.decidedAt ?? r.requestedAt,
           needsAction: true,
-          badge: "Complete Disposal",
+          badge: "Complete Retirement",
         });
       }
     });
@@ -299,7 +299,7 @@ export function NotificationCenter() {
         reminders.push({
           id: `REM-OVD-${n.loanId}`,
           type: "overdue",
-          title: `Overdue Equipment Return: ${assetNameOf(n.assetTag)}`,
+          title: `Overdue Asset Return: ${assetNameOf(n.assetTag)}`,
           description: `WARNING: This device was due on ${n.date}. Return it as soon as you can.`,
           needsAction: true,
           targetTab: "myassets",
@@ -381,8 +381,8 @@ export function NotificationCenter() {
     const fallback = roleDefaultPath[cardRole];
 
     if (cardRole === "AdRICDirector") {
-      if (cardType === "disposal" || targetTab === "disposals" || targetTab === "clearance-disposal") {
-        return "/adric-director/clearance-disposal";
+      if (cardType === "disposal" || targetTab === "disposals" || targetTab === "retirement-approvals") {
+        return "/adric-director/retirement-approvals";
       }
       return fallback;
     }
@@ -633,7 +633,7 @@ export function NotificationCenter() {
                             </div>
                           )}
 
-                          {/* Disposal decision (Director, Secretary) or completion (TSG) */}
+                          {/* Retirement decision (Director, Secretary) or completion (TSG) */}
                           {item.type === "disposal" && item.meta.status === "PENDING" && (
                             <DisposalDecisionControls retirement={item.meta} onDecided={syncFromDb} />
                           )}
@@ -642,7 +642,7 @@ export function NotificationCenter() {
                               onClick={e => { e.stopPropagation(); setCompleting(item.meta); }}
                               className="text-[10px] font-bold text-white bg-red-700 hover:bg-red-800 px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
                             >
-                              Complete Disposal
+                              Complete Retirement
                             </button>
                           )}
 
@@ -660,7 +660,7 @@ export function NotificationCenter() {
                     <div className="flex flex-col items-center justify-center text-center py-12 text-muted-foreground">
                       <CheckCircle size={32} className="text-emerald-500/50 mb-2" />
                       <p className="text-xs font-bold text-foreground">No Pending Requests</p>
-                      <p className="text-[10px] mt-0.5">All repair, loan, and disposal requests for your role are up to date.</p>
+                      <p className="text-[10px] mt-0.5">All repair, loan, and retirement requests for your role are up to date.</p>
                     </div>
                   )}
                 </>

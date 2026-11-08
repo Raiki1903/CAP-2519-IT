@@ -1,5 +1,5 @@
 /**
- * Director screen: Overview, Analytics, Disposal Approvals, and the Inventory Report, one tab at a time.
+ * Director screen: Overview, Analytics, Retirement Approvals, and the Inventory Report, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /adric-director/* (the tab comes from the URL).
  * Calls: features/disposals/DisposalDecisionControls.tsx (api/retirements.api.ts decideRetirement()), features/lookups/useLookups.ts (the labs and their campus),
  * features/assets/campusCounts.ts, features/assets/assetSearch.ts (the search placeholder), features/analytics/director/DirectorAnalyticsView.tsx, state/serverData.tsx.
@@ -36,7 +36,7 @@ interface AdRICDirectorDashboardProps {
 const TAB_TITLES: Record<AdRICDirectorDashboardProps["activeTab"], string> = {
   overview: "Overview",
   analytics: "Analytics",
-  "clearance-disposal": "Disposal Approvals",
+  "clearance-disposal": "Retirement Approvals",
   reports: "Inventory Report",
 };
 
@@ -164,11 +164,11 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     }
 
     if (asset.status === "RETIRED" && asset.disposalDetails) {
-      csvContent += `\nDECOMMISSIONING & DISPOSAL DETAILS\n`;
-      csvContent += `Disposal ID,${asset.disposalId}\n`;
-      csvContent += `Decommission Date,${asset.disposalDetails.decommissionDate}\n`;
-      csvContent += `Decommissioned By,"${asset.disposalDetails.decommissionedBy}"\n`;
-      csvContent += `Disposal Pathway,"${asset.disposalDetails.disposalPathway}"\n`;
+      csvContent += `\nRETIREMENT DETAILS\n`;
+      csvContent += `Retirement ID,${asset.disposalId}\n`;
+      csvContent += `Retirement Date,${asset.disposalDetails.decommissionDate}\n`;
+      csvContent += `Retired By,"${asset.disposalDetails.decommissionedBy}"\n`;
+      csvContent += `Pathway,"${asset.disposalDetails.disposalPathway}"\n`;
       csvContent += `Breakdown Reasons,"${asset.disposalDetails.breakdownReasons}"\n`;
     }
 
@@ -188,7 +188,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     refreshSharedLists();
   }, [activeTab]);
 
-  // The disposals waiting for a decision. The Director never requests one, so each of them is theirs to decide.
+  // The retirements waiting for a decision. The Director never requests one, so each of them is theirs to decide.
   const pendingDisposals = retirements.filter(r => r.status === "PENDING");
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -299,7 +299,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
               <div>
                 <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Pending Approvals</p>
                 <h3 className="text-2xl font-extrabold mt-1 text-foreground font-mono">
-                  {pendingDisposals.length} Disposals
+                  {pendingDisposals.length} Retirements
                 </h3>
               </div>
               <div className="p-3 bg-red-50 dark:bg-red-500/10 rounded-lg border border-red-100 dark:border-red-500/20 text-red-650 dark:text-red-400">
@@ -412,7 +412,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                       }
 
                       return (
-                        <TableRow key={lab.centerId} className="hover:bg-muted/30 transition-colors">
+                        <TableRow key={lab.centerId}>
                           <TableCell className="font-bold text-foreground text-xs">{lab.code}</TableCell>
                           <TableCell className="text-muted-foreground text-xs">{lab.campusLabel}</TableCell>
                           <TableCell className="text-center font-semibold text-xs text-foreground font-mono">{assetCount}</TableCell>
@@ -440,22 +440,22 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     return <DirectorAnalyticsView />;
   };
 
-  // 3. Disposal Approvals render
+  // 3. Retirement Approvals render
   const renderClearanceDisposal = () => {
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
-        {/* Regulated Disposal Approvals */}
+        {/* Regulated Retirement Approvals */}
         <Card className="shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Disposal Requests</CardTitle>
+            <CardTitle className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Retirement Requests</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-muted-foreground">
-              TSG asked to dispose of these assets. Each one needs your approval or your denial.
+              TSG asked to retire these assets. Each one needs your approval or your denial.
             </p>
 
             {isGlobalDbLoading && pendingDisposals.length === 0 && (
-              <p className="text-xs text-muted-foreground">Loading disposal requests…</p>
+              <p className="text-xs text-muted-foreground">Loading retirement requests…</p>
             )}
 
             <div className="space-y-3.5">
@@ -489,7 +489,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
               {!isGlobalDbLoading && pendingDisposals.length === 0 && (
                 <div className="flex flex-col items-center justify-center text-center py-12 border border-dashed border-border rounded-xl text-muted-foreground text-xs bg-muted/10">
                   <CheckCircle2 className="text-[#005A36]/40 mb-2.5 size-9" />
-                  <p className="font-semibold text-foreground">No Disposal Requests</p>
+                  <p className="font-semibold text-foreground">No Retirement Requests</p>
                   <p className="text-[10px] text-muted-foreground mt-1">Nothing is waiting for your approval.</p>
                 </div>
               )}
@@ -580,7 +580,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="flex flex-col gap-1.5">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Search Equipment</Label>
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Search Assets</Label>
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
                   <Input
@@ -695,7 +695,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                       const itemProcured = item.procurement_date || item.procured || "N/A";
 
                       return (
-                        <TableRow key={item.id} className="print:border-slate-200 hover:bg-muted/30 transition-colors">
+                        <TableRow key={item.id} className="print:border-slate-200">
                           <TableCell className="font-mono text-xs text-[#005A36] print:text-slate-900 font-bold">{item.id}</TableCell>
                           <TableCell className="text-xs">
                             <p className="font-mono text-foreground print:text-slate-900 font-semibold">ITS: {item.itsPropertyTag || "None"}</p>
@@ -718,7 +718,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                           <TableCell className="text-right text-xs">
                             {isDisposed ? (
                               <div className="space-y-0.5">
-                                <Badge className="bg-red-50 text-red-750 border border-red-200 text-[9px] font-bold uppercase">Disposed</Badge>
+                                <Badge className="bg-red-50 text-red-750 border border-red-200 text-[9px] font-bold uppercase">Retired</Badge>
                                 <p className="text-[9px] text-muted-foreground/60 font-mono">ID: {item.disposalId}</p>
                               </div>
                             ) : (
@@ -766,7 +766,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                       Asset History: {selectedAssetForAudit.id}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                      Repairs, inspections, and disposal of this asset.
+                      Repairs, inspections, and retirement of this asset.
                     </DialogDescription>
                   </div>
                   <Button
@@ -784,7 +784,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                 {/* 1. Core Metadata */}
                 <div className="grid grid-cols-2 gap-4 bg-muted/45 p-4 border border-border rounded-xl text-xs text-muted-foreground leading-relaxed">
                   <div className="space-y-1.5">
-                    <p><span>Equipment Name:</span> <strong className="text-foreground">{selectedAssetForAudit.name}</strong></p>
+                    <p><span>Asset Name:</span> <strong className="text-foreground">{selectedAssetForAudit.name}</strong></p>
                     <p><span>Serial Number:</span> <span className="font-mono">{selectedAssetForAudit.serial}</span></p>
                     <p><span>Manufacturer:</span> {selectedAssetForAudit.manufacturer}</p>
                     <p><span>Funding Source:</span> <span className="font-semibold text-[#005A36]">{selectedAssetForAudit.funding}</span></p>
@@ -850,18 +850,18 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   )}
                 </div>
 
-                {/* 5. Disposal Details if Disposed */}
+                {/* 5. Retirement Details if Retired */}
                 {selectedAssetForAudit.status === "RETIRED" && selectedAssetForAudit.disposalDetails && (
                   <div className="space-y-2.5 p-4 bg-red-50 border border-red-200 rounded-xl">
                     <h4 className="text-xs font-bold text-red-755 flex items-center gap-1.5">
                       <XCircle size={13} />
-                      Decommissioning &amp; Disposal Details
+                      Retirement Details
                     </h4>
                     <div className="text-xs text-muted-foreground mt-2 font-mono space-y-1.5 leading-relaxed">
-                      <p><strong>Disposal ID:</strong> {selectedAssetForAudit.disposalId}</p>
-                      <p><strong>Decommission Date:</strong> {selectedAssetForAudit.disposalDetails.decommissionDate}</p>
-                      <p><strong>Decommissioned By:</strong> {selectedAssetForAudit.disposalDetails.decommissionedBy}</p>
-                      <p><strong>Disposal Pathway:</strong> {selectedAssetForAudit.disposalDetails.disposalPathway}</p>
+                      <p><strong>Retirement ID:</strong> {selectedAssetForAudit.disposalId}</p>
+                      <p><strong>Retirement Date:</strong> {selectedAssetForAudit.disposalDetails.decommissionDate}</p>
+                      <p><strong>Retired By:</strong> {selectedAssetForAudit.disposalDetails.decommissionedBy}</p>
+                      <p><strong>Pathway:</strong> {selectedAssetForAudit.disposalDetails.disposalPathway}</p>
                       <p><strong>Breakdown Reasons:</strong> {selectedAssetForAudit.disposalDetails.breakdownReasons}</p>
                     </div>
                   </div>

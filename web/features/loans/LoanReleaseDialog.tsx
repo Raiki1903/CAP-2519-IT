@@ -109,7 +109,7 @@ export function LoanReleaseDialog({
             Release Asset: {loan.asset.tag}
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Confirm the equipment tag and record the physical condition before handing over to the borrower.
+            Confirm the asset tag and record the physical condition before handing over to the borrower.
           </DialogDescription>
         </DialogHeader>
 
@@ -117,7 +117,7 @@ export function LoanReleaseDialog({
         <div className="bg-muted/30 border border-border rounded-lg p-3 text-xs space-y-1.5">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <span className="text-muted-foreground">Equipment:</span>{" "}
+              <span className="text-muted-foreground">Asset:</span>{" "}
               <span className="font-semibold text-foreground">{loan.asset.name}</span>
             </div>
             <div>

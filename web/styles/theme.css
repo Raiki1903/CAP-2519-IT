@@ -232,15 +232,6 @@
   );
 }
 
-/* ── Card lift on hover ──────────────────────────────────────────────────── */
-[data-slot="card"] {
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
-}
-[data-slot="card"]:hover {
-  box-shadow: 0 6px 24px rgba(0, 90, 54, 0.09);
-  transform: translateY(-2px);
-}
-
 /* ── Badge pulse for critical alerts ────────────────────────────────────── */
 @keyframes badgePulse {
   0%, 100% { opacity: 1; }

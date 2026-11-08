@@ -128,7 +128,7 @@ describe("GET /api/assets", () => {
 
     expect(listed.status).toBe("RETIRED");
     expect(listed.currentLocation).toBeNull();
-    expect(listed.disposalId).toBe(`DISP-${SEEDED_ROWS.disposalId}`);
+    expect(listed.disposalId).toBe(`RET-${SEEDED_ROWS.disposalId}`);
     expect(listed.disposalDetails).toMatchObject({
       lastCustodian: "No Custodian",
       disposalPathway: "Recycle",

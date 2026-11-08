@@ -5,7 +5,7 @@
  * and /complete.
  * Workflow: disposal (TSG requests it and the asset goes to Pending Retirement; the Director or the Secretary approves
  * it, or denies it and the asset gets its status back; TSG completes an approved disposal and the asset is Retired).
- * Fixtures: the seeded completed disposal DISP-1 (requested by Staff TSG, decided by the Director) on TEST-0004; the
+ * Fixtures: the seeded completed disposal RET-1 (requested by Staff TSG, decided by the Director) on TEST-0004; the
  * accounts (USERS). The list tests run first. The write tests use their own extra assets (TEST-0601 onward, see
  * extraAssets.ts) and change no seeded row.
  */
@@ -20,7 +20,7 @@ const asDirector = as(USERS.director);
 const asSecretary = as(USERS.secretary);
 const asStaff = as(USERS.staffTsg);
 
-const NOT_BEYOND_REPAIR = "Finish the maintenance ticket first. Only an asset found beyond repair can be disposed of from Maintenance.";
+const NOT_BEYOND_REPAIR = "Finish the maintenance ticket first. Only an asset found beyond repair can be retired from Maintenance.";
 
 const assetStatus = async (assetId: number) => (await db.assets.findUniqueOrThrow({ where: { asset_id: assetId } })).status;
 const retirementRow = (retirementId: number) => db.asset_retirements.findUniqueOrThrow({ where: { retirement_id: retirementId } });
@@ -86,7 +86,7 @@ describe("GET /api/retirements", () => {
     expect(pending.body.retirements.map((r: { retirementId: number }) => r.retirementId)).toEqual([otherId]);
     const unknown = await asStaff.get("/api/retirements?status=REJECTED");
     expect(unknown.status).toBe(400);
-    expect(unknown.body.error).toBe("Unknown disposal status: REJECTED.");
+    expect(unknown.body.error).toBe("Unknown retirement status: REJECTED.");
   });
 });
 
@@ -133,14 +133,14 @@ describe("GET /api/retirements/:retirementId", () => {
 
     const otherLab = await as(USERS.labHead).get(`/api/retirements/${id}`);
     expect(otherLab.status).toBe(403);
-    expect(otherLab.body.error).toBe("This asset belongs to another lab. Only that lab's Head can see its disposal record.");
+    expect(otherLab.body.error).toBe("This asset belongs to another lab. Only that lab's Head can see its retirement record.");
 
     const ownLab = await as(USERS.labHead).get(`/api/retirements/${SEEDED_ROWS.disposalId}`);
     expect(ownLab.status).toBe(200);
   });
 
-  it("answers 400 for an id that is not a number, such as DISP-1, and 404 for an unknown id", async () => {
-    expect((await asStaff.get("/api/retirements/DISP-1")).status).toBe(400);
+  it("answers 400 for an id that is not a number, such as RET-1, and 404 for an unknown id", async () => {
+    expect((await asStaff.get("/api/retirements/RET-1")).status).toBe(400);
     expect((await asStaff.get("/api/retirements/999999")).status).toBe(404);
   });
 });
@@ -215,7 +215,7 @@ describe("POST /api/assets/:tag/retirement", () => {
     expect(loaned.status).toBe(409);
     expect(loaned.body.error).toBe(`${onLoan.tag} is On Loan and cannot be requested for retirement.`);
     expect(second.status).toBe(409);
-    expect(second.body.error).toBe(`${asset.tag} already has an open disposal request (DISP-${id}).`);
+    expect(second.body.error).toBe(`${asset.tag} already has an open retirement request (RET-${id}).`);
     expect(await db.asset_retirements.count({ where: { asset_id: { in: [onLoan.assetId, asset.assetId] } } })).toBe(1);
   });
 
@@ -234,7 +234,7 @@ describe("POST /api/assets/:tag/retirement", () => {
   });
 
   it.each([
-    { body: {}, error: "Write the reason for the disposal.", case: "no reason" },
+    { body: {}, error: "Write the reason for the retirement.", case: "no reason" },
     { body: { reason: "Test", pathway: "Scrap" }, error: "Pick a pathway from the list.", case: "an unknown pathway" },
     { body: { reason: "Test", assessmentInspection: { condition: "BROKEN" } }, error: "Pick the condition of the assessmentInspection from the list.", case: "a wrong assessment" },
   ])("answers 400 for $case, and writes nothing", async ({ body, error }) => {
@@ -301,7 +301,7 @@ describe("PUT /api/retirements/:id/decision", () => {
     const res = await asDirector.put(`/api/retirements/${SEEDED_ROWS.disposalId}/decision`, { decision: "approve" });
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe(`DISP-${SEEDED_ROWS.disposalId} is Completed, so it can no longer be decided.`);
+    expect(res.body.error).toBe(`RET-${SEEDED_ROWS.disposalId} is Completed, so it can no longer be decided.`);
   });
 
   it("gives one winner when the Director approves and the Secretary denies at once", async () => {
@@ -318,8 +318,8 @@ describe("PUT /api/retirements/:id/decision", () => {
     expect(await assetStatus(asset.assetId)).toBe(row.status === "APPROVED" ? "PENDING_RETIREMENT" : "AVAILABLE");
   });
 
-  it("answers 400 for an id that is not a number, such as DISP-1, and 404 for an unknown id", async () => {
-    expect((await asDirector.put("/api/retirements/DISP-1/decision", { decision: "approve" })).status).toBe(400);
+  it("answers 400 for an id that is not a number, such as RET-1, and 404 for an unknown id", async () => {
+    expect((await asDirector.put("/api/retirements/RET-1/decision", { decision: "approve" })).status).toBe(400);
     expect((await asDirector.put("/api/retirements/999999/decision", { decision: "approve" })).status).toBe(404);
   });
 });
@@ -345,7 +345,7 @@ describe("PUT /api/retirements/:id/complete", () => {
     const res = await asStaff.put(`/api/retirements/${id}/complete`, { pathway: "RECYCLE", dispositionReference: "Test" });
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe(`DISP-${id} is Pending, so it cannot be completed.`);
+    expect(res.body.error).toBe(`RET-${id} is Pending, so it cannot be completed.`);
     expect(await assetStatus(asset.assetId)).toBe("PENDING_RETIREMENT");
   });
 

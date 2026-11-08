@@ -2,7 +2,7 @@
  * Lookups service: builds the option lists the forms pick from.
  * Layer: service. Called by lookups.controller.ts. Calls lookups.repository.ts and @shared (the categories and campuses
  * with their labels).
- * Used by: Edit Asset, Register Equipment, the borrow form, Report an issue, the inspection forms, and the sign-up page.
+ * Used by: Edit Asset, Register Asset, the borrow form, Report an issue, the inspection forms, and the sign-up page.
  */
 import type { FormLookups } from '@shared/types/lookups';
 import { ASSET_CATEGORIES, ASSET_CATEGORY_LABELS, type AssetCategory } from '@shared/enums/assetCategory';

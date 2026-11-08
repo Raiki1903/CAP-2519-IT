@@ -1,7 +1,7 @@
 /**
  * The retirement statuses and pathways (asset_retirements.status and .pathway), and their labels.
  * Layer: shared. Imported by the server (retirements and assets services) and web/. Imports nothing.
- * Used by: the Asset Disposal workflow.
+ * Used by: the Asset Retirement workflow.
  */
 
 /** Every value of asset_retirements.status. Must match the `asset_retirements_status` enum in schema.prisma. */

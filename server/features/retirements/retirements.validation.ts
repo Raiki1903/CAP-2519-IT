@@ -19,13 +19,13 @@ function bodyOf(body: unknown): Record<string, unknown> {
 }
 
 /**
- * Reads the disposal id from the URL. The id is the number, not the "DISP-n" label the screens show.
+ * Reads the disposal id from the URL. The id is the number, not the "RET-n" label the screens show.
  *
  * @param value the `:retirementId` path part
  * @throws AppError 400 if it is not a whole number
  */
 export function readRetirementId(value: string): number {
-    if (!/^\d+$/.test(value)) throw new AppError(400, "Invalid disposal id.");
+    if (!/^\d+$/.test(value)) throw new AppError(400, "Invalid retirement id.");
     return Number(value);
 }
 
@@ -59,7 +59,7 @@ export interface RequestBody {
 export function readRequestBody(body: unknown): RequestBody {
     const data = bodyOf(body);
     const reason = readText(data, "reason", LONG_TEXT_MAX);
-    if (!reason) throw new AppError(400, "Write the reason for the disposal.");
+    if (!reason) throw new AppError(400, "Write the reason for the retirement.");
     const assessment = data.assessmentInspection;
     return {
         reason,
@@ -119,10 +119,10 @@ export function readCompleteBody(body: unknown): CompleteBody {
  */
 export function readStatusFilter(value: unknown): RetirementStatus[] | null {
     if (value === undefined) return null;
-    if (typeof value !== 'string') throw new AppError(400, "status must be one or more disposal statuses separated by commas.");
+    if (typeof value !== 'string') throw new AppError(400, "status must be one or more retirement statuses separated by commas.");
     const statuses = [...new Set(value.split(',').map(s => s.trim()).filter(Boolean))];
-    if (statuses.length === 0) throw new AppError(400, "Pick at least one disposal status.");
+    if (statuses.length === 0) throw new AppError(400, "Pick at least one retirement status.");
     const unknown = statuses.find(s => !(RETIREMENT_STATUSES as readonly string[]).includes(s));
-    if (unknown) throw new AppError(400, `Unknown disposal status: ${unknown}.`);
+    if (unknown) throw new AppError(400, `Unknown retirement status: ${unknown}.`);
     return statuses as RetirementStatus[];
 }

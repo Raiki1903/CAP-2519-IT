@@ -1,8 +1,8 @@
 /**
- * Printable Asset Disposal Record, for a completed disposal.
+ * Printable Asset Retirement Record, for a completed retirement.
  * Layer: page. Mounted by app/routes.tsx at /retirements/:retirementId/record outside RootLayout.
  * Calls: api/retirements.api.ts (getRetirement).
- * Used by: Staff and the Director, to print the official record of a completed disposal, opened from the asset modal.
+ * Used by: Staff and the Director, to print the official record of a completed retirement, opened from the asset modal.
  */
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
@@ -41,7 +41,7 @@ interface Record_ {
 }
 
 /**
- * Displays the Asset Disposal Record for one disposal and handles printing it.
+ * Displays the Asset Retirement Record for one retirement and handles printing it.
  * Fetches it with GET /api/retirements/:retirementId.
  */
 export function DisposalRecordPrintPage() {
@@ -54,7 +54,7 @@ export function DisposalRecordPrintPage() {
 
   useEffect(() => {
     if (!retirementId) {
-      setError("No disposal id specified.");
+      setError("No retirement id specified.");
       setLoading(false);
       return;
     }
@@ -65,7 +65,7 @@ export function DisposalRecordPrintPage() {
       .then((res) => {
         if (!isMounted) return;
         if (!res.success) {
-          setError(res.error || "Failed to load the disposal record.");
+          setError(res.error || "Failed to load the retirement record.");
         } else {
           setRecord({ retirement: res.retirement, asset: res.asset, presentValueAtCompletion: res.presentValueAtCompletion });
         }
@@ -100,7 +100,7 @@ export function DisposalRecordPrintPage() {
     const dd = String(now.getDate()).padStart(2, "0");
 
     const oldTitle = document.title;
-    document.title = `disposal_DISP-${record.retirement.retirementId}_${yyyy}${mm}${dd}`;
+    document.title = `retirement_RET-${record.retirement.retirementId}_${yyyy}${mm}${dd}`;
     window.print();
     setTimeout(() => {
       document.title = oldTitle;
@@ -111,7 +111,7 @@ export function DisposalRecordPrintPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/20">
         <div className="text-center p-6">
-          <p className="text-sm font-semibold text-foreground">Preparing the disposal record...</p>
+          <p className="text-sm font-semibold text-foreground">Preparing the retirement record...</p>
         </div>
       </div>
     );
@@ -122,9 +122,9 @@ export function DisposalRecordPrintPage() {
       <div className="min-h-screen flex items-center justify-center bg-muted/20 p-4">
         <div className="max-w-md w-full bg-card border border-border rounded-xl p-6 shadow-sm text-center">
           <AlertTriangle className="mx-auto text-destructive mb-3" size={36} />
-          <h2 className="text-base font-bold text-foreground mb-2">Unable to Prepare the Disposal Record</h2>
+          <h2 className="text-base font-bold text-foreground mb-2">Unable to Prepare the Retirement Record</h2>
           <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-3 mb-4">
-            {error || "Disposal record not found."}
+            {error || "Retirement record not found."}
           </p>
           <Button variant="outline" size="sm" onClick={handleBack} className="gap-1.5 text-xs">
             <ArrowLeft size={13} />
@@ -158,13 +158,13 @@ export function DisposalRecordPrintPage() {
           <p className="text-xs font-semibold tracking-wider uppercase text-slate-600">De La Salle University - Manila</p>
           <p className="text-sm font-bold uppercase text-slate-800">College of Computer Studies</p>
           <p className="text-xs font-semibold uppercase text-slate-600">Advanced Research and Innovation Center (AdRIC)</p>
-          <h1 className="text-lg font-extrabold uppercase tracking-wide text-slate-950 mt-2">Asset Disposal Record</h1>
-          <p className="text-[11px] text-slate-500 mt-0.5">DISP-{retirement.retirementId}</p>
+          <h1 className="text-lg font-extrabold uppercase tracking-wide text-slate-950 mt-2">Asset Retirement Record</h1>
+          <p className="text-[11px] text-slate-500 mt-0.5">RET-{retirement.retirementId}</p>
         </div>
 
         {retirement.status !== "COMPLETED" ? (
           <div className="p-6 text-center text-sm text-slate-600 bg-slate-50 border border-dashed border-slate-300 rounded">
-            DISP-{retirement.retirementId} is {retirement.statusLabel}. The Asset Disposal Record is available only once a disposal is Completed.
+            RET-{retirement.retirementId} is {retirement.statusLabel}. The Asset Retirement Record is available only once a retirement is Completed.
           </div>
         ) : (
           <>
@@ -187,9 +187,9 @@ export function DisposalRecordPrintPage() {
               </div>
             </div>
 
-            {/* Disposal section */}
+            {/* Retirement section */}
             <div className="mb-8">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-2 border-b border-slate-300 pb-1">Disposal</h2>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-2 border-b border-slate-300 pb-1">Retirement</h2>
               <div className="text-xs space-y-2 p-4 bg-slate-50 border border-slate-200 rounded">
                 <p><strong>Reason:</strong> {retirement.reason}</p>
                 <p><strong>Pathway:</strong> {retirement.pathwayLabel ?? "Not recorded"}</p>
@@ -209,7 +209,7 @@ export function DisposalRecordPrintPage() {
             {/* Signatures Section */}
             <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-300 text-xs">
               <div>
-                <p className="text-[10px] uppercase font-bold text-slate-500 mb-10">Released for disposal by:</p>
+                <p className="text-[10px] uppercase font-bold text-slate-500 mb-10">Released for retirement by:</p>
                 <div className="border-b border-slate-900 w-4/5 pb-1">
                   <span className="font-semibold text-slate-700">TSG Staff Representative</span>
                 </div>
@@ -229,7 +229,7 @@ export function DisposalRecordPrintPage() {
 
         {/* Footer Policy Reference */}
         <div className="mt-12 text-[10px] text-slate-400 text-center border-t border-slate-200 pt-3">
-          This record certifies the disposal of this asset from the DLSU CCS AdRIC registry.
+          This record certifies the retirement of this asset from the DLSU CCS AdRIC registry.
         </div>
       </div>
     </div>
