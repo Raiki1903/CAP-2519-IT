@@ -1,8 +1,8 @@
 /**
  * The demo seed (npm run seed): fills an empty local database, built by prisma/migrations, with roles, labs, demo accounts,
- * demo assets in every status, and any missing lookup rows.
+ * projects, demo assets with their history, and any missing lookup rows.
  * Layer: database tooling, not part of the server. Run by npm run seed. Calls seedTarget.ts, seedData.ts, seedHistory.ts,
- * Prisma with the MariaDB adapter, and the server's password helper.
+ * seedImages.ts, Prisma with the MariaDB adapter, and the server's password helper.
  * Used by: a teammate setting up a local copy of the app (docs/guides/DATABASE-MIGRATIONS.md). Never CCS Cloud, never the tests.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
@@ -11,15 +11,16 @@ import { hashPassword, hidePasswordHashes } from "../server/shared/services/pass
 import {
   DEMO_ACCOUNTS,
   DEMO_ASSETS,
-  DEMO_BORROWER_ID,
   DEMO_CATEGORY_METRICS,
   DEMO_FUNDING_SOURCES,
   DEMO_ISSUE_TYPES,
+  DEMO_LAB_ROOMS,
   DEMO_LABS,
   DEMO_METRICS,
-  DEMO_TSG_ID,
+  DEMO_PROJECTS,
 } from "./seedData";
-import { accountSteps, clockFor } from "./seedHistory";
+import { buildHistory, clockFor, nameOf, SEEDED_ASSETS } from "./seedHistory";
+import { categoryPicture } from "./seedImages";
 import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, type SeedTarget } from "./seedTarget";
 
 /** Every table the migrations create. The seed needs all of them, and fills only empty ones. */
@@ -31,9 +32,6 @@ const REQUIRED_TABLES = [
 
 /** Tables that must be empty: the seed never merges into data that is already there, and never deletes. */
 const MUST_BE_EMPTY = ["users", "roles", "research_centers", "assets"] as const;
-
-/** The health score each condition suggests at registration. */
-const HEALTH_SCORE = { PERFECT: 100, OPERATIONAL: 80, MINOR_DRIFT: 60, DEGRADED: 40, CRITICAL_DEFECT: 20 } as const;
 
 /**
  * A Prisma client for the seed's target only. It does not import server/config/prisma.ts, which loads .env,
@@ -78,24 +76,35 @@ async function checkDatabase(prisma: PrismaClient, target: SeedTarget): Promise<
   }
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** Splits rows into chunks, so one INSERT never grows past MySQL's packet limit with photos in it. */
+function chunks<T>(rows: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
+  return out;
+}
 
-/** A date-time this many days before now. */
-const daysAgo = (days: number) => new Date(Date.now() - days * DAY_MS);
+/** Sorts rows by a date, oldest first, and keeps the order of rows with the same date. */
+function byTime<T>(rows: T[], timeOf: (row: T) => Date): T[] {
+  return rows.map((row, i) => ({ row, i })).sort((a, b) => timeOf(a.row).getTime() - timeOf(b.row).getTime() || a.i - b.i).map((x) => x.row);
+}
 
 /**
- * Writes the lookup rows, roles, labs, demo accounts, demo assets, and the loan, maintenance ticket, retirements and
- * log row behind the assets that are not available, all in one transaction, so a failure leaves the database empty.
- * The lookup rows the migrations wrote are kept; only missing ones are added.
+ * Writes the lookup rows, roles, labs, demo accounts, projects, demo assets and their history (seedHistory.ts), all in
+ * one transaction, so a failure leaves the database empty. Each history table gets its ids in time order, as the app
+ * would have given them. The lookup rows the migrations wrote are kept; only missing ones are added.
  */
 async function writeDemoData(prisma: PrismaClient, password: string): Promise<void> {
   const roleNames = Object.values(roles_role_name);
   const roleId = new Map(roleNames.map((name, i) => [name, i + 1]));
   const labs = DEMO_LABS.map((lab, i) => ({ ...lab, centerId: i + 1 }));
   const labByCode = new Map(labs.map((lab) => [lab.shortCode, lab]));
+  const projectId = new Map(DEMO_PROJECTS.map((p, i) => [p.code, i + 1]));
   const clock = clockFor(new Date());
-  const { decisions, activity } = accountSteps(clock);
+  const history = buildHistory(clock);
   const passwordHashes = await Promise.all(DEMO_ACCOUNTS.map((a) => (a.anonymizedDaysAgo !== undefined ? "" : hashPassword(password))));
+
+  const inspections = byTime(history.inspections, (r) => r.inspected_at);
+  inspections.forEach((row, i) => (row.id = i + 1));
 
   await prisma.$transaction(
     async (tx) => {
@@ -114,7 +123,6 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
         skipDuplicates: true,
       });
       const fundingId = new Map((await tx.funding_sources.findMany()).map((f) => [f.name, f.funding_source_id]));
-      const issueTypeId = new Map((await tx.issue_types.findMany()).map((t) => [t.key, t.issue_type_id]));
 
       await tx.roles.createMany({ data: roleNames.map((name) => ({ role_id: roleId.get(name)!, role_name: name })) });
       await tx.research_centers.createMany({
@@ -134,7 +142,7 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
             id_number: anonymized ? null : 80000000 + a.userId,
             user_type: a.userType,
             account_status: a.status,
-            ...decisions.get(a.userId),
+            ...history.decisions.get(a.userId),
           };
         }),
       });
@@ -150,115 +158,57 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
         await tx.research_centers.update({ where: { center_id: labByCode.get(head.heads!)!.centerId }, data: { head_user_id: head.userId } });
       }
 
-      const assets = DEMO_ASSETS.map((a, i) => {
-        const lab = labByCode.get(a.tag.split("-")[0]);
-        if (!lab) throw new Error(`Demo asset ${a.tag} names no known lab.`);
-        return { ...a, assetId: i + 1, lab };
-      });
-      await tx.assets.createMany({
-        data: assets.map((a) => ({
-          asset_id: a.assetId,
-          asset_tag: a.tag,
-          name: a.name,
-          serial_number: a.serial,
-          manufacturer: a.manufacturer,
-          category: a.category,
-          procurement_date: new Date(a.procured),
-          warranty_expiry: new Date(a.warranty),
-          status: a.status,
-          center_id: a.lab.centerId,
-          home_room: a.homeRoom,
-          funding_source_id: fundingId.get(a.funding) ?? null,
-          acquisition_value: a.value,
-          accessories: a.accessories ?? null,
-        })),
-      });
-      // Every asset was registered with a TSG inspection, a month before its status changed.
-      await tx.asset_inspections.createMany({
-        data: assets.map((a) => ({
-          asset_id: a.assetId,
-          inspected_by_id: DEMO_TSG_ID,
-          inspected_at: daysAgo(30),
-          type: "INITIAL" as const,
-          condition: a.condition,
-          health_score: HEALTH_SCORE[a.condition],
-          remarks: "Demo: registered and tagged.",
+      await tx.projects.createMany({
+        data: DEMO_PROJECTS.map((p) => ({
+          project_id: projectId.get(p.code)!,
+          project_code: p.code,
+          project_name: p.name,
+          project_leader: nameOf(DEMO_ACCOUNTS.find((a) => a.heads === p.lab)!),
+          center_id: labByCode.get(p.lab)!.centerId,
+          funding_source_id: fundingId.get(p.funding) ?? null,
+          start_date: new Date(p.start),
+          end_date: new Date(p.end),
         })),
       });
 
-      const loanedTag = assets.find((a) => a.status === "ON_LOAN")!;
-      await tx.asset_loans.create({
-        data: {
-          asset_id: loanedTag.assetId,
-          borrower_id: DEMO_BORROWER_ID,
-          purpose: "Demo: user testing sessions for a VR study.",
-          requested_at: daysAgo(5),
-          return_by: new Date(Date.now() + 9 * DAY_MS),
-          status: "ON_LOAN",
-          destination_center_id: loanedTag.lab.centerId,
-          destination_room: "G410",
-          decided_by_id: DEMO_ACCOUNTS.find((a) => a.heads === loanedTag.lab.shortCode)?.userId ?? null,
-          decided_at: daysAgo(5),
-          released_by_id: DEMO_TSG_ID,
-          released_at: daysAgo(4),
-        },
+      for (const batch of chunks(SEEDED_ASSETS, 10)) {
+        await tx.assets.createMany({
+          data: batch.map((a) => ({
+            asset_id: a.assetId,
+            asset_tag: a.tag,
+            name: a.name,
+            serial_number: a.serial,
+            manufacturer: a.manufacturer,
+            category: a.category,
+            procurement_date: new Date(a.procured),
+            warranty_expiry: typeof a.warranty === "string" ? new Date(a.warranty) : clock.day(-a.warranty.daysFromSeed),
+            image_url: categoryPicture(a.category),
+            status: history.statuses.get(a.assetId) ?? "AVAILABLE",
+            center_id: labByCode.get(a.lab)!.centerId,
+            home_room: DEMO_LAB_ROOMS[a.lab],
+            project_id: a.project ? projectId.get(a.project)! : null,
+            funding_source_id: fundingId.get(a.funding) ?? null,
+            acquisition_value: a.value,
+            accessories: a.accessories ?? null,
+            its_property_tag: a.its ?? null,
+          })),
+        });
+      }
+
+      for (const batch of chunks(inspections, 200)) {
+        await tx.asset_inspections.createMany({
+          data: batch.map(({ id, metrics: _metrics, ...row }) => ({ inspection_id: id, ...row })),
+        });
+      }
+      await tx.asset_inspection_metrics.createMany({
+        data: inspections.flatMap((row) =>
+          Object.entries(row.metrics).map(([key, value]) => ({ inspection_id: row.id!, metric_id: metricId.get(key)!, value })),
+        ),
       });
 
-      const inRepair = assets.find((a) => a.status === "MAINTENANCE")!;
-      await tx.asset_maintenance.create({
-        data: {
-          asset_id: inRepair.assetId,
-          reported_by_id: 9,
-          issue_description: "Demo: the drive disconnects in the middle of large copies.",
-          status: "INSPECTING",
-          type: "BORROWER_REPORT",
-          issue_type_id: issueTypeId.get("STORAGE_DATA") ?? null,
-          reported_at: daysAgo(3),
-          received_by_id: DEMO_TSG_ID,
-          received_at: daysAgo(2),
-        },
-      });
-
-      const pendingRetirement = assets.find((a) => a.status === "PENDING_RETIREMENT")!;
-      await tx.asset_retirements.create({
-        data: {
-          asset_id: pendingRetirement.assetId,
-          requested_by_id: DEMO_TSG_ID,
-          requested_at: daysAgo(1),
-          reason: "Demo: dead lines across the panel; the warranty has ended.",
-          status: "PENDING",
-          previous_status: "AVAILABLE",
-        },
-      });
-
-      const retired = assets.find((a) => a.status === "RETIRED")!;
-      await tx.asset_retirements.create({
-        data: {
-          asset_id: retired.assetId,
-          requested_by_id: DEMO_TSG_ID,
-          requested_at: daysAgo(20),
-          reason: "Demo: the lamp and the board failed; a repair costs more than a new unit.",
-          status: "COMPLETED",
-          pathway: "RECYCLE",
-          previous_status: "AVAILABLE",
-          decided_by_id: 2,
-          decided_at: daysAgo(18),
-          decision_remarks: "Demo: approved for recycling.",
-          completed_by_id: 5,
-          completed_at: daysAgo(15),
-          disposition_reference: "DEMO-DISP-0001",
-        },
-      });
-
-      await tx.activity_log.createMany({ data: [...activity].sort((a, b) => a.created_at.getTime() - b.created_at.getTime()) });
-
-      const missing = assets.find((a) => a.status === "MISSING")!;
-      await tx.activity_log.create({
-        data: { actor_id: DEMO_TSG_ID, event_type: "ASSET_MARKED_MISSING", asset_id: missing.assetId, details: "Demo: not found at the routine count." },
-      });
-
+      await tx.activity_log.createMany({ data: byTime(history.activity, (r) => r.created_at) });
     },
-    { timeout: 60_000 },
+    { timeout: 120_000 },
   );
 }
 
@@ -282,7 +232,7 @@ async function main(): Promise<void> {
 
   console.log(
     `[seed] Done: ${Object.values(roles_role_name).length} roles, ${DEMO_LABS.length} labs, ${DEMO_ACCOUNTS.length} demo accounts, ` +
-      `${DEMO_ASSETS.length} demo assets, one in each status.`,
+      `${DEMO_PROJECTS.length} projects, ${DEMO_ASSETS.length} demo assets.`,
   );
   console.log(
     `[seed] Log in as ${DEMO_ACCOUNTS.filter((a) => a.status === "ACTIVE").map((a) => a.email).join(", ")}, with the password from SEED_PASSWORD.`,

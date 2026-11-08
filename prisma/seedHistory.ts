@@ -5,8 +5,8 @@
  * Layer: database tooling. Read by prisma/seed.ts. Imports Prisma's types and prisma/seedData.ts.
  * Used by: npm run seed.
  */
-import type { Prisma } from "@prisma/client";
-import { DEMO_ACCOUNTS, DEMO_IT_ADMIN_ID, type DemoAccount } from "./seedData";
+import type { Prisma, asset_condition, asset_inspections_type, assets_status } from "@prisma/client";
+import { DEMO_ACCOUNTS, DEMO_ASSETS, DEMO_IT_ADMIN_ID, DEMO_TSG_IDS, type DemoAccount, type DemoAsset } from "./seedData";
 
 /** A moment or a day, counted back from the day the seed runs, in the computer's local time. */
 export interface SeedClock {
@@ -103,4 +103,84 @@ export function accountSteps(clock: SeedClock): { decisions: Map<number, Account
     decisions.set(a.userId, decision);
   }
   return { decisions, activity };
+}
+
+/** An inspection before its id, with its metric values by metric key. */
+export interface InspectionRow {
+  /** Given by the seed once every inspection is sorted by time. */
+  id?: number;
+  asset_id: number;
+  inspected_by_id: number;
+  inspected_at: Date;
+  type: asset_inspections_type;
+  condition: asset_condition;
+  health_score: number;
+  remarks: string | null;
+  missing_accessories: string | null;
+  metrics: Record<string, number>;
+}
+
+/** The lowest health score each condition gets, and how many points above it a score may go. */
+const HEALTH_BANDS: Record<asset_condition, [number, number]> = {
+  PERFECT: [96, 5], OPERATIONAL: [80, 7], MINOR_DRIFT: [58, 7], DEGRADED: [38, 7], CRITICAL_DEFECT: [15, 6],
+};
+
+/** A health score that matches the condition (near the form's suggestion), varied by `n` so the scores are not all equal. */
+export function healthScoreFor(condition: asset_condition, n: number): number {
+  const [low, spread] = HEALTH_BANDS[condition];
+  return low + (n % spread);
+}
+
+/** A seeded asset with its id (its place in DEMO_ASSETS, from 1) and its lab's short code. */
+export interface SeededAsset extends DemoAsset {
+  assetId: number;
+  lab: string;
+}
+
+/** Every demo asset with its id and lab. */
+export const SEEDED_ASSETS: SeededAsset[] = DEMO_ASSETS.map((a, i) => ({ ...a, assetId: i + 1, lab: a.tag.split("-")[0] }));
+
+/**
+ * TSG registers each asset (assets.repository.ts): an Initial inspection by the TSG account and an ASSET_REGISTERED row
+ * whose details are the tag. The assets of one lab are registered on one day, a few minutes apart.
+ */
+export function registrationSteps(clock: SeedClock): { inspections: InspectionRow[]; activity: ActivityRow[] } {
+  const inspections: InspectionRow[] = [];
+  const activity: ActivityRow[] = [];
+  const perDay = new Map<number, number>();
+  for (const a of SEEDED_ASSETS) {
+    const n = perDay.get(a.registeredDaysAgo) ?? 0;
+    perDay.set(a.registeredDaysAgo, n + 1);
+    const at = clock.at(a.registeredDaysAgo, 9 + Math.floor((n * 7) / 60), (n * 7) % 60);
+    const tsg = DEMO_TSG_IDS[a.assetId % 2];
+    inspections.push({
+      asset_id: a.assetId, inspected_by_id: tsg, inspected_at: at, type: "INITIAL", condition: a.condition,
+      health_score: healthScoreFor(a.condition, a.assetId), remarks: "Registered and tagged.", missing_accessories: null,
+      metrics: { ...a.metrics },
+    });
+    activity.push({ actor_id: tsg, event_type: "ASSET_REGISTERED", asset_id: a.assetId, details: a.tag, created_at: at });
+  }
+  return { inspections, activity };
+}
+
+/** Every dated row of the demo history, before ids. */
+export interface SeedHistory {
+  /** What the IT Admin's steps left on each account row, by user id. */
+  decisions: Map<number, AccountDecision>;
+  /** Each asset's status now, by asset id; an asset not listed is Available. */
+  statuses: Map<number, assets_status>;
+  inspections: InspectionRow[];
+  activity: ActivityRow[];
+}
+
+/** Builds the whole demo history for a seed run on the clock's day. */
+export function buildHistory(clock: SeedClock): SeedHistory {
+  const accounts = accountSteps(clock);
+  const registration = registrationSteps(clock);
+  return {
+    decisions: accounts.decisions,
+    statuses: new Map(),
+    inspections: registration.inspections,
+    activity: [...accounts.activity, ...registration.activity],
+  };
 }
