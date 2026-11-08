@@ -1,8 +1,10 @@
 /**
- * Staff Overview: asset, repair, and return counts, quick links to the other tabs, campus totals, alerts, and recent registrations.
+ * Staff Overview: asset, repair, and return counts, quick links to the other tabs, campus totals, alerts, recent
+ * registrations, the warranties notice, inspection progress, and the Operations Board at the bottom.
  * Layer: page. Called by app/routes.tsx at /staff/overview.
  * Calls: features/assets/useStaffAssets.ts, features/repairs/useRepairTickets.ts, features/returns/usePendingReturns.ts
- * (the Pending Returns count), features/assets/campusCounts.ts, state/session.tsx.
+ * (the Pending Returns count), features/assets/campusCounts.ts, state/session.tsx,
+ * features/analytics/staff/StaffAnalyticsView.tsx (WarrantiesNoticeWidget, InspectionProgressTracker, OperationsBoard).
  * Used by: Staff.
  */
 import { useNavigate } from "react-router";
@@ -11,6 +13,7 @@ import { usePendingReturns } from "@web/features/returns/usePendingReturns";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { countAssetsByCampus } from "@web/features/assets/campusCounts";
 import { useRepairTickets } from "@web/features/repairs/useRepairTickets";
+import { WarrantiesNoticeWidget, InspectionProgressTracker, OperationsBoard } from "@web/features/analytics/staff/StaffAnalyticsView";
 import { Button } from "@web/components/ui/button";
 import { Badge } from "@web/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
@@ -78,9 +81,9 @@ export function OverviewPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="col-span-2 border border-border bg-card shadow-sm rounded-xl">
-          <CardHeader><CardTitle className="text-sm font-bold text-foreground">Shortcuts</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-3.5 bg-muted/30 border border-border rounded-xl">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-foreground">Shortcuts</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-center justify-between p-2.5 bg-muted/30 border border-border rounded-xl">
               <div>
                 <p className="text-xs font-bold text-foreground">Register Asset</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Add newly acquired equipment to the inventory</p>
@@ -89,7 +92,7 @@ export function OverviewPage() {
                 Intake Wizard <ChevronRight size={13} />
               </Button>
             </div>
-            <div className="flex items-center justify-between p-3.5 bg-muted/30 border border-border rounded-xl">
+            <div className="flex items-center justify-between p-2.5 bg-muted/30 border border-border rounded-xl">
               <div>
                 <p className="text-xs font-bold text-foreground">Repairs</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Handle queued repair tickets and component servicing</p>
@@ -98,7 +101,7 @@ export function OverviewPage() {
                 Manage Repairs <ChevronRight size={13} />
               </Button>
             </div>
-            <div className="flex items-center justify-between p-3.5 bg-muted/30 border border-border rounded-xl">
+            <div className="flex items-center justify-between p-2.5 bg-muted/30 border border-border rounded-xl">
               <div>
                 <p className="text-xs font-bold text-foreground">Inspections</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Inspect assets and review custodian condition reports</p>
@@ -107,7 +110,7 @@ export function OverviewPage() {
                 Manage Inspections <ChevronRight size={13} />
               </Button>
             </div>
-            <div className="flex items-center justify-between p-3.5 bg-muted/30 border border-border rounded-xl">
+            <div className="flex items-center justify-between p-2.5 bg-muted/30 border border-border rounded-xl">
               <div>
                 <p className="text-xs font-bold text-foreground">QR Tags</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Pick assets and print their QR tags</p>
@@ -120,8 +123,8 @@ export function OverviewPage() {
         </Card>
 
         <Card className="border border-border bg-card shadow-sm rounded-xl">
-          <CardHeader><CardTitle className="text-sm font-bold text-foreground">Assets by Campus</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-foreground">Assets by Campus</CardTitle></CardHeader>
+          <CardContent className="space-y-2.5">
             {campusCounts.map((c, i) => (
               <div key={c.campus} className="flex items-center justify-between">
                 <span className="text-xs font-bold text-foreground">{c.label} Campus</span>
@@ -131,7 +134,7 @@ export function OverviewPage() {
               </div>
             ))}
             <Separator />
-            <div className="p-3 bg-muted/30 rounded-xl border border-border">
+            <div className="p-2.5 bg-muted/30 rounded-xl border border-border">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Campus Registry</p>
               <p className="text-xs font-extrabold text-foreground mt-0.5">{displayedAssets.length} Hardware Assets Logged</p>
             </div>
@@ -214,6 +217,14 @@ export function OverviewPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Moved here from Staff Analytics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <WarrantiesNoticeWidget />
+        <InspectionProgressTracker />
+      </div>
+
+      <OperationsBoard />
     </div>
   );
 }
