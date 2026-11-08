@@ -73,24 +73,27 @@ PRISMA_TARGET_URL="mysql://root:<password>@localhost:3306/AdRIC_DB_dev" npx pris
 
 It ends with "All migrations have been successfully applied."
 
-**3. Seed it.** `SEED_PASSWORD` is the password every demo account gets: choose one, at least 8 characters. It is not stored anywhere: the database holds only its hash.
+**3. Seed it.** `SEED_PASSWORD` is the password every demo account gets: choose one, at least 8 characters. It is not stored anywhere: the database holds only its hash. `SEED_PHOTOS_DIR` is optional: a folder outside the repository with asset photos ("Asset photos" below). Leave it out and every asset gets a small picture of its category.
 
 PowerShell:
 ```
 $env:SEED_DATABASE_URL = "mysql://root:<password>@localhost:3306/AdRIC_DB_dev"
 $env:SEED_PASSWORD = "<a demo password>"
+$env:SEED_PHOTOS_DIR = "C:\dev\uat-data\seed-photos"
 npm.cmd run seed
-Remove-Item Env:SEED_DATABASE_URL, Env:SEED_PASSWORD
+Remove-Item Env:SEED_DATABASE_URL, Env:SEED_PASSWORD, Env:SEED_PHOTOS_DIR
 ```
 
 Git Bash:
 ```
-SEED_DATABASE_URL="mysql://root:<password>@localhost:3306/AdRIC_DB_dev" SEED_PASSWORD="<a demo password>" npm run seed
+SEED_DATABASE_URL="mysql://root:<password>@localhost:3306/AdRIC_DB_dev" SEED_PASSWORD="<a demo password>" SEED_PHOTOS_DIR="C:/dev/uat-data/seed-photos" npm run seed
 ```
 
-It prints `[seed] Done: 5 roles, 10 labs, 11 demo accounts, 12 demo assets, one in each status.` and the emails to log in with.
+It prints `[seed] Done: 5 roles, 10 labs, 30 demo accounts, 7 projects, 58 demo assets (0 with a photo from SEED_PHOTOS_DIR).`, the emails to log in with, and the accounts that cannot log in.
 
-What it writes: the 5 roles; the 10 research centers, each on its campus (TE3D and GAME at Laguna, HXIL at McKinley, the rest at Manila); the funding sources, issue types, and metric definitions the forms offer (the ones the migrations wrote are kept); and 11 demo accounts, first name "Demo", who log in with `SEED_PASSWORD`:
+**Every date is counted back from the day the seed runs,** so the history always ends today: loans, tickets, warranties that end soon, inspections, remarks and log rows look current on the day you seed, and the insights fire on that day and for a few weeks after. Purchase dates are fixed. Seed a fresh database on the day you need it.
+
+What it writes: the 5 roles; the 10 research centers, each on its campus (TE3D and GAME at Laguna, HXIL at McKinley, the rest at Manila), each with a Head; the funding sources, issue types, and metric definitions the forms offer (the ones the migrations wrote are kept); and 30 demo accounts, who log in with `SEED_PASSWORD`:
 
 | Email | Role | Labs |
 |---|---|---|
@@ -98,14 +101,18 @@ What it writes: the 5 roles; the 10 research centers, each on its campus (TE3D a
 | `demo.director@dlsu.edu.ph` | AdRIC Director | none |
 | `demo.secretary@dlsu.edu.ph` | AdRIC Secretary | none |
 | `demo.tsg@dlsu.edu.ph`, `demo.tsg.b@dlsu.edu.ph` | TSG Staff | none |
-| `demo.labhead.cite4d@dlsu.edu.ph` | Researcher, heads CITe4D (the Lab Head view) | CITe4D |
-| `demo.labhead.car@dlsu.edu.ph` | Researcher, heads CAR (the Lab Head view) | CAR |
+| `demo.labhead.<lab>@dlsu.edu.ph`, one per lab (`cite4d`, `car`, `cehci`, `hxil`, `game`, `celt`, `bio`, `cnis`, `civi`, `te3d`) | Researcher, heads that lab (the Lab Head view) | that lab |
 | `demo.researcher.a@dlsu.edu.ph` | Researcher | CITe4D |
 | `demo.researcher.b@dlsu.edu.ph` | Researcher | CITe4D and CAR |
 | `demo.researcher.c@dlsu.edu.ph` | Researcher | HXIL |
+| `demo.researcher.d@dlsu.edu.ph` to `demo.researcher.k@dlsu.edu.ph` | Researcher | one or two of the other labs |
+| `demo.researcher.l@dlsu.edu.ph` | Researcher, Inactive (cannot log in) | CAR |
 | `demo.pending@dlsu.edu.ph` | none (a Pending sign-up: cannot log in) | CeLT |
+| `demo.rejected@dlsu.edu.ph` | none (a Rejected sign-up: cannot log in) | none |
 
-and 12 demo assets in four labs (CITe4D, CAR, HXIL, TE3D), with home rooms: at least one in each of the six statuses (Available, On Loan, Maintenance, Pending Retirement, Retired, Missing), each with an Initial inspection, plus the loan, maintenance ticket, retirements, and log row behind the ones that are not Available.
+plus one anonymized account ("Former researcher"). Then 7 projects and 58 assets in all 10 labs, with the models and purchase dates of TSG's equipment list, and about six months of history written the way the app writes it: about 100 returned loans with their release and return inspections, requests still waiting, 13 maintenance tickets, 4 retirements (2 completed, so the Asset Retirement Record prints), routine inspections, remarks, support tickets, and the activity log rows of each step. Most assets are Available; the others are On Loan, in Maintenance, Pending Retirement, Retired or Missing.
+
+**Asset photos (`SEED_PHOTOS_DIR`).** The repository holds no photos. An asset gets a photo when the folder has a JPEG named by the asset's photo key: its model name in lower case, with dashes between the words (`HP Z2 Tower G9 Workstation` is `hp-z2-tower-g9-workstation.jpg`), or the `photo` field of the asset in `prisma/seedData.ts`. A photo over 400 KB is skipped: shrink it first to 1280 px on the long side, JPEG quality 0.8. When the variable is not set, or the folder has no photo for an asset, that asset gets its category picture.
 
 **The seed refuses, and writes nothing,** when `SEED_DATABASE_URL` or `SEED_PASSWORD` is missing, when the host is not `localhost` or `127.0.0.1` (it cannot reach CCS Cloud), when the tables do not exist yet (run step 2), or when the database already has users, roles, labs, or assets. It never reads `.env` and never prints the passwords.
 
