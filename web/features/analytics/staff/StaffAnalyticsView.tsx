@@ -177,8 +177,8 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
               const columnTickets = repairs.filter((r: any) => r.progressStatus === col.title);
 
               return (
-                <div key={col.id} className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col justify-between max-h-[480px]">
-                  <div className="flex flex-col h-full overflow-hidden">
+                <div key={col.id} className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col">
+                  <div className="flex flex-col">
                     <div className="flex items-center justify-between border-b border-border pb-2 mb-3 shrink-0">
                       <span className="font-extrabold text-xs text-foreground uppercase tracking-wider">{col.title}</span>
                       <Badge className={cn("text-[10px] font-extrabold px-2 py-0.5", col.badgeColor)}>
@@ -186,7 +186,8 @@ export const StaffTechnicalMaintenanceSection: React.FC<{
                       </Badge>
                     </div>
 
-                    <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+                    {/* Fixed height, about two tickets; the rest scrolls. */}
+                    <div className="h-72 space-y-3 overflow-y-auto pr-1">
                       {columnTickets.map((ticket: any) => (
                         <div
                           key={ticket.repairId}
