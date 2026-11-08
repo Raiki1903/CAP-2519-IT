@@ -313,7 +313,7 @@ export async function labHeadDashboard(filters: LabHeadFilters, viewer: SessionI
         return {
             loanId: l.loan_id,
             assetId: l.assets?.asset_tag || `ASSET-${l.asset_id}`,
-            asset: l.assets?.name || "Equipment",
+            asset: l.assets?.name || "Asset",
             borrower: l.users ? `${l.users.first_name} ${l.users.last_name}` : "Borrower",
             purpose: l.purpose,
             destinationLab: l.destination_center?.short_code,
@@ -486,7 +486,7 @@ export async function staffDashboard(): Promise<StaffAnalyticsData> {
     const repairs = dbRepairs.map(r => ({
         repairId: r.maintenance_id,
         assetId: r.assets?.asset_tag || `ASSET-${r.asset_id}`,
-        assetName: r.assets?.name || "Equipment",
+        assetName: r.assets?.name || "Asset",
         reportedBy: r.users ? `${r.users.first_name} ${r.users.last_name}` : "Staff",
         issueDescription: r.issue_description,
         progressStatus: MAINTENANCE_STATUS_LABELS[r.status],

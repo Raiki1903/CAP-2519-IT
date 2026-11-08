@@ -625,7 +625,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
                           type: "Loan",
                           asset: l.asset,
                           assetId: l.assetId,
-                          from: "Equipment Pool",
+                          from: "Asset Pool",
                           to: l.borrower,
                           destinationLab: l.destinationLab,
                           date: l.requestedOn,

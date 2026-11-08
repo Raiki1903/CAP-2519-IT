@@ -194,7 +194,7 @@ export function OverviewPage() {
         <Card className="border border-border bg-card shadow-sm rounded-xl">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Package className="w-4 h-4 text-[#005A36]" /> Recent Equipment Registrations
+              <Package className="w-4 h-4 text-[#005A36]" /> Recent Asset Registrations
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">

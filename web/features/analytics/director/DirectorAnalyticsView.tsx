@@ -300,7 +300,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
   const inner = useMemo(() => {
     const map: Record<string, number> = {};
     filteredAssets.forEach(a => {
-      const cat = a.category || "General Equipment";
+      const cat = a.category || "General Asset";
       const val = Number(a.cost || a.acquisition_value || 0);
       map[cat] = (map[cat] || 0) + val;
     });
@@ -321,7 +321,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-0.5">
-              Capital allocation breakdown showing total monetary valuation grouped by grant agency source (outer ring) and equipment category (inner ring).
+              Capital allocation breakdown showing total monetary valuation grouped by grant agency source (outer ring) and asset category (inner ring).
             </CardDescription>
           </div>
           <Badge className="bg-[#005A36] text-white font-bold text-xs px-3 py-1">
@@ -389,7 +389,7 @@ export const FundingValuationWidget: React.FC<DirectorAnalyticsProps> = ({ selec
 
               <div className="pt-2 border-t border-border">
                 <h4 className="text-xs font-extrabold text-foreground uppercase tracking-wider mb-2">
-                  Equipment Category Sub-Allocations (Inner Ring)
+                  Asset Category Sub-Allocations (Inner Ring)
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {inner.map((item: any, idx: number) => {

@@ -1,7 +1,7 @@
 /**
  * Response shapes of the lookups endpoints: the option lists the forms pick from.
  * Layer: shared. Imported by server/features/lookups/ and web/api/lookups.api.ts. Imports nothing.
- * Used by: Edit Asset, Register Equipment, the borrow form, Report an issue, the inspection forms, and the sign-up page.
+ * Used by: Edit Asset, Register Asset, the borrow form, Report an issue, the inspection forms, and the sign-up page.
  */
 
 /** One research center, as the forms offer it. */

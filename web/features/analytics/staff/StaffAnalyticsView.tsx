@@ -316,7 +316,7 @@ export const OperationsBoard: React.FC = () => {
 
 // Warranties Notice: moved from Staff Analytics to the Staff Overview (pages/staff/OverviewPage.tsx).
 /**
- * Equipment losing manufacturer warranty support within 90 days, unfiltered, in a fixed-height scroll area that
+ * Assets losing manufacturer warranty support within 90 days, unfiltered, in a fixed-height scroll area that
  * shows about three to five items. Calls analyticsApi.getTsgAnalyticsRaw(). Takes no props.
  */
 export const WarrantiesNoticeWidget: React.FC = () => {
@@ -335,11 +335,11 @@ export const WarrantiesNoticeWidget: React.FC = () => {
             <Calendar className="w-5 h-5 text-[#005A36]" /> Warranties Notice
           </h3>
           <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-extrabold text-xs">
-            {rawWarrantyExpiringSoon.length} Equipment Items
+            {rawWarrantyExpiringSoon.length} Asset Items
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground mb-4">
-          Equipment losing manufacturer warranty support within the next 90 days.
+          Assets losing manufacturer warranty support within the next 90 days.
         </p>
 
         <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
@@ -357,7 +357,7 @@ export const WarrantiesNoticeWidget: React.FC = () => {
 
           {rawWarrantyExpiringSoon.length === 0 && (
             <div className="p-6 text-center text-xs text-muted-foreground italic bg-muted/10 rounded-xl border border-dashed border-border">
-              No equipment warranties expiring within the next 90 days.
+              No asset warranties expiring within the next 90 days.
             </div>
           )}
         </div>
@@ -424,7 +424,7 @@ export const LocationStatusWidget: React.FC<{
             </CardTitle>
           </div>
           <CardDescription className="text-muted-foreground text-xs">
-            Equipment count per physical research laboratory & warehouse facility stacked by operational state.
+            Asset count per physical research laboratory & warehouse facility stacked by operational state.
           </CardDescription>
           {isLoading && <p className="text-xs text-muted-foreground mt-1">Loading the asset counts...</p>}
           {isError && <p className="text-xs font-semibold text-red-600 mt-1">Could not load the asset counts. Reload the page.</p>}
@@ -573,7 +573,7 @@ export const WarrantyCalendarWidget: React.FC = () => {
         <CardContent>
           {expiringAssets.length === 0 ? (
             <div className="p-8 text-center text-xs text-muted-foreground italic bg-muted/10 rounded-xl border border-dashed border-border">
-              No equipment warranties expiring within the next 90 days.
+              No asset warranties expiring within the next 90 days.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

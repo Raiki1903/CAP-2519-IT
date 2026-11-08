@@ -56,7 +56,7 @@ const roleConfig: Record<Role, {
   Custodian: {
     nav: [
       { id: "myassets",  label: "My Loans",            icon: Package },
-      { id: "available", label: "Available Equipment", icon: Monitor },
+      { id: "available", label: "Available Assets", icon: Monitor },
       { id: "scan",      label: "QR Scan",             icon: QrCode  },
       { id: "report",    label: "Send Inspection Report", icon: ClipboardCheck },
     ],

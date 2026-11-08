@@ -1,5 +1,5 @@
 /**
- * Custodian screen: My Assets, Available Equipment, QR Scan, and the condition report form, one tab at a time.
+ * Custodian screen: My Assets, Available Assets, QR Scan, and the condition report form, one tab at a time.
  * Layer: page. Called by app/routes.tsx at /custodian/* (the tab comes from the URL).
  * Calls: api/assets.api.ts listAssets(), api/inspections.api.ts submitInspectionRaw(), api/maintenance.api.ts reportIssue(),
  * features/lookups/useLookups.ts, features/assets/AssetDetailModal.tsx, features/assets/assetSearch.ts,
@@ -101,7 +101,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter states for Available Equipment
+  // Filter states for Available Assets
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterLoc, setFilterLoc] = useState("All");
@@ -422,7 +422,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
     return <ResearcherMyLoans />;
   }
 
-  // ── Available Equipment ───────────────────────────────────────────────────
+  // ── Available Assets ───────────────────────────────────────────────────
   if (activeTab === "available") {
     const availableAssets = displayedAssets.filter(a =>
       a.status === "AVAILABLE" &&
@@ -436,10 +436,10 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
       <div>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-foreground mb-1">Available Equipment</h1>
+            <h1 className="text-foreground mb-1">Available Assets</h1>
             <p className="text-muted-foreground text-sm">Assets you can request to borrow, from every lab.</p>
             {loadingDbAssets && (
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5"><Loader size={11} className="animate-spin" />Loading equipment from database…</p>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5"><Loader size={11} className="animate-spin" />Loading assets from database…</p>
             )}
             {!loadingDbAssets && dbAssetsError && (
               <p className="text-xs text-amber-700 mt-1 flex items-center gap-1.5"><AlertTriangle size={11} />{dbAssetsError} Showing the last list loaded.</p>
@@ -582,7 +582,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
                 <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center"><CheckCircle size={24} className="text-emerald-500" /></div>
                 <p className="text-sm font-bold text-foreground">Asset Found</p>
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 w-full text-left space-y-1">
-                  <p className="text-xs font-bold text-emerald-900">{scannedAssetData?.id || scanResult} · {scannedAssetData?.name || "Equipment"}</p>
+                  <p className="text-xs font-bold text-emerald-900">{scannedAssetData?.id || scanResult} · {scannedAssetData?.name || "Asset"}</p>
                   <p className="text-[11px] text-emerald-700 font-medium">
                     Availability: <strong className="font-bold">{assetStatusLabel(scannedAssetData?.status || "Active")}</strong> · Lab: {scannedAssetData?.lab || "CITe4D"} · {scannedAssetData?.location || "Manila"}
                   </p>

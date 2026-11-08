@@ -172,7 +172,7 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = ""
         {/* Horizontal Bar Chart (Category Breakdown) */}
         <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
           <h3 className="text-sm font-bold text-foreground mb-1 flex items-center gap-2">
-            <Layers className="w-5 h-5 text-[#005A36]" /> Equipment Category Breakdown
+            <Layers className="w-5 h-5 text-[#005A36]" /> Asset Category Breakdown
           </h3>
           <p className="text-xs text-muted-foreground mb-3">
             Count of assets by category across the active inventory.
@@ -192,10 +192,10 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = ""
         </Card>
       </div>
 
-      {/* Actionable Equipment Loan Requests Table */}
+      {/* Actionable Asset Loan Requests Table */}
       <Card className="border border-border bg-card shadow-sm rounded-xl p-5">
         <h3 className="text-sm font-extrabold text-foreground uppercase tracking-wider mb-2.5">
-          Equipment Loan Requests
+          Asset Loan Requests
         </h3>
         {/* Fixed height: the list scrolls, and the header stays. The table's own sideways scroll moves to this box. */}
         <div className="max-h-80 overflow-auto rounded-lg border border-border [&_[data-slot=table-container]]:overflow-visible">
@@ -498,7 +498,7 @@ export const DelinquencyTable: React.FC<{ lab: string }> = ({ lab }) => {
               </CardTitle>
             </div>
             <CardDescription className="text-muted-foreground text-xs mt-1">
-              Active equipment loans assigned to students in {lab} past expected return date (`asset_loans.return_by`). Reporting only.
+              Active asset loans assigned to students in {lab} past expected return date (`asset_loans.return_by`). Reporting only.
             </CardDescription>
           </div>
           <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50 font-bold text-xs">

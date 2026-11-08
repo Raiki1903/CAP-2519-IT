@@ -199,7 +199,7 @@ export function LoansPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder={activeTab === "clearance" ? "Search borrower name..." : "Search tag, equipment, or borrower..."}
+              placeholder={activeTab === "clearance" ? "Search borrower name..." : "Search tag, asset, or borrower..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8 text-xs h-9"
@@ -227,7 +227,7 @@ export function LoansPage() {
                 <TableHeader>
                   <TableRow className="bg-muted/30">
                     <TableHead className={headCls}>Asset Tag</TableHead>
-                    <TableHead className={headCls}>Equipment</TableHead>
+                    <TableHead className={headCls}>Asset Name</TableHead>
                     <TableHead className={headCls}>Borrower</TableHead>
                     <TableHead className={headCls}>Destination</TableHead>
                     <TableHead className={headCls}>Return By</TableHead>
@@ -290,7 +290,7 @@ export function LoansPage() {
                 <TableHeader>
                   <TableRow className="bg-muted/30">
                     <TableHead className={headCls}>Asset Tag</TableHead>
-                    <TableHead className={headCls}>Equipment</TableHead>
+                    <TableHead className={headCls}>Asset Name</TableHead>
                     <TableHead className={headCls}>Borrower</TableHead>
                     <TableHead className={headCls}>Return Due</TableHead>
                     <TableHead className={headCls}>Status</TableHead>

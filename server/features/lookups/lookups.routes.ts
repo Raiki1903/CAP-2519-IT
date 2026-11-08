@@ -1,7 +1,7 @@
 /**
  * Lookups route table: which URL maps to which controller. The one route is a read.
  * Layer: routes. Mounted by server/app.ts. Calls lookups.controller.ts.
- * Used by: Edit Asset, Register Equipment, the borrow form, Report an issue, the inspection forms, and the sign-up page.
+ * Used by: Edit Asset, Register Asset, the borrow form, Report an issue, the inspection forms, and the sign-up page.
  */
 import express from 'express';
 import * as lookupsController from './lookups.controller';

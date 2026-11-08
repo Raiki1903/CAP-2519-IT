@@ -580,7 +580,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="flex flex-col gap-1.5">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Search Equipment</Label>
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Search Assets</Label>
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
                   <Input
@@ -784,7 +784,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                 {/* 1. Core Metadata */}
                 <div className="grid grid-cols-2 gap-4 bg-muted/45 p-4 border border-border rounded-xl text-xs text-muted-foreground leading-relaxed">
                   <div className="space-y-1.5">
-                    <p><span>Equipment Name:</span> <strong className="text-foreground">{selectedAssetForAudit.name}</strong></p>
+                    <p><span>Asset Name:</span> <strong className="text-foreground">{selectedAssetForAudit.name}</strong></p>
                     <p><span>Serial Number:</span> <span className="font-mono">{selectedAssetForAudit.serial}</span></p>
                     <p><span>Manufacturer:</span> {selectedAssetForAudit.manufacturer}</p>
                     <p><span>Funding Source:</span> <span className="font-semibold text-[#005A36]">{selectedAssetForAudit.funding}</span></p>

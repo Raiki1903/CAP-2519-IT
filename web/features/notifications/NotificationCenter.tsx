@@ -203,7 +203,7 @@ export function NotificationCenter() {
         requests.push({
           id: `LOAN-${n.loanId}`,
           type: "loan",
-          title: `Equipment Loan Request: ${assetNameOf(n.assetTag)}`,
+          title: `Asset Loan Request: ${assetNameOf(n.assetTag)}`,
           description: loan
             ? `Borrower: ${loan.borrower || "A researcher"} • Purpose: "${loan.purpose || "Research Project Use"}"`
             : n.label,
@@ -299,7 +299,7 @@ export function NotificationCenter() {
         reminders.push({
           id: `REM-OVD-${n.loanId}`,
           type: "overdue",
-          title: `Overdue Equipment Return: ${assetNameOf(n.assetTag)}`,
+          title: `Overdue Asset Return: ${assetNameOf(n.assetTag)}`,
           description: `WARNING: This device was due on ${n.date}. Return it as soon as you can.`,
           needsAction: true,
           targetTab: "myassets",
