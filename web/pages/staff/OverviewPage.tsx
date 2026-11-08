@@ -49,7 +49,7 @@ export function OverviewPage() {
   return (
     <div className="space-y-6">
       <div className="mb-2">
-        <h1 className="text-foreground text-2xl font-extrabold tracking-tight mb-1">System Overview</h1>
+        <h1 className="text-foreground text-2xl font-extrabold tracking-tight mb-1">Overview</h1>
         <p className="text-muted-foreground text-xs">Assets, repairs, and returns at a glance, with shortcuts.</p>
       </div>
 
@@ -82,7 +82,7 @@ export function OverviewPage() {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between p-3.5 bg-muted/30 border border-border rounded-xl">
               <div>
-                <p className="text-xs font-bold text-foreground">Register Equipment</p>
+                <p className="text-xs font-bold text-foreground">Register Asset</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Add newly acquired equipment to the inventory</p>
               </div>
               <Button size="sm" onClick={() => navigate(`/${overviewSlug}/register`)} className="gap-1 text-xs font-bold bg-[#005A36] text-white hover:bg-[#005A36]/90">

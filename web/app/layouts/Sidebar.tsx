@@ -36,8 +36,8 @@ const roleConfig: Record<Role, {
 }> = {
   Staff: {
     nav: [
-      { id: "overview",    label: "System Overview",      icon: Monitor       },
-      { id: "register",    label: "Register Equipment",   icon: Package       },
+      { id: "overview",    label: "Overview",             icon: Monitor       },
+      { id: "register",    label: "Register Asset",       icon: Package       },
       { id: "inventory",   label: "Asset Inventory",      icon: ClipboardList },
       { id: "repairs",     label: "Repairs",              icon: Wrench        },
       { id: "inspections", label: "Inspections",          icon: ClipboardCheck },
