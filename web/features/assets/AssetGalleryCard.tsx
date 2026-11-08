@@ -55,7 +55,7 @@ export function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommissio
                   size="icon"
                   className="h-6 w-6 rounded-md bg-white hover:bg-amber-50 text-amber-600 border-amber-200 opacity-90 shadow-sm"
                   onClick={(e) => { e.stopPropagation(); onDecommission(); }}
-                  title="Decommission Asset"
+                  title="Retire Asset"
                 >
                   <Archive size={11} />
                 </Button>

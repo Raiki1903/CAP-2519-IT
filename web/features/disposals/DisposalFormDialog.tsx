@@ -73,7 +73,7 @@ export function DisposalFormDialog({ asset, onClose, onSubmitted }: { asset: any
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle className="text-sm font-bold text-foreground">Decommission &amp; Dispose Asset</DialogTitle>
+              <DialogTitle className="text-sm font-bold text-foreground">Retire Asset</DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">Write why the asset is being disposed of. The Director or the Secretary approves or denies it; you complete it after it is approved.</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-3 py-3">
