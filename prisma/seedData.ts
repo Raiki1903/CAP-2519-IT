@@ -108,7 +108,7 @@ export const DEMO_ASSETS: DemoAsset[] = [
 ];
 
 /** The funding sources, as the foundation migration writes them. The seed writes any that are missing. */
-export const DEMO_FUNDING_SOURCES = ["DOST", "USAID", "CHED", "Internal Grants", "DOST-PCIEERD", "DOST-SEI"];
+export const DEMO_FUNDING_SOURCES = ["DOST", "USAID", "CHED", "Internal Grants", "DOST-PCIEERD", "DOST-SEI", "Personal (self-funded)"];
 
 /** The issue types, as the foundation migration writes them: key, name, suggested first action. */
 export const DEMO_ISSUE_TYPES: [string, string, string][] = [
