@@ -163,7 +163,7 @@ export function OverviewPage() {
               </div>
             ) : (
               <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-semibold">
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> All repair tickets acknowledged &amp; assigned.
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> No repair tickets waiting for receipt.
               </div>
             )}
 
