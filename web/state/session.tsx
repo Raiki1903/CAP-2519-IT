@@ -97,8 +97,6 @@ interface SessionContextType {
   setRole: (role: Role | null) => void;
   currentUser: SessionUser | null;
   updateProfile: (firstName: string, lastName: string, profilePicture: string) => Promise<void>;
-  cycleMode: "Annual" | "Trimestral";
-  setCycleMode: (mode: "Annual" | "Trimestral") => void;
   theme: "classic-dark" | "light-slate";
   setTheme: (t: "classic-dark" | "light-slate") => void;
   sidebarCollapsed: boolean;
@@ -168,7 +166,7 @@ const SessionContext = createContext<SessionContextType | null>(null);
  *   error). The person stays where they are, with the login marker kept, and RootLayout offers Retry.
  * - `updateProfile(...)`: saves name and picture with authApi.updateAccount. The lab is read-only on the account page,
  *   so none is sent; the session takes the account's lab from the answer (issue #73).
- * - `cycleMode`, `theme`, `sidebarCollapsed` and their setters.
+ * - `theme`, `sidebarCollapsed` and their setters.
  *
  * @param children the rest of the app
  */
@@ -237,12 +235,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, []);
 
-  // TODO(F-38): cycle mode is shown as a policy for the whole institution, but it is one cookie per browser. Phase 3.
-  const [cycleMode, setCycleModeState] = useState<"Annual" | "Trimestral">(() => {
-    const c = getCookie("pref_cycle_mode");
-    return (c === "Annual" || c === "Trimestral") ? c : "Trimestral";
-  });
-
   const [theme, setThemeState] = useState<"classic-dark" | "light-slate">(() => {
     const c = getCookie("pref_theme");
     return (c === "classic-dark" || c === "light-slate") ? c : "classic-dark";
@@ -272,11 +264,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     OLD_SESSION_COOKIES.forEach(eraseCookie);
     if (getCookie(SESSION_MARKER_COOKIE)) restoreSession();
   }, []);
-
-  const setCycleMode = (mode: "Annual" | "Trimestral") => {
-    setCycleModeState(mode);
-    setCookie("pref_cycle_mode", mode, 365);
-  };
 
   const setRole = (newRole: Role | null) => {
     if (newRole === null) {
@@ -346,7 +333,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       value={{
         role, setRole,
         currentUser, updateProfile,
-        cycleMode, setCycleMode,
         theme, setTheme,
         sidebarCollapsed, setSidebarCollapsed,
         sessionEnded, restoring, restoreAttempt, restoreFailed, retryRestore

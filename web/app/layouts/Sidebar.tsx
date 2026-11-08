@@ -1,5 +1,5 @@
 /**
- * Side navigation: the role's tab list, collapse toggle, logout, and the settings panel (theme, inspection cycle, session details).
+ * Side navigation: the role's tab list, collapse toggle, logout, and the settings panel (theme, session details).
  * Layer: shared (app shell). Called by layouts/RootLayout.tsx.
  * Calls: state/session.tsx (role, preferences, cookies), state/serverData.tsx (the count of tickets waiting for receipt),
  * state/pendingSignUps.tsx (the IT Admin's count of sign-ups waiting). No api calls.
@@ -91,7 +91,7 @@ const roleConfig: Record<Role, {
  * @param onCloseMobile closes the drawer after a link is followed on a narrow screen
  */
 export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: () => void; isMobileOpen?: boolean; onCloseMobile?: () => void }) {
-  const { role, sidebarCollapsed, setSidebarCollapsed, cycleMode, setCycleMode, theme, setTheme, currentUser } = useSession();
+  const { role, sidebarCollapsed, setSidebarCollapsed, theme, setTheme, currentUser } = useSession();
   const { pendingReceiptCount } = useServerData();
   const { users: pendingSignUps } = usePendingSignUps();
   const [showSettings, setShowSettings] = useState(false);
@@ -497,23 +497,6 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                     </select>
                   </div>
 
-                  {/* TODO(F-38): the cycle mode is a per-browser cookie (pref_cycle_mode), so two Staff can work to different cycles. A shared setting comes with issue #34. */}
-                  {/* Cycle Mode Option */}
-                  <div className="flex items-center justify-between p-3 bg-slate-950/40 rounded-xl border border-white/5">
-                    <div>
-                      <p className="text-xs font-bold text-white uppercase tracking-wider">Active Inspection Cycle</p>
-                      <p className="text-[10px] text-slate-400">Term-based or Annual schedules</p>
-                    </div>
-                    <select
-                      value={cycleMode}
-                      onChange={(e) => setCycleMode(e.target.value as any)}
-                      className="bg-slate-800 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 text-white"
-                    >
-                      <option value="Trimestral">Trimestral Cycle</option>
-                      <option value="Annual">Annual Cycle</option>
-                    </select>
-                  </div>
-
                   {/* Session Information */}
                   <div className="p-4 bg-[#0A1F14] border border-emerald-500/10 rounded-xl space-y-2.5">
                     <p className="text-[10px] font-extrabold text-emerald-400 tracking-wider uppercase">Active Session Details</p>
@@ -528,10 +511,6 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                       <div className="flex justify-between">
                         <span className="text-slate-400">Role:</span>
                         <span className="font-semibold text-white">{roleLabel[role]}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-emerald-500/15 pt-2 mt-2">
-                        <span className="text-slate-400 font-medium">Session Policy:</span>
-                        <span className="text-emerald-300 font-semibold text-[10px] uppercase">8h, ends at logout</span>
                       </div>
                     </div>
                   </div>
