@@ -179,7 +179,7 @@ export function OverviewPage() {
                     <span className="text-[11px] text-amber-700 dark:text-amber-400">Service agreement renewal checks recommended</span>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => navigate(`/${overviewSlug}/health`)} className="text-[11px] font-bold border-amber-300 text-amber-800 hover:bg-amber-100 shrink-0">
+                <Button size="sm" variant="outline" onClick={() => navigate(`/${overviewSlug}/analytics`)} className="text-[11px] font-bold border-amber-300 text-amber-800 hover:bg-amber-100 shrink-0">
                   Inspect
                 </Button>
               </div>

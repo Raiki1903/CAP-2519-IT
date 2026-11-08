@@ -1,6 +1,6 @@
 /**
  * Staff Analytics: the page around the Staff analytics view.
- * Layer: page. Called by app/routes.tsx at /staff/health.
+ * Layer: page. Called by app/routes.tsx at /staff/analytics.
  * Calls: features/analytics/staff/StaffAnalyticsView.tsx.
  * Used by: Staff.
  */

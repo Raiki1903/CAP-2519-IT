@@ -381,8 +381,8 @@ export function NotificationCenter() {
     const fallback = roleDefaultPath[cardRole];
 
     if (cardRole === "AdRICDirector") {
-      if (cardType === "disposal" || targetTab === "disposals" || targetTab === "clearance-disposal") {
-        return "/adric-director/clearance-disposal";
+      if (cardType === "disposal" || targetTab === "disposals" || targetTab === "retirement-approvals") {
+        return "/adric-director/retirement-approvals";
       }
       return fallback;
     }

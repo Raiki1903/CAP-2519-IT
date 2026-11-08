@@ -43,7 +43,7 @@ const roleConfig: Record<Role, {
       { id: "inspections", label: "Inspections",          icon: ClipboardCheck },
       { id: "loans",       label: PAGE_TITLES.loans,          icon: ArrowLeftRight },
       { id: "qrtags",      label: "QR Tags",               icon: QrCode        },
-      { id: "health",      label: "Analytics",             icon: BarChart3     },
+      { id: "analytics",   label: "Analytics",             icon: BarChart3     },
     ],
   },
   LabHead: {
@@ -66,7 +66,7 @@ const roleConfig: Record<Role, {
       { id: "overview",           label: "Overview",            icon: Monitor       },
       { id: "inventory",          label: "Asset Inventory",     icon: Package       },
       { id: "analytics",         label: "Analytics",            icon: BarChart3     },
-      { id: "clearance-disposal", label: "Disposal Approvals",    icon: ClipboardCheck },
+      { id: "retirement-approvals", label: "Disposal Approvals",    icon: ClipboardCheck },
       { id: "reports",            label: "Inventory Report",    icon: ClipboardList },
     ],
   },
