@@ -208,6 +208,28 @@ export interface AssetHistory {
   events: AssetHistoryEvent[];
 }
 
+/**
+ * One remark on an asset, as GET /api/assets/:assetTag/remarks sends it. Every viewer sees the author's name: only
+ * officials (TSG, the Director, the Secretary, a lab's Head) can write a remark.
+ */
+export interface AssetRemark {
+  remarkId: number;
+  author: { userId: number; name: string };
+  /** When it was added, as an ISO date and time. */
+  createdAt: string;
+  text: string;
+  /** Whether the session user may delete it: its author, the Head of the asset's home lab, or the IT Admin. */
+  canDelete: boolean;
+}
+
+/** The answer of GET /api/assets/:assetTag/remarks, without `success`. */
+export interface AssetRemarkList {
+  /** Newest first. Deleted remarks are never sent. */
+  remarks: AssetRemark[];
+  /** Whether the session user may add a remark to this asset. */
+  canAdd: boolean;
+}
+
 /** One recorded value of a metric in the benchmark data. */
 export interface BenchmarkPoint {
   inspectionId: number;
