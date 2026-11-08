@@ -1,8 +1,8 @@
 /**
  * Intake wizard: the three-step form Staff use to register a newly acquired asset.
  * Layer: feature component. Called by pages/staff/RegisterPage.tsx.
- * Calls: api/assets.api.ts createAssetRaw() and readResult(), features/lookups/useLookups.ts (labs and funding sources), state/serverData.tsx syncFromDb().
- * The registration sends the contract body (centerId, fundingSourceId, and the Initial inspection).
+ * Calls: api/assets.api.ts createAssetRaw() and readResult(), features/lookups/useLookups.ts (labs, funding sources, and projects), state/serverData.tsx syncFromDb().
+ * The registration sends the contract body (centerId, fundingSourceId, projectId, and the Initial inspection).
  * Used by: Staff asset registration.
  */
 import { useEffect, useState } from "react";
@@ -27,6 +27,8 @@ interface IntakeForm {
   category: string;
   /** A funding source id as text, "" for none. */
   fundingSourceId: string;
+  /** The owning project's id as text, "" for none. */
+  projectId: string;
   acquisitionValue: number;
   procured: string;
   warranty: string;
@@ -47,7 +49,7 @@ const generateAdricSerial = () => {
 
 const createEmptyForm = (centerId = ""): IntakeForm => ({
   name: "", serial: generateAdricSerial(), manufacturer: "", category: "CPU",
-  fundingSourceId: "", acquisitionValue: 0, procured: new Date().toISOString().split("T")[0],
+  fundingSourceId: "", projectId: "", acquisitionValue: 0, procured: new Date().toISOString().split("T")[0],
   warranty: "", centerId, homeRoom: "", condition: "PERFECT", image: "", remarks: ""
 });
 
@@ -61,6 +63,7 @@ function createBody(form: IntakeForm): AssetCreateInput {
     centerId: Number(form.centerId),
     homeRoom: form.homeRoom || null,
     fundingSourceId: form.fundingSourceId ? Number(form.fundingSourceId) : null,
+    projectId: form.projectId ? Number(form.projectId) : null,
     acquisitionValue: form.acquisitionValue || null,
     procurementDate: form.procured || null,
     warrantyExpiry: form.warranty || null,
@@ -74,7 +77,7 @@ function createBody(form: IntakeForm): AssetCreateInput {
 }
 
 /**
- * Collects the asset's details over three steps (identity and photo, procurement and funding,
+ * Collects the asset's details over three steps (identity and photo, procurement, funding, and owning project,
  * home lab, room, and the Initial inspection) and registers it through assetsApi.createAssetRaw(). On success it
  * reloads the shared lists and starts over at step 1; on failure it shows the server's error
  * text under the buttons. Takes no props.
@@ -224,6 +227,16 @@ export function IntakeWizard() {
                   {(lookups?.fundingSources ?? []).map(f => <option key={f.fundingSourceId} value={String(f.fundingSourceId)}>{f.name}</option>)}
                 </select>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-bold text-foreground">Owning Project</Label>
+                <select value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <option value="">None</option>
+                  {(lookups?.projects ?? []).map(p => <option key={p.projectId} value={String(p.projectId)}>{p.code}: {p.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-bold text-foreground">Acquisition Value (₱)</Label>
                 <Input type="number" min={0} placeholder="e.g. 50000" value={form.acquisitionValue || ""} onChange={e => setForm({ ...form, acquisitionValue: parseFloat(e.target.value) || 0 })} />
