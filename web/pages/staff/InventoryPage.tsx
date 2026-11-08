@@ -51,7 +51,7 @@ export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
 
   const openAsset = (eq: any): AssetDetail => ({
     id: eq.id, name: eq.name, serial: eq.serial, manufacturer: eq.manufacturer,
-    category: eq.category, funding: eq.funding, procured: eq.procured,
+    category: eq.category, funding: eq.funding, project: eq.project, procured: eq.procured,
     warranty: eq.warranty, location: eq.location, currentLocation: eq.currentLocation, lab: eq.lab,
     status: eq.status, statusLabel: eq.statusLabel, condition: eq.condition, healthScore: eq.healthScore, isOverdue: eq.isOverdue,
     assetCondition: eq.assetCondition, custodian: eq.custodian,

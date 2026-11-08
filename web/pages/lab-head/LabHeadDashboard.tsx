@@ -219,6 +219,7 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     manufacturer: eq.manufacturer,
     category: eq.category,
     funding: eq.funding,
+    project: eq.project,
     procured: eq.procured,
     warranty: eq.warranty,
     location: eq.location,

@@ -28,7 +28,7 @@ import { Badge } from "@web/components/ui/badge";
 import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
 import { QRCodeSVG } from "qrcode.react";
-import type { AssetHistoryEvent, PersonRef } from "@shared/types/assets";
+import type { AssetHistoryEvent, AssetListItem, PersonRef } from "@shared/types/assets";
 import { ASSET_CONDITION_LABELS, type AssetCondition } from "@shared/enums/assetCondition";
 
 /** Who did a history step, as this viewer may see them. */
@@ -47,6 +47,8 @@ export interface AssetDetail {
   manufacturer?: string;
   category: string;
   funding?: string;
+  /** The owning project, or null or missing for none. */
+  project?: AssetListItem["project"];
   procured?: string;
   warranty?: string;
   location?: string;
@@ -245,10 +247,14 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     ? ASSET_CONDITION_LABELS[conditionKey as AssetCondition] ?? conditionKey.replace(/_/g, " ")
     : "Not inspected yet";
 
+  // TODO(H-13): the reloaded copy's type (serverData's Asset) does not declare project, though the server sends it.
+  const project = asset && "project" in asset ? asset.project : null;
+
   const metaRows = asset ? [
     { icon: Tag, label: "Serial No.", value: asset.serial ?? "—" },
     { icon: Tag, label: "Property Tag", value: asset.id },
     { icon: Building2, label: "Funding Source", value: asset.funding || "DOST" },
+    { icon: Bookmark, label: "Owning Project", value: project ? `${project.code}: ${project.name}` : "None" },
     { icon: Activity, label: "Condition", value: descriptiveCond },
     { icon: MapPin, label: "Campus", value: asset.location ?? "—" },
     { icon: MapPin, label: "Current Location", value: asset.currentLocation ?? asset.location ?? "—" },

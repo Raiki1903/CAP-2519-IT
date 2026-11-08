@@ -40,6 +40,10 @@ const TAB_TITLES: Record<AdRICDirectorDashboardProps["activeTab"], string> = {
   reports: "Inventory Report",
 };
 
+// The funding_sources name for equipment a researcher bought with their own money (#167).
+// The Inventory Report filter matches names exactly, so it must equal the seeded and migrated row.
+const PERSONAL_FUNDING = "Personal (self-funded)";
+
 const CONDITION_SCORE_MAP: Record<string, number> = {
   "Perfect (Brand New / 100%)": 100,
   "Operational (Standard Wear / 90%)": 90,
@@ -496,7 +500,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
       if (fundingFilter === "GOVERNMENT") {
         matchFunding = ["DOST", "CHED", "USAST"].includes(fundingVal);
       } else if (fundingFilter === "PRIVATE") {
-        matchFunding = ["USAID", "Internal Grants"].includes(fundingVal);
+        matchFunding = ["USAID", "Internal Grants", PERSONAL_FUNDING].includes(fundingVal);
       } else if (fundingFilter !== "ALL") {
         matchFunding = fundingVal === fundingFilter;
       }
@@ -576,12 +580,13 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                 >
                   <option value="ALL">All Funding Sources</option>
                   <option value="GOVERNMENT">Government (DOST, CHED, USAST)</option>
-                  <option value="PRIVATE">Private / Internal (USAID, Internal)</option>
+                  <option value="PRIVATE">Private / Internal (USAID, Internal, Personal)</option>
                   <option value="DOST">DOST Funded</option>
                   <option value="CHED">CHED Funded</option>
                   <option value="USAID">USAID Funded</option>
                   <option value="USAST">USAST Funded</option>
                   <option value="Internal Grants">Internal Grants</option>
+                  <option value={PERSONAL_FUNDING}>{PERSONAL_FUNDING}</option>
                 </select>
               </div>
 
