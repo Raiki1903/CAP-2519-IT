@@ -10,6 +10,8 @@ import { describe, expect, it } from "vitest";
 import { ASSETS, FUNDING_SOURCE, LAB, LOOKUPS, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
 import { addExtraAsset, removeExtraAssets } from "../setup/extraAssets";
+import { USEFUL_LIFE_YEARS, presentValue } from "../../shared/constants/usefulLife";
+import { serverToday } from "../../server/shared/services/assetState";
 
 const { db, as } = useApiHarness();
 const asStaff = as(USERS.staffTsg);
@@ -47,6 +49,8 @@ describe("GET /api/assets", () => {
       openLoan: null,
       fundingSource: { fundingSourceId: LOOKUPS.fundingSources[0].fundingSourceId, name: FUNDING_SOURCE },
       acquisitionValue: ASSETS.available.acquisitionValue,
+      usefulLifeYears: USEFUL_LIFE_YEARS.DEV_KIT,
+      presentValue: presentValue(ASSETS.available.acquisitionValue, "2025-06-01", USEFUL_LIFE_YEARS.DEV_KIT, serverToday()),
       procurementDate: "2025-06-01",
       warrantyExpiry: "2027-06-01",
       id: ASSETS.available.tag,

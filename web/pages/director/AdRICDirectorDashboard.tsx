@@ -24,7 +24,7 @@ import { Label } from "@web/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@web/components/ui/dialog";
 import { cn } from "@web/components/ui/utils";
 import {
-  Monitor, BarChart3, ClipboardCheck, ClipboardList, TrendingUp, AlertTriangle,
+  Monitor, BarChart3, ClipboardCheck, ClipboardList, TrendingUp, TrendingDown, AlertTriangle,
   MapPin, CheckCircle2, XCircle, Search, Download, Printer, Wrench, Calendar, Tag, ShieldAlert
 } from "lucide-react";
 
@@ -212,6 +212,9 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     const val = Number(a.cost || a.acquisition_value || a.acquisitionValue || 0);
     return sum + val;
   }, 0);
+  // presentValue is worked out on the server (shared/constants/usefulLife.ts); null for an asset with no
+  // acquisition value or procurement date, so it adds nothing here.
+  const totalPresentValue = activeAssetList.reduce((sum, a) => sum + Number(a.presentValue ?? 0), 0);
 
   // 1. Overview Tab render
   const renderOverview = () => {
@@ -222,7 +225,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     return (
       <div className="space-y-6">
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-5 flex items-center justify-between">
               <div>
@@ -237,6 +240,23 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
               </div>
               <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg border border-emerald-100 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
                 <TrendingUp size={20} />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-5 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Total Present Value</p>
+                {isDashboardLoading ? (
+                  <div className="h-7 w-32 bg-muted/60 animate-pulse rounded-md mt-1" />
+                ) : (
+                  <h3 className="text-2xl font-extrabold mt-1 text-foreground font-mono">
+                    {`PHP ${totalPresentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  </h3>
+                )}
+              </div>
+              <div className="p-3 bg-teal-50 dark:bg-teal-500/10 rounded-lg border border-teal-100 dark:border-teal-500/20 text-teal-600 dark:text-teal-400">
+                <TrendingDown size={20} />
               </div>
             </CardContent>
           </Card>
@@ -522,7 +542,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     };
 
     const triggerExportCSV = () => {
-      const headers = ["Asset ID", "ITS Property Tag", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Acquisition Date", "Valuation", "Availability", "Custodian", "Lab"];
+      const headers = ["Asset ID", "ITS Property Tag", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Acquisition Date", "Valuation", "Present Value", "Availability", "Custodian", "Lab"];
       const rows = filteredAssets.map(a => [
         a.id,
         a.itsPropertyTag || "None",
@@ -533,6 +553,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         a.funding || "Unspecified",
         a.procurement_date || a.procured || "",
         a.cost || 0,
+        a.presentValue ?? "",
         assetStatusLabel(a.status),
         a.custodian || "None",
         a.lab || ""
@@ -644,6 +665,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-center">Funding</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-center">Acquired</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right">Valuation</TableHead>
+                    <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right">Present Value</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right font-bold">Availability / Custodian</TableHead>
                     <TableHead className="text-[10px] font-bold tracking-wider uppercase print:text-slate-850 text-right print:hidden">Actions</TableHead>
                   </TableRow>
@@ -653,7 +675,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     <>
                       {[1, 2, 3, 4, 5, 6].map(i => (
                         <TableRow key={i}>
-                          <TableCell colSpan={8} className="p-3">
+                          <TableCell colSpan={9} className="p-3">
                             <div className="h-10 w-full bg-muted/60 animate-pulse rounded-md" />
                           </TableCell>
                         </TableRow>
@@ -661,7 +683,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                     </>
                   ) : filteredAssets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-xs italic">
+                      <TableCell colSpan={9} className="text-center py-12 text-muted-foreground text-xs italic">
                         No assets match these filters.
                       </TableCell>
                     </TableRow>
@@ -687,6 +709,11 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                           <TableCell className="text-center text-xs font-mono text-muted-foreground print:text-slate-800">{itemProcured}</TableCell>
                           <TableCell className="text-right text-xs font-mono font-semibold text-muted-foreground print:text-slate-800">
                             PHP {itemValuation.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-xs font-mono font-semibold text-muted-foreground print:text-slate-800">
+                            {item.presentValue !== null && item.presentValue !== undefined
+                              ? `PHP ${Number(item.presentValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : "—"}
                           </TableCell>
                           <TableCell className="text-right text-xs">
                             {isDisposed ? (

@@ -56,6 +56,7 @@ export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
     warranty: eq.warranty, location: eq.location, currentLocation: eq.currentLocation, lab: eq.lab,
     status: eq.status, statusLabel: eq.statusLabel, condition: eq.condition, healthScore: eq.healthScore, isOverdue: eq.isOverdue,
     assetCondition: eq.assetCondition, custodian: eq.custodian,
+    acquisitionValue: eq.acquisitionValue, presentValue: eq.presentValue, usefulLifeYears: eq.usefulLifeYears,
     description: eq.description || eq.remarks || "No additional Staff remarks recorded.",
     image: eq.image || eq.image_url,
     disposalId: eq.disposalId,

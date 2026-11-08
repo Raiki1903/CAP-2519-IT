@@ -16,7 +16,7 @@ import { otherIssueTypeId, useFormLookups } from "@web/features/lookups/useLooku
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, Wrench, CornerUpLeft,
-  Tag, MapPin, Building2, Calendar, Activity, Bookmark, Clock
+  Tag, MapPin, Building2, Calendar, Activity, Bookmark, Clock, Wallet, TrendingDown
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { assetStatusLabel } from "./assetBadges";
@@ -38,6 +38,11 @@ function actorLabel(actor: PersonRef): string {
   return "userId" in actor ? actor.name : "Not shown";
 }
 
+/** A peso amount, in the format the Director's Inventory Report also uses. */
+function peso(amount: number): string {
+  return `PHP ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 /**
  * The asset shape every asset list hands to this modal and to the four request forms.
  * `id` is the asset tag (for example CITe4D-0004), not the database id.
@@ -51,6 +56,10 @@ export interface AssetDetail {
   funding?: string;
   /** The owning project, or null or missing for none. */
   project?: AssetListItem["project"];
+  acquisitionValue?: AssetListItem["acquisitionValue"];
+  /** By straight-line depreciation; null when acquisitionValue or procured is missing. */
+  presentValue?: AssetListItem["presentValue"];
+  usefulLifeYears?: AssetListItem["usefulLifeYears"];
   procured?: string;
   warranty?: string;
   location?: string;
@@ -249,10 +258,13 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     ? ASSET_CONDITION_LABELS[conditionKey as AssetCondition] ?? conditionKey.replace(/_/g, " ")
     : "Not inspected yet";
 
-  // TODO(H-13): the reloaded copy's type (serverData's Asset) does not declare project, though the server sends it.
+  // TODO(H-13): the reloaded copy's type (serverData's Asset) does not declare these, though the server sends them.
   const project = asset && "project" in asset ? asset.project : null;
+  const acquisitionValue = asset && "acquisitionValue" in asset ? asset.acquisitionValue : null;
+  const presentValueAmount = asset && "presentValue" in asset ? asset.presentValue : null;
+  const usefulLifeYears = asset && "usefulLifeYears" in asset ? asset.usefulLifeYears : null;
 
-  const metaRows = asset ? [
+  const metaRows: { icon: typeof Tag; label: string; value: string; hint?: string }[] = asset ? [
     { icon: Tag, label: "Serial No.", value: asset.serial ?? "—" },
     { icon: Tag, label: "Property Tag", value: asset.id },
     { icon: Building2, label: "Funding Source", value: asset.funding || "DOST" },
@@ -261,6 +273,11 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     { icon: MapPin, label: "Campus", value: asset.location ?? "—" },
     { icon: MapPin, label: "Current Location", value: asset.currentLocation ?? asset.location ?? "—" },
     { icon: Building2, label: "Lab", value: asset.lab ?? "—" },
+    { icon: Wallet, label: "Acquisition Value", value: acquisitionValue !== null ? peso(acquisitionValue) : "—" },
+    {
+      icon: TrendingDown, label: "Present Value", value: presentValueAmount !== null ? peso(presentValueAmount) : "—",
+      hint: usefulLifeYears !== null ? `Straight-line, ${usefulLifeYears}-year life` : undefined,
+    },
     { icon: Calendar, label: "Procured", value: asset.procured ?? "—" },
     { icon: Calendar, label: "Warranty Exp.", value: asset.warranty ?? "—" },
   ] : [];
@@ -383,7 +400,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           <AssetImagePlaceholder category={asset.category} aspectRatio="4/3" imageUrl={asset.image || (asset as any).image_url} />
                         </div>
                         <div className="flex-1 min-w-[16rem] grid grid-cols-2 gap-x-4 gap-y-3 content-start">
-                          {metaRows.map(({ icon: Icon, label, value }) => (
+                          {metaRows.map(({ icon: Icon, label, value, hint }) => (
                             <div key={label}>
                               <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-1 mb-0.5">
                                 <Icon size={8} />{label}
@@ -391,6 +408,7 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                               <p className="text-xs font-semibold text-foreground truncate" title={value}>
                                 {value}
                               </p>
+                              {hint && <p className="text-[9px] text-muted-foreground/70 mt-0.5">{hint}</p>}
                             </div>
                           ))}
                         </div>

@@ -32,10 +32,11 @@ import { RETIREMENT_PATHWAY_LABELS, RETIREMENT_STATUS_LABELS } from '@shared/con
 import { INSPECTION_TYPE_LABELS } from '@shared/constants/inspectionTypes';
 import { ACTIVITY_EVENT_LABELS } from '@shared/constants/activityEvents';
 import { isHealthScoreFlagged, isMetricFlagged } from '@shared/constants/metricFlagRules';
+import { USEFUL_LIFE_YEARS, presentValue } from '@shared/constants/usefulLife';
 import * as assetsRepository from './assets.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
-import { isHeld } from '../../shared/services/assetState';
+import { isHeld, serverToday } from '../../shared/services/assetState';
 import { writeInspection } from '../../shared/services/inspections';
 import { setAssetStatus } from '../../shared/services/assetStatus';
 import { hasAccessRole } from '../../shared/middleware/permissions';
@@ -81,6 +82,7 @@ function shownName(person: PersonRef | null): string | undefined {
 export async function listAssets(viewer: SessionIdentity, filters: AssetListFilters = {}): Promise<AssetListItem[]> {
     const dbAssets = await assetsRepository.findForList(filters);
     const [states, inspections, retirements] = await assetsRepository.findListExtras(dbAssets);
+    const today = serverToday();
 
     return dbAssets.map(asset => {
         const state = states.get(asset.asset_id)!;
@@ -116,6 +118,8 @@ export async function listAssets(viewer: SessionIdentity, filters: AssetListFilt
 
         const remarksText = state.condition?.remarks || null;
         const acquisitionValue = asset.acquisition_value === null ? null : Number(asset.acquisition_value);
+        const usefulLifeYears = USEFUL_LIFE_YEARS[asset.category as AssetCategory];
+        const procurementDateOnly = dateOnly(asset.procurement_date);
 
         const reports = inspections.filter(r => r.asset_id === asset.asset_id).map(r => ({
             id: r.inspection_id,
@@ -154,7 +158,9 @@ export async function listAssets(viewer: SessionIdentity, filters: AssetListFilt
             project: asset.projects ? { projectId: asset.projects.project_id, code: asset.projects.project_code, name: asset.projects.project_name } : null,
             fundingSource: asset.funding_sources ? { fundingSourceId: asset.funding_sources.funding_source_id, name: asset.funding_sources.name } : null,
             acquisitionValue,
-            procurementDate: dateOnly(asset.procurement_date),
+            presentValue: presentValue(acquisitionValue, procurementDateOnly, usefulLifeYears, today),
+            usefulLifeYears,
+            procurementDate: procurementDateOnly,
             warrantyExpiry: dateOnly(asset.warranty_expiry),
             accessories: asset.accessories,
             itsPropertyTag: asset.its_property_tag,
@@ -165,7 +171,7 @@ export async function listAssets(viewer: SessionIdentity, filters: AssetListFilt
             serial: asset.serial_number || "",
             funding: asset.funding_sources?.name || "Unspecified",
             cost: acquisitionValue ?? 0,
-            procured: dateOnly(asset.procurement_date) ?? "",
+            procured: procurementDateOnly ?? "",
             warranty: dateOnly(asset.warranty_expiry) ?? "",
             location: CAMPUS_LABELS[center.location],
             lab: center.short_code,

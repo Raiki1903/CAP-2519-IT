@@ -232,6 +232,9 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
     isOverdue: eq.isOverdue,
     assetCondition: eq.assetCondition,
     custodian: eq.custodian,
+    acquisitionValue: eq.acquisitionValue,
+    presentValue: eq.presentValue,
+    usefulLifeYears: eq.usefulLifeYears,
     image: eq.image || eq.image_url,
     description: eq.description,
   });

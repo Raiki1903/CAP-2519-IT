@@ -130,6 +130,10 @@ export interface AssetListItem {
   project: { projectId: number; code: string; name: string } | null;
   fundingSource: { fundingSourceId: number; name: string } | null;
   acquisitionValue: number | null;
+  /** By straight-line depreciation (shared/constants/usefulLife.ts). Null when acquisitionValue or procurementDate is missing. */
+  presentValue: number | null;
+  /** The asset's category's useful life, in years (shared/constants/usefulLife.ts USEFUL_LIFE_YEARS). */
+  usefulLifeYears: number;
   /** yyyy-mm-dd, or null. */
   procurementDate: string | null;
   warrantyExpiry: string | null;
