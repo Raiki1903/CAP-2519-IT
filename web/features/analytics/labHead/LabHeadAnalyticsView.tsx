@@ -218,7 +218,7 @@ export const LabHeadOperationalSection: React.FC<{ lab?: string }> = ({ lab = ""
                 const isWorking = actingId === `loan-${loan.loanId}`;
 
                 return (
-                  <TableRow key={loan.loanId} className="text-xs hover:bg-muted/20">
+                  <TableRow key={loan.loanId} className="text-xs">
                     <TableCell className="font-mono font-bold text-primary">LOAN-{loan.loanId}</TableCell>
                     <TableCell className="font-semibold">{loan.asset} ({loan.assetId})</TableCell>
                     <TableCell>{loan.borrower}</TableCell>
@@ -432,7 +432,7 @@ export const ProjectAllocationWidget: React.FC<{ lab: string }> = ({ lab }) => {
                     </TableHeader>
                     <TableBody>
                       {allocationItems.map((item: any, idx: number) => (
-                        <TableRow key={idx} className="hover:bg-muted/30 border-b border-border text-[11px]">
+                        <TableRow key={idx} className="border-b border-border text-[11px]">
                           <TableCell className="font-bold text-[#005A36] py-2 px-2 truncate max-w-[110px]" title={item.name}>
                             {item.name}
                           </TableCell>
@@ -524,7 +524,7 @@ export const DelinquencyTable: React.FC<{ lab: string }> = ({ lab }) => {
                   {delinquencies.map((item: any) => {
                     const isSevere = item.daysOverdue > 14;
                     return (
-                      <TableRow key={item.id} className={isSevere ? "bg-red-50/50 hover:bg-red-50" : "hover:bg-muted/30"}>
+                      <TableRow key={item.id} className={isSevere ? "bg-red-50/50" : ""}>
                         <TableCell className="font-medium text-xs text-foreground">
                           <div>{item.assetName}</div>
                           <div className="text-[10px] text-muted-foreground font-mono">{item.assetTag}</div>

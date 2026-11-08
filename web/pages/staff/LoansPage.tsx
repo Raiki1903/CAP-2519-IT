@@ -242,7 +242,7 @@ export function LoansPage() {
                     const destination = `${l.destinationLab?.code ?? "Home"}${l.destinationRoom ? ` - ${l.destinationRoom}` : ""}`;
 
                     return (
-                      <TableRow key={l.loanId} className="transition-colors hover:bg-muted/10">
+                      <TableRow key={l.loanId}>
                         <TableCell className="font-bold text-xs font-mono text-primary">{l.asset.tag}</TableCell>
                         <TableCell className="text-xs font-bold text-foreground">{l.asset.name}</TableCell>
                         <TableCell className="text-xs text-foreground">{borrower}</TableCell>
@@ -302,7 +302,7 @@ export function LoansPage() {
                     const borrower = l.borrower && "name" in l.borrower ? l.borrower.name : "Researcher";
 
                     return (
-                      <TableRow key={l.loanId} className="transition-colors hover:bg-muted/10">
+                      <TableRow key={l.loanId}>
                         <TableCell className="font-bold text-xs font-mono text-primary">{l.asset.tag}</TableCell>
                         <TableCell className="text-xs font-bold text-foreground">{l.asset.name}</TableCell>
                         <TableCell className="text-xs text-foreground">{borrower}</TableCell>

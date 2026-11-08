@@ -86,7 +86,7 @@ export function InspectionLog({ dbReports }: { dbReports: any[] }) {
                           : "bg-red-50 text-red-700 border-red-200";
 
                   return (
-                    <TableRow key={rep.id} className="transition-colors hover:bg-muted/10">
+                    <TableRow key={rep.id}>
                       <TableCell className="font-bold text-xs font-mono">{rep.id}</TableCell>
                       <TableCell>
                         <div>

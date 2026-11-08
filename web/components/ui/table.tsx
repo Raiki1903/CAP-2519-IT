@@ -61,13 +61,13 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   );
 }
 
-/** One row, highlighted on hover. */
+/** One row. */
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
       data-slot="table-row"
       className={cn(
-        "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+        "data-[state=selected]:bg-muted border-b",
         className,
       )}
       {...props}

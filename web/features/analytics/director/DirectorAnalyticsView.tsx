@@ -547,7 +547,7 @@ export const TopUtilizationWidget: React.FC<DirectorAnalyticsProps> = ({ selecte
                 </TableHeader>
                 <TableBody>
                   {topAssets.map((item: any, index: number) => (
-                    <TableRow key={item.assetId} className="hover:bg-muted/30 border-b border-border text-xs">
+                    <TableRow key={item.assetId} className="border-b border-border text-xs">
                       <TableCell className="font-extrabold text-[#005A36]">#{index + 1}</TableCell>
                       <TableCell className="font-medium text-foreground">
                         <div>{item.assetName}</div>

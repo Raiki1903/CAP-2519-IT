@@ -252,7 +252,7 @@ export function ClearancePrintPage() {
                   {loans.map((loan) => {
                     const ret = loan.returnInspection;
                     return (
-                      <tr key={loan.loanId} className="border-b border-slate-200 hover:bg-slate-50/50">
+                      <tr key={loan.loanId} className="border-b border-slate-200">
                         <td className="p-2 border-r border-slate-200 font-bold text-slate-800">
                           LOAN-{loan.loanId}
                         </td>

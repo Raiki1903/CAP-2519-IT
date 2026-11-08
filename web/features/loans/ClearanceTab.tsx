@@ -45,7 +45,7 @@ export function ClearanceTab({ rows, searching }: { rows: ClearanceRow[]; search
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <TableRow key={r.userId} className="transition-colors hover:bg-muted/10">
+                <TableRow key={r.userId}>
                   <TableCell className="text-xs font-bold text-foreground">{r.name}</TableCell>
                   <TableCell className="text-xs font-mono text-foreground">{r.openLoans}</TableCell>
                   <TableCell className="text-xs font-mono text-muted-foreground">{r.loansOnRecord}</TableCell>

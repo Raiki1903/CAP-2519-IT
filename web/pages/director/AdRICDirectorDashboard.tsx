@@ -412,7 +412,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                       }
 
                       return (
-                        <TableRow key={lab.centerId} className="hover:bg-muted/30 transition-colors">
+                        <TableRow key={lab.centerId}>
                           <TableCell className="font-bold text-foreground text-xs">{lab.code}</TableCell>
                           <TableCell className="text-muted-foreground text-xs">{lab.campusLabel}</TableCell>
                           <TableCell className="text-center font-semibold text-xs text-foreground font-mono">{assetCount}</TableCell>
@@ -695,7 +695,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                       const itemProcured = item.procurement_date || item.procured || "N/A";
 
                       return (
-                        <TableRow key={item.id} className="print:border-slate-200 hover:bg-muted/30 transition-colors">
+                        <TableRow key={item.id} className="print:border-slate-200">
                           <TableCell className="font-mono text-xs text-[#005A36] print:text-slate-900 font-bold">{item.id}</TableCell>
                           <TableCell className="text-xs">
                             <p className="font-mono text-foreground print:text-slate-900 font-semibold">ITS: {item.itsPropertyTag || "None"}</p>
