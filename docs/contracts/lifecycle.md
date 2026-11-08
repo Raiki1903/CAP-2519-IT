@@ -48,6 +48,7 @@ Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges
 | Overdue | The asset has an open loan whose return-by date has passed. The status stays On Loan; overdue is a separate flag |
 | Cleared | The person has no loan in Pending Release, On Loan or Return Requested |
 | History of an asset | The asset's loan, inspection, maintenance and retirement rows, plus its `activity_log` rows, in time order |
+| Present value | Straight-line depreciation: `acquisitionValue * (1 - wholeYears / usefulLifeYears)`, never below 0, rounded to 2 decimals. `wholeYears` is full years from `procurementDate` to `serverToday()` (a future date counts as 0). Null when `acquisitionValue` or `procurementDate` is missing (`shared/constants/usefulLife.ts`) |
 
 ### The fields screens receive
 
@@ -66,6 +67,8 @@ Every asset in an answer carries these, worked out on the server:
 | `healthScore` | number or null | `80` | From the newest TSG inspection |
 | `isOverdue` | boolean | `false` | |
 | `openLoan` | object or null | `{ "loanId": 41, "status": "ON_LOAN", "returnBy": "2026-11-20" }` | The loan in Pending Approval, Pending Release, On Loan or Return Requested, if any |
+| `presentValue` | number or null | `8000` | Straight-line depreciation of `acquisitionValue` (see "What is worked out"); null when `acquisitionValue` or `procurementDate` is missing |
+| `usefulLifeYears` | number | `5` | The asset's category's useful life, `shared/constants/usefulLife.ts` |
 
 `GET /api/assets` sends the fields above. Since Batch 1, `status` and `condition` hold the stored keys (before, they held display text and a 0 to 100 score). Next to them it still sends the older fields today's screens read: `id` (the tag), `serial`, `funding` (the name, or "Unspecified"), `cost`, `procured`, `warranty`, `location` (the campus label), `lab` (the home lab's code), `assetCondition`, `custodian`, `custodianId`, `custodianHidden`, `borrowedOn`, `dueDate`, `daysLeft`, `disposalId`, `disposalDetails`, `image`, `image_url`, `description`, `remarks`, and `asset_reports`. New screens read only the fields above.
 
@@ -342,7 +345,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 
 **Common objects**
 
-`Asset`: the fields in section 1, plus `assetId`, `tag`, `name`, `serialNumber`, `manufacturer`, `category`, `categoryLabel`, `project` (`{ projectId, code, name }` or null), `fundingSource` (`{ fundingSourceId, name }` or null), `acquisitionValue`, `procurementDate`, `warrantyExpiry`, `accessories`, `itsPropertyTag`, `tsgTag`, `imageUrl`.
+`Asset`: the fields in section 1, plus `assetId`, `tag`, `name`, `serialNumber`, `manufacturer`, `category`, `categoryLabel`, `project` (`{ projectId, code, name }` or null), `fundingSource` (`{ fundingSourceId, name }` or null), `acquisitionValue`, `presentValue`, `usefulLifeYears`, `procurementDate`, `warrantyExpiry`, `accessories`, `itsPropertyTag`, `tsgTag`, `imageUrl`.
 
 `Inspection`: `{ inspectionId, type, typeLabel, inspectedBy: { userId, name }, inspectedAt, condition, conditionLabel, healthScore, missingAccessories, remarks, photo, metrics: [{ metricId, metricKey, name, unit, value, flagged }] }`.
 
