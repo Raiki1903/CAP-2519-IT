@@ -414,7 +414,7 @@ describe("PUT /api/loans/:id/approve and /decline", () => {
     expect((await loanRow(loanId)).status).toBe("DECLINED");
   });
 
-  it("lets exactly one of an approval and a cancel at the same moment win; the other answers 409", async () => {
+  it("an approval and a cancel at the same moment: the cancel always wins, before or after the approval", async () => {
     const { loanId } = await pendingLoanOn("TEST-0305");
 
     const [approve, cancel] = await Promise.all([
@@ -422,8 +422,11 @@ describe("PUT /api/loans/:id/approve and /decline", () => {
       asCustodian.put(`/api/loans/${loanId}/cancel`, {}),
     ]);
 
-    expect([approve.status, cancel.status].sort()).toEqual([200, 409]);
-    expect((await loanRow(loanId)).status).toBe(approve.status === 200 ? "PENDING_RELEASE" : "CANCELLED");
+    // The asset lock runs them one after the other. A borrower may cancel from Pending Release too, so the cancel
+    // answers 200 in either order; the approval answers 409 only when the cancel ran first.
+    expect(cancel.status).toBe(200);
+    expect([200, 409]).toContain(approve.status);
+    expect((await loanRow(loanId)).status).toBe("CANCELLED");
   });
 
   it("answers 404 for an unknown loan, and 400 for an id that is not a number", async () => {
