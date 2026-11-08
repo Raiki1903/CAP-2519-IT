@@ -221,7 +221,8 @@ export function LoanForm({ asset, onBack, onClose }: Props) {
                 <SelectTrigger className="text-xs">
                   <SelectValue placeholder="Select a lab" />
                 </SelectTrigger>
-                <SelectContent>
+                {/* z-[60]: this list opens over AssetDetailModal, whose card is at z-index 51. */}
+                <SelectContent className="z-[60]">
                   {myLabs.map(l => (
                     <SelectItem key={l.centerId} value={String(l.centerId)}>{l.code}</SelectItem>
                   ))}
