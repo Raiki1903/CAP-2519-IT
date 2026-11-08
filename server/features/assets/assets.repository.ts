@@ -207,16 +207,20 @@ export function saveEdit(assetId: number, changes: Prisma.assetsUncheckedUpdateI
     });
 }
 
-/** How much history an asset has: a delete is refused when there is any. (issue #69) */
+/**
+ * How much history an asset has: a delete is refused when there is any. (issue #69) Every remark counts, deleted ones
+ * too, since their rows stay. (issue #169)
+ */
 export async function countHistory(assetId: number) {
     const where = { asset_id: assetId };
-    const [loans, maintenance, retirements, laterInspections] = await Promise.all([
+    const [loans, maintenance, retirements, laterInspections, remarks] = await Promise.all([
         prisma.asset_loans.count({ where }),
         prisma.asset_maintenance.count({ where }),
         prisma.asset_retirements.count({ where }),
         prisma.asset_inspections.count({ where: { asset_id: assetId, type: { not: 'INITIAL' } } }),
+        prisma.asset_remarks.count({ where }),
     ]);
-    return { loans, maintenance, retirements, laterInspections };
+    return { loans, maintenance, retirements, laterInspections, remarks };
 }
 
 /**

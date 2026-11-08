@@ -396,8 +396,8 @@ function sameValue(stored: unknown, sent: unknown): boolean {
 /**
  * Deletes a mistaken registration: the asset and its Initial inspection, and writes an ASSET_DELETED
  * row with the tag. Its earlier activity log rows are kept, without the asset.
- * An asset with any loan, maintenance ticket, retirement, or inspection besides its initial one is refused: that is
- * history, and taking the asset out of use is a retirement. (H-03, issue #69)
+ * An asset with any loan, maintenance ticket, retirement, inspection besides its initial one, or remark (deleted ones
+ * too) is refused: that is history, and taking the asset out of use is a retirement. (H-03, issues #69 and #169)
  *
  * @param assetTag the asset's tag, from the URL
  * @param actorId the session user, TSG (the route checks it)
@@ -411,8 +411,8 @@ export async function deleteAsset(assetTag: string, actorId: number): Promise<vo
     }
 
     const history = await assetsRepository.countHistory(existing.asset_id);
-    if (history.loans + history.maintenance + history.retirements + history.laterInspections > 0) {
-        throw new AppError(409, `${assetTag} cannot be deleted because it has history (loans, maintenance, a retirement, or inspections). To take it out of use, request its retirement instead.`);
+    if (history.loans + history.maintenance + history.retirements + history.laterInspections + history.remarks > 0) {
+        throw new AppError(409, `${assetTag} cannot be deleted because it has history (loans, maintenance, a retirement, inspections, or remarks). To take it out of use, request its retirement instead.`);
     }
 
     await assetsRepository.deleteRegistration(existing.asset_id, assetTag, actorId);

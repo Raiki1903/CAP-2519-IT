@@ -578,8 +578,24 @@ describe("DELETE /api/assets/:tag", () => {
     const res = await asStaff.delete(`/api/assets/${tag}`);
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe(`${tag} cannot be deleted because it has history (loans, maintenance, a retirement, or inspections). To take it out of use, request its retirement instead.`);
+    expect(res.body.error).toBe(`${tag} cannot be deleted because it has history (loans, maintenance, a retirement, inspections, or remarks). To take it out of use, request its retirement instead.`);
     expect(await db.assets.count()).toBe(before);
+  });
+
+  it("answers 409 for an asset whose only history is a remark, even a deleted one (issue #169)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-1691" });
+    try {
+      const added = await asStaff.post(`/api/assets/${asset.tag}/remarks`, { text: "A remark" });
+      expect((await asStaff.delete(`/api/assets/${asset.tag}/remarks/${added.body.remark.remarkId}`)).status).toBe(200);
+
+      const res = await asStaff.delete(`/api/assets/${asset.tag}`);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe(`${asset.tag} cannot be deleted because it has history (loans, maintenance, a retirement, inspections, or remarks). To take it out of use, request its retirement instead.`);
+      expect(await db.assets.count({ where: { asset_id: asset.assetId } })).toBe(1);
+    } finally {
+      await removeExtraAssets(db, [asset.assetId]);
+    }
   });
 
   it("answers 403 to the Secretary and the IT Admin: only TSG deletes", async () => {
