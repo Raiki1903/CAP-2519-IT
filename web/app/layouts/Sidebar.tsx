@@ -1,5 +1,5 @@
 /**
- * Side navigation: the role's tab list, collapse toggle, logout, and the settings panel (theme, session details).
+ * Side navigation: the role's tab list, collapse toggle, logout, and the settings panel (session details).
  * Layer: shared (app shell). Called by layouts/RootLayout.tsx.
  * Calls: state/session.tsx (role, preferences, cookies), state/serverData.tsx (the count of tickets waiting for receipt),
  * state/pendingSignUps.tsx (the IT Admin's count of sign-ups waiting). No api calls.
@@ -91,7 +91,7 @@ const roleConfig: Record<Role, {
  * @param onCloseMobile closes the drawer after a link is followed on a narrow screen
  */
 export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: () => void; isMobileOpen?: boolean; onCloseMobile?: () => void }) {
-  const { role, sidebarCollapsed, setSidebarCollapsed, theme, setTheme, currentUser } = useSession();
+  const { role, sidebarCollapsed, setSidebarCollapsed, currentUser } = useSession();
   const { pendingReceiptCount } = useServerData();
   const { users: pendingSignUps } = usePendingSignUps();
   const [showSettings, setShowSettings] = useState(false);
@@ -481,22 +481,6 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                 </div>
 
                 <div className="space-y-5">
-                  {/* Theme Option */}
-                  <div className="flex items-center justify-between p-3 bg-slate-950/40 rounded-xl border border-white/5">
-                    <div>
-                      <p className="text-xs font-bold text-white uppercase tracking-wider">Interface Theme</p>
-                      <p className="text-[10px] text-slate-400">Toggle classic dark or light slate</p>
-                    </div>
-                    <select
-                      value={theme}
-                      onChange={(e) => setTheme(e.target.value as any)}
-                      className="bg-slate-800 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 text-white"
-                    >
-                      <option value="classic-dark">Classic Dark</option>
-                      <option value="light-slate">Light Slate</option>
-                    </select>
-                  </div>
-
                   {/* Session Information */}
                   <div className="p-4 bg-[#0A1F14] border border-emerald-500/10 rounded-xl space-y-2.5">
                     <p className="text-[10px] font-extrabold text-emerald-400 tracking-wider uppercase">Active Session Details</p>
