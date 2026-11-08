@@ -1,5 +1,5 @@
 /**
- * Staff Overview: asset, repair, and return counts, quick links to the other tabs, campus totals, alerts, recent
+ * Staff Overview: asset, repair, and return counts, quick links to the other tabs, campus totals, recent
  * registrations, the warranties notice, inspection progress, and the Operations Board at the bottom.
  * Layer: page. Called by app/routes.tsx at /staff/overview.
  * Calls: features/assets/useStaffAssets.ts, features/repairs/useRepairTickets.ts, features/returns/usePendingReturns.ts
@@ -19,7 +19,7 @@ import { Badge } from "@web/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
-import { CheckCircle, Clock, Package, ChevronRight, Bell, AlertTriangle, Shield } from "lucide-react";
+import { Package, ChevronRight } from "lucide-react";
 
 /** The Staff landing tab. Reads only; every action is a link to another tab. Takes no props. */
 export function OverviewPage() {
@@ -38,14 +38,6 @@ export function OverviewPage() {
     "bg-blue-50 text-blue-700 border-blue-200",
     "bg-sky-50 text-sky-700 border-sky-200",
   ];
-
-  const nowMs = Date.now();
-  const expiring30Days = displayedAssets.filter(a => {
-    if (!a.warranty) return false;
-    const expMs = new Date(a.warranty).getTime();
-    const daysLeft = Math.ceil((expMs - nowMs) / (1000 * 60 * 60 * 24));
-    return daysLeft >= 0 && daysLeft <= 30;
-  });
 
   const recentAssets = [...displayedAssets].slice(-3).reverse();
 
@@ -142,81 +134,34 @@ export function OverviewPage() {
         </Card>
       </div>
 
-      {/* Dynamic Pulse: System Alerts & Recent Activity */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="border border-border bg-card shadow-sm rounded-xl">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Bell className="w-4 h-4 text-amber-600" /> System Alerts &amp; Action Required
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {pendingReceiptCount > 0 ? (
-              <div className="p-3 bg-red-50/70 dark:bg-red-950/30 border border-red-200 rounded-xl flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-600 animate-pulse shrink-0" />
-                  <div>
-                    <span className="font-extrabold text-red-800 dark:text-red-300 block">{pendingReceiptCount} Repair {pendingReceiptCount === 1 ? "Ticket" : "Tickets"} Waiting for Receipt</span>
-                    <span className="text-[11px] text-red-700 dark:text-red-400">TSG receives the asset and checks it</span>
+      <Card className="border border-border bg-card shadow-sm rounded-xl">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+            <Package className="w-4 h-4 text-[#005A36]" /> Recent Asset Registrations
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentAssets.length === 0 ? (
+            <div className="p-4 text-center text-xs text-muted-foreground italic bg-muted/10 rounded-xl">
+              No assets logged in system.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {recentAssets.map(asset => (
+                <div key={asset.id} className="p-2.5 bg-muted/20 border border-border rounded-xl flex items-center justify-between text-xs gap-2">
+                  <div className="min-w-0">
+                    <span className="font-bold text-foreground block truncate">{asset.name} <span className="font-mono text-primary text-[11px]">({asset.id})</span></span>
+                    <span className="text-[10px] text-muted-foreground block truncate">{asset.category} · {asset.location || asset.lab || "Unknown location"}</span>
                   </div>
+                  <Badge variant="outline" className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
+                    {asset.statusLabel || asset.status}
+                  </Badge>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => navigate(`/${overviewSlug}/repairs`)} className="text-[11px] font-bold border-red-300 text-red-700 hover:bg-red-100 shrink-0">
-                  Review
-                </Button>
-              </div>
-            ) : (
-              <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-semibold">
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> No repair tickets waiting for receipt.
-              </div>
-            )}
-
-            {expiring30Days.length > 0 ? (
-              <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 rounded-xl flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                  <div>
-                    <span className="font-extrabold text-amber-900 dark:text-amber-300 block">{expiring30Days.length} Assets Expiring Warranty (≤30 Days)</span>
-                    <span className="text-[11px] text-amber-700 dark:text-amber-400">Service agreement renewal checks recommended</span>
-                  </div>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => navigate(`/${overviewSlug}/analytics`)} className="text-[11px] font-bold border-amber-300 text-amber-800 hover:bg-amber-100 shrink-0">
-                  Inspect
-                </Button>
-              </div>
-            ) : (
-              <div className="p-3 bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 rounded-xl flex items-center gap-2 text-xs text-blue-800 dark:text-blue-300 font-semibold">
-                <Shield className="w-4 h-4 text-blue-600 shrink-0" /> No hardware warranties expiring within 30 days.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border bg-card shadow-sm rounded-xl">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Package className="w-4 h-4 text-[#005A36]" /> Recent Asset Registrations
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
-            {recentAssets.map(asset => (
-              <div key={asset.id} className="p-2.5 bg-muted/20 border border-border rounded-xl flex items-center justify-between text-xs">
-                <div>
-                  <span className="font-bold text-foreground block">{asset.name} <span className="font-mono text-primary text-[11px]">({asset.id})</span></span>
-                  <span className="text-[10px] text-muted-foreground">{asset.category} · {asset.location || asset.lab || "Unknown location"}</span>
-                </div>
-                <Badge variant="outline" className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border-emerald-200">
-                  {asset.statusLabel || asset.status}
-                </Badge>
-              </div>
-            ))}
-            {recentAssets.length === 0 && (
-              <div className="p-4 text-center text-xs text-muted-foreground italic bg-muted/10 rounded-xl">
-                No assets logged in system.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Moved here from Staff Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
