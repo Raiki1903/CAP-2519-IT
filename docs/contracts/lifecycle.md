@@ -14,6 +14,8 @@ Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges
 
 **Module 6 built (2026-11-07, issue #158):** the endpoints marked "live (module 6)" in 7.7 exist: the users list with its filters, role and lab changes, a lab's Head, deactivate, reactivate and anonymize, with the rules in section 4 ("Sign-up and account"). `GET /api/users?status=PENDING` answers as before. The activity log read (7.7) and the tickets (7.8) are live too. The IT Admin's screens are built: Users (with a Labs tab for each lab's Head), Activity Log and Tickets, under `/it-admin/users`, `/it-admin/activity-log` and `/it-admin/tickets`; and every view's Account page has a Support tickets section (a short form and the person's own tickets with their answers). The User object gained `anonymizedAt`. No schema change.
 
+**Asset remarks built (2026-11-08, issue #169):** remarks on an asset, in the new table `asset_remarks` (one migration, a new table only). The three remark endpoints marked "live (#169)" in 7.2 exist, with the `Remark` object below. A delete is soft: the row stays with who deleted it and when, and an asset with any remark row cannot be deleted. The asset detail modal has a Remarks section in every view, and the IT Admin has a read-only Asset Inventory page (`/it-admin/inventory`, the Director's page).
+
 ---
 
 ## 1. Data model
@@ -31,6 +33,7 @@ Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges
 | Funding | `assets.funding_source_id` (a row of `funding_sources`) and `assets.acquisition_value` |
 | Accessories, ITS property tag, TSG tag | `assets.accessories`, `assets.its_property_tag`, `assets.tsg_tag` |
 | Each loan, maintenance ticket, retirement and inspection | Its own row in `asset_loans`, `asset_maintenance`, `asset_retirements`, `asset_inspections` |
+| Remarks on an asset (author, time, text; who deleted it and when) | `asset_remarks`. A delete sets `deleted_by_id` and `deleted_at` and keeps the row |
 | Steps that have no table of their own (registered, edited, deleted, marked missing, found, clearance record printed) | `activity_log` |
 | Which labs a person belongs to (one or more) | `user_centers` |
 | Who heads a lab (at most one per lab, one lab per person) | `research_centers.head_user_id` |
@@ -301,12 +304,12 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 
 | Role (view) | May |
 |---|---|
-| TSG | Register assets, edit master data, and every physical step: release, receive, inspect, maintenance, mark missing and found, request and complete retirements, print clearance records |
-| Secretary (AdRIC Secretary) | Edit asset master data only, and decide retirements. Registration and every physical step answer 403 |
-| Director | Decide retirements; read analytics and reports |
-| Lab Head (the account that heads a lab) | Approve and decline loans for assets whose home lab it heads; report an issue on its lab's assets. It does not borrow: a loan request answers 403 "Use your personal account to borrow." |
-| Researcher | Request, cancel and ask to return their own loans; report an issue on an asset they hold; file a Self Report |
-| IT Admin | Accounts, labs, Heads, tickets and the activity log. **No asset actions:** every asset step answers 403 |
+| TSG | Register assets, edit master data, and every physical step: release, receive, inspect, maintenance, mark missing and found, request and complete retirements, print clearance records; add remarks, and delete their own |
+| Secretary (AdRIC Secretary) | Edit asset master data only, and decide retirements; add remarks, and delete their own. Registration and every physical step answer 403 |
+| Director | Decide retirements; read analytics and reports; add remarks, and delete their own |
+| Lab Head (the account that heads a lab) | Approve and decline loans for assets whose home lab it heads; report an issue on its lab's assets; add remarks on its lab's assets and delete any remark on them. It does not borrow: a loan request answers 403 "Use your personal account to borrow." |
+| Researcher | Request, cancel and ask to return their own loans; report an issue on an asset they hold; file a Self Report; read remarks |
+| IT Admin | Accounts, labs, Heads, tickets and the activity log; read the asset inventory (read-only) and delete any remark. **No other asset actions:** every asset step and adding a remark answer 403 |
 
 - A Lab Head is not a separate role: the role is Researcher, and heading a lab (`research_centers.head_user_id`) gives the Lab Head view. Heading a lab wins over Researcher when the server picks the view.
 - **The Lab Head account is an office account** for the lab's Head position, like the practicum coordinator's account. It is handed over when the Head changes. The person who holds the position borrows with their own personal account; the office account cannot request loans (403 "Use your personal account to borrow.").
@@ -314,9 +317,9 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 - "Approved by" and "Declined by" show the office account, not the person behind it.
 - Known limit (for the manuscript): when a Head borrows an asset of their own lab with their personal account, the approval comes from the office account they also hold.
 - The app's internal role key for a Researcher is still `"Custodian"` (the screens under `/custodian`); the label shown is "Researcher".
-- The IT Admin has its own view since Batch 2b: app role `"ITAdmin"` (label "IT Admin"), the screens under `/it-admin` (Approvals, which it lands on; Users, with a Labs tab; Activity Log; Tickets). A Researcher, Staff, Director or Lab Head opening `/it-admin/*` sees No Access, and so does the IT Admin opening another view's URL. The Secretary still lands on the Staff view until Batch 6.
-- The read-only lists (`GET /api/assets`, `/history`, `/api/loans`, `/api/maintenance`) stay open to any Active account on the server, as in section 7.2. The IT Admin's screens do not load them, and the notification bell is hidden for the IT Admin.
-- A Researcher never sees another person's name or id on an asset or loan (`holder: { "hidden": true }`).
+- The IT Admin has its own view since Batch 2b: app role `"ITAdmin"` (label "IT Admin"), the screens under `/it-admin` (Approvals, which it lands on; Users, with a Labs tab; Asset Inventory, read-only, since #169; Activity Log; Tickets). A Researcher, Staff, Director or Lab Head opening `/it-admin/*` sees No Access, and so does the IT Admin opening another view's URL. The Secretary still lands on the Staff view until Batch 6.
+- The read-only lists (`GET /api/assets`, `/history`, `/remarks`, `/api/loans`, `/api/maintenance`) stay open to any Active account on the server, as in section 7.2. Of the IT Admin's screens, only Asset Inventory loads them (the asset list, and the asset modal's history, remarks and loans); the notification bell is hidden for the IT Admin.
+- A Researcher never sees another person's name or id on an asset or loan (`holder: { "hidden": true }`). One exception: remark authors are shown to everyone, because only officials (TSG, the Director, the Secretary, a lab's Head) can write remarks. Holders and borrowers stay hidden as before.
 
 ---
 
@@ -353,6 +356,8 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 
 `User`: `{ userId, firstName, lastName, email, idNumber, userType, role, roleLabel, accountStatus, anonymizedAt, labs: [{ centerId, code }], headOf: { centerId, code } or null }`. Sent only to the IT Admin and to the person themself. `role` is a database role key, or null for a Pending sign-up; for a Pending sign-up, `labs` are the labs it asked for. `anonymizedAt` is the ISO time of the anonymize step, or null; an anonymized account can no longer be changed.
 
+`Remark`: `{ remarkId, author: { userId, name }, createdAt, text, canDelete }`. The author's name goes to every viewer, a Researcher too (section 6). `canDelete` says whether the session user may delete it.
+
 `Ticket`: `{ ticketId, createdBy, type, typeLabel, title, description, status, statusLabel, resolutionRemarks, resolvedBy, resolvedAt, createdAt, updatedAt }`.
 
 `ActivityEntry`: `{ logId, eventType, eventLabel, actor, targetUser, asset: { assetId, tag } or null, details, createdAt }`.
@@ -377,7 +382,10 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 | One asset's history | `GET /api/assets/:assetTag/history` | logged in | | `{ events: [{ at, kind, label, actor, details, loanId?, maintenanceId?, retirementId?, inspectionId? }] }`, oldest first | 404 | live (Batch 1) |
 | Register an asset | `POST /api/assets` | TSG | `{ name, serialNumber?, manufacturer?, category, centerId, homeRoom?, projectId?, fundingSourceId?, acquisitionValue?, procurementDate?, warrantyExpiry?, accessories?, itsPropertyTag?, tsgTag?, imageUrl?, initialInspection: InspectionInput }` | `{ asset: Asset }` with the new tag `<lab>-<next number>` | 400; 403 | live (Batch 1) |
 | Edit master data | `PUT /api/assets/:assetTag` | TSG, Secretary | any of the register fields except `initialInspection` | `{ asset: Asset }` | 400 the body has `status`, `holder`, `location` or `condition`; 403; 404; 409 Pending Retirement or Retired | live (Batch 1) |
-| Delete a mistaken registration | `DELETE /api/assets/:assetTag` | TSG | | `{ deleted: "<tag>" }` | 403; 404; 409 the asset has a loan, maintenance, retirement, or an inspection besides its initial one | live (Batch 1) |
+| Delete a mistaken registration | `DELETE /api/assets/:assetTag` | TSG | | `{ deleted: "<tag>" }` | 403; 404; 409 the asset has a loan, maintenance, retirement, an inspection besides its initial one, or a remark (a deleted one too) | live (Batch 1; remarks #169) |
+| An asset's remarks | `GET /api/assets/:assetTag/remarks` | logged in | | `{ remarks: Remark[], canAdd }`, newest first, never a deleted one; `canAdd` says whether the session user may add one | 404 | live (#169) |
+| Add a remark | `POST /api/assets/:assetTag/remarks` | TSG, Director, Secretary, the Head of the asset's home lab | `{ text }`, trimmed, required, at most 500 characters. Any asset status; the asset does not change | `{ remark: Remark }` (201) | 400; 403 (a Researcher, the IT Admin, or the Head of another lab); 404 | live (#169) |
+| Delete a remark | `DELETE /api/assets/:assetTag/remarks/:remarkId` | the remark's author, the Head of the asset's home lab, the IT Admin (any remark) | | `{ deleted: <remarkId> }`. Soft: the row stays with who and when | 400 the id is not a whole number; 403; 404 unknown tag, a remark of another asset, or one already deleted | live (#169) |
 
 Registration writes the Initial inspection and an ASSET_REGISTERED log row; an edit that changes something writes an ASSET_EDITED row naming the changed fields (`details`, for example "Changed: name, home_room"); a delete writes ASSET_DELETED with the tag. All three answer with the asset in the list's shape.
 

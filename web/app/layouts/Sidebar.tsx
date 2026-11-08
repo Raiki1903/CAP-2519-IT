@@ -74,6 +74,7 @@ const roleConfig: Record<Role, {
     nav: [
       { id: "approvals", label: "Approvals", icon: ShieldCheck },
       { id: "users", label: "Users", icon: Users },
+      { id: "inventory", label: "Asset Inventory", icon: Package },
       { id: "activity-log", label: PAGE_TITLES.activityLog, icon: ScrollText },
       { id: "tickets", label: PAGE_TITLES.tickets, icon: LifeBuoy },
     ],

@@ -1,9 +1,10 @@
 /**
  * Asset Inventory: every asset, in gallery or table view, with search, filters, sorting, and the in-service and disposed sub-tabs.
- * Layer: page. Called by app/routes.tsx at /staff/inventory (with edit, decommission, and delete) and at /adric-director/inventory (read-only).
+ * Layer: page. Called by app/routes.tsx at /staff/inventory (with edit, decommission, and delete), and read-only at
+ * /adric-director/inventory and /it-admin/inventory.
  * Calls: features/assets (useStaffAssets, assetSearch, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx,
  * features/lookups/useLookups.ts (the funding filter), state/serverData.tsx syncFromDb().
- * Used by: Staff asset editing, deletion, and disposal requests; the AdRIC Director's view of the inventory.
+ * Used by: Staff asset editing, deletion, and disposal requests; the AdRIC Director's and the IT Admin's view of the inventory.
  */
 import { useState } from "react";
 import { useServerData } from "@web/state/serverData";
@@ -29,7 +30,7 @@ import { Search, LayoutGrid, Table2, Pencil, Archive, Trash2 } from "lucide-reac
  * Lists the assets and opens the edit, decommission, and delete dialogs for an active one.
  * Each dialog saves through its own feature component; this page reloads its list afterwards.
  *
- * @param readOnly when true (the AdRIC Director's page), the Edit, Decommission, and Delete buttons, the table's
+ * @param readOnly when true (the AdRIC Director's and the IT Admin's page), the Edit, Decommission, and Delete buttons, the table's
  *   Action column, and the three dialogs are left out. Search, filters, sorting, views, and the detail modal stay.
  */
 export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {

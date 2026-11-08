@@ -1,10 +1,11 @@
 /**
- * Asset detail modal: one asset's facts, QR tag, history, and the request forms each role may open from it.
- * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and pages/staff/InventoryPage.tsx.
+ * Asset detail modal: one asset's facts, QR tag, remarks, history, and the request forms each role may open from it.
+ * Layer: feature component. Called by pages/custodian/CustodianPortal.tsx, pages/lab-head/LabHeadDashboard.tsx, and pages/staff/InventoryPage.tsx
+ * (also the Director's and the IT Admin's read-only Asset Inventory).
  * Calls: api/assets.api.ts getAssetHistory(), api/maintenance.api.ts reportIssue() (TSG's flag), features/lookups/useLookups.ts,
- * features/assets/AssetTsgSteps.tsx (Missing, Found, complete a disposal), state/serverData.tsx reloadLoans(), and the loan,
- * return, and repair forms.
- * Used by: Custodian requests, Lab Head custody review, TSG maintenance flagging and Record Return.
+ * features/assets/AssetRemarks.tsx (the Remarks section), features/assets/AssetTsgSteps.tsx (Missing, Found, complete a
+ * disposal), state/serverData.tsx reloadLoans(), and the loan, return, and repair forms.
+ * Used by: Custodian requests, Lab Head custody review, TSG maintenance flagging and Record Return, and every role's remarks.
  */
 import { useState, useEffect } from "react";
 import { useSession } from "@web/state/session";
@@ -20,6 +21,7 @@ import {
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
 import { assetStatusLabel } from "./assetBadges";
 import { AssetTsgSteps } from "./AssetTsgSteps";
+import { AssetRemarks } from "./AssetRemarks";
 import { ReturnForm } from "@web/features/returns/ReturnForm";
 import { RepairForm } from "@web/features/repairs/RepairForm";
 import { LoanForm } from "@web/features/loans/LoanForm";
@@ -418,6 +420,9 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                           {(asset as any).remarks || asset.tsgRemarks || asset.itsRemarks || asset.description || "Hardware inspected & verified operational. Routine diagnostic check completed with no outstanding hardware faults."}
                         </p>
                       </div>
+
+                      {/* Remarks, for every role: the server says who may add and who may delete each one. */}
+                      <AssetRemarks assetTag={asset.id} />
 
                       {/* The asset's history, always shown */}
                       <div className="mt-4 bg-white border border-slate-200 rounded-xl p-3 text-xs">

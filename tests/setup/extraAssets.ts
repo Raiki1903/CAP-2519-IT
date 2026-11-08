@@ -123,6 +123,7 @@ export async function addExtraAsset(db: PrismaClient, options: ExtraAssetOptions
 export async function removeExtraAssets(db: PrismaClient, assetIds: number[]): Promise<void> {
   const where = { asset_id: { in: assetIds } };
   await db.activity_log.deleteMany({ where });
+  await db.asset_remarks.deleteMany({ where });
   await db.asset_loans.deleteMany({ where });
   await db.asset_maintenance.deleteMany({ where });
   await db.asset_retirements.deleteMany({ where });

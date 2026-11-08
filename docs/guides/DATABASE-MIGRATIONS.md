@@ -293,6 +293,7 @@ Applied in this order by `prisma migrate deploy`. Never edit one that is merged:
 | `20261103120000_foundation_expand_backfill` | Batch 1. Adds the lookup tables (funding sources, issue types, metric definitions and the metrics of each category), `user_tickets`, `activity_log`, and `asset_inspection_metrics`; stores the asset's status, home lab, room, project, funding, and tags on `assets`; turns the loan, maintenance, retirement, and inspection statuses and types into enums; adds the new process columns; copies each return onto its loan; sets campuses (McKinley added) and the Lab Heads; removes `LAB_HEAD`; adds the CHECK constraints. Every backfill stops with the list of what it could not place |
 | `20261103180000_drop_replaced_tables_columns` | Batch 1. Drops what the foundation migration replaced: `asset_records`, `asset_monetary`, `asset_returns`, `asset_transfers`, `asset_maintenance.is_immediate`, and `projects.funding_agency` |
 | `20261108120000_personal_funding_source` | Issue #167. Adds the funding source "Personal (self-funded)" when it is missing, for equipment a researcher bought with their own money. Data only, no structure change; safe to run twice |
+| `20261108180000_asset_remarks` | Issue #169. Adds the table `asset_remarks`: remarks on an asset, with their author and time. A delete only sets `deleted_by_id` and `deleted_at`, so the row stays. A new table only; nothing else changes |
 
 ## Where things are
 
