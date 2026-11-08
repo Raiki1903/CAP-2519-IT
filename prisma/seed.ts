@@ -24,7 +24,7 @@ import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, typ
 /** Every table the migrations create. The seed needs all of them, and fills only empty ones. */
 const REQUIRED_TABLES = [
   "activity_log", "asset_inspection_metrics", "asset_inspections", "asset_loans", "asset_maintenance",
-  "asset_retirements", "assets", "category_metrics", "funding_sources",
+  "asset_remarks", "asset_retirements", "assets", "category_metrics", "funding_sources",
   "issue_types", "metric_definitions", "projects", "research_centers", "roles", "user_centers", "user_roles", "user_tickets", "users",
 ];
 
