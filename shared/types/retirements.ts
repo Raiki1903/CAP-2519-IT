@@ -56,3 +56,29 @@ export interface Retirement {
   dispositionReference: string | null;
   assessmentInspection: Inspection | null;
 }
+
+/** The asset fields the printable disposal record shows (GET /api/retirements/:retirementId). */
+export interface RetirementRecordAsset {
+  tag: string;
+  name: string;
+  serialNumber: string | null;
+  manufacturer: string | null;
+  /** One of AssetCategory. */
+  category: string;
+  categoryLabel: string;
+  /** yyyy-mm-dd, or null if never recorded. */
+  procurementDate: string | null;
+  acquisitionValue: number | null;
+  homeLab: { code: string; name: string };
+  homeRoom: string | null;
+  itsPropertyTag: string | null;
+  tsgTag: string | null;
+}
+
+/** The answer of GET /api/retirements/:retirementId (contract 7.5), for the printable Asset Disposal Record. */
+export interface RetirementRecord {
+  retirement: Retirement;
+  asset: RetirementRecordAsset;
+  /** By straight-line depreciation at the completion date; null when not completed or the value or date is missing. */
+  presentValueAtCompletion: number | null;
+}

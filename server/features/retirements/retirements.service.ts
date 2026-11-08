@@ -10,9 +10,11 @@
  */
 import { asset_retirements_status, type Prisma } from '@prisma/client';
 import type { SessionIdentity } from '@shared/types/auth';
-import type { Retirement } from '@shared/types/retirements';
+import type { Retirement, RetirementRecord } from '@shared/types/retirements';
 import { RETIREMENT_PATHWAY_LABELS, RETIREMENT_STATUS_LABELS, type RetirementStatus } from '@shared/constants/retirementStatuses';
 import { ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
+import { ASSET_CATEGORY_LABELS, type AssetCategory } from '@shared/enums/assetCategory';
+import { USEFUL_LIFE_YEARS, presentValue } from '@shared/constants/usefulLife';
 import * as retirementsRepository from './retirements.repository';
 import type { RetirementRow, RetirementRows } from './retirements.repository';
 import type { CompleteBody, DecisionBody, RequestBody } from './retirements.validation';
@@ -34,8 +36,14 @@ export const NOT_BEYOND_REPAIR_MESSAGE = "Finish the maintenance ticket first. O
 /** The 403 message when the requester tries to decide their own disposal. */
 export const OWN_REQUEST_MESSAGE = "You requested this disposal, so someone else must decide it.";
 
+/** The 403 message when a Lab Head asks for the disposal record of another lab's asset. */
+export const NOT_YOUR_LAB_DISPOSAL_MESSAGE = "This asset belongs to another lab. Only that lab's Head can see its disposal record.";
+
 /** A date-time as ISO 8601, or null. */
 const isoOrNull = (d: Date | null) => (d ? d.toISOString() : null);
+
+/** A DATE column as yyyy-mm-dd, or null. */
+const dateOnly = (d: Date | null) => (d ? d.toISOString().split("T")[0] : null);
 
 /**
  * Builds the contract's Retirement from a disposal row. A Researcher never calls the disposal routes, so every
@@ -99,6 +107,54 @@ async function existingRetirement(retirementId: number) {
     const retirement = await retirementsRepository.findById(retirementId);
     if (!retirement) throw new AppError(404, `No disposal request found with id ${retirementId}.`);
     return retirement;
+}
+
+/**
+ * The printable disposal record: the disposal, the asset fields the record shows, and the present value at the
+ * completion date. TSG, the Director and the Secretary may read any disposal; the account that heads a lab only
+ * its lab's.
+ *
+ * @param retirementId the disposal
+ * @param viewer the session user (the route checks the role)
+ * @returns the record
+ * @throws AppError 404 if no disposal has this id
+ * @throws AppError 403 NOT_YOUR_LAB_DISPOSAL_MESSAGE for the Head of another lab
+ */
+export async function getRetirementRecord(retirementId: number, viewer: SessionIdentity): Promise<RetirementRecord> {
+    const row = await existingRetirement(retirementId);
+    const asset = await assetsRepository.findById(row.asset_id);
+    if (!asset) throw new AppError(404, `No disposal request found with id ${retirementId}.`);
+    if (!hasAccessRole(viewer, ["TSG_STAFF", "ADRIC_DIRECTOR", "ADRIC_SECRETARY"]) && viewer.headOfCenterId !== asset.center_id) {
+        throw new AppError(403, NOT_YOUR_LAB_DISPOSAL_MESSAGE);
+    }
+
+    const retirement = await retirementById(retirementId, viewer);
+    const lab = (await assetsRepository.findLabById(asset.center_id))!;
+    const acquisitionValue = asset.acquisition_value === null ? null : Number(asset.acquisition_value);
+    const usefulLifeYears = USEFUL_LIFE_YEARS[asset.category as AssetCategory];
+    const procurementDateOnly = dateOnly(asset.procurement_date);
+    const presentValueAtCompletion = retirement.status === "COMPLETED" && retirement.completedAt
+        ? presentValue(acquisitionValue, procurementDateOnly, usefulLifeYears, dateOnly(new Date(retirement.completedAt))!)
+        : null;
+
+    return {
+        retirement,
+        asset: {
+            tag: asset.asset_tag,
+            name: asset.name,
+            serialNumber: asset.serial_number,
+            manufacturer: asset.manufacturer,
+            category: asset.category,
+            categoryLabel: ASSET_CATEGORY_LABELS[asset.category as AssetCategory],
+            procurementDate: procurementDateOnly,
+            acquisitionValue,
+            homeLab: { code: lab.short_code, name: lab.name },
+            homeRoom: asset.home_room,
+            itsPropertyTag: asset.its_property_tag,
+            tsgTag: asset.tsg_tag,
+        },
+        presentValueAtCompletion,
+    };
 }
 
 /** The 409 message when a disposal's status does not allow the step. */
