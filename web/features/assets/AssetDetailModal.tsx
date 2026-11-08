@@ -247,11 +247,14 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
     ? ASSET_CONDITION_LABELS[conditionKey as AssetCondition] ?? conditionKey.replace(/_/g, " ")
     : "Not inspected yet";
 
+  // TODO(H-13): the reloaded copy's type (serverData's Asset) does not declare project, though the server sends it.
+  const project = asset && "project" in asset ? asset.project : null;
+
   const metaRows = asset ? [
     { icon: Tag, label: "Serial No.", value: asset.serial ?? "—" },
     { icon: Tag, label: "Property Tag", value: asset.id },
     { icon: Building2, label: "Funding Source", value: asset.funding || "DOST" },
-    { icon: Bookmark, label: "Owning Project", value: asset.project ? `${asset.project.code}: ${asset.project.name}` : "None" },
+    { icon: Bookmark, label: "Owning Project", value: project ? `${project.code}: ${project.name}` : "None" },
     { icon: Activity, label: "Condition", value: descriptiveCond },
     { icon: MapPin, label: "Campus", value: asset.location ?? "—" },
     { icon: MapPin, label: "Current Location", value: asset.currentLocation ?? asset.location ?? "—" },
