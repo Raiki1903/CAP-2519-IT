@@ -239,6 +239,12 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
         })),
       });
 
+      const assetIdOf = new Map(SEEDED_ASSETS.map((a) => [a.tag, a.assetId]));
+      await tx.asset_remarks.createMany({
+        data: byTime(history.remarks, (r) => r.created_at).map(({ tag, ...row }, i) => ({ remark_id: i + 1, asset_id: assetIdOf.get(tag)!, ...row })),
+      });
+      await tx.user_tickets.createMany({ data: history.userTickets });
+
       await tx.activity_log.createMany({ data: byTime(history.activity, (r) => r.created_at) });
     },
     { timeout: 120_000 },

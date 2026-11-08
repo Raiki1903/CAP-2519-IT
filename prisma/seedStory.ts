@@ -1,13 +1,13 @@
 /**
  * The demo history's story: six months of loans, maintenance, retirements, a missing asset and routine inspections,
- * dated back from the day the seed runs. The scripted events give each asset status its reason and make each insight
+ * plus remarks, support tickets, logins and clearance prints, dated back from the day the seed runs. The scripted events give each asset status its reason and make each insight
  * rule fire on 2 to 4 assets; the generated loans (a fixed random sequence, so every run writes the same story) fill
  * the weeks around them.
  * Layer: database tooling. Read by prisma/seed.ts. Calls prisma/seedSteps.ts and prisma/seedHistory.ts.
  * Used by: npm run seed.
  */
-import type { assets_category, assets_status } from "@prisma/client";
-import { DEMO_ACCOUNTS, DEMO_TSG_IDS, type DemoAccount } from "./seedData";
+import type { Prisma, assets_category, assets_status, user_tickets_status, user_tickets_type } from "@prisma/client";
+import { DEMO_ACCOUNTS, DEMO_IT_ADMIN_ID, DEMO_TSG_IDS, type DemoAccount } from "./seedData";
 import { accountSteps, registrationSteps, SEEDED_ASSETS, type AccountDecision, type ActivityRow, type InspectionRow, type SeedClock, type SeededAsset } from "./seedHistory";
 import { HistoryBuilder, type LoanRow, type RetirementRow, type TicketRow } from "./seedSteps";
 
@@ -29,6 +29,8 @@ export interface SeedHistory {
   loans: LoanRow[];
   tickets: TicketRow[];
   retirements: RetirementRow[];
+  remarks: RemarkRow[];
+  userTickets: UserTicketRow[];
   activity: ActivityRow[];
 }
 
@@ -394,6 +396,149 @@ function routineRounds(b: HistoryBuilder): void {
   }
 }
 
+/** A remark on an asset before its id (remarks.repository.ts). A deleted one keeps its row. */
+export interface RemarkRow {
+  tag: string;
+  author_id: number;
+  remark_text: string;
+  created_at: Date;
+  deleted_by_id: number | null;
+  deleted_at: Date | null;
+}
+
+/**
+ * Remarks by the people allowed to write them (contract 7.2): TSG, the Director, the Secretary, and the Head of the
+ * asset's home lab on its own lab's assets. One was deleted by its author: the row stays, with who and when.
+ */
+function remarks(clock: SeedClock): RemarkRow[] {
+  const t = clock.at;
+  const remark = (tag: string, author: number, at: Date, text: string): RemarkRow => ({
+    tag, author_id: author, remark_text: text, created_at: at, deleted_by_id: null, deleted_at: null,
+  });
+  return [
+    remark("CITe4D-0004", TSG_B, t(170, 11), "Wall-mounted in G407. Lend it only for events, with the stand from the TSG office."),
+    remark("CIVI-0001", HEAD.CIVI, t(100, 14), "Calibrated for color work. Please do not change the picture settings."),
+    remark("GAME-0004", HEAD.GAME, t(90, 10), "Factory reset after each loan. Do not sign in with a personal Meta account."),
+    remark("HXIL-0003", HEAD.HXIL, t(60, 9), "Reserved for the driver fatigue study sessions on Tuesdays and Thursdays."),
+    { ...remark("CAR-0002", TSG_A, t(50, 10), "Calibrated with the sorting arm camera. Keep it on the left station."), deleted_by_id: TSG_A, deleted_at: t(50, 10, 5) },
+    remark("TE3D-0001", SECRETARY, t(42, 15), "Retirement denied. Ink refills come from the TE3D supplies budget."),
+    remark("CITe4D-0002", TSG_A, t(29, 10), "A search of G407 and the health center found nothing. Reported to the CCS office."),
+    remark("CeLT-0003", DIRECTOR, t(20, 16), "Include this asset in the replacement request for the next fiscal year."),
+    remark("Bio-0002", HEAD.Bio, t(15, 13), "For the protein structure demo. Ask the Lab Head before installing packages."),
+    remark("CNIS-0002", TSG_A, t(6, 14), "Third ticket for the 5 GHz radio this term. If it fails again, TSG will request its retirement."),
+    remark("GAME-0007", TSG_B, t(5, 9), "With the HP service center under warranty since TSG received it."),
+  ];
+}
+
+/** A support ticket with its id, which the activity rows quote. */
+export type UserTicketRow = Prisma.user_ticketsCreateManyInput & { ticket_id: number; created_at: Date; updated_at: Date };
+
+/**
+ * Support tickets of every type and status (tickets.repository.ts), oldest first, and the TICKET_STATUS_CHANGED row of
+ * each status change: the IT Admin as actor, the ticket's creator as target, details `#<id> <from> to <to>`. A ticket
+ * closed as Resolved or Rejected has its remarks, resolver and time.
+ */
+function supportTickets(clock: SeedClock): { tickets: UserTicketRow[]; activity: ActivityRow[] } {
+  const t = clock.at;
+  const plans: {
+    by: number; type: user_tickets_type; title: string; description: string; at: Date;
+    moves: { to: user_tickets_status; at: Date; remarks?: string }[];
+  }[] = [
+    {
+      by: R.k, type: "ACCOUNT_ACCESS", title: "Please add me to the Bioinformatics Lab", at: t(70, 15),
+      description: "I am joining the Bio lab's protein structure project this term. Please add Bio to my labs.",
+      moves: [{ to: "IN_PROGRESS", at: t(69, 10) }, { to: "RESOLVED", at: t(68, 14, 10), remarks: "Added Bio to your labs." }],
+    },
+    {
+      by: HEAD.TE3D, type: "QUESTION", title: "Who can see the remarks on an asset?", at: t(58, 11),
+      description: "Can researchers read the remarks we add on our lab's assets?",
+      moves: [{ to: "RESOLVED", at: t(57, 9, 30), remarks: "Every logged-in account can read them. Only TSG, the Director, the Secretary and the lab's Head can add them." }],
+    },
+    {
+      by: R.f, type: "BUG", title: "Cannot request the Quest 2", at: t(45, 16),
+      description: "The request button says the asset already has a request, but nobody is using it.",
+      moves: [{ to: "REJECTED", at: t(44, 10), remarks: "Not a bug: another request was waiting for that asset. Request it again once it is free." }],
+    },
+    {
+      by: R.c, type: "ACCOUNT_ACCESS", title: "Locked out after too many tries", at: t(26, 9, 20),
+      description: "I typed my password wrong several times and the login page told me to wait.",
+      moves: [{ to: "IN_PROGRESS", at: t(26, 9, 40) }, { to: "RESOLVED", at: t(26, 10), remarks: "The block clears after 15 minutes. You can log in again now." }],
+    },
+    {
+      by: SECRETARY, type: "OTHER", title: "Add a funding source", at: t(16, 14),
+      description: "Please add DOST-ASTI to the funding source list for a new project.",
+      moves: [{ to: "IN_PROGRESS", at: t(15, 9) }],
+    },
+    {
+      by: TSG_A, type: "BUG", title: "Bell count stays after a release", at: t(9, 11),
+      description: "After I release a loan, the bell still shows it until I reload the page.",
+      moves: [{ to: "IN_PROGRESS", at: t(8, 10) }],
+    },
+    {
+      by: R.e, type: "QUESTION", title: "How do I extend my return-by date?", at: t(4, 13),
+      description: "My sensor test runs longer than planned. Can I change the return-by date of my loan?",
+      moves: [],
+    },
+    {
+      by: R.a, type: "BUG", title: "Asset photo does not load on my phone", at: t(1, 20),
+      description: "The asset photo stays blank in my phone's browser. It works on my laptop.",
+      moves: [],
+    },
+  ];
+  const tickets: UserTicketRow[] = [];
+  const activity: ActivityRow[] = [];
+  plans.forEach((plan, i) => {
+    const ticketId = i + 1;
+    let status: user_tickets_status = "OPEN";
+    const row: UserTicketRow = {
+      ticket_id: ticketId, created_by_id: plan.by, type: plan.type, title: plan.title, description: plan.description,
+      status, created_at: plan.at, updated_at: plan.at,
+    };
+    for (const move of plan.moves) {
+      activity.push({
+        actor_id: DEMO_IT_ADMIN_ID, event_type: "TICKET_STATUS_CHANGED", target_user_id: plan.by,
+        details: `#${ticketId} ${status} to ${move.to}`, created_at: move.at,
+      });
+      status = move.to;
+      Object.assign(row, { status, updated_at: move.at });
+      if (move.remarks) Object.assign(row, { resolution_remarks: move.remarks, resolved_by_id: DEMO_IT_ADMIN_ID, resolved_at: move.at });
+    }
+    tickets.push(row);
+  });
+  return { tickets, activity };
+}
+
+/**
+ * Logins (auth.service.ts login) and clearance prints (loans.repository.ts). A success has the account as actor; a
+ * failure has no actor, the account as target, and only the reason as details, never the typed email. A deactivated
+ * account had its clearance record printed by TSG the day before.
+ */
+function loginsAndClearances(clock: SeedClock): ActivityRow[] {
+  const t = clock.at;
+  const rows: ActivityRow[] = [];
+  const success = (userId: number, at: Date) => rows.push({ actor_id: userId, event_type: "LOGIN_SUCCESS", created_at: at });
+  const failure = (userId: number, at: Date, reason: string) =>
+    rows.push({ actor_id: null, event_type: "LOGIN_FAILURE", target_user_id: userId, details: reason, created_at: at });
+
+  for (const a of DEMO_ACCOUNTS.filter((x) => x.status === "ACTIVE")) {
+    for (let k = 0; k < 3; k++) success(a.userId, t(1 + ((a.userId * 5 + k * 7) % 21), 8 + ((a.userId + k) % 9), (a.userId * 13) % 60));
+  }
+  success(R.a, t(0, 8, 5));
+  success(DEMO_IT_ADMIN_ID, t(0, 8, 30));
+  for (let k = 0; k < 5; k++) failure(R.c, t(26, 8, 50 + k), "Wrong password");
+  success(R.c, t(26, 9, 15));
+  failure(R.e, t(12, 19, 2), "Wrong password");
+  failure(11, t(5, 10, 41), "Account pending");
+  failure(30, t(14, 13, 7), "Account rejected");
+
+  for (const a of DEMO_ACCOUNTS.filter((x) => x.deactivatedDaysAgo !== undefined)) {
+    success(a.userId, t(a.deactivatedDaysAgo! + 5, 9, 12));
+    rows.push({ actor_id: TSG_A, event_type: "CLEARANCE_RECORD_PRINTED", target_user_id: a.userId, created_at: t(clearedByDaysAgo(a)!, 10) });
+    if (a.anonymizedDaysAgo === undefined) failure(a.userId, t(10, 9, 3), "Account inactive");
+  }
+  return rows;
+}
+
 /** Builds the whole demo history for a seed run on the clock's day. */
 export function buildHistory(clock: SeedClock): SeedHistory {
   const accounts = accountSteps(clock);
@@ -403,6 +548,7 @@ export function buildHistory(clock: SeedClock): SeedHistory {
   generatedLoans(b);
   routineRounds(b);
   const statuses = b.settle();
+  const support = supportTickets(clock);
   return {
     decisions: accounts.decisions,
     statuses,
@@ -410,6 +556,8 @@ export function buildHistory(clock: SeedClock): SeedHistory {
     loans: b.loans,
     tickets: b.tickets,
     retirements: b.retirements,
-    activity: [...accounts.activity, ...registration.activity, ...b.activity],
+    remarks: remarks(clock),
+    userTickets: support.tickets,
+    activity: [...accounts.activity, ...registration.activity, ...b.activity, ...support.activity, ...loginsAndClearances(clock)],
   };
 }
