@@ -98,6 +98,7 @@ model assets {
   asset_maintenance asset_maintenance[]
   asset_inspections asset_inspections[]
   activity_log      activity_log[]
+  asset_remarks     asset_remarks[]
 
   @@index([status])
   @@index([center_id])
@@ -251,6 +252,8 @@ model users {
   tickets_resolved      user_tickets[]       @relation("ticket_resolved_by")
   activity_as_actor     activity_log[]       @relation("activity_actor")
   activity_as_target    activity_log[]       @relation("activity_target")
+  remarks_written       asset_remarks[]      @relation("remark_author")
+  remarks_deleted       asset_remarks[]      @relation("remark_deleted_by")
 
   @@index([status_decided_by_id])
 }
@@ -353,6 +356,24 @@ model activity_log {
   @@index([target_user_id])
   @@index([asset_id])
   @@index([event_type, created_at])
+}
+
+/// A note on an asset. Deleting one only sets deleted_by_id and deleted_at; the row stays.
+model asset_remarks {
+  remark_id     Int       @id @default(autoincrement())
+  asset_id      Int
+  author_id     Int
+  remark_text   String    @db.VarChar(500)
+  created_at    DateTime  @default(now()) @db.DateTime(3)
+  deleted_by_id Int?
+  deleted_at    DateTime? @db.DateTime(3)
+  assets        assets    @relation(fields: [asset_id], references: [asset_id], onDelete: NoAction, onUpdate: NoAction)
+  author        users     @relation("remark_author", fields: [author_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  deleted_by    users?    @relation("remark_deleted_by", fields: [deleted_by_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([asset_id])
+  @@index([author_id])
+  @@index([deleted_by_id])
 }
 
 enum assets_status {
