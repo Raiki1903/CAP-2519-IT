@@ -690,21 +690,21 @@ export function LabHeadDashboard({ activeTab }: { activeTab: string }) {
               </div>
             </div>
 
-            {/* Section 4: Decommissioned & Disposed Assets Archive */}
+            {/* Section 4: Retired Assets Archive */}
             <div>
-              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">IV. Disposed Assets</h3>
+              <h3 className="text-xs font-extrabold text-emerald-900 border-b pb-1.5 mb-2.5 uppercase tracking-widest font-sans">IV. Retired Assets</h3>
               <div className="overflow-x-auto">
                 <Table className="min-w-full text-[11px]">
                   <TableHeader>
                     <TableRow className="bg-emerald-50/30">
-                      {["Asset ID", "Disposal ID", "Asset Name", "Decommission Date", "Last Custodian", "Reason", "Disposal Pathway", "Decommissioned By"].map(h => (
+                      {["Asset ID", "Disposal ID", "Asset Name", "Retirement Date", "Last Custodian", "Reason", "Disposal Pathway", "Retired By"].map(h => (
                         <TableHead key={h} className="text-[10px] font-bold text-emerald-900">{h}</TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {decommissionedAssets.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="text-center text-gray-400 py-4 font-sans">No disposed assets for {userLab}.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center text-gray-400 py-4 font-sans">No retired assets for {userLab}.</TableCell></TableRow>
                     ) : (
                       decommissionedAssets.map(a => (
                         <TableRow key={a.id}>

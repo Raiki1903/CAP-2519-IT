@@ -417,12 +417,12 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                       {/* Disposal details card */}
                       {asset.status === "RETIRED" && (
                         <div className="bg-red-50/50 border border-red-200/50 rounded-xl p-4 mt-4">
-                          <p className="text-xs font-bold text-red-800">Asset Decommissioned &amp; Disposed</p>
+                          <p className="text-xs font-bold text-red-800">Asset Retired</p>
                           <p className="text-[10px] text-red-600/80 mt-1">This hardware unit has been permanently retired and is no longer in service.</p>
                           {asset.disposalDetails && (
                             <div className="mt-3 text-left border-t border-red-200/30 pt-2.5 space-y-1 font-mono text-[10px] text-red-800">
                               <p><strong>Disposal ID:</strong> {asset.disposalId}</p>
-                              <p><strong>Decommissioned By:</strong> {asset.disposalDetails.decommissionedBy ?? "Not shown"}</p>
+                              <p><strong>Retired By:</strong> {asset.disposalDetails.decommissionedBy ?? "Not shown"}</p>
                               <p><strong>Last Custodian:</strong> {asset.disposalDetails.lastCustodian ?? "Not shown"}</p>
                               <p><strong>Pathway:</strong> {asset.disposalDetails.disposalPathway}</p>
                               <p><strong>Justification:</strong> {asset.disposalDetails.breakdownReasons}</p>

@@ -164,10 +164,10 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     }
 
     if (asset.status === "RETIRED" && asset.disposalDetails) {
-      csvContent += `\nDECOMMISSIONING & DISPOSAL DETAILS\n`;
+      csvContent += `\nDISPOSAL DETAILS\n`;
       csvContent += `Disposal ID,${asset.disposalId}\n`;
-      csvContent += `Decommission Date,${asset.disposalDetails.decommissionDate}\n`;
-      csvContent += `Decommissioned By,"${asset.disposalDetails.decommissionedBy}"\n`;
+      csvContent += `Retirement Date,${asset.disposalDetails.decommissionDate}\n`;
+      csvContent += `Retired By,"${asset.disposalDetails.decommissionedBy}"\n`;
       csvContent += `Disposal Pathway,"${asset.disposalDetails.disposalPathway}"\n`;
       csvContent += `Breakdown Reasons,"${asset.disposalDetails.breakdownReasons}"\n`;
     }
@@ -718,7 +718,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                           <TableCell className="text-right text-xs">
                             {isDisposed ? (
                               <div className="space-y-0.5">
-                                <Badge className="bg-red-50 text-red-750 border border-red-200 text-[9px] font-bold uppercase">Disposed</Badge>
+                                <Badge className="bg-red-50 text-red-750 border border-red-200 text-[9px] font-bold uppercase">Retired</Badge>
                                 <p className="text-[9px] text-muted-foreground/60 font-mono">ID: {item.disposalId}</p>
                               </div>
                             ) : (
@@ -855,12 +855,12 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                   <div className="space-y-2.5 p-4 bg-red-50 border border-red-200 rounded-xl">
                     <h4 className="text-xs font-bold text-red-755 flex items-center gap-1.5">
                       <XCircle size={13} />
-                      Decommissioning &amp; Disposal Details
+                      Disposal Details
                     </h4>
                     <div className="text-xs text-muted-foreground mt-2 font-mono space-y-1.5 leading-relaxed">
                       <p><strong>Disposal ID:</strong> {selectedAssetForAudit.disposalId}</p>
-                      <p><strong>Decommission Date:</strong> {selectedAssetForAudit.disposalDetails.decommissionDate}</p>
-                      <p><strong>Decommissioned By:</strong> {selectedAssetForAudit.disposalDetails.decommissionedBy}</p>
+                      <p><strong>Retirement Date:</strong> {selectedAssetForAudit.disposalDetails.decommissionDate}</p>
+                      <p><strong>Retired By:</strong> {selectedAssetForAudit.disposalDetails.decommissionedBy}</p>
                       <p><strong>Disposal Pathway:</strong> {selectedAssetForAudit.disposalDetails.disposalPathway}</p>
                       <p><strong>Breakdown Reasons:</strong> {selectedAssetForAudit.disposalDetails.breakdownReasons}</p>
                     </div>

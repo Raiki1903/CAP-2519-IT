@@ -216,7 +216,7 @@ export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-[10px] uppercase font-bold text-red-500 tracking-wider">Decommissioned</span>
+                        <span className="text-[10px] uppercase font-bold text-red-500 tracking-wider">Retired</span>
                       )}
                     </TableCell>}
                   </TableRow>

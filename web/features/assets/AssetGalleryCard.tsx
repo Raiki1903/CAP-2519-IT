@@ -93,7 +93,7 @@ export function AssetGalleryCard({ eq, onSelect, onDelete, onEdit, onDecommissio
         {isDisposed ? (
           <div className="flex items-center justify-between text-[10px] text-red-700 pt-2 border-t border-red-100 font-mono mt-1">
             <span>By: {eq.disposalDetails?.decommissionedBy || "AdRIC Director"}</span>
-            <span className="font-bold">{eq.disposalDetails?.decommissionDate || "Disposed"}</span>
+            <span className="font-bold">{eq.disposalDetails?.decommissionDate || "Retired"}</span>
           </div>
         ) : (
           <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border mt-1">
