@@ -196,6 +196,8 @@ export interface DemoAsset {
   metrics?: Record<string, number>;
   /** Days ago TSG registered it. */
   registeredDaysAgo: number;
+  /** The file name, without ".jpg", of its photo in SEED_PHOTOS_DIR; the model name's photoKeyOf when left out. */
+  photo?: string;
 }
 
 /** Desktop workstation metrics: CPU temperature under load and bad sectors. */

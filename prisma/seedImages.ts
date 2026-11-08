@@ -1,10 +1,45 @@
 /**
- * The demo assets' pictures: a small SVG for each category (its name and a simple shape on a plain colour), as a
- * data URL for assets.image_url.
- * Layer: database tooling. Read by prisma/seed.ts. Imports Prisma's category type.
+ * The demo assets' pictures, as data URLs for assets.image_url: a photo from the folder SEED_PHOTOS_DIR names, when it
+ * is set and holds the asset's photo, and otherwise a small SVG for the asset's category (its name and a simple shape
+ * on a plain colour). The photos stay outside the repository.
+ * Layer: database tooling. Read by prisma/seed.ts. Imports Node's fs and path, and Prisma's category type.
  * Used by: npm run seed.
  */
+import { existsSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
 import type { assets_category } from "@prisma/client";
+
+/** The largest photo the seed takes. A bigger one was not shrunk (1280 px, JPEG quality 0.8) and is skipped. */
+export const MAX_PHOTO_BYTES = 400 * 1024;
+
+/**
+ * The photo folder from SEED_PHOTOS_DIR, or null when it is not set or is not a folder (the seed then uses the SVGs).
+ *
+ * @param value the variable's value
+ */
+export function readSeedPhotosDir(value: string | undefined): string | null {
+  if (!value) return null;
+  return existsSync(value) && statSync(value).isDirectory() ? value : null;
+}
+
+/** The photo key of a model name: lower case, words joined by dashes ("HP Z2 Tower G9 Workstation" is "hp-z2-tower-g9-workstation"). */
+export function photoKeyOf(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+/**
+ * The asset's photo as a data:image/jpeg;base64 URL, or null when there is no folder, no `<key>.jpg` in it, or the file
+ * is bigger than MAX_PHOTO_BYTES.
+ *
+ * @param dir the photo folder, or null
+ * @param key the asset's photo key
+ */
+export function photoFor(dir: string | null, key: string): string | null {
+  if (!dir) return null;
+  const file = path.join(dir, `${key}.jpg`);
+  if (!existsSync(file) || statSync(file).size > MAX_PHOTO_BYTES) return null;
+  return `data:image/jpeg;base64,${readFileSync(file).toString("base64")}`;
+}
 
 /** The shape drawn for a category, in a 320 by 240 box. Plain SVG, no text. */
 const SHAPES = {

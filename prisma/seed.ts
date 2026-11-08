@@ -21,7 +21,7 @@ import {
 } from "./seedData";
 import { clockFor, nameOf, SEEDED_ASSETS } from "./seedHistory";
 import { buildHistory } from "./seedStory";
-import { categoryPicture } from "./seedImages";
+import { categoryPicture, photoFor, photoKeyOf, readSeedPhotosDir } from "./seedImages";
 import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, type SeedTarget } from "./seedTarget";
 
 /** Every table the migrations create. The seed needs all of them, and fills only empty ones. */
@@ -94,7 +94,7 @@ function byTime<T>(rows: T[], timeOf: (row: T) => Date): T[] {
  * one transaction, so a failure leaves the database empty. Each history table gets its ids in time order, as the app
  * would have given them. The lookup rows the migrations wrote are kept; only missing ones are added.
  */
-async function writeDemoData(prisma: PrismaClient, password: string): Promise<void> {
+async function writeDemoData(prisma: PrismaClient, password: string, photosDir: string | null): Promise<number> {
   const roleNames = Object.values(roles_role_name);
   const roleId = new Map(roleNames.map((name, i) => [name, i + 1]));
   const labs = DEMO_LABS.map((lab, i) => ({ ...lab, centerId: i + 1 }));
@@ -104,6 +104,7 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
   const history = buildHistory(clock);
   const passwordHashes = await Promise.all(DEMO_ACCOUNTS.map((a) => (a.anonymizedDaysAgo !== undefined ? "" : hashPassword(password))));
 
+  const photos = new Map(SEEDED_ASSETS.map((a) => [a.assetId, photoFor(photosDir, a.photo ?? photoKeyOf(a.name))]));
   const inspections = byTime(history.inspections, (r) => r.inspected_at);
   inspections.forEach((row, i) => (row.id = i + 1));
 
@@ -183,7 +184,7 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
             category: a.category,
             procurement_date: new Date(a.procured),
             warranty_expiry: typeof a.warranty === "string" ? new Date(a.warranty) : clock.day(-a.warranty.daysFromSeed),
-            image_url: categoryPicture(a.category),
+            image_url: photos.get(a.assetId) ?? categoryPicture(a.category),
             status: history.statuses.get(a.assetId) ?? "AVAILABLE",
             center_id: labByCode.get(a.lab)!.centerId,
             home_room: DEMO_LAB_ROOMS[a.lab],
@@ -249,6 +250,7 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
     },
     { timeout: 120_000 },
   );
+  return [...photos.values()].filter((p) => p !== null).length;
 }
 
 /**
@@ -259,19 +261,22 @@ async function writeDemoData(prisma: PrismaClient, password: string): Promise<vo
 async function main(): Promise<void> {
   const target = parseSeedTarget(process.env.SEED_DATABASE_URL);
   const password = readSeedPassword(process.env.SEED_PASSWORD);
+  const photosDir = readSeedPhotosDir(process.env.SEED_PHOTOS_DIR);
   console.log(`[seed] Target: ${describeSeedTarget(target)}`);
+  if (process.env.SEED_PHOTOS_DIR && !photosDir) console.log("[seed] SEED_PHOTOS_DIR is not a folder, so every asset gets its category picture.");
 
   const prisma = connect(target);
+  let photoCount = 0;
   try {
     await checkDatabase(prisma, target);
-    await writeDemoData(prisma, password);
+    photoCount = await writeDemoData(prisma, password, photosDir);
   } finally {
     await prisma.$disconnect();
   }
 
   console.log(
     `[seed] Done: ${Object.values(roles_role_name).length} roles, ${DEMO_LABS.length} labs, ${DEMO_ACCOUNTS.length} demo accounts, ` +
-      `${DEMO_PROJECTS.length} projects, ${DEMO_ASSETS.length} demo assets.`,
+      `${DEMO_PROJECTS.length} projects, ${DEMO_ASSETS.length} demo assets (${photoCount} with a photo from SEED_PHOTOS_DIR).`,
   );
   console.log(
     `[seed] Log in as ${DEMO_ACCOUNTS.filter((a) => a.status === "ACTIVE").map((a) => a.email).join(", ")}, with the password from SEED_PASSWORD.`,
