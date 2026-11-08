@@ -15,7 +15,7 @@ import * as maintenanceApi from "@web/api/maintenance.api";
 import { otherIssueTypeId, useFormLookups } from "@web/features/lookups/useLookups";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  X, Wrench, CornerUpLeft,
+  X, Wrench, CornerUpLeft, Printer,
   Tag, MapPin, Building2, Calendar, Activity, Bookmark, Clock, Wallet, TrendingDown
 } from "lucide-react";
 import { AssetImagePlaceholder } from "./AssetImagePlaceholder";
@@ -427,6 +427,17 @@ export function AssetDetailModal({ asset: propAsset, onClose }: Props) {
                               <p><strong>Pathway:</strong> {asset.disposalDetails.disposalPathway}</p>
                               <p><strong>Justification:</strong> {asset.disposalDetails.breakdownReasons}</p>
                             </div>
+                          )}
+                          {asset.disposalId && (role === "Staff" || role === "AdRICDirector") && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] font-bold px-2 mt-3 gap-1.5 bg-white"
+                              onClick={() => window.open(`/retirements/${asset.disposalId!.replace(/^DISP-/, "")}/record`, "_blank")}
+                            >
+                              <Printer size={12} />
+                              Print Disposal Record
+                            </Button>
                           )}
                         </div>
                       )}
