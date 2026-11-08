@@ -39,6 +39,16 @@ export async function listRetirements(req: Request, res: Response): Promise<void
 }
 
 /**
+ * Handles GET /api/retirements/:retirementId: the printable disposal record. Answers `{ success, retirement, asset,
+ * presentValueAtCompletion }`, or the AppError's status and message (400, 403, 404).
+ */
+export async function getRetirement(req: Request<{ retirementId: string }>, res: Response): Promise<void> {
+    const retirementId = readRetirementId(req.params.retirementId);
+    const record = await retirementsService.getRetirementRecord(retirementId, sessionUserOf(req));
+    res.json({ success: true, ...record });
+}
+
+/**
  * Handles PUT /api/retirements/:retirementId/decision: the Director or the Secretary approves or denies, then the
  * requester is emailed. Answers `{ success, retirement }`, or the AppError's status and message (400, 403, 404, 409).
  */

@@ -1,6 +1,8 @@
 /**
- * Disposals API: the request, the decision by someone other than the requester, TSG's completion, and the list.
- * Covers POST /api/assets/:tag/retirement, GET /api/retirements, PUT /api/retirements/:id/decision and /complete.
+ * Disposals API: the request, the decision by someone other than the requester, TSG's completion, the list, and the
+ * printable record of one disposal.
+ * Covers POST /api/assets/:tag/retirement, GET /api/retirements, GET /api/retirements/:id, PUT /api/retirements/:id/decision
+ * and /complete.
  * Workflow: disposal (TSG requests it and the asset goes to Pending Retirement; the Director or the Secretary approves
  * it, or denies it and the asset gets its status back; TSG completes an approved disposal and the asset is Retired).
  * Fixtures: the seeded completed disposal DISP-1 (requested by Staff TSG, decided by the Director) on TEST-0004; the
@@ -11,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import { addExtraAsset } from "../setup/extraAssets";
 import { ASSETS, LAB, LOOKUPS, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
+import { USEFUL_LIFE_YEARS, presentValue } from "../../shared/constants/usefulLife";
 
 const { db, as } = useApiHarness();
 const asDirector = as(USERS.director);
@@ -84,6 +87,61 @@ describe("GET /api/retirements", () => {
     const unknown = await asStaff.get("/api/retirements?status=REJECTED");
     expect(unknown.status).toBe(400);
     expect(unknown.body.error).toBe("Unknown disposal status: REJECTED.");
+  });
+});
+
+describe("GET /api/retirements/:retirementId", () => {
+  it("answers the disposal record for TSG, the Director, the Secretary, and the asset's own Lab Head", async () => {
+    for (const caller of [asStaff, asDirector, asSecretary, as(USERS.labHead)]) {
+      const res = await caller.get(`/api/retirements/${SEEDED_ROWS.disposalId}`);
+
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(res.body.retirement).toMatchObject({ retirementId: SEEDED_ROWS.disposalId, status: "COMPLETED" });
+      expect(res.body.asset).toMatchObject({
+        tag: ASSETS.disposed.tag,
+        name: ASSETS.disposed.name,
+        serialNumber: `TEST-SN-${ASSETS.disposed.assetId}`,
+        manufacturer: "Test Manufacturer",
+        category: "ROUTER",
+        categoryLabel: "Router",
+        procurementDate: "2025-06-01",
+        acquisitionValue: ASSETS.disposed.acquisitionValue,
+        homeLab: { code: LAB.shortCode, name: LAB.name },
+        homeRoom: null,
+        itsPropertyTag: null,
+        tsgTag: null,
+      });
+      expect(res.body.presentValueAtCompletion).toBe(presentValue(ASSETS.disposed.acquisitionValue, "2025-06-01", USEFUL_LIFE_YEARS.ROUTER, "2026-03-10"));
+    }
+  });
+
+  it("is null for a disposal that is not Completed yet", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0611" });
+    const id = await requestDisposal(asset.tag);
+
+    const res = await asStaff.get(`/api/retirements/${id}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.retirement.status).toBe("PENDING");
+    expect(res.body.presentValueAtCompletion).toBeNull();
+  });
+
+  it("answers 403 for the Head of another lab, and 200 for their own", async () => {
+    const lab = await db.research_centers.create({ data: { name: "Test Lab RETLAB2", short_code: "RETLAB2", location: "MANILA" } });
+    const asset = await addExtraAsset(db, { tag: "RETLAB2-0001", centerId: lab.center_id });
+    const id = await requestDisposal(asset.tag);
+
+    const otherLab = await as(USERS.labHead).get(`/api/retirements/${id}`);
+    expect(otherLab.status).toBe(403);
+    expect(otherLab.body.error).toBe("This asset belongs to another lab. Only that lab's Head can see its disposal record.");
+
+    const ownLab = await as(USERS.labHead).get(`/api/retirements/${SEEDED_ROWS.disposalId}`);
+    expect(ownLab.status).toBe(200);
+  });
+
+  it("answers 400 for an id that is not a number, such as DISP-1, and 404 for an unknown id", async () => {
+    expect((await asStaff.get("/api/retirements/DISP-1")).status).toBe(400);
+    expect((await asStaff.get("/api/retirements/999999")).status).toBe(404);
   });
 });
 

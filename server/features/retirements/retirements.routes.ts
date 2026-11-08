@@ -16,5 +16,6 @@ export const retirementsRouter = express.Router();
 // decides, never the requester (checked in the service).
 retirementsRouter.post('/api/assets/:assetTag/retirement', requireAuth, requireActive, requireTsg, retirementsController.requestRetirement);
 retirementsRouter.get('/api/retirements', requireAuth, requireActive, requireAnyRole('TSG_STAFF', 'ADRIC_DIRECTOR', 'ADRIC_SECRETARY', 'LAB_HEAD'), retirementsController.listRetirements);
+retirementsRouter.get('/api/retirements/:retirementId', requireAuth, requireActive, requireAnyRole('TSG_STAFF', 'ADRIC_DIRECTOR', 'ADRIC_SECRETARY', 'LAB_HEAD'), retirementsController.getRetirement);
 retirementsRouter.put('/api/retirements/:retirementId/decision', requireAuth, requireActive, requireRetirementDecider, retirementsController.decide);
 retirementsRouter.put('/api/retirements/:retirementId/complete', requireAuth, requireActive, requireTsg, retirementsController.complete);
