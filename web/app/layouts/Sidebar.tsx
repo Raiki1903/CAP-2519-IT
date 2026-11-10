@@ -28,6 +28,9 @@ import {
 } from "@web/components/ui/tooltip";
 import { cn } from "@web/components/ui/utils";
 
+/** Staff tabs only TSG sees: the Secretary shares the Staff view but does no physical steps (the server refuses them). */
+const TSG_ONLY_TABS = ["loans", "register"];
+
 const COLLAPSED_W = 64;
 const EXPANDED_W  = 240;
 
@@ -287,7 +290,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
             )}
           </AnimatePresence>
 
-          {cfg.nav.filter(({ id }) => !(role === "Staff" && id === "loans" && currentUser?.staffUnit !== "TSG")).map(({ id, label, icon: Icon }) => {
+          {cfg.nav.filter(({ id }) => !(role === "Staff" && TSG_ONLY_TABS.includes(id) && currentUser?.staffUnit !== "TSG")).map(({ id, label, icon: Icon }) => {
             const active = activeTab === id;
             const alertCount = id === "repairs" ? pendingReceiptCount : id === "approvals" && role === "ITAdmin" ? pendingSignUps.length : 0;
             const hasAlert   = alertCount > 0;
