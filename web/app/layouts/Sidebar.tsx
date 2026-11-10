@@ -47,6 +47,7 @@ const roleConfig: Record<Role, {
       { id: "loans",       label: PAGE_TITLES.loans,          icon: ArrowLeftRight },
       { id: "qrtags",      label: "QR Tags",               icon: QrCode        },
       { id: "analytics",   label: "Analytics",             icon: BarChart3     },
+      { id: "tickets",     label: "Support Tickets",      icon: LifeBuoy      },
     ],
   },
   LabHead: {
@@ -54,6 +55,7 @@ const roleConfig: Record<Role, {
       { id: "custody",     label: "Requests",            icon: Users         },
       { id: "inventory",   label: "Lab Inventory",       icon: ClipboardList },
       { id: "health",      label: "Analytics",             icon: BarChart3     },
+      { id: "tickets",     label: "Support Tickets",      icon: LifeBuoy      },
     ],
   },
   Custodian: {
@@ -62,6 +64,7 @@ const roleConfig: Record<Role, {
       { id: "available", label: "Available Assets", icon: Monitor },
       { id: "scan",      label: "QR Scan",             icon: QrCode  },
       { id: "report",    label: "Send Inspection Report", icon: ClipboardCheck },
+      { id: "tickets",     label: "Support Tickets",      icon: LifeBuoy      },
     ],
   },
   AdRICDirector: {
@@ -71,6 +74,7 @@ const roleConfig: Record<Role, {
       { id: "analytics",         label: "Analytics",            icon: BarChart3     },
       { id: "retirement-approvals", label: "Retirement Approvals",    icon: ClipboardCheck },
       { id: "reports",            label: "Inventory Report",    icon: ClipboardList },
+      { id: "tickets",     label: "Support Tickets",      icon: LifeBuoy      },
     ],
   },
   ITAdmin: {
