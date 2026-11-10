@@ -38,6 +38,14 @@ import { SUGGESTED_HEALTH_SCORE, type AssetCondition } from "@shared/enums/asset
 
 const MINT = "#10B981";
 
+/** Longest side, in pixels, an uploaded QR picture is shrunk to before it is read. */
+const QR_UPLOAD_MAX_SIDE = 1000;
+const QR_NOT_AN_IMAGE_MESSAGE = "That file can't be read as a picture. Upload a PNG or JPG of the QR tag.";
+const CAMERA_NEEDS_HTTPS_MESSAGE =
+  "This browser only opens the camera on a secure (https) address. Use Upload QR Image, or search by tag in Available Assets.";
+const CAMERA_UNAVAILABLE_MESSAGE =
+  "The camera could not be opened (no camera, or access was not allowed). Use Upload QR Image, or search by tag in Available Assets.";
+
 const statusBadgeClass: Record<string, string> = {
   "Active": "bg-emerald-50 text-emerald-700 border-emerald-200",
   "On Loan": "bg-blue-50   text-blue-700   border-blue-200",
@@ -86,6 +94,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   const [scanActive, setScanActive] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [scanLoading, setScanLoading] = useState(false);
+  // Why the camera or the uploaded picture could not be read, shown under the buttons.
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const [reportAsset, setReportAsset] = useState("");
   const [reportStatus, setReportStatus] = useState("Perfect");
@@ -235,26 +245,44 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
 
   const handleQRUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // Cleared so picking the same file again still fires onChange.
+    e.target.value = "";
     if (!file) return;
+    setScanError(null);
+    if (!file.type.startsWith("image/")) {
+      setScanError(QR_NOT_AN_IMAGE_MESSAGE);
+      return;
+    }
     setScanLoading(true);
+    const fail = (message: string) => {
+      setScanLoading(false);
+      setScanError(message);
+    };
     const reader = new FileReader();
+    reader.onerror = () => fail(QR_NOT_AN_IMAGE_MESSAGE);
     reader.onload = event => {
       const img = new Image();
+      img.onerror = () => fail(QR_NOT_AN_IMAGE_MESSAGE);
       img.onload = () => {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
-        if (ctx) {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0, img.width, img.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-          setScanLoading(false);
-          if (code) {
-            handleScanSuccess(code.data);
-          } else {
-            alert("No QR code found in the image. Please upload a clear image of a QR code.");
-          }
+        if (!ctx) {
+          fail(QR_NOT_AN_IMAGE_MESSAGE);
+          return;
+        }
+        // A phone photo is about 12 million pixels, and reading it at full size freezes the page. A QR tag
+        // stays readable at this size.
+        const scale = Math.min(1, QR_UPLOAD_MAX_SIDE / Math.max(img.width, img.height));
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        setScanLoading(false);
+        if (code) {
+          handleScanSuccess(code.data);
+        } else {
+          setScanError("No QR code was found in the picture. Upload a clear picture of the tag, or search by tag in Available Assets.");
         }
       };
       img.src = event.target?.result as string;
@@ -289,6 +317,13 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (scanActive && !scanLoading && !scanResult) {
+      // Browsers give the camera only to https pages and localhost; on a plain http address mediaDevices is missing.
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setScanActive(false);
+        setScanError(window.isSecureContext ? CAMERA_UNAVAILABLE_MESSAGE : CAMERA_NEEDS_HTTPS_MESSAGE);
+        return;
+      }
+      setScanError(null);
       navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
         .then(s => {
           stream = s;
@@ -301,6 +336,8 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
         })
         .catch(err => {
           console.error("Camera access error:", err);
+          setScanActive(false);
+          setScanError(CAMERA_UNAVAILABLE_MESSAGE);
         });
     }
 
@@ -616,6 +653,9 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
               <Button variant="outline" className="w-full" onClick={() => setScanActive(false)}><X size={14} />Cancel</Button>
             )}
             {scanResult && <Button variant="outline" className="flex-1" onClick={() => { setScanResult(null); setScanActive(false); }}>Scan Another</Button>}
+            {scanError && !scanActive && !scanResult && (
+              <p role="alert" className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{scanError}</p>
+            )}
           </div>
         </div>
         <canvas ref={canvasRef} className="hidden" />
