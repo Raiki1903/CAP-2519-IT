@@ -13,7 +13,7 @@ import {
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
   ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck, ArrowLeftRight, ScrollText, LifeBuoy
 } from "lucide-react";
-import { useSession, roleToSlug, roleLabel } from "@web/state/session";
+import { useSession, roleToSlug, sessionRoleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { usePendingSignUps } from "@web/state/pendingSignUps";
 import type { Role } from "@shared/enums/role";
@@ -228,7 +228,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                     {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "System User"}
                   </p>
                   <p className="text-[9px] text-[#34D399] truncate font-semibold">
-                    {roleLabel[role]}
+                    {sessionRoleLabel(role, currentUser?.staffUnit)}
                   </p>
                 </div>
               </button>
@@ -260,7 +260,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                     {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Signed-in user"}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    {roleLabel[role]}
+                    {sessionRoleLabel(role, currentUser?.staffUnit)}
                   </p>
                   <p className="text-[9px] text-emerald-400 mt-1 uppercase tracking-wider font-extrabold">Active Session (Click to Edit)</p>
                 </TooltipContent>
@@ -494,7 +494,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Role:</span>
-                        <span className="font-semibold text-white">{roleLabel[role]}</span>
+                        <span className="font-semibold text-white">{sessionRoleLabel(role, currentUser?.staffUnit)}</span>
                       </div>
                     </div>
                   </div>

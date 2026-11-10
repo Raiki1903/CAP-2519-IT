@@ -6,7 +6,7 @@
  * Used by: every role.
  */
 import { useState, useRef, useEffect } from "react";
-import { useSession, roleLabel } from "@web/state/session";
+import { useSession, sessionRoleLabel } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
 import { SupportTickets } from "@web/features/tickets/SupportTickets";
 import { compressImage, PROFILE_PHOTO_MAX_SIDE, PHOTO_UNREADABLE_MESSAGE } from "@web/features/images/compressImage";
@@ -131,7 +131,7 @@ export function AccountDetailsPage() {
     }
   };
 
-  const getRoleLabel = () => (role ? roleLabel[role] : "User");
+  const getRoleLabel = () => (role ? sessionRoleLabel(role, currentUser?.staffUnit) : "User");
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
