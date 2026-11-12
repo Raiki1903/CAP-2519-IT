@@ -16,7 +16,7 @@ import type {
     StaffAnalyticsData,
     StatusCounts,
 } from '@shared/types/analytics';
-import { CAMPUSES, CAMPUS_LABELS } from '@shared/constants/campuses';
+import { CAMPUSES, CAMPUS_LABELS, type Campus } from '@shared/constants/campuses';
 import { ASSET_STATUSES, ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
 import * as analyticsRepository from './analytics.repository';
 import { MAINTENANCE_STATUS_LABELS } from '@shared/constants/maintenanceStatuses';
@@ -34,6 +34,17 @@ function emptyStatusCounts(): StatusCounts {
 /** Whether the lab query names this asset's home lab, by short code in any letter case. No lab means every asset. */
 function inLab(lab: string | undefined, shortCode: string): boolean {
     return !lab || shortCode.toLowerCase() === lab.trim().toLowerCase();
+}
+
+/**
+ * Whether a home lab is the one the Director's lab filter names: by short code, or by its campus label (the dropdown
+ * offers both), in any letter case.
+ *
+ * @param center the asset's home lab
+ * @param filterText the filter, trimmed and in lower case
+ */
+function matchesDirectorLabFilter(center: { short_code: string; location: Campus }, filterText: string): boolean {
+    return center.short_code.toLowerCase() === filterText || CAMPUS_LABELS[center.location].toLowerCase() === filterText;
 }
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -252,9 +263,7 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
     // The lab filter names a lab by short code, or a campus by its label (the dropdown offers both).
     const filterText = isSpecificLab ? labFilter.trim().toLowerCase() : null;
     const allAssets = await analyticsRepository.findAssetsForDirector(startDate, endDate);
-    const counted = filterText
-        ? allAssets.filter(a => a.research_centers.short_code.toLowerCase() === filterText || CAMPUS_LABELS[a.research_centers.location].toLowerCase() === filterText)
-        : allAssets;
+    const counted = filterText ? allAssets.filter(a => matchesDirectorLabFilter(a.research_centers, filterText)) : allAssets;
 
     const campusCounts = new Map(CAMPUSES.map(campus => [campus, emptyStatusCounts()]));
     for (const asset of counted) {
