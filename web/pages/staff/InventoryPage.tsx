@@ -34,7 +34,7 @@ import { Search, LayoutGrid, Table2, Pencil, Archive, Trash2 } from "lucide-reac
  *
  * @param readOnly when true (the AdRIC Director's and the IT Admin's page), the Edit, Decommission, and Delete buttons, the table's
  *   Action column, and the three dialogs are left out. Search, filters, sorting, views, and the detail modal stay.
- *   The Secretary, who shares the Staff view, keeps Edit only: Decommission and Delete are TSG's (the server refuses her).
+ *   The Secretary, who shares the Staff view, keeps Edit only: Decommission and Delete are TSG's (the server refuses them for the Secretary).
  */
 export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
   const { syncFromDb } = useServerData();
