@@ -237,12 +237,15 @@ export async function inspectionProgress(): Promise<InspectionProgressItem[]> {
 
 /**
  * Builds the Director dashboard: portfolio value, pending disposals, value per funding source,
- * asset counts by campus and status, and inspection reports per month.
+ * asset counts by campus and status, the loan flow, and inspection reports per month.
  * The location counts use each asset's home lab and its status now. With a date range, they count only the assets
  * procured inside it (an asset's status has no date of its own).
+ * The loan flow counts the handed-over loans per campus, home lab, and borrower's lab. With a date range, it counts
+ * only the loans requested inside it. The lab filter narrows it by the asset's home lab, not the borrower's lab.
  */
-// Known defect, kept: the lab filter narrows only the location counts; the portfolio value, the funding breakdown, and the
-// pending disposals stay the totals of every lab, so the lab dropdown changes one chart and not the figures beside it.
+// Known defect, kept: the lab filter narrows only the location counts and the loan flow; the portfolio value, the funding
+// breakdown, and the pending disposals stay the totals of every lab, so the lab dropdown changes two charts and not the
+// figures beside them.
 // Pinned by the Phase 2 tests; proposed as its own commit (restructure log, batch 4 proposals).
 export async function directorDashboard(filters: DirectorFilters): Promise<DirectorAnalyticsData> {
     const { labFilter, isSpecificLab, startDate, endDate } = filters;
@@ -275,6 +278,26 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
         return { location: campus, ...counts, total: ASSET_STATUSES.reduce((sum, status) => sum + counts[status], 0) };
     });
 
+    // The loan flow: handed-over loans counted per home lab and borrower's lab. The lab filter names the asset's home lab.
+    const handedOver = await analyticsRepository.findHandedOverLoansForDirector(startDate, endDate);
+    const flowRows = new Map<string, DirectorAnalyticsData['loanFlowData'][number]>();
+    for (const loan of handedOver) {
+        const homeCenter = loan.assets.research_centers;
+        if (filterText && !matchesDirectorLabFilter(homeCenter, filterText)) continue;
+        const destinationLab = loan.destination_center?.short_code ?? null;
+        const key = JSON.stringify([homeCenter.short_code, destinationLab]);
+        const row = flowRows.get(key);
+        if (row) row.loans++;
+        else flowRows.set(key, { campus: homeCenter.location, homeLab: homeCenter.short_code, destinationLab, loans: 1 });
+    }
+    const loanFlowData = [...flowRows.values()].sort(
+        (a, b) =>
+            b.loans - a.loans ||
+            a.homeLab.localeCompare(b.homeLab) ||
+            Number(a.destinationLab === null) - Number(b.destinationLab === null) ||
+            (a.destinationLab ?? '').localeCompare(b.destinationLab ?? ''),
+    );
+
     const reports = await analyticsRepository.findReportsForDirector(startDate, endDate);
 
     // Month labels such as "Oct 26", in the server's time zone, in the order the months first appear (oldest first).
@@ -295,6 +318,7 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
         pendingDisposalsCount,
         fundingData,
         locationStatusData,
+        loanFlowData,
         auditComplianceData
     };
 }

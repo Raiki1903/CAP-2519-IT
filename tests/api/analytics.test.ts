@@ -9,7 +9,8 @@
  * 2026-03-01, the research center TEST with no projects. A test that needs more (a project, an overdue loan, a
  * warranty relative to today, an asset at another lab) adds it with extraAssets.ts (tags TEST-0701 onward) and
  * removes it in a finally block, so every test starts from the seed. Nothing here changes a seeded row. An asset's lab
- * and campus come from its home lab (assets.center_id), its status from assets.status.
+ * and campus come from its home lab (assets.center_id), its status from assets.status. The Director's loan flow counts
+ * the handed-over loans: for the seed, the one On Loan loan LOAN-1 (TEST to TEST); a test adds the loans it needs.
  */
 import type { asset_loans_status } from "@prisma/client";
 import { describe, expect, it } from "vitest";
@@ -99,13 +100,40 @@ async function addOverdueLoan(tag: string, daysOverdue: number, status: asset_lo
   return { asset, loan };
 }
 
+/** The Director's loan flow for the seed: LOAN-1 is On Loan and LOAN-2 is still waiting for approval, so only LOAN-1 counts. */
+const SEEDED_LOAN_FLOW_ROW = { campus: LAB.location, homeLab: LAB.shortCode, destinationLab: LAB.shortCode, loans: 1 };
+
+/** Adds a loan with the given status and borrower's lab (null for none), requested on 2026-04-01 unless a date is given. Returns its id. */
+async function addLoan(assetId: number, status: asset_loans_status, destinationCenterId: number | null, requestedAt = "2026-04-01T09:00:00Z") {
+  const loan = await db.asset_loans.create({
+    data: {
+      asset_id: assetId,
+      borrower_id: USERS.custodianA.userId,
+      purpose: "Test purpose: loan flow",
+      requested_at: new Date(requestedAt),
+      return_by: dateInDays(30),
+      status,
+      destination_center_id: destinationCenterId,
+    },
+  });
+  return loan.loan_id;
+}
+
+const removeLoans = (loanIds: number[]) => db.asset_loans.deleteMany({ where: { loan_id: { in: loanIds } } });
+
+/** The id of the research center with this short code. */
+const centerIdOf = async (shortCode: string) => (await db.research_centers.findUniqueOrThrow({ where: { short_code: shortCode } })).center_id;
+
+/** The id of the asset with this tag. */
+const assetIdOf = async (tag: string) => (await db.assets.findUniqueOrThrow({ where: { asset_tag: tag } })).asset_id;
+
 const labHead = (query: string) => asLabHead.get(`/api/analytics/lab-head?${query}`);
 
 /** The query every Lab Head widget sends for the seeded lab. */
 const TEST_LAB_QUERY = `labPrefix=${LAB.shortCode}&lab=${LAB.shortCode}`;
 
 describe("GET /api/analytics/director", () => {
-  it("answers the portfolio value, funding, pending disposals, location counts, and reports per month for the seed", async () => {
+  it("answers the portfolio value, funding, pending disposals, location counts, loan flow, and reports per month for the seed", async () => {
     const res = await asDirector.get("/api/analytics/director");
 
     expect(res.status).toBe(200);
@@ -115,6 +143,7 @@ describe("GET /api/analytics/director", () => {
       pendingDisposalsCount: 0,
       fundingData: [{ name: FUNDING_SOURCE, value: SEEDED_PORTFOLIO_VALUE, count: 6 }],
       locationStatusData: SEEDED_LOCATION_STATUS,
+      loanFlowData: [SEEDED_LOAN_FLOW_ROW],
       auditComplianceData: [{ month: "Mar 26", count: 1 }],
     });
   });
@@ -200,11 +229,12 @@ describe("GET /api/analytics/director", () => {
     }
   });
 
-  it("narrows only the location counts by lab; portfolio value, funding, and pending disposals stay for every lab (new)", async () => {
+  it("narrows only the location counts and the loan flow by lab; portfolio value, funding, and pending disposals stay for every lab (new)", async () => {
     const res = await asDirector.get("/api/analytics/director?lab=CAR");
 
     expect(res.status).toBe(200);
     expect(res.body.data.locationStatusData).toEqual([campusCounts("MANILA"), campusCounts("LAGUNA"), campusCounts("MCKINLEY")]);
+    expect(res.body.data.loanFlowData).toEqual([]);
     expect(res.body.data.totalPortfolioValue).toBe(SEEDED_PORTFOLIO_VALUE);
     expect(res.body.data.fundingData).toEqual([{ name: FUNDING_SOURCE, value: SEEDED_PORTFOLIO_VALUE, count: 6 }]);
   });
@@ -268,6 +298,123 @@ describe("GET /api/analytics/director", () => {
     } finally {
       await removeExtraAssets(db, [noDate.asset_id]);
     }
+  });
+
+  it("counts a loan under its borrower's lab, in its own row, apart from its asset's home lab (#188)", async () => {
+    await withOtherCampusLabs(async () => {
+      const loanIds = [await addLoan(await assetIdOf("TESTL-0001"), "ON_LOAN", await centerIdOf("TESTM"))];
+      try {
+        const res = await asDirector.get("/api/analytics/director");
+
+        expect(res.body.data.loanFlowData).toEqual([SEEDED_LOAN_FLOW_ROW, { campus: "LAGUNA", homeLab: "TESTL", destinationLab: "TESTM", loans: 1 }]);
+      } finally {
+        await removeLoans(loanIds);
+      }
+    });
+  });
+
+  it("counts a loan once it was handed over, by its status and not by released_at; the other four statuses are left out (#188)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0705" });
+    const counted: asset_loans_status[] = ["ON_LOAN", "RETURN_REQUESTED", "RETURNED", "ENDED_BY_MAINTENANCE", "ENDED_BY_LOSS"];
+    const leftOut: asset_loans_status[] = ["PENDING_APPROVAL", "PENDING_RELEASE", "DECLINED", "CANCELLED"];
+    const loanIds: number[] = [];
+    try {
+      for (const status of [...counted, ...leftOut]) loanIds.push(await addLoan(asset.assetId, status, LAB.centerId));
+      const res = await asDirector.get("/api/analytics/director");
+
+      // The seeded On Loan loan, plus the five handed-over loans added here, none of which has a released_at.
+      expect(res.body.data.loanFlowData).toEqual([{ ...SEEDED_LOAN_FLOW_ROW, loans: 1 + counted.length }]);
+    } finally {
+      await removeLoans(loanIds);
+      await removeExtraAssets(db, [asset.assetId]);
+    }
+  });
+
+  it("with a date range, counts only the loans requested inside it (#188)", async () => {
+    await withOtherCampusLabs(async () => {
+      // The seeded loan was requested on 2026-02-01; this one on 2026-04-01.
+      const loanIds = [await addLoan(await assetIdOf("TESTL-0001"), "RETURNED", LAB.centerId)];
+      const aprilRow = { campus: "LAGUNA", homeLab: "TESTL", destinationLab: LAB.shortCode, loans: 1 };
+      try {
+        const february = await asDirector.get("/api/analytics/director?startDate=2026-01-01&endDate=2026-02-28");
+        expect(february.body.data.loanFlowData).toEqual([SEEDED_LOAN_FLOW_ROW]);
+
+        const april = await asDirector.get("/api/analytics/director?startDate=2026-03-01&endDate=2026-04-30");
+        expect(april.body.data.loanFlowData).toEqual([aprilRow]);
+
+        const after = await asDirector.get("/api/analytics/director?startDate=2026-05-01");
+        expect(after.body.data.loanFlowData).toEqual([]);
+
+        const before = await asDirector.get("/api/analytics/director?endDate=2026-01-31");
+        expect(before.body.data.loanFlowData).toEqual([]);
+
+        const noRange = await asDirector.get("/api/analytics/director");
+        expect(noRange.body.data.loanFlowData).toEqual([SEEDED_LOAN_FLOW_ROW, aprilRow]);
+      } finally {
+        await removeLoans(loanIds);
+      }
+    });
+  });
+
+  it("narrows the loan flow by the asset's home lab, by code or campus label, not by the borrower's lab (#188)", async () => {
+    await withOtherCampusLabs(async () => {
+      // A Laguna asset lent to the McKinley lab.
+      const loanIds = [await addLoan(await assetIdOf("TESTL-0001"), "ON_LOAN", await centerIdOf("TESTM"))];
+      const lagunaRow = { campus: "LAGUNA", homeLab: "TESTL", destinationLab: "TESTM", loans: 1 };
+      try {
+        const flowOf = async (lab: string) => (await asDirector.get(`/api/analytics/director?lab=${lab}`)).body.data.loanFlowData;
+
+        expect(await flowOf("TESTL")).toEqual([lagunaRow]);
+        expect(await flowOf("testl")).toEqual([lagunaRow]);
+        expect(await flowOf("Laguna")).toEqual([lagunaRow]);
+        expect(await flowOf(LAB.shortCode)).toEqual([SEEDED_LOAN_FLOW_ROW]);
+        expect(await flowOf("Manila")).toEqual([SEEDED_LOAN_FLOW_ROW]);
+        // McKinley is only the borrower's lab, so neither its code nor its campus holds a row.
+        expect(await flowOf("TESTM")).toEqual([]);
+        expect(await flowOf("McKinley")).toEqual([]);
+      } finally {
+        await removeLoans(loanIds);
+      }
+    });
+  });
+
+  it("gives a handed-over loan with no borrower's lab a null destinationLab (#188)", async () => {
+    const asset = await addExtraAsset(db, { tag: "TEST-0706" });
+    const loanIds: number[] = [];
+    try {
+      loanIds.push(await addLoan(asset.assetId, "RETURNED", null));
+      const res = await asDirector.get("/api/analytics/director");
+
+      expect(res.body.data.loanFlowData).toEqual([SEEDED_LOAN_FLOW_ROW, { campus: LAB.location, homeLab: LAB.shortCode, destinationLab: null, loans: 1 }]);
+    } finally {
+      await removeLoans(loanIds);
+      await removeExtraAssets(db, [asset.assetId]);
+    }
+  });
+
+  it("sorts the loan flow by loans, then home lab, then borrower's lab, a loan with none last (#188)", async () => {
+    await withOtherCampusLabs(async () => {
+      const asset = await addExtraAsset(db, { tag: "TEST-0707" });
+      const mckinleyId = await centerIdOf("TESTM");
+      const loanIds: number[] = [];
+      try {
+        loanIds.push(await addLoan(asset.assetId, "RETURNED", mckinleyId));
+        loanIds.push(await addLoan(asset.assetId, "RETURNED", mckinleyId));
+        loanIds.push(await addLoan(asset.assetId, "RETURNED", null));
+        loanIds.push(await addLoan(await assetIdOf("TESTL-0001"), "RETURNED", LAB.centerId));
+        const res = await asDirector.get("/api/analytics/director");
+
+        expect(res.body.data.loanFlowData).toEqual([
+          { campus: "MANILA", homeLab: LAB.shortCode, destinationLab: "TESTM", loans: 2 },
+          SEEDED_LOAN_FLOW_ROW,
+          { campus: "MANILA", homeLab: LAB.shortCode, destinationLab: null, loans: 1 },
+          { campus: "LAGUNA", homeLab: "TESTL", destinationLab: LAB.shortCode, loans: 1 },
+        ]);
+      } finally {
+        await removeLoans(loanIds);
+        await removeExtraAssets(db, [asset.assetId]);
+      }
+    });
   });
 });
 
