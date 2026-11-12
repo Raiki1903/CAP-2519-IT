@@ -16,7 +16,7 @@ import type {
     StaffAnalyticsData,
     StatusCounts,
 } from '@shared/types/analytics';
-import { CAMPUSES, CAMPUS_LABELS } from '@shared/constants/campuses';
+import { CAMPUSES, CAMPUS_LABELS, type Campus } from '@shared/constants/campuses';
 import { ASSET_STATUSES, ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
 import * as analyticsRepository from './analytics.repository';
 import { MAINTENANCE_STATUS_LABELS } from '@shared/constants/maintenanceStatuses';
@@ -34,6 +34,17 @@ function emptyStatusCounts(): StatusCounts {
 /** Whether the lab query names this asset's home lab, by short code in any letter case. No lab means every asset. */
 function inLab(lab: string | undefined, shortCode: string): boolean {
     return !lab || shortCode.toLowerCase() === lab.trim().toLowerCase();
+}
+
+/**
+ * Whether a home lab is the one the Director's lab filter names: by short code, or by its campus label (the dropdown
+ * offers both), in any letter case.
+ *
+ * @param center the asset's home lab
+ * @param filterText the filter, trimmed and in lower case
+ */
+function matchesDirectorLabFilter(center: { short_code: string; location: Campus }, filterText: string): boolean {
+    return center.short_code.toLowerCase() === filterText || CAMPUS_LABELS[center.location].toLowerCase() === filterText;
 }
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -226,12 +237,15 @@ export async function inspectionProgress(): Promise<InspectionProgressItem[]> {
 
 /**
  * Builds the Director dashboard: portfolio value, pending disposals, value per funding source,
- * asset counts by campus and status, and inspection reports per month.
+ * asset counts by campus and status, the loan flow, and inspection reports per month.
  * The location counts use each asset's home lab and its status now. With a date range, they count only the assets
  * procured inside it (an asset's status has no date of its own).
+ * The loan flow counts the handed-over loans per campus, home lab, and borrower's lab. With a date range, it counts
+ * only the loans requested inside it. The lab filter narrows it by the asset's home lab, not the borrower's lab.
  */
-// Known defect, kept: the lab filter narrows only the location counts; the portfolio value, the funding breakdown, and the
-// pending disposals stay the totals of every lab, so the lab dropdown changes one chart and not the figures beside it.
+// Known defect, kept: the lab filter narrows only the location counts and the loan flow; the portfolio value, the funding
+// breakdown, and the pending disposals stay the totals of every lab, so the lab dropdown changes two charts and not the
+// figures beside them.
 // Pinned by the Phase 2 tests; proposed as its own commit (restructure log, batch 4 proposals).
 export async function directorDashboard(filters: DirectorFilters): Promise<DirectorAnalyticsData> {
     const { labFilter, isSpecificLab, startDate, endDate } = filters;
@@ -252,9 +266,7 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
     // The lab filter names a lab by short code, or a campus by its label (the dropdown offers both).
     const filterText = isSpecificLab ? labFilter.trim().toLowerCase() : null;
     const allAssets = await analyticsRepository.findAssetsForDirector(startDate, endDate);
-    const counted = filterText
-        ? allAssets.filter(a => a.research_centers.short_code.toLowerCase() === filterText || CAMPUS_LABELS[a.research_centers.location].toLowerCase() === filterText)
-        : allAssets;
+    const counted = filterText ? allAssets.filter(a => matchesDirectorLabFilter(a.research_centers, filterText)) : allAssets;
 
     const campusCounts = new Map(CAMPUSES.map(campus => [campus, emptyStatusCounts()]));
     for (const asset of counted) {
@@ -265,6 +277,26 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
         const counts = campusCounts.get(campus)!;
         return { location: campus, ...counts, total: ASSET_STATUSES.reduce((sum, status) => sum + counts[status], 0) };
     });
+
+    // The loan flow: handed-over loans counted per home lab and borrower's lab. The lab filter names the asset's home lab.
+    const handedOver = await analyticsRepository.findHandedOverLoansForDirector(startDate, endDate);
+    const flowRows = new Map<string, DirectorAnalyticsData['loanFlowData'][number]>();
+    for (const loan of handedOver) {
+        const homeCenter = loan.assets.research_centers;
+        if (filterText && !matchesDirectorLabFilter(homeCenter, filterText)) continue;
+        const destinationLab = loan.destination_center?.short_code ?? null;
+        const key = JSON.stringify([homeCenter.short_code, destinationLab]);
+        const row = flowRows.get(key);
+        if (row) row.loans++;
+        else flowRows.set(key, { campus: homeCenter.location, homeLab: homeCenter.short_code, destinationLab, loans: 1 });
+    }
+    const loanFlowData = [...flowRows.values()].sort(
+        (a, b) =>
+            b.loans - a.loans ||
+            a.homeLab.localeCompare(b.homeLab) ||
+            Number(a.destinationLab === null) - Number(b.destinationLab === null) ||
+            (a.destinationLab ?? '').localeCompare(b.destinationLab ?? ''),
+    );
 
     const reports = await analyticsRepository.findReportsForDirector(startDate, endDate);
 
@@ -286,6 +318,7 @@ export async function directorDashboard(filters: DirectorFilters): Promise<Direc
         pendingDisposalsCount,
         fundingData,
         locationStatusData,
+        loanFlowData,
         auditComplianceData
     };
 }

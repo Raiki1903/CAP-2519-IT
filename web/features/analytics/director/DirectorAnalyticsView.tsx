@@ -1,7 +1,7 @@
 /**
  * Director analytics: portfolio value, location and status, funding, and utilization widgets.
  * Layer: feature component. Called by pages/director/AdRICDirectorDashboard.tsx (analytics tab).
- * Calls: features/analytics/insights/InsightsPanel.tsx, features/analytics/utilization/LoansPerWeekChart.tsx, api/analytics.api.ts getDirectorAnalytics(), state/serverData.tsx (assets, reports, loans, pending disposals).
+ * Calls: features/analytics/insights/InsightsPanel.tsx, features/analytics/utilization/LoansPerWeekChart.tsx, features/analytics/director/LoanFlowSankey.tsx, api/analytics.api.ts getDirectorAnalytics(), state/serverData.tsx (assets, reports, loans, pending disposals).
  * Used by: AdRIC Director.
  */
 import React, { useState, useEffect, useMemo } from "react";
@@ -11,6 +11,7 @@ import { useServerData } from "@web/state/serverData";
 import * as analyticsApi from "@web/api/analytics.api";
 import { InsightsPanel } from "@web/features/analytics/insights/InsightsPanel";
 import { LoansPerWeekChart } from "@web/features/analytics/utilization/LoansPerWeekChart";
+import { LoanFlowSankey, type LoanFlowRow } from "@web/features/analytics/director/LoanFlowSankey";
 import { CAMPUS_LABELS } from "@shared/constants/campuses";
 import { useFormLookups } from "@web/features/lookups/useLookups";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
@@ -64,7 +65,7 @@ export interface DirectorAnalyticsProps {
 
 // Macro & Financial View (Task 1: Portfolio Value KPI, Pending Disposal Count, Location vs Status Stacked Column, Line Graph Audit Compliance)
 /**
- * Portfolio value and pending disposal KPIs, the location by status chart, and audit compliance over time.
+ * Portfolio value and pending disposal KPIs, the location by status chart, the loan flow, and audit compliance over time.
  * Calls analyticsApi.getDirectorAnalytics() with the lab and date filters. Shows a loading state until the server
  * answers, and a message when it fails: it never shows an estimate from the shared lists first.
  *
@@ -126,6 +127,9 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
       MAINTENANCE: d.MAINTENANCE || 0,
     }));
   }, [apiData]);
+
+  // The loans handed over per campus, home lab, and borrower's lab, as the server counted them.
+  const loanFlowData: LoanFlowRow[] = apiData?.loanFlowData ?? [];
 
   // Inspection reports per month, as the server counted them (empty when none is in the range).
   const auditComplianceData: { month: string; count: number }[] = apiData?.auditComplianceData ?? [];
@@ -229,7 +233,28 @@ export const MacroFinancialSection: React.FC<DirectorAnalyticsProps> = ({
         </CardContent>
       </Card>
 
-      {/* 3. Inspection reports per month */}
+      {/* 3. Loan flow: campus, home lab, borrower's lab */}
+      <Card className="border border-border bg-card shadow-sm rounded-xl">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+            <ArrowRightLeft className="w-5 h-5 text-[#005A36]" /> Where assets go on loan
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
+            Campus → home lab → borrower's lab. Loans handed over in the selected range.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-2">
+          {waiting ? (
+            <div className="h-72 w-full bg-muted/30 animate-pulse rounded-lg flex items-center justify-center text-xs text-muted-foreground">
+              {loadFailed ? "Could not load the loan flow. Reload the page." : "Loading loan flow data..."}
+            </div>
+          ) : (
+            <LoanFlowSankey rows={loanFlowData} colors={PIE_COLORS_OUTER} />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 4. Inspection reports per month */}
       <Card className="border border-border bg-card shadow-sm rounded-xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
