@@ -19,7 +19,7 @@ import type { LoanRow, LoanRows } from './loans.repository';
 import * as assetsRepository from '../assets/assets.repository';
 import * as assetsService from '../assets/assets.service';
 import type { Maintenance } from '@shared/types/maintenance';
-import { HELD_LOAN_STATUSES, LOAN_STATUS_LABELS, WAITING_LOAN_STATUSES, type LoanStatus } from '@shared/constants/loanStatuses';
+import { HANDED_OVER_LOAN_STATUSES, HELD_LOAN_STATUSES, LOAN_STATUS_LABELS, WAITING_LOAN_STATUSES, type LoanStatus } from '@shared/constants/loanStatuses';
 import { CAMPUS_LABELS } from '@shared/constants/campuses';
 import { AppError } from '../../shared/errors/AppError';
 import { hasAccessRole } from '../../shared/middleware/permissions';
@@ -445,14 +445,8 @@ const OLDEST_FIRST: Prisma.asset_loansOrderByWithRelationInput[] = [{ requested_
 /** Newest request first, for a person's own loans and the clearance record. */
 const NEWEST_FIRST: Prisma.asset_loansOrderByWithRelationInput[] = [{ requested_at: 'desc' }, { loan_id: 'desc' }];
 
-/**
- * The loans that were handed over: held now, or closed after a release. Stored as statuses rather than read from
- * released_at, so loans from before the release step (which have no released_at) count too.
- */
-const HANDED_OVER_STATUSES: readonly LoanStatus[] = [...HELD_LOAN_STATUSES, "RETURNED", "ENDED_BY_MAINTENANCE", "ENDED_BY_LOSS"];
-
 /** The loans a clearance record lists: handed over, or still waiting in Pending Release. A cancelled loan is left out. */
-const CLEARANCE_RECORD_STATUSES: readonly LoanStatus[] = ["PENDING_RELEASE", ...HANDED_OVER_STATUSES];
+const CLEARANCE_RECORD_STATUSES: readonly LoanStatus[] = ["PENDING_RELEASE", ...HANDED_OVER_LOAN_STATUSES];
 
 /** A status filter, or no filter at all. */
 function statusWhere(statuses: LoanStatus[] | null): Prisma.asset_loansWhereInput {
@@ -521,7 +515,7 @@ export async function accountabilityForm(loanId: number, viewer: SessionIdentity
     if (!asset) throw new AppError(404, `No asset found for loan ${loanId}.`);
     const allowed = loan.borrower_id === viewer.userId || isTsg(viewer) || (await resolveLoanApprover(asset)) === viewer.userId;
     if (!allowed) throw new AppError(403, "Only the borrower, the Head of the asset's lab, and TSG can see this Accountability Form.");
-    if (!HANDED_OVER_STATUSES.includes(loan.status)) throw new AppError(409, "This loan has not been released yet.");
+    if (!HANDED_OVER_LOAN_STATUSES.includes(loan.status)) throw new AppError(409, "This loan has not been released yet.");
 
     const [shaped, [listed], person] = await Promise.all([
         loanById(loanId, viewer),
