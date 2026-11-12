@@ -86,7 +86,9 @@ const loansText = (count: number) => `${count} ${count === 1 ? "loan" : "loans"}
 /** The hover box of a ribbon or a node: where it goes from and to, and its loans. */
 function FlowTooltip({ active, payload }: { active?: boolean; payload?: { payload: any }[] }) {
   if (!active || !payload?.length) return null;
-  const item = payload[0].payload;
+  // Recharts nests the ribbon or node one level down: the entry's payload is { name, value, payload: ribbon or node }.
+  const entry = payload[0].payload;
+  const item = entry.payload ?? entry;
   const label = (node: FlowNode) => `${COLUMN_PREFIX[node.column]}${node.name}`;
   const title = item.source && item.target ? `${label(item.source)} → ${label(item.target)}` : label(item);
   return (
