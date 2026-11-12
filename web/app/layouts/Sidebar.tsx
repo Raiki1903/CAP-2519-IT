@@ -13,7 +13,7 @@ import {
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
   ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck, ArrowLeftRight, ScrollText, LifeBuoy
 } from "lucide-react";
-import { useSession, roleToSlug, roleLabel } from "@web/state/session";
+import { useSession, roleToSlug, sessionRoleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { usePendingSignUps } from "@web/state/pendingSignUps";
 import type { Role } from "@shared/enums/role";
@@ -27,6 +27,9 @@ import {
   TooltipTrigger,
 } from "@web/components/ui/tooltip";
 import { cn } from "@web/components/ui/utils";
+
+/** Staff tabs only TSG sees: the Secretary shares the Staff view but does no physical steps (the server refuses them). */
+const TSG_ONLY_TABS = ["loans", "register"];
 
 const COLLAPSED_W = 64;
 const EXPANDED_W  = 240;
@@ -44,6 +47,7 @@ const roleConfig: Record<Role, {
       { id: "loans",       label: PAGE_TITLES.loans,          icon: ArrowLeftRight },
       { id: "qrtags",      label: "QR Tags",               icon: QrCode        },
       { id: "analytics",   label: "Analytics",             icon: BarChart3     },
+      { id: "tickets",     label: "Support Tickets",      icon: LifeBuoy      },
     ],
   },
   LabHead: {
@@ -51,6 +55,7 @@ const roleConfig: Record<Role, {
       { id: "custody",     label: "Requests",            icon: Users         },
       { id: "inventory",   label: "Lab Inventory",       icon: ClipboardList },
       { id: "health",      label: "Analytics",             icon: BarChart3     },
+      { id: "tickets",     label: "Support Tickets",      icon: LifeBuoy      },
     ],
   },
   Custodian: {
@@ -59,6 +64,7 @@ const roleConfig: Record<Role, {
       { id: "available", label: "Available Assets", icon: Monitor },
       { id: "scan",      label: "QR Scan",             icon: QrCode  },
       { id: "report",    label: "Send Inspection Report", icon: ClipboardCheck },
+      { id: "tickets",     label: "Support Tickets",      icon: LifeBuoy      },
     ],
   },
   AdRICDirector: {
@@ -68,6 +74,7 @@ const roleConfig: Record<Role, {
       { id: "analytics",         label: "Analytics",            icon: BarChart3     },
       { id: "retirement-approvals", label: "Retirement Approvals",    icon: ClipboardCheck },
       { id: "reports",            label: "Inventory Report",    icon: ClipboardList },
+      { id: "tickets",     label: "Support Tickets",      icon: LifeBuoy      },
     ],
   },
   ITAdmin: {
@@ -228,7 +235,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                     {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "System User"}
                   </p>
                   <p className="text-[9px] text-[#34D399] truncate font-semibold">
-                    {roleLabel[role]}
+                    {sessionRoleLabel(role, currentUser?.staffUnit)}
                   </p>
                 </div>
               </button>
@@ -260,7 +267,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                     {currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Signed-in user"}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    {roleLabel[role]}
+                    {sessionRoleLabel(role, currentUser?.staffUnit)}
                   </p>
                   <p className="text-[9px] text-emerald-400 mt-1 uppercase tracking-wider font-extrabold">Active Session (Click to Edit)</p>
                 </TooltipContent>
@@ -287,7 +294,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
             )}
           </AnimatePresence>
 
-          {cfg.nav.filter(({ id }) => !(role === "Staff" && id === "loans" && currentUser?.staffUnit !== "TSG")).map(({ id, label, icon: Icon }) => {
+          {cfg.nav.filter(({ id }) => !(role === "Staff" && TSG_ONLY_TABS.includes(id) && currentUser?.staffUnit !== "TSG")).map(({ id, label, icon: Icon }) => {
             const active = activeTab === id;
             const alertCount = id === "repairs" ? pendingReceiptCount : id === "approvals" && role === "ITAdmin" ? pendingSignUps.length : 0;
             const hasAlert   = alertCount > 0;
@@ -494,7 +501,7 @@ export function Sidebar({ onLogout, isMobileOpen, onCloseMobile }: { onLogout: (
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Role:</span>
-                        <span className="font-semibold text-white">{roleLabel[role]}</span>
+                        <span className="font-semibold text-white">{sessionRoleLabel(role, currentUser?.staffUnit)}</span>
                       </div>
                     </div>
                   </div>

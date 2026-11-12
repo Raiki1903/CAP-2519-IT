@@ -1,14 +1,13 @@
 /**
  * Account screen: the signed-in user's name, lab, and profile picture, with a form to change them.
  * Layer: page. Called by app/routes.tsx at /<role>/account, for every role.
- * Calls: api/auth.api.ts getMe(), state/session.tsx updateProfile(), features/tickets/SupportTickets.tsx (the Support
- * tickets section below the profile form).
+ * Calls: api/auth.api.ts getMe(), state/session.tsx updateProfile(). Support tickets have their own page
+ * (pages/shared/SupportTicketsPage.tsx).
  * Used by: every role.
  */
 import { useState, useRef, useEffect } from "react";
-import { useSession, roleLabel } from "@web/state/session";
+import { useSession, sessionRoleLabel } from "@web/state/session";
 import * as authApi from "@web/api/auth.api";
-import { SupportTickets } from "@web/features/tickets/SupportTickets";
 import { compressImage, PROFILE_PHOTO_MAX_SIDE, PHOTO_UNREADABLE_MESSAGE } from "@web/features/images/compressImage";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
 import { Label } from "@web/components/ui/label";
@@ -131,7 +130,7 @@ export function AccountDetailsPage() {
     }
   };
 
-  const getRoleLabel = () => (role ? roleLabel[role] : "User");
+  const getRoleLabel = () => (role ? sessionRoleLabel(role, currentUser?.staffUnit) : "User");
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -329,7 +328,6 @@ export function AccountDetailsPage() {
         </div>
       </form>
 
-      <SupportTickets />
     </div>
   );
 }

@@ -6,7 +6,7 @@
  */
 import { useNavigate } from "react-router";
 import { ShieldAlert } from "lucide-react";
-import { useSession, roleLabel, roleDefaultPath } from "@web/state/session";
+import { useSession, sessionRoleLabel, roleDefaultPath } from "@web/state/session";
 import { Button } from "@web/components/ui/button";
 import { Card, CardContent } from "@web/components/ui/card";
 
@@ -16,7 +16,7 @@ import { Card, CardContent } from "@web/components/ui/card";
  * them anyway, requireRole). Takes no props.
  */
 export function NoAccess() {
-  const { role } = useSession();
+  const { role, currentUser } = useSession();
   const navigate = useNavigate();
   if (!role) return null;
 
@@ -29,7 +29,7 @@ export function NoAccess() {
           </div>
           <h1 className="text-lg font-bold text-foreground">You don't have access to this page</h1>
           <p className="text-sm text-muted-foreground">
-            You are signed in as {roleLabel[role]}. This page is for another role.
+            You are signed in as {sessionRoleLabel(role, currentUser?.staffUnit)}. This page is for another role.
           </p>
           <Button className="mt-2" onClick={() => navigate(roleDefaultPath[role])}>
             Go to my home page
