@@ -150,7 +150,7 @@ describe('CSV reader: parseMoney', () => {
   it('strips currency symbols and commas', () => {
     expect(parseMoney('PHP 1,234,567.89')).toBe('1234567.89');
     expect(parseMoney('₱ 50,000.00')).toBe('50000.00');
-    expect(parseMoney('$99.95')).toBe('99.95');
+    expect(parseMoney('Php 99.95')).toBe('99.95');
   });
 
   it('rejects negative numbers, excessive decimals, and out-of-bounds amounts', () => {

@@ -270,7 +270,7 @@ export function parseMoney(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  let cleaned = trimmed.replace(/^(?:PHP|Php|php|₱|\$)\s*/, '');
+  let cleaned = trimmed.replace(/^(?:PHP|Php|php|₱)\s*/, '');
   cleaned = cleaned.replace(/,/g, '').trim();
 
   if (!/^\d+(?:\.\d{1,2})?$/.test(cleaned)) {

@@ -17,6 +17,7 @@ import { activityLogRouter } from './features/activity-log/activityLog.routes';
 import { ticketsRouter } from './features/tickets/tickets.routes';
 import { assetsRouter } from './features/assets/assets.routes';
 import { remarksRouter } from './features/assets/remarks.routes';
+import { importsRouter } from './features/imports/imports.routes';
 import { analyticsRouter } from './features/analytics/analytics.routes';
 import { lookupsRouter } from './features/lookups/lookups.routes';
 import { errorHandler } from './shared/middleware/errorHandler';
@@ -54,6 +55,7 @@ app.use(activityLogRouter);
 app.use(ticketsRouter);
 app.use(assetsRouter);
 app.use(remarksRouter);
+app.use(importsRouter);
 app.use(analyticsRouter);
 app.use(lookupsRouter);
 
