@@ -5,7 +5,7 @@
  * Used by: every role.
  */
 import { createContext, useContext, useState, useEffect, useRef } from "react";
-import { APP_ROLE_LABELS, type Role, type StaffUnit } from "@shared/enums/role";
+import { APP_ROLE_LABELS, DATABASE_ROLE_LABELS, type Role, type StaffUnit } from "@shared/enums/role";
 import type { SessionLab } from "@shared/types/auth";
 import * as authApi from "../api/auth.api";
 import { setUnauthorizedHandler } from "../api/client";
@@ -346,6 +346,18 @@ export const roleToSlug: Record<Role, string> = {
  * The Custodian view's person is a Researcher.
  */
 export const roleLabel: Record<Role, string> = APP_ROLE_LABELS;
+
+/**
+ * The name a signed-in person is shown by: the Secretary shares the Staff view but is shown as the AdRIC Secretary.
+ * TSG keeps "Staff", as on every screenshot of the Staff view.
+ *
+ * @param role the session role
+ * @param staffUnit the session user's unit (ITS is the Secretary), or null
+ * @returns the label for the sidebar, headers and the bell
+ */
+export function sessionRoleLabel(role: Role, staffUnit: StaffUnit | null | undefined): string {
+  return role === "Staff" && staffUnit === "ITS" ? DATABASE_ROLE_LABELS.ADRIC_SECRETARY : roleLabel[role];
+}
 
 /** Where each role lands after login, and where the no-access and not-found screens send it. */
 export const roleDefaultPath: Record<Role, string> = {

@@ -3,11 +3,13 @@
  * Layer: page. Called by app/routes.tsx at /staff/inventory (with edit, decommission, and delete), and read-only at
  * /adric-director/inventory and /it-admin/inventory.
  * Calls: features/assets (useStaffAssets, assetSearch, AssetGalleryCard, AssetDetailModal, EditAssetDialog, DeleteAssetDialog), features/disposals/DisposalFormDialog.tsx,
- * features/lookups/useLookups.ts (the funding filter), state/serverData.tsx syncFromDb().
- * Used by: Staff asset editing, deletion, and disposal requests; the AdRIC Director's and the IT Admin's view of the inventory.
+ * features/lookups/useLookups.ts (the funding filter), state/serverData.tsx syncFromDb(), state/session.tsx.
+ * Used by: Staff asset editing (TSG and the Secretary), deletion and disposal requests (TSG only); the AdRIC Director's and the
+ * IT Admin's view of the inventory.
  */
 import { useState } from "react";
 import { useServerData } from "@web/state/serverData";
+import { useSession } from "@web/state/session";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { useFormLookups } from "@web/features/lookups/useLookups";
 import { AssetGalleryCard } from "@web/features/assets/AssetGalleryCard";
@@ -32,11 +34,15 @@ import { Search, LayoutGrid, Table2, Pencil, Archive, Trash2 } from "lucide-reac
  *
  * @param readOnly when true (the AdRIC Director's and the IT Admin's page), the Edit, Decommission, and Delete buttons, the table's
  *   Action column, and the three dialogs are left out. Search, filters, sorting, views, and the detail modal stay.
+ *   The Secretary, who shares the Staff view, keeps Edit only: Decommission and Delete are TSG's (the server refuses them for the Secretary).
  */
 export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
   const { syncFromDb } = useServerData();
   const { lookups } = useFormLookups();
   const { displayedAssets, fetchDbAssets } = useStaffAssets();
+  const { currentUser } = useSession();
+  // Decommission and Delete are TSG steps; the Secretary edits master data only.
+  const tsgSteps = !readOnly && currentUser?.staffUnit === "TSG";
 
   const [search, setSearch] = useState("");
   const [filterFunding, setFilterFunding] = useState("All");
@@ -158,9 +164,9 @@ export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
                 key={eq.id}
                 eq={eq}
                 onSelect={() => setSelectedAsset(openAsset(eq))}
-                onDelete={!readOnly && inventorySubTab === "active" ? () => setAssetToDelete(eq.id) : undefined}
+                onDelete={tsgSteps && inventorySubTab === "active" ? () => setAssetToDelete(eq.id) : undefined}
                 onEdit={!readOnly && inventorySubTab === "active" ? () => setEditingAsset(eq) : undefined}
-                onDecommission={!readOnly && inventorySubTab === "active" ? () => setDisposalAsset(eq) : undefined}
+                onDecommission={tsgSteps && inventorySubTab === "active" ? () => setDisposalAsset(eq) : undefined}
               />
             ))}
           </div>
@@ -196,24 +202,26 @@ export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
                           >
                             <Pencil size={13} />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-amber-600 hover:text-amber-800 hover:bg-amber-50"
-                            onClick={() => setDisposalAsset(eq)}
-                            title="Retire Asset"
-                          >
-                            <Archive size={13} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => setAssetToDelete(eq.id)}
-                            title="Delete Asset"
-                          >
-                            <Trash2 size={13} />
-                          </Button>
+                          {tsgSteps && <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-amber-600 hover:text-amber-800 hover:bg-amber-50"
+                              onClick={() => setDisposalAsset(eq)}
+                              title="Retire Asset"
+                            >
+                              <Archive size={13} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => setAssetToDelete(eq.id)}
+                              title="Delete Asset"
+                            >
+                              <Trash2 size={13} />
+                            </Button>
+                          </>}
                         </div>
                       ) : (
                         <span className="text-[10px] uppercase font-bold text-red-500 tracking-wider">Retired</span>
@@ -243,7 +251,7 @@ export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
       )}
 
       {/* Disposal Form Dialog */}
-      {!readOnly && disposalAsset && (
+      {tsgSteps && disposalAsset && (
         <DisposalFormDialog
           key={disposalAsset.id}
           asset={disposalAsset}
@@ -253,7 +261,7 @@ export function InventoryPage({ readOnly = false }: { readOnly?: boolean }) {
       )}
 
       {/* Delete Confirmation Dialog */}
-      {!readOnly && <DeleteAssetDialog assetToDelete={assetToDelete} onClose={() => setAssetToDelete(null)} onDeleted={fetchDbAssets} />}
+      {tsgSteps && <DeleteAssetDialog assetToDelete={assetToDelete} onClose={() => setAssetToDelete(null)} onDeleted={fetchDbAssets} />}
     </div>
   );
 }

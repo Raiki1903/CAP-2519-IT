@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { useOutlet, Navigate, useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { useSession, roleToSlug, roleDefaultPath, roleLabel } from "@web/state/session";
+import { useSession, roleToSlug, roleDefaultPath, sessionRoleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import { Sidebar } from "./Sidebar";
 import { NotificationCenter } from "@web/features/notifications/NotificationCenter";
@@ -110,7 +110,7 @@ export function RootLayout() {
         {/* Quick user details & link to account */}
         <div className="flex items-center gap-2.5">
           <span className="text-[9px] font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-500/10 px-2 py-0.5 rounded uppercase">
-            {roleLabel[role]}
+            {sessionRoleLabel(role, currentUser?.staffUnit)}
           </span>
           <button
             onClick={() => navigate(`/${slug}/account`)}

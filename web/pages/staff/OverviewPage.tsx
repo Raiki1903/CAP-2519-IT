@@ -8,7 +8,7 @@
  * Used by: Staff.
  */
 import { useNavigate } from "react-router";
-import { roleToSlug } from "@web/state/session";
+import { roleToSlug, useSession } from "@web/state/session";
 import { usePendingReturns } from "@web/features/returns/usePendingReturns";
 import { useStaffAssets } from "@web/features/assets/useStaffAssets";
 import { countAssetsByCampus } from "@web/features/assets/campusCounts";
@@ -24,6 +24,9 @@ import { Package, ChevronRight } from "lucide-react";
 /** The Staff landing tab. Reads only; every action is a link to another tab. Takes no props. */
 export function OverviewPage() {
   const navigate = useNavigate();
+  const { currentUser } = useSession();
+  // Only TSG registers and receives returns; the Secretary sees the same Overview without those links.
+  const isTsg = currentUser?.staffUnit === "TSG";
   // The count is only the loans whose borrower asked to return; walk-ins on the Pending Returns page are not counted.
   const { requested: pendingReturns } = usePendingReturns();
   const { displayedAssets } = useStaffAssets();
@@ -63,7 +66,10 @@ export function OverviewPage() {
             <p className="text-xs text-muted-foreground mt-0.5 font-medium">Open Maintenance Tickets</p>
           </CardContent>
         </Card>
-        <Card className="border border-border bg-card shadow-sm rounded-xl cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate(`/${overviewSlug}/loans`)}>
+        <Card
+          className={`border border-border bg-card shadow-sm rounded-xl ${isTsg ? "cursor-pointer hover:border-primary/50 transition-colors" : ""}`}
+          onClick={isTsg ? () => navigate(`/${overviewSlug}/loans`) : undefined}
+        >
           <CardContent className="pt-4 pb-4">
             <p className="text-3xl font-extrabold text-foreground font-mono">{pendingReturns.length}</p>
             <p className="text-xs text-muted-foreground mt-0.5 font-medium">Pending Returns</p>
@@ -75,7 +81,7 @@ export function OverviewPage() {
         <Card className="col-span-2 border border-border bg-card shadow-sm rounded-xl">
           <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-foreground">Shortcuts</CardTitle></CardHeader>
           <CardContent className="space-y-2">
-            <div className="flex items-center justify-between p-2.5 bg-muted/30 border border-border rounded-xl">
+            {isTsg && <div className="flex items-center justify-between p-2.5 bg-muted/30 border border-border rounded-xl">
               <div>
                 <p className="text-xs font-bold text-foreground">Register Asset</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Add newly acquired equipment to the inventory</p>
@@ -83,7 +89,7 @@ export function OverviewPage() {
               <Button size="sm" onClick={() => navigate(`/${overviewSlug}/register`)} className="gap-1 text-xs font-bold bg-[#005A36] text-white hover:bg-[#005A36]/90">
                 Intake Wizard <ChevronRight size={13} />
               </Button>
-            </div>
+            </div>}
             <div className="flex items-center justify-between p-2.5 bg-muted/30 border border-border rounded-xl">
               <div>
                 <p className="text-xs font-bold text-foreground">Repairs</p>

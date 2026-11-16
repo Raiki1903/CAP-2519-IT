@@ -7,7 +7,7 @@
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router";
-import { useSession, roleToSlug, roleDefaultPath, roleLabel } from "@web/state/session";
+import { useSession, roleToSlug, roleDefaultPath, sessionRoleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
 import * as notificationsApi from "@web/api/notifications.api";
 import { Button } from "@web/components/ui/button";
@@ -473,7 +473,7 @@ export function NotificationCenter() {
               <div>
                 <h3 className="text-sm font-bold tracking-tight">Notification Center</h3>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Scope: <span className="font-semibold text-primary">{currentUserName}</span> ({roleLabel[role]})
+                  Scope: <span className="font-semibold text-primary">{currentUserName}</span> ({sessionRoleLabel(role, currentUser?.staffUnit)})
                 </p>
               </div>
               <span className="bg-primary/10 border border-primary/20 text-primary text-[10px] px-2.5 py-1 rounded-md font-extrabold tracking-wide">

@@ -25,6 +25,7 @@ import { UsersPage } from "@web/pages/it-admin/UsersPage";
 import { ActivityLogPage } from "@web/pages/it-admin/ActivityLogPage";
 import { TicketsPage } from "@web/pages/it-admin/TicketsPage";
 import { AccountDetailsPage } from "@web/pages/AccountDetailsPage";
+import { SupportTicketsPage } from "@web/pages/shared/SupportTicketsPage";
 import { AccountabilityFormPage } from "@web/pages/shared/AccountabilityFormPage";
 import { ClearancePrintPage } from "@web/pages/staff/ClearancePrintPage";
 import { DisposalRecordPrintPage } from "@web/pages/shared/DisposalRecordPrintPage";
@@ -95,6 +96,7 @@ export const router = createBrowserRouter([
           { path: "qrtags",      element: <QrTagsPage /> },
           { path: "analytics",   element: <HealthPage /> },
           { path: "health",      element: <Navigate to="/staff/analytics" replace /> },
+          { path: "tickets",     element: <SupportTicketsPage /> },
           { path: "account",     element: <AccountDetailsPage /> },
         ],
       },
@@ -107,6 +109,7 @@ export const router = createBrowserRouter([
           { path: "custody",     element: <LabHeadDashboard activeTab="custody" /> },
           { path: "inventory",   element: <LabHeadDashboard activeTab="inventory" /> },
           { path: "health",      element: <LabHeadDashboard activeTab="health" /> },
+          { path: "tickets",     element: <SupportTicketsPage /> },
           { path: "account",     element: <AccountDetailsPage /> },
         ],
       },
@@ -122,6 +125,7 @@ export const router = createBrowserRouter([
           { path: "available", element: <CustodianPortal activeTab="available" /> },
           { path: "scan",      element: <CustodianPortal activeTab="scan" /> },
           { path: "report",    element: <CustodianPortal activeTab="report" /> },
+          { path: "tickets",   element: <SupportTicketsPage /> },
           { path: "account",   element: <AccountDetailsPage /> },
         ],
       },
@@ -137,6 +141,7 @@ export const router = createBrowserRouter([
           { path: "retirement-approvals", element: <AdRICDirectorDashboard activeTab="clearance-disposal" /> },
           { path: "clearance-disposal", element: <Navigate to="/adric-director/retirement-approvals" replace /> },
           { path: "reports",            element: <AdRICDirectorDashboard activeTab="reports" /> },
+          { path: "tickets",            element: <SupportTicketsPage /> },
           { path: "account",            element: <AccountDetailsPage /> },
         ],
       },

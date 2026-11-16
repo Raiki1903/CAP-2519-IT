@@ -1,8 +1,8 @@
 /**
  * Support tickets: a short form to ask the IT Admin about the system, and the person's own tickets with their answers.
- * Layer: feature component. Called by pages/AccountDetailsPage.tsx, which every role has.
+ * Layer: feature component. Called by pages/shared/SupportTicketsPage.tsx.
  * Calls: api/tickets.api.ts createTicket() and listMyTickets(), features/tickets/TicketStatusBadge.tsx.
- * Used by: every role's Account page.
+ * Used by: every role but the IT Admin, on the Support Tickets page.
  */
 import { useCallback, useEffect, useState } from "react";
 import {
