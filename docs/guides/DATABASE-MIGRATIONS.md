@@ -301,6 +301,7 @@ Applied in this order by `prisma migrate deploy`. Never edit one that is merged:
 | `20261103180000_drop_replaced_tables_columns` | Batch 1. Drops what the foundation migration replaced: `asset_records`, `asset_monetary`, `asset_returns`, `asset_transfers`, `asset_maintenance.is_immediate`, and `projects.funding_agency` |
 | `20261108120000_personal_funding_source` | Issue #167. Adds the funding source "Personal (self-funded)" when it is missing, for equipment a researcher bought with their own money. Data only, no structure change; safe to run twice |
 | `20261108180000_asset_remarks` | Issue #169. Adds the table `asset_remarks`: remarks on an asset, with their author and time. A delete only sets `deleted_by_id` and `deleted_at`, so the row stays. A new table only; nothing else changes |
+| `20261117120000_project_created_event` | Issue #192. Adds `PROJECT_CREATED` to the `activity_log` `event_type` enum for project creation events |
 
 ## Where things are
 

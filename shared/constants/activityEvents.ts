@@ -23,6 +23,7 @@ export const ACTIVITY_EVENT_TYPES = [
   "ASSET_MARKED_MISSING",
   "ASSET_FOUND",
   "CLEARANCE_RECORD_PRINTED",
+  "PROJECT_CREATED",
 ] as const;
 
 /** One value of activity_log.event_type. */
@@ -47,4 +48,5 @@ export const ACTIVITY_EVENT_LABELS: Record<ActivityEventType, string> = {
   ASSET_MARKED_MISSING: "Marked missing",
   ASSET_FOUND: "Found",
   CLEARANCE_RECORD_PRINTED: "Clearance record printed",
+  PROJECT_CREATED: "Project created",
 };
