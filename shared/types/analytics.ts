@@ -22,9 +22,17 @@ export interface DirectorAnalyticsData {
   /**
    * Assets by campus (always all three, in the order of CAMPUSES) and by status, from each asset's home lab and its
    * status now. With a date range, only assets procured inside it count (an asset with no procurement date is left
-   * out). The only figure the lab filter narrows.
+   * out). The lab filter narrows it, with `loanFlowData`; no other figure.
    */
   locationStatusData: ({ location: Campus; total: number } & StatusCounts)[];
+  /**
+   * The loans handed over (see HANDED_OVER_LOAN_STATUSES), counted per campus, home lab, and borrower's lab, most loans
+   * first, then by home lab, then by borrower's lab (a loan with no borrower's lab last). The campus and home lab are
+   * those of the asset (its home lab, assets.center_id); the borrower's lab is the loan's destination_center_id, and
+   * null for an old loan with none. The date range applies to the day the loan was requested. The lab filter narrows
+   * by the asset's home lab, not the borrower's lab.
+   */
+  loanFlowData: { campus: Campus; homeLab: string; destinationLab: string | null; loans: number }[];
   /** Inspection reports per month ("Oct 26"), oldest first. Empty when there is none in range. */
   auditComplianceData: { month: string; count: number }[];
 }

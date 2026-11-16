@@ -10,6 +10,7 @@
 import { asset_loans_status, asset_retirements_status, type Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import * as assetState from '../../shared/services/assetState';
+import { HANDED_OVER_LOAN_STATUSES } from '@shared/constants/loanStatuses';
 
 /** Every asset read here comes with its home lab. */
 const WITH_LAB = { research_centers: true } satisfies Prisma.assetsInclude;
@@ -117,6 +118,31 @@ export function findAssetsForDirector(startDate: Date | null, endDate: Date | nu
     return prisma.assets.findMany({
         where: Object.keys(procured).length > 0 ? { procurement_date: procured } : undefined,
         include: WITH_LAB,
+    });
+}
+
+/**
+ * The loans that were handed over, each with the home lab (short code and campus) of its asset and the short code of its
+ * borrower's lab (destination_center_id, null on an old loan). With a date range, only loans requested inside it; a date
+ * that does not parse is left out of the range.
+ *
+ * @param startDate earliest requested_at, or null
+ * @param endDate latest requested_at, or null
+ */
+export function findHandedOverLoansForDirector(startDate: Date | null, endDate: Date | null) {
+    const requested: Prisma.DateTimeFilter = {};
+    if (startDate && !isNaN(startDate.getTime())) requested.gte = startDate;
+    if (endDate && !isNaN(endDate.getTime())) requested.lte = endDate;
+
+    return prisma.asset_loans.findMany({
+        where: {
+            status: { in: [...HANDED_OVER_LOAN_STATUSES] },
+            ...(Object.keys(requested).length > 0 ? { requested_at: requested } : {}),
+        },
+        select: {
+            assets: { select: { research_centers: { select: { short_code: true, location: true } } } },
+            destination_center: { select: { short_code: true } },
+        },
     });
 }
 

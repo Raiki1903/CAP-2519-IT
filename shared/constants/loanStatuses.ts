@@ -1,7 +1,7 @@
 /**
  * The loan statuses (asset_loans.status), their labels, and the groups the rules are built from.
- * Layer: shared. Imported by the server (lifecycle guard, derive helpers, loans service) and web/. Imports nothing.
- * Used by: the loan workflow, holder and location, overdue, and clearance.
+ * Layer: shared. Imported by the server (lifecycle guard, derive helpers, loans service, analytics service) and web/. Imports nothing.
+ * Used by: the loan workflow, holder and location, overdue, clearance, and the Director's loan flow.
  */
 
 /** Every value of asset_loans.status. Must match the `asset_loans_status` enum in schema.prisma. */
@@ -47,3 +47,9 @@ export const UNCLEARED_LOAN_STATUSES: readonly LoanStatus[] = ["PENDING_RELEASE"
 
 /** A final loan status. A loan in one of these has `closed_at` set. */
 export const FINAL_LOAN_STATUSES: readonly LoanStatus[] = ["DECLINED", "CANCELLED", "RETURNED", "ENDED_BY_MAINTENANCE", "ENDED_BY_LOSS"];
+
+/**
+ * The loans that were handed over: held now, or closed after a release. Stored as statuses rather than read from
+ * released_at, so loans from before the release step (which have no released_at) count too.
+ */
+export const HANDED_OVER_LOAN_STATUSES: readonly LoanStatus[] = [...HELD_LOAN_STATUSES, "RETURNED", "ENDED_BY_MAINTENANCE", "ENDED_BY_LOSS"];
