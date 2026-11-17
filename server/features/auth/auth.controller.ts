@@ -9,7 +9,7 @@
 import type { Request, Response } from 'express';
 import * as authService from './auth.service';
 import { clearedSessionCookieHeader, readCookie, SESSION_COOKIE_NAME, sessionCookieHeader } from '../../shared/services/session';
-import { checkAccountUpdate, checkLogin, readSignUpRequest } from './auth.validation';
+import { checkAccountUpdate, checkLogin, readChangePassword, readSignUpRequest } from './auth.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
 // Each handler reads req.body in one destructuring statement. A request with no JSON body (Express 5 leaves
@@ -93,4 +93,19 @@ export async function updateAccount(req: Request, res: Response): Promise<void> 
         success: true,
         user
     });
+}
+
+/**
+ * Handles PUT /api/auth/password: changes the session user's own password.
+ * Answers `{ success: true }`, or the AppError's status and message (400 wrong current password,
+ * new password identical to current, or new password out of length bounds), or 500.
+ */
+export async function changePassword(req: Request, res: Response): Promise<void> {
+    const { currentPassword, newPassword } = readChangePassword(req.body);
+    const userId = sessionUserOf(req).userId;
+
+    await authService.changeOwnPassword(userId, currentPassword, newPassword);
+
+    console.log(`User ${userId} changed their password`);
+    res.json({ success: true });
 }

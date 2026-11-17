@@ -323,3 +323,31 @@ export async function updateAccount(userId: number, data: AccountUpdateInput): P
         }
     };
 }
+
+/**
+ * Changes the session user's own password after verifying their current password.
+ *
+ * @param userId the acting user id
+ * @param currentPassword the plain current password as typed
+ * @param newPassword the validated plain new password
+ * @throws AppError 404 if the user cannot be found
+ * @throws AppError 400 if the current password is wrong or the new password equals the current password
+ */
+export async function changeOwnPassword(userId: number, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await authRepository.findUserById(userId);
+    if (!user) {
+        throw new AppError(404, "No account has this id.");
+    }
+
+    const matches = await verifyPassword(currentPassword, user.password);
+    if (!matches) {
+        throw new AppError(400, "Your current password is not right.");
+    }
+
+    if (currentPassword === newPassword) {
+        throw new AppError(400, "Choose a new password that is different from the current one.");
+    }
+
+    const newHash = await hashPassword(newPassword);
+    await authRepository.changePassword(userId, newHash);
+}
