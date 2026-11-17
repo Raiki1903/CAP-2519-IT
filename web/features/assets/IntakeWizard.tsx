@@ -1,14 +1,13 @@
 /**
  * Intake wizard: the three-step form Staff use to register a newly acquired asset.
  * Layer: feature component. Called by pages/staff/RegisterPage.tsx.
- * Calls: api/assets.api.ts createAssetRaw() and readResult(), features/lookups/useLookups.ts (labs, funding sources, and projects), state/serverData.tsx syncFromDb().
+ * Calls: api/assets.api.ts createAssetRaw() and readResult(), features/lookups/useLookups.ts (labs, categories, funding sources, and projects), state/serverData.tsx syncFromDb().
  * The registration sends the contract body (centerId, fundingSourceId, projectId, and the Initial inspection).
  * Used by: Staff asset registration.
  */
 import { useEffect, useState } from "react";
 import { useServerData } from "@web/state/serverData";
 import * as assetsApi from "@web/api/assets.api";
-import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { ASSET_CONDITIONS, ASSET_CONDITION_LABELS, SUGGESTED_HEALTH_SCORE, type AssetCondition } from "@shared/enums/assetCondition";
 import type { AssetCreateInput } from "@shared/types/assets";
 import { Button } from "@web/components/ui/button";
@@ -92,10 +91,13 @@ export function IntakeWizard() {
 
   const { lookups, failed: lookupsFailed } = useFormLookups();
   const labs = lookups?.labs ?? [];
+  const categories = lookups?.categories ?? [];
   // The home lab starts on the first lab in the list: there is no default lab.
   const startingLab = labs.length > 0 ? String(labs[0].centerId) : "";
   useEffect(() => {
     if (labs.length > 0 && !labs.some(l => String(l.centerId) === form.centerId)) setForm(f => ({ ...f, centerId: startingLab }));
+    // The category starts on CPU while it is offered, otherwise on the first active category.
+    if (categories.length > 0 && !categories.some(c => c.key === form.category)) setForm(f => ({ ...f, category: categories[0].key }));
   }, [lookups]);
 
   const handleSubmit = async () => {
@@ -152,8 +154,8 @@ export function IntakeWizard() {
                 <Label className="text-xs font-bold text-foreground">Asset Category</Label>
                 <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  {ASSET_CATEGORIES.map(t => (
-                    <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+                  {categories.map(c => (
+                    <option key={c.key} value={c.key}>{c.label}</option>
                   ))}
                 </select>
               </div>
