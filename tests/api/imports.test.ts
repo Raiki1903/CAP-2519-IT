@@ -700,6 +700,26 @@ describe("Lookup failures: assets check", () => {
     expect(res.body.success).toBe(true);
   });
 
+  it("takes a category added on the Reference Data page, by its label in any letter case, and refuses it once inactive", async () => {
+    const added = await asTsg.post("/api/reference/categories", { label: "Test Spectrometer", usefulLifeYears: 7 });
+    expect(added.status).toBe(201);
+
+    for (const category of ["test spectrometer", "TEST_SPECTROMETER", "Test-Spectrometer"]) {
+      const res = await asTsg.post("/api/imports/assets/check", { csv: assetCsv({ category }) });
+      expect(res.body.success, category).toBe(true);
+    }
+
+    const saved = await asTsg.post("/api/imports/assets", { csv: assetCsv({ category: "Test Spectrometer", name: "Test Imported Spectrometer" }) });
+    expect(saved.status).toBe(201);
+    const asset = await db.assets.findFirst({ where: { name: "Test Imported Spectrometer" } });
+    expect(asset?.category).toBe("TEST_SPECTROMETER");
+
+    await asTsg.put("/api/reference/categories/TEST_SPECTROMETER", { isActive: false });
+    const refused = await asTsg.post("/api/imports/assets/check", { csv: assetCsv({ category: "Test Spectrometer" }) });
+    expect(refused.body.success).toBe(false);
+    expect(refused.body.errors).toContainEqual(expect.objectContaining({ column: "category", message: "Unknown category: Test Spectrometer." }));
+  });
+
   it("accepts a condition case-insensitively", async () => {
     const csv = assetCsv({ condition: "operational" });
     const res = await asTsg.post("/api/imports/assets/check", { csv });

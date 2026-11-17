@@ -33,7 +33,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<void> {
   });
 
   await prisma.asset_categories.createMany({
-    data: LOOKUPS.categories.map((c) => ({ code: c.code, label: c.label, useful_life_years: 5, is_active: true })),
+    data: LOOKUPS.categories.map((c) => ({ code: c.code, label: c.label, useful_life_years: LOOKUPS.categoryUsefulLifeYears, is_active: true })),
   });
   await prisma.funding_sources.createMany({
     data: LOOKUPS.fundingSources.map((f) => ({ funding_source_id: f.fundingSourceId, name: f.name })),

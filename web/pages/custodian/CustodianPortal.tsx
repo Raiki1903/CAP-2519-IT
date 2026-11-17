@@ -33,7 +33,6 @@ import {
 import { Separator } from "@web/components/ui/separator";
 import { cn } from "@web/components/ui/utils";
 import { compressImage, ASSET_PHOTO_MAX_SIDE, PHOTO_UNREADABLE_MESSAGE } from "@web/features/images/compressImage";
-import { ASSET_CATEGORIES } from "@shared/enums/assetCategory";
 import { SUGGESTED_HEALTH_SCORE, type AssetCondition } from "@shared/enums/assetCondition";
 
 const MINT = "#10B981";
@@ -497,7 +496,7 @@ export function CustodianPortal({ activeTab }: { activeTab: string }) {
             <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="All">All Categories</SelectItem>
-              {ASSET_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c.replace(/_/g, " ")}</SelectItem>)}
+              {(lookups?.categories ?? []).map(c => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterLoc} onValueChange={setFilterLoc}>

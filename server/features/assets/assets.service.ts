@@ -4,7 +4,8 @@
  * Layer: service. Called by assets.controller.ts and features/inspections (the routine queue). Calls assets.repository.ts,
  * shared/services/lifecycleGuard.ts, shared/services/assetState.ts, shared/middleware/permissions.ts (hasAccessRole),
  * and, inside the step's transaction, shared/services/inspections.ts (the inspection writer) and
- * shared/services/assetStatus.ts, and @shared (enums, labels, and the flag rules).
+ * shared/services/assetStatus.ts, features/reference/reference.service.ts (the categories), and @shared (enums, labels,
+ * and the flag rules).
  * Used by: every role's inventory view and the bell, the asset detail modal, Staff asset registration, editing, and
  * deletion, TSG's Missing and Found, and the benchmark data (no screen yet).
  */
@@ -23,7 +24,6 @@ import type {
 } from '@shared/types/assets';
 import type { SessionIdentity } from '@shared/types/auth';
 import { ASSET_CONDITION_LABELS } from '@shared/enums/assetCondition';
-import { ASSET_CATEGORY_LABELS, type AssetCategory } from '@shared/enums/assetCategory';
 import { ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
 import { CAMPUS_LABELS } from '@shared/constants/campuses';
 import { LOAN_STATUS_LABELS } from '@shared/constants/loanStatuses';
@@ -32,7 +32,7 @@ import { RETIREMENT_PATHWAY_LABELS, RETIREMENT_STATUS_LABELS } from '@shared/con
 import { INSPECTION_TYPE_LABELS } from '@shared/constants/inspectionTypes';
 import { ACTIVITY_EVENT_LABELS } from '@shared/constants/activityEvents';
 import { isHealthScoreFlagged, isMetricFlagged } from '@shared/constants/metricFlagRules';
-import { USEFUL_LIFE_YEARS, presentValue } from '@shared/constants/usefulLife';
+import { presentValue } from '@shared/constants/usefulLife';
 import * as assetsRepository from './assets.repository';
 import { AppError } from '../../shared/errors/AppError';
 import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
@@ -41,6 +41,7 @@ import { writeInspection } from '../../shared/services/inspections';
 import { setAssetStatus } from '../../shared/services/assetStatus';
 import { nextTagOf } from '../../shared/services/assetTags';
 import { hasAccessRole } from '../../shared/middleware/permissions';
+import { categoryMap, categoryOf, checkAssetCategory } from '../reference/reference.service';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -81,7 +82,7 @@ function shownName(person: PersonRef | null): string | undefined {
  * @returns one AssetListItem per matching asset, by asset id
  */
 export async function listAssets(viewer: SessionIdentity, filters: AssetListFilters = {}): Promise<AssetListItem[]> {
-    const dbAssets = await assetsRepository.findForList(filters);
+    const [dbAssets, categories] = await Promise.all([assetsRepository.findForList(filters), categoryMap()]);
     const [states, inspections, retirements] = await assetsRepository.findListExtras(dbAssets);
     const today = serverToday();
 
@@ -119,7 +120,8 @@ export async function listAssets(viewer: SessionIdentity, filters: AssetListFilt
 
         const remarksText = state.condition?.remarks || null;
         const acquisitionValue = asset.acquisition_value === null ? null : Number(asset.acquisition_value);
-        const usefulLifeYears = USEFUL_LIFE_YEARS[asset.category as AssetCategory];
+        const category = categoryOf(categories, asset.category);
+        const usefulLifeYears = category.usefulLifeYears;
         const procurementDateOnly = dateOnly(asset.procurement_date);
 
         const reports = inspections.filter(r => r.asset_id === asset.asset_id).map(r => ({
@@ -144,7 +146,7 @@ export async function listAssets(viewer: SessionIdentity, filters: AssetListFilt
             serialNumber: asset.serial_number,
             manufacturer: asset.manufacturer,
             category: asset.category,
-            categoryLabel: ASSET_CATEGORY_LABELS[asset.category as AssetCategory],
+            categoryLabel: category.label,
             status: asset.status,
             statusLabel: ASSET_STATUS_LABELS[asset.status],
             homeLab: { centerId: center.center_id, code: center.short_code, name: center.name, campus: center.location, campusLabel: CAMPUS_LABELS[center.location] },
@@ -289,11 +291,15 @@ const MASTER_DATA_COLUMNS: Record<keyof AssetMasterData, string> = {
 };
 
 /**
- * Checks that the lab, project, and funding source a body names exist.
+ * Checks that the category, lab, project, and funding source a body names exist. A new asset needs an active
+ * category; an edit may keep the asset's current one even when it is inactive.
  *
+ * @param data the checked body
+ * @param currentCategory the asset's category before an edit, or undefined for a new asset
  * @throws AppError 400 naming the first one that does not
  */
-async function checkReferences(data: AssetMasterData): Promise<void> {
+async function checkReferences(data: AssetMasterData, currentCategory?: string): Promise<void> {
+    if (data.category !== undefined) await checkAssetCategory(data.category, currentCategory);
     const [lab, project, funding] = await assetsRepository.findReferences(data.centerId ?? null, data.projectId ?? null, data.fundingSourceId ?? null);
     if (data.centerId !== undefined && !lab) throw new AppError(400, "Pick a home lab from the list.");
     if (data.projectId && !project) throw new AppError(400, "Pick a project from the list.");
@@ -314,7 +320,7 @@ async function listedAsset(viewer: SessionIdentity, assetId: number): Promise<As
  * @param data the checked body
  * @param registrar the session user, TSG (the route checks it)
  * @returns the new asset, as the list shows it, with its tag
- * @throws AppError 400 if the home lab, project, or funding source does not exist
+ * @throws AppError 400 if the category, home lab, project, or funding source does not exist, or the category is inactive
  */
 export async function registerAsset(data: AssetCreateInput, registrar: SessionIdentity): Promise<AssetListItem> {
     await checkReferences(data);
@@ -349,7 +355,7 @@ export async function registerAsset(data: AssetCreateInput, registrar: SessionId
  * @returns the asset, as the list shows it
  * @throws AppError 404 if no asset has this tag
  * @throws AppError 409 if the asset is Pending Retirement or Retired
- * @throws AppError 400 if the home lab, project, or funding source does not exist
+ * @throws AppError 400 if the category, home lab, project, or funding source does not exist, or a new category is inactive
  */
 export async function updateAsset(assetTag: string, data: AssetUpdateInput, editor: SessionIdentity): Promise<AssetListItem> {
     const existing = await assetsRepository.findByTag(assetTag);
@@ -357,7 +363,7 @@ export async function updateAsset(assetTag: string, data: AssetUpdateInput, edit
         throw new AppError(404, `No asset found with tag ${assetTag}.`);
     }
     assertActionAllowed(existing, "EDIT_MASTER_DATA");
-    await checkReferences(data);
+    await checkReferences(data, existing.category);
 
     const columns = assetColumns(data);
     const changed = Object.entries(columns)

@@ -19,10 +19,13 @@ export interface LookupLab {
   headUserId: number | null;
 }
 
-/** One asset category with its label. */
+/** One asset category (a row of asset_categories) with its label and useful life. */
 export interface LookupCategory {
+  /** The category code, the value assets.category holds. */
   key: string;
   label: string;
+  /** Years, for the present value by straight-line depreciation. */
+  usefulLifeYears: number;
 }
 
 /** One funding source (a row of funding_sources). */
@@ -63,7 +66,7 @@ export interface LookupProject {
 export interface FormLookups {
   /** Every research center, by short code. */
   labs: LookupLab[];
-  /** ASSET_CATEGORIES with their labels. */
+  /** The active categories, by label. */
   categories: LookupCategory[];
   /** Every funding source, by name. */
   fundingSources: LookupFundingSource[];

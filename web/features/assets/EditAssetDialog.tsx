@@ -84,6 +84,12 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
   const [error, setError] = useState<string | null>(null);
 
   const { lookups, failed: lookupsFailed } = useFormLookups();
+  // Lookups offer the active categories only. An asset whose category was deactivated keeps it as an option, so the
+  // list shows it and a save that does not touch it keeps it.
+  const categories = lookups?.categories ?? [];
+  const categoryOptions = start.category && !categories.some(c => c.key === start.category)
+    ? [...categories, { key: start.category, label: asset?.categoryLabel ?? start.category }]
+    : categories;
   const set = (field: keyof EditForm) => (e: { target: { value: string } }) => setForm({ ...form, [field]: e.target.value });
 
   const handleSave = async () => {
@@ -139,7 +145,7 @@ export function EditAssetDialog({ asset, onClose, onSave }: { asset: any; onClos
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs font-bold text-foreground">Category</Label>
             <select value={form.category} onChange={set("category")} className={SELECT_CLASS}>
-              {(lookups?.categories ?? []).map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              {categoryOptions.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1.5">

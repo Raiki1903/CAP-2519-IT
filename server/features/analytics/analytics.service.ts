@@ -1,6 +1,7 @@
 /**
  * Analytics service: turns the rows the repository reads into the figures each analytics view draws.
- * Layer: service. Called by analytics.controller.ts. Calls analytics.repository.ts and shared/services/assetState.ts (overdue).
+ * Layer: service. Called by analytics.controller.ts. Calls analytics.repository.ts, shared/services/assetState.ts (overdue),
+ * and features/reference/reference.service.ts (the category filter).
  * Used by: the Director, Lab Head, and Staff analytics views (the idle and loan recommender figures have no live caller).
  * An asset's status is assets.status and its lab and campus its home lab (assets.center_id). Every status count uses all
  * six statuses, named by the shared constants. A figure with no data behind it is empty or left out, never invented.
@@ -25,6 +26,7 @@ import type { DirectorFilters, LabHeadFilters } from './analytics.validation';
 import type { SessionIdentity } from '@shared/types/auth';
 import { AppError } from '../../shared/errors/AppError';
 import { isOverdue, serverToday } from '../../shared/services/assetState';
+import { checkCategoryFilter } from '../reference/reference.service';
 
 /** A count of zero for each of the six asset statuses. */
 function emptyStatusCounts(): StatusCounts {
@@ -136,10 +138,12 @@ export async function idleFrequency(lab: string | undefined): Promise<IdleFreque
 /**
  * Lists every Available asset as a loan suggestion, with its days idle (at least 1) and its owning lab.
  *
- * @param targetCategory an assets_category value, or undefined for every category
+ * @param targetCategory a category code, or undefined for every category
+ * @throws AppError 400 if targetCategory is not a category
  */
 // TODO(M-09): the asking lab's own assets are not left out. With the insights endpoint, analytics batch.
 export async function loanRecommendations(targetCategory: string | undefined): Promise<LoanRecommendationItem[]> {
+    if (targetCategory) await checkCategoryFilter(targetCategory);
     const available = await analyticsRepository.findAvailableAssetsForRecommender(targetCategory);
 
     const now = new Date().getTime();

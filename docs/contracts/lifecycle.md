@@ -31,6 +31,7 @@ Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges
 | Home room (for example G406) | `assets.home_room`, optional |
 | Owning project | `assets.project_id`, optional |
 | Funding | `assets.funding_source_id` (a row of `funding_sources`) and `assets.acquisition_value` |
+| Category, with its label, useful life, and whether new assets may use it | `assets.category` holds the code (for example `MONITOR`), a foreign key to `asset_categories` (`code`, `label`, `useful_life_years`, `is_active`). Since #194 the list lives only there: TSG and the Secretary keep it on the Reference Data page (section 7.11), and no code holds a list of categories |
 | Accessories, ITS property tag, TSG tag | `assets.accessories`, `assets.its_property_tag`, `assets.tsg_tag` |
 | Each loan, maintenance ticket, retirement and inspection | Its own row in `asset_loans`, `asset_maintenance`, `asset_retirements`, `asset_inspections` |
 | Remarks on an asset (author, time, text; who deleted it and when) | `asset_remarks`. A delete sets `deleted_by_id` and `deleted_at` and keeps the row |
@@ -48,7 +49,7 @@ Every endpoint below is marked **live (Batch 1)** (it exists when Batch 1 merges
 | Overdue | The asset has an open loan whose return-by date has passed. The status stays On Loan; overdue is a separate flag |
 | Cleared | The person has no loan in Pending Release, On Loan or Return Requested |
 | History of an asset | The asset's loan, inspection, maintenance and retirement rows, plus its `activity_log` rows, in time order |
-| Present value | Straight-line depreciation: `acquisitionValue * (1 - wholeYears / usefulLifeYears)`, never below 0, rounded to 2 decimals. `wholeYears` is full years from `procurementDate` to `serverToday()` (a future date counts as 0). Null when `acquisitionValue` or `procurementDate` is missing (`shared/constants/usefulLife.ts`) |
+| Present value | Straight-line depreciation: `acquisitionValue * (1 - wholeYears / usefulLifeYears)`, never below 0, rounded to 2 decimals. `wholeYears` is full years from `procurementDate` to `serverToday()` (a future date counts as 0). `usefulLifeYears` is the category's `asset_categories.useful_life_years`. Null when `acquisitionValue` or `procurementDate` is missing (`shared/constants/usefulLife.ts`) |
 
 ### The fields screens receive
 
@@ -68,7 +69,7 @@ Every asset in an answer carries these, worked out on the server:
 | `isOverdue` | boolean | `false` | |
 | `openLoan` | object or null | `{ "loanId": 41, "status": "ON_LOAN", "returnBy": "2026-11-20" }` | The loan in Pending Approval, Pending Release, On Loan or Return Requested, if any |
 | `presentValue` | number or null | `8000` | Straight-line depreciation of `acquisitionValue` (see "What is worked out"); null when `acquisitionValue` or `procurementDate` is missing |
-| `usefulLifeYears` | number | `5` | The asset's category's useful life, `shared/constants/usefulLife.ts` |
+| `usefulLifeYears` | number | `5` | The asset's category's useful life, `asset_categories.useful_life_years` |
 
 `GET /api/assets` sends the fields above. Since Batch 1, `status` and `condition` hold the stored keys (before, they held display text and a 0 to 100 score). Next to them it still sends the older fields today's screens read: `id` (the tag), `serial`, `funding` (the name, or "Unspecified"), `cost`, `procured`, `warranty`, `location` (the campus label), `lab` (the home lab's code), `assetCondition`, `custodian`, `custodianId`, `custodianHidden`, `borrowedOn`, `dueDate`, `daysLeft`, `disposalId`, `disposalDetails`, `image`, `image_url`, `description`, `remarks`, and `asset_reports`. New screens read only the fields above.
 
@@ -373,7 +374,7 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 |---|---|---|---|---|---|---|
 | Log in | `POST /api/auth/login` | anyone | `{ email, password }` | `{ role, user: SessionUser }` | 401 wrong email or password; 403 account Pending, Rejected or Inactive (a message for each status, section 4); 429 "Too many failed logins. Try again in 15 minutes." | live (Batch 1); status messages, login log and 429 live (Batch 2b) |
 | Who am I | `GET /api/auth/me` | logged in | | `{ user: SessionUser }` | 404 account gone | live (Batch 1) |
-| Form option lists | `GET /api/lookups` | anyone | | `{ labs: [{ centerId, code, name, campus, campusLabel, headUserId }], categories: [{ key, label }], fundingSources: [{ fundingSourceId, name }], issueTypes: [{ issueTypeId, key, name, suggestedAction }], metricsByCategory: { "<CATEGORY>": [{ metricId, metricKey, name, unit, higherIsBetter }] }, projects: [{ projectId, code, name, centerId }] }`. A category with no metrics is left out of `metricsByCategory` | | live (Batch 1) |
+| Form option lists | `GET /api/lookups` | anyone | | `{ labs: [{ centerId, code, name, campus, campusLabel, headUserId }], categories: [{ key, label, usefulLifeYears }], fundingSources: [{ fundingSourceId, name }], issueTypes: [{ issueTypeId, key, name, suggestedAction }], metricsByCategory: { "<CATEGORY>": [{ metricId, metricKey, name, unit, higherIsBetter }] }, projects: [{ projectId, code, name, centerId }] }`. `categories` are the active rows of `asset_categories`, by label (`key` is the code). A category with no metrics is left out of `metricsByCategory` | | live (Batch 1); categories from the table with `usefulLifeYears` live (#194) |
 
 **The failed-login limit (Batch 2b).** The key is the lowercased email plus the client's address. A failed login (wrong password, or an email with no account) counts toward it, and the 5th within 15 minutes blocks the key for 15 minutes. The block is checked before the password is verified, so a blocked key costs no hashing, and the 429 is the same whether or not the email has an account. A successful login clears the key. A 403 for a status is not a failed login: it neither counts nor clears. The count is kept in the server's memory, so a restart clears it. Behind nginx the address is the forwarded one (the server trusts only a proxy on the same machine).
 
@@ -385,8 +386,8 @@ An inspection carries: `condition` (Perfect, Operational, Minor Drift, Degraded,
 |---|---|---|---|---|---|---|
 | Asset list and search | `GET /api/assets` | logged in | `?q=&status=&centerId=` optional. `q` matches part of the tag, serial number or name, in any letter case (the fallback when a QR code will not scan, CAP1DEF 1) | `{ assets: Asset[] }` | | live (Batch 1) |
 | One asset's history | `GET /api/assets/:assetTag/history` | logged in | | `{ events: [{ at, kind, label, actor, details, loanId?, maintenanceId?, retirementId?, inspectionId? }] }`, oldest first | 404 | live (Batch 1) |
-| Register an asset | `POST /api/assets` | TSG | `{ name, serialNumber?, manufacturer?, category, centerId, homeRoom?, projectId?, fundingSourceId?, acquisitionValue?, procurementDate?, warrantyExpiry?, accessories?, itsPropertyTag?, tsgTag?, imageUrl?, initialInspection: InspectionInput }` | `{ asset: Asset }` with the new tag `<lab>-<next number>` | 400; 403 | live (Batch 1) |
-| Edit master data | `PUT /api/assets/:assetTag` | TSG, Secretary | any of the register fields except `initialInspection` | `{ asset: Asset }` | 400 the body has `status`, `holder`, `location` or `condition`; 403; 404; 409 Pending Retirement or Retired | live (Batch 1) |
+| Register an asset | `POST /api/assets` | TSG | `{ name, serialNumber?, manufacturer?, category, centerId, homeRoom?, projectId?, fundingSourceId?, acquisitionValue?, procurementDate?, warrantyExpiry?, accessories?, itsPropertyTag?, tsgTag?, imageUrl?, initialInspection: InspectionInput }` | `{ asset: Asset }` with the new tag `<lab>-<next number>` | 400 (also "Pick a category from the list." for an unknown category, and "This category is no longer in use. Pick another from the list." for an inactive one); 403 | live (Batch 1) |
+| Edit master data | `PUT /api/assets/:assetTag` | TSG, Secretary | any of the register fields except `initialInspection` | `{ asset: Asset }` | 400 the body has `status`, `holder`, `location` or `condition`, or a change to an unknown or inactive category (keeping the asset's own inactive category is allowed); 403; 404; 409 Pending Retirement or Retired | live (Batch 1) |
 | Delete a mistaken registration | `DELETE /api/assets/:assetTag` | TSG | | `{ deleted: "<tag>" }` | 403; 404; 409 the asset has a loan, maintenance, retirement, an inspection besides its initial one, or a remark (a deleted one too) | live (Batch 1; remarks #169) |
 | An asset's remarks | `GET /api/assets/:assetTag/remarks` | logged in | | `{ remarks: Remark[], canAdd }`, newest first, never a deleted one; `canAdd` says whether the session user may add one | 404 | live (#169) |
 | Add a remark | `POST /api/assets/:assetTag/remarks` | TSG, Director, Secretary, the Head of the asset's home lab | `{ text }`, trimmed, required, at most 500 characters. Any asset status; the asset does not change | `{ remark: Remark }` (201) | 400; 403 (a Researcher, the IT Admin, or the Head of another lab); 404 | live (#169) |
@@ -549,6 +550,27 @@ Worked out on each call from loans, tickets, disposals and inspections; there is
 
 People are matched by user id, never by display name. This replaced the notification bell's name matching (#131): the bell's loan, return, due-soon and overdue cards come only from this endpoint. A Researcher's repair cards are the `MAINTENANCE_OPEN` kind (Batch 5).
 
+### 7.11 Reference data
+
+The Reference Data page (`/staff/reference-data`, TSG and the Secretary) keeps the asset categories, the labs, and the funding sources. Every route needs an Active account of TSG or the Secretary: anyone else gets 403, and no session 401.
+
+| Meaning | Method and path | Who | Body or query | Answer | Errors | Mark |
+|---|---|---|---|---|---|---|
+| Categories | `GET /api/reference/categories` | TSG, Secretary | | `{ categories: [{ code, label, usefulLifeYears, isActive, assetCount }] }`, inactive ones too, by label | 403 | live (#194) |
+| Add a category | `POST /api/reference/categories` | TSG, Secretary | `{ label, usefulLifeYears }`: a label of 1 to 100 characters, a whole number of years from 1 to 50. The code is made from the label: upper case, spaces to `_`, letters and digits only, at most 30 | 201 `{ category }`, active | 400; 409 the label or the code exists, in any letter case | live (#194) |
+| Change a category | `PUT /api/reference/categories/:code` | TSG, Secretary | `{ label?, usefulLifeYears?, isActive? }`, at least one. The code never changes | `{ category }` | 400 a wrong value, nothing sent, or a `code` in the body; 404; 409 another category has the label | live (#194) |
+| Labs | `GET /api/reference/labs` | TSG, Secretary | | `{ labs: [{ centerId, shortCode, name, campus, campusLabel, assetCount }] }`, by short code | 403 | live (#194) |
+| Add a lab | `POST /api/reference/labs` | TSG, Secretary | `{ name, shortCode, campus }`: a name of 1 to 255 characters, a short code of 2 to 10 letters and digits, a campus of section 2 | 201 `{ lab }`, with no Head. Its first asset tag is `<shortCode>-0001` | 400; 409 the short code exists, in any letter case | live (#194) |
+| Change a lab | `PUT /api/reference/labs/:centerId` | TSG, Secretary | `{ name?, campus? }`, at least one | `{ lab }` | 400 a wrong value, nothing sent, or a `shortCode` in the body (asset tags start with it); 404 | live (#194) |
+| Funding sources | `GET /api/reference/funding-sources` | TSG, Secretary | | `{ fundingSources: [{ fundingSourceId, name, assetCount, projectCount }] }`, by name | 403 | live (#194) |
+| Add a funding source | `POST /api/reference/funding-sources` | TSG, Secretary | `{ name }`, 1 to 100 characters | 201 `{ fundingSource }` | 400; 409 the name exists, in any letter case | live (#194) |
+| Rename a funding source | `PUT /api/reference/funding-sources/:fundingSourceId` | TSG, Secretary | `{ name }` | `{ fundingSource }` | 400; 404; 409 another funding source has the name | live (#194) |
+
+- **One log row per change.** Each add or change writes one `REFERENCE_DATA_CHANGED` row in the same transaction, with plain `details`: "Category added: Oscilloscope", "Category changed: Oscilloscope (useful life 8)", "Lab added: NEWLAB", "Lab changed: NEWLAB (name ..., campus Laguna)", "Funding source added: X", "Funding source renamed: X to Y". A change that sends only the values already saved writes nothing and logs nothing.
+- **An inactive category** is left out of `GET /api/lookups`, so a new asset cannot use it. Assets that have it keep it, and an edit may keep it; a change to it answers 400.
+- **A useful life change** changes the present value of every asset in the category from the next request on. A completed retirement's `presentValueAtCompletion` is worked out with the useful life of today, not of the completion day.
+- Nothing is deleted on this page. A lab's Head is set on the IT Admin's Users page, Labs tab.
+
 ---
 
 ## 8. Lookups each form uses
@@ -557,15 +579,15 @@ All from `GET /api/lookups` (section 7.1), never a list kept in a page.
 
 | Form | Lists |
 |---|---|
-| Register Equipment, Edit Asset | `labs` (home lab), `categories`, `fundingSources`, `projects`, and `metricsByCategory` for the initial inspection |
+| Register Equipment, Edit Asset | `labs` (home lab), `categories`, `fundingSources`, `projects`, and `metricsByCategory` for the initial inspection. Edit Asset also offers the asset's own category when it is inactive |
 | Loan request | The destination lab picker lists **only the borrower's own labs**: the session's `labs` (`GET /api/auth/me`), which come from the person's lab memberships. `projects` for the optional project |
 | Report an issue | `issueTypes`, showing each one's `suggestedAction` |
 | Any inspection | Conditions with their suggested health score; `metricsByCategory` for the asset's category. Categories with no metrics use the health score only |
 | Retirement | Pathways (section 4) |
 | Sign-up, approve sign-up, change labs, change Head | `labs` |
-| Analytics and report filters | `labs` (with campus) |
+| Analytics and report filters | `labs` (with campus); `categories` for the category filters |
 
-Statuses, types, labels, page titles, flag rules, care guidelines and the health score suggestions are fixed lists in `shared/constants/`, added in Batch 1 (commit 5). Import them; do not copy them into a page.
+Statuses, types, labels, page titles, flag rules, care guidelines and the health score suggestions are fixed lists in `shared/constants/`, added in Batch 1 (commit 5). Import them; do not copy them into a page. The categories, labs, and funding sources are not fixed lists: they are rows the Reference Data page changes (section 7.11). After a save there, the page forgets the cached option lists (`forgetFormLookups()`), so the next form loads them again.
 
 Page titles: "Repair and Maintenance", "Asset Disposal", "Asset Loaning and Return", "Asset Information", "Reports and Analytics", "System Administration".
 

@@ -26,7 +26,7 @@ const localMorning = (day: string) => {
 };
 
 const asset = (overrides: Partial<RuleAsset> = {}): RuleAsset => ({
-  assetId: 1, tag: "TEST-0001", name: "Test Asset", category: "DEV_KIT", status: "AVAILABLE", labCode: "TEST",
+  assetId: 1, tag: "TEST-0001", name: "Test Asset", category: "DEV_KIT", categoryLabel: "Dev Kit", status: "AVAILABLE", labCode: "TEST",
   procurementDate: null, warrantyExpiry: null, ...overrides,
 });
 
@@ -181,10 +181,11 @@ describe("LIFE-04 due for a lifecycle review", () => {
 
   it("skips a Retired asset and reports the months, the limit and the purchase", () => {
     expect(lifecycleRule(asset({ status: "RETIRED", procurementDate: bought(70) }), AS_OF)).toBeNull();
-    const hit = lifecycleRule(asset({ category: "MONITOR", procurementDate: bought(70) }), AS_OF)!;
+    const hit = lifecycleRule(asset({ category: "MONITOR", categoryLabel: "Monitor", procurementDate: bought(70) }), AS_OF)!;
     expect(hit.vars).toEqual({ N: 70, L: 60 });
     expect(hit.view).toBe("strategic");
     expect(hit.evidence.map(e => e.label)).toEqual(["Purchased", "Category"]);
+    expect(hit.evidence[1].value).toBe("Monitor");
   });
 });
 

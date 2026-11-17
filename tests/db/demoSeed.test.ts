@@ -15,7 +15,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TSG_INSPECTION_TYPES } from "@shared/constants/inspectionTypes";
 import { HELD_LOAN_STATUSES } from "@shared/constants/loanStatuses";
 import { OPEN_MAINTENANCE_STATUSES } from "@shared/constants/maintenanceStatuses";
-import type { AssetCategory } from "@shared/enums/assetCategory";
 import { DEMO_ACCOUNTS } from "../../prisma/seedData";
 import {
   conditionDropRule, lifecycleRule, overdueLoanRule, repeatRepairsRule, warrantyRule, type InsightHit, type RuleAsset,
@@ -202,6 +201,7 @@ describe("prisma/seed.ts", () => {
       where: { status: { not: "RETIRED" } },
       include: {
         research_centers: { select: { short_code: true } },
+        asset_categories: { select: { label: true } },
         asset_loans: { where: { status: { in: [...HELD_LOAN_STATUSES] } } },
         asset_maintenance: { where: { status: { not: "CANCELLED" } } },
         asset_inspections: { where: { type: { in: [...TSG_INSPECTION_TYPES] } }, orderBy: [{ inspected_at: "desc" }, { inspection_id: "desc" }] },
@@ -212,7 +212,7 @@ describe("prisma/seed.ts", () => {
 
     for (const a of assets) {
       const asset: RuleAsset = {
-        assetId: a.asset_id, tag: a.asset_tag, name: a.name, category: a.category as AssetCategory, status: a.status,
+        assetId: a.asset_id, tag: a.asset_tag, name: a.name, category: a.category, categoryLabel: a.asset_categories.label, status: a.status,
         labCode: a.research_centers.short_code, procurementDate: a.procurement_date, warrantyExpiry: a.warranty_expiry,
       };
       add(warrantyRule(asset, asOf));

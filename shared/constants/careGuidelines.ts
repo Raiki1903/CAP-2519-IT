@@ -1,6 +1,7 @@
 /**
  * Short care guidelines per group of asset categories, shown with an asset's details and on the loan release.
  * Layer: shared. Imported by web/ (asset details, Accountability Form). Imports shared/enums/assetCategory.ts.
+ * A category no group lists, such as one added on the Reference Data page, has no care lines.
  * Used by: borrowers and TSG.
  */
 import type { AssetCategory } from '../enums/assetCategory';

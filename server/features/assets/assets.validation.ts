@@ -9,7 +9,6 @@
  */
 import type { AssetCreateInput, AssetListFilters, AssetMasterData, AssetUpdateInput, InspectionInput } from '@shared/types/assets';
 import { ASSET_STATUSES } from '@shared/enums/assetStatus';
-import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
 import { AppError } from '../../shared/errors/AppError';
 import { readDate, readId, readText } from '../../shared/validation/fields';
 import { readInspectionInput } from '../../shared/validation/inspectionInput';
@@ -21,13 +20,14 @@ export const NOT_MASTER_DATA_MESSAGE = "Edit Asset changes master data only. Sta
 const REFUSED_EDIT_FIELDS = ["status", "holder", "custodian", "custodianId", "location", "currentLocation", "condition", "assetCondition", "reportCondition"];
 
 /**
- * The stored category for any spelling ("Dev Kit" becomes DEV_KIT).
+ * The category code for any spelling ("Dev Kit" becomes DEV_KIT). Whether it is in asset_categories is the service's
+ * check (assets.service.ts checkReferences).
  *
- * @throws AppError 400 if it is not a category
+ * @throws AppError 400 if it is empty or longer than a code can be
  */
 function readCategory(value: unknown): string {
     const formatted = String(value ?? "").trim().toUpperCase().replace(/[\s-]+/g, '_');
-    if (!ASSET_CATEGORIES.includes(formatted)) throw new AppError(400, "Pick a category from the list.");
+    if (!formatted || formatted.length > 30) throw new AppError(400, "Pick a category from the list.");
     return formatted;
 }
 
