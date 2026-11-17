@@ -1,10 +1,10 @@
 /**
- * Auth API: login, logout, the current user's profile, and sign-up requests.
+ * Auth API: login, logout, the current user's profile, sign-up requests, and changing your own password.
  * Layer: api. Called by Login, Register, AccountDetailsPage, and state/session.tsx. Calls client.ts; types from @shared/types/auth.
  * Used by: login for every role, self-registration, account page.
  */
 import type { AccountUpdateInput, RegistrationRequestInput } from "@shared/types/auth";
-import { apiGet, apiGetRaw, apiPost, apiPostRaw, apiPut, type ApiResult } from "./client";
+import { apiGet, apiGetRaw, apiPost, apiPostRaw, apiPut, apiPutRaw, readResult, type ApiResult } from "./client";
 
 /**
  * Checks an email and password.
@@ -65,4 +65,16 @@ export function updateAccount(input: AccountUpdateInput): Promise<ApiResult> {
  */
 export function requestRegistrationRaw(registration: RegistrationRequestInput): Promise<Response> {
   return apiPostRaw("/api/auth/register-request", registration);
+}
+
+/**
+ * Changes the signed-in user's own password. The user's id is read from the session, not sent.
+ *
+ * @param currentPassword the password the user currently knows
+ * @param newPassword the replacement password
+ * @returns `success`; or `error` with the server's sentence
+ * @throws if the server cannot be reached
+ */
+export async function changeOwnPassword(currentPassword: string, newPassword: string): Promise<ApiResult> {
+  return readResult(await apiPutRaw("/api/auth/password", { currentPassword, newPassword }), "Could not change your password. Try again.");
 }

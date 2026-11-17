@@ -1,5 +1,6 @@
 /**
- * Account screen: the signed-in user's name, lab, and profile picture, with a form to change them.
+ * Account screen: the signed-in user's name, lab, and profile picture, with a form to change them, and a card to
+ * change their own password.
  * Layer: page. Called by app/routes.tsx at /<role>/account, for every role.
  * Calls: api/auth.api.ts getMe(), state/session.tsx updateProfile(). Support tickets have their own page
  * (pages/shared/SupportTicketsPage.tsx).
@@ -13,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/car
 import { Label } from "@web/components/ui/label";
 import { Input } from "@web/components/ui/input";
 import { Button } from "@web/components/ui/button";
-import { User, Shield, Lock, Camera, Upload, Check, ChevronLeft } from "lucide-react";
+import { User, Shield, Lock, Camera, Upload, Check, ChevronLeft, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router";
 
 const AVATAR_PRESETS = [
@@ -50,6 +51,17 @@ export function AccountDetailsPage() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+
+  // Password-change card state.
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
 
   // Fetch live user credentials directly from MySQL Database in Prisma Studio
   useEffect(() => {
@@ -131,6 +143,30 @@ export function AccountDetailsPage() {
   };
 
   const getRoleLabel = () => (role ? sessionRoleLabel(role, currentUser?.staffUnit) : "User");
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPw || newPw.length < 8 || newPw !== confirmPw) return;
+    setPwSaving(true);
+    setPwSuccess(false);
+    setPwError(null);
+    try {
+      const data = await authApi.changeOwnPassword(currentPw, newPw);
+      if (!data.success) {
+        setPwError(data.error ?? "Could not change your password. Try again.");
+        return;
+      }
+      setPwSuccess(true);
+      setCurrentPw("");
+      setNewPw("");
+      setConfirmPw("");
+      setTimeout(() => setPwSuccess(false), 4000);
+    } catch {
+      setPwError("Can't reach the server right now. Try again in a moment.");
+    } finally {
+      setPwSaving(false);
+    }
+  };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -243,64 +279,6 @@ export function AccountDetailsPage() {
           </CardContent>
         </Card>
 
-        {/* Locked Administrative settings */}
-        <Card className="border border-slate-200 shadow-sm bg-slate-50/50 overflow-hidden">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-              <Shield size={16} className="text-slate-400" />
-              Administrative Bounds &amp; Security Roles
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-slate-600">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Role</Label>
-                <div className="relative">
-                  <Input
-                    value={getRoleLabel()}
-                    disabled
-                    className="h-9 text-xs bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed pr-8"
-                  />
-                  <Lock size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">ID Number</Label>
-                <div className="relative">
-                  <Input
-                    value={dbUser?.idNumber || currentUser?.idNumber || "12345678"}
-                    disabled
-                    className="h-9 text-xs bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed pr-8"
-                  />
-                  <Lock size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                </div>
-              </div>
-
-              {showsLab && (
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Lab</Label>
-                  <div className="relative">
-                    <Input
-                      value={labsText(dbUser?.labs ?? currentUser?.labs)}
-                      disabled
-                      className="h-9 text-xs bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed pr-8"
-                    />
-                    <Lock size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-lg bg-slate-100 border border-slate-200 p-3 text-slate-500 text-[10.5px] leading-relaxed flex items-start gap-2 mt-2">
-              <Shield size={14} className="text-slate-500 flex-shrink-0 mt-0.5" />
-              <p>
-                You cannot change your role, user type, or ID number{showsLab ? ", or your lab" : ""} here. Ask the AdRIC Director if one of them is wrong.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
         {success && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-800 flex items-center gap-2 animate-fadeIn">
             <Check size={14} className="text-emerald-600" />
@@ -327,6 +305,170 @@ export function AccountDetailsPage() {
           </Button>
         </div>
       </form>
+
+      {/* Change Password */}
+      <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden">
+        <div className="h-1.5 bg-[#005A36]" />
+        <CardHeader className="pb-4">
+          <CardTitle className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+            <Lock size={16} className="text-[#005A36]" />
+            Change Password
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handlePasswordChange} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-current" className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">Current Password</Label>
+              <div className="relative">
+                <Input
+                  id="cp-current"
+                  type={showCurrent ? "text" : "password"}
+                  value={currentPw}
+                  onChange={e => setCurrentPw(e.target.value)}
+                  placeholder="Your current password"
+                  className="h-9 text-xs border-slate-200 focus-visible:ring-[#005A36] focus-visible:border-[#005A36] pr-9"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrent(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  tabIndex={-1}
+                  aria-label={showCurrent ? "Hide current password" : "Show current password"}
+                >
+                  {showCurrent ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-new" className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">New Password</Label>
+              <div className="relative">
+                <Input
+                  id="cp-new"
+                  type={showNew ? "text" : "password"}
+                  value={newPw}
+                  onChange={e => setNewPw(e.target.value)}
+                  placeholder="At least 8 characters"
+                  className="h-9 text-xs border-slate-200 focus-visible:ring-[#005A36] focus-visible:border-[#005A36] pr-9"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  tabIndex={-1}
+                  aria-label={showNew ? "Hide new password" : "Show new password"}
+                >
+                  {showNew ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">At least 8 characters.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-confirm" className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">Confirm New Password</Label>
+              <div className="relative">
+                <Input
+                  id="cp-confirm"
+                  type={showConfirm ? "text" : "password"}
+                  value={confirmPw}
+                  onChange={e => setConfirmPw(e.target.value)}
+                  placeholder="Repeat the new password"
+                  className="h-9 text-xs border-slate-200 focus-visible:ring-[#005A36] focus-visible:border-[#005A36] pr-9"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(v => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  tabIndex={-1}
+                  aria-label={showConfirm ? "Hide confirm password" : "Show confirm password"}
+                >
+                  {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+
+            {pwError && <p role="alert" className="text-xs text-destructive">{pwError}</p>}
+            {pwSuccess && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 flex items-center gap-2">
+                <Check size={13} className="text-emerald-600" />
+                <span>Password changed.</span>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={pwSaving || !currentPw || newPw.length < 8 || newPw !== confirmPw}
+                className="bg-[#005A36] hover:bg-[#004225] text-white font-bold text-xs h-9 cursor-pointer"
+              >
+                {pwSaving ? "Updating..." : "Update Password"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Locked Administrative settings */}
+      <Card className="border border-slate-200 shadow-sm bg-slate-50/50 overflow-hidden">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <Shield size={16} className="text-slate-400" />
+            Administrative Bounds &amp; Security Roles
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-slate-600">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Role</Label>
+              <div className="relative">
+                <Input
+                  value={getRoleLabel()}
+                  disabled
+                  className="h-9 text-xs bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed pr-8"
+                />
+                <Lock size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">ID Number</Label>
+              <div className="relative">
+                <Input
+                  value={dbUser?.idNumber || currentUser?.idNumber || "12345678"}
+                  disabled
+                  className="h-9 text-xs bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed pr-8"
+                />
+                <Lock size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
+            </div>
+
+            {showsLab && (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Lab</Label>
+                <div className="relative">
+                  <Input
+                    value={labsText(dbUser?.labs ?? currentUser?.labs)}
+                    disabled
+                    className="h-9 text-xs bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed pr-8"
+                  />
+                  <Lock size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg bg-slate-100 border border-slate-200 p-3 text-slate-500 text-[10.5px] leading-relaxed flex items-start gap-2 mt-2">
+            <Shield size={14} className="text-slate-500 flex-shrink-0 mt-0.5" />
+            <p>
+              You cannot change your role, user type, or ID number{showsLab ? ", or your lab" : ""} here. Ask the AdRIC Director if one of them is wrong.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
     </div>
   );
