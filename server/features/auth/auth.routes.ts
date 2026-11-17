@@ -20,3 +20,4 @@ authRouter.post('/api/auth/login', authController.login);
 authRouter.post('/api/auth/logout', authController.logout);
 authRouter.get('/api/auth/me', requireAuth, requireActive, authController.getProfile);
 authRouter.put('/api/auth/account', requireAuth, requireActive, authController.updateAccount);
+authRouter.put('/api/auth/password', requireAuth, requireActive, authController.changePassword);

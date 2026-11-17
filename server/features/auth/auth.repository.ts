@@ -124,3 +124,25 @@ export function updateUser(userId: number, data: Prisma.usersUpdateInput) {
         data
     });
 }
+
+/**
+ * Changes a user's password in one transaction: updates the password hash on the user row,
+ * and writes a PASSWORD_CHANGED row with the user as both actor and target.
+ *
+ * @param userId the account id
+ * @param passwordHash the new hashed password
+ */
+export async function changePassword(userId: number, passwordHash: string): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+        await tx.users.update({
+            where: { user_id: userId },
+            data: { password: passwordHash },
+        });
+        await logActivity(tx, {
+            eventType: 'PASSWORD_CHANGED',
+            actorId: userId,
+            targetUserId: userId,
+            details: 'Changed by the user',
+        });
+    });
+}
