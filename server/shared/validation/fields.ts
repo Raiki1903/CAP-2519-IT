@@ -1,9 +1,10 @@
 /**
- * Body field readers: an id, a text, and a date, each checked and normalized the same way on every route.
- * Layer: shared (server validation). Called by the validation files of features/assets and features/loans, and by
- * shared/validation/inspectionInput.ts. Calls shared/errors/AppError.ts.
- * Used by: asset registration and editing, the loan steps, and every inspection inside a body.
+ * Body field readers: an id, a text, a date, and a password, each checked and normalized the same way on every route.
+ * Layer: shared (server validation). Called by the validation files of features/assets, features/loans, features/auth, and
+ * features/users, and by shared/validation/inspectionInput.ts. Calls shared/errors/AppError.ts and shared/constants/passwords.ts.
+ * Used by: asset registration and editing, the loan steps, every inspection inside a body, sign-up, and password changes.
  */
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '@shared/constants/passwords';
 import { AppError } from '../errors/AppError';
 
 /** Reads a whole number id, or null when it is null; undefined when not sent. */
@@ -35,6 +36,23 @@ export function readDate(body: Record<string, unknown>, field: string): string |
     if (value === null || value === "") return null;
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || isNaN(new Date(value).getTime())) {
         throw new AppError(400, `${field} must be a date as yyyy-mm-dd.`);
+    }
+    return value;
+}
+
+/**
+ * Reads a new password: must be a string between MIN_PASSWORD_LENGTH and MAX_PASSWORD_LENGTH characters.
+ *
+ * @param value the raw password input
+ * @returns the validated plain password string
+ * @throws AppError 400 when the password is not a string or its length is out of bounds
+ */
+export function readNewPassword(value: unknown): string {
+    if (typeof value !== 'string' || value.length < MIN_PASSWORD_LENGTH) {
+        throw new AppError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
+    }
+    if (value.length > MAX_PASSWORD_LENGTH) {
+        throw new AppError(400, `Password must be at most ${MAX_PASSWORD_LENGTH} characters long.`);
     }
     return value;
 }
