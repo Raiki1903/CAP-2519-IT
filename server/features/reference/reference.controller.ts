@@ -65,6 +65,16 @@ export async function changeLab(req: Request<{ centerId: string }>, res: Respons
     res.json({ success: true, lab });
 }
 
+/**
+ * Handles DELETE /api/reference/labs/:centerId: answers `{ success: true }`, or 400 an invalid id, 404 an unknown lab,
+ * or 409 if the lab is in use.
+ */
+export async function removeLab(req: Request<{ centerId: string }>, res: Response): Promise<void> {
+    const centerId = readCenterId(req.params.centerId);
+    await referenceService.removeLab(centerId, sessionUserOf(req).userId);
+    res.json({ success: true });
+}
+
 /** Handles GET /api/reference/funding-sources: `{ success, fundingSources }`, with their asset and project counts. */
 export async function listFundingSources(req: Request, res: Response): Promise<void> {
     res.json({ success: true, fundingSources: await referenceService.listReferenceFundingSources() });

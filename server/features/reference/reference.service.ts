@@ -125,6 +125,12 @@ function categoryShape(row: CategoryRow): ReferenceCategory {
 
 /** A lab row as the page lists it. */
 function labShape(row: LabRow): ReferenceLab {
+    const canDelete =
+        row._count.assets === 0 &&
+        row._count.user_centers === 0 &&
+        row.head_user_id === null &&
+        row._count.projects === 0 &&
+        row._count.loan_destinations === 0;
     return {
         centerId: row.center_id,
         shortCode: row.short_code,
@@ -132,6 +138,7 @@ function labShape(row: LabRow): ReferenceLab {
         campus: row.location,
         campusLabel: CAMPUS_LABELS[row.location],
         assetCount: row._count.assets,
+        canDelete,
     };
 }
 
@@ -270,6 +277,45 @@ export async function changeLab(centerId: number, data: LabUpdateInput, actorId:
 
     await referenceRepository.updateLab(centerId, columns, actorId, `Lab changed: ${current.short_code} (${changes.join(", ")})`);
     return labShape((await referenceRepository.findLabWithCount(centerId))!);
+}
+
+/**
+ * Deletes a lab that nothing uses, and logs it.
+ *
+ * @param centerId the lab, from the URL
+ * @param actorId the session user
+ * @throws AppError 404 if no lab has this id
+ * @throws AppError 409 if the lab is in use by any asset, member, Lab Head, project, or loan
+ */
+export async function removeLab(centerId: number, actorId: number): Promise<void> {
+    const result = await referenceRepository.deleteLab(centerId, actorId);
+    if (!result) {
+        throw new AppError(404, `No lab found with id ${centerId}.`);
+    }
+    if (result.deleted) {
+        return;
+    }
+    const usages = 'usages' in result ? result.usages : undefined;
+    if (!usages) {
+        return;
+    }
+    const parts: string[] = [];
+    if (usages.assetCount > 0) {
+        parts.push(`${usages.assetCount} asset${usages.assetCount === 1 ? '' : 's'}`);
+    }
+    if (usages.memberCount > 0) {
+        parts.push(`${usages.memberCount} member${usages.memberCount === 1 ? '' : 's'}`);
+    }
+    if (usages.hasHead) {
+        parts.push('a Lab Head');
+    }
+    if (usages.projectCount > 0) {
+        parts.push(`${usages.projectCount} project${usages.projectCount === 1 ? '' : 's'}`);
+    }
+    if (usages.loanCount > 0) {
+        parts.push(`${usages.loanCount} loan${usages.loanCount === 1 ? '' : 's'}`);
+    }
+    throw new AppError(409, `This lab is in use and can't be deleted: ${parts.join(', ')}. Rename it instead.`);
 }
 
 /** Every funding source with how many assets and projects name it, by name. */

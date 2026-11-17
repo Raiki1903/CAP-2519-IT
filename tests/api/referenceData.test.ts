@@ -33,13 +33,14 @@ const referenceLogRows = () =>
   db.activity_log.findMany({ where: { event_type: "REFERENCE_DATA_CHANGED" }, orderBy: { log_id: "asc" } });
 
 /** Every route, with a path that names a row that exists and a body that would pass. */
-const ROUTES: [method: "get" | "post" | "put", path: string, body?: unknown][] = [
+const ROUTES: [method: "get" | "post" | "put" | "delete", path: string, body?: unknown][] = [
   ["get", "/api/reference/categories"],
   ["post", "/api/reference/categories", { label: "Test Forbidden Category", usefulLifeYears: 5 }],
   ["put", "/api/reference/categories/MONITOR", { usefulLifeYears: 6 }],
   ["get", "/api/reference/labs"],
   ["post", "/api/reference/labs", { name: "Test Forbidden Lab", shortCode: "TFORB", campus: "MANILA" }],
   ["put", `/api/reference/labs/${LAB.centerId}`, { name: "Test Forbidden Name" }],
+  ["delete", `/api/reference/labs/${LAB.centerId}`],
   ["get", "/api/reference/funding-sources"],
   ["post", "/api/reference/funding-sources", { name: "Test Forbidden Fund" }],
   ["put", `/api/reference/funding-sources/${LOOKUPS.fundingSources[0].fundingSourceId}`, { name: "Test Forbidden Rename" }],
@@ -47,7 +48,7 @@ const ROUTES: [method: "get" | "post" | "put", path: string, body?: unknown][] =
 
 /** Sends one route's request as a client. */
 function send(client: ApiClient, [method, path, body]: (typeof ROUTES)[number]) {
-  return method === "get" ? client.get(path) : client[method](path, body);
+  return method === "get" || method === "delete" ? client[method](path) : client[method](path, body);
 }
 
 describe("who may use the Reference Data routes", () => {
@@ -238,7 +239,7 @@ describe("labs", () => {
     expect(res.status).toBe(200);
     const assets = await db.assets.count({ where: { center_id: LAB.centerId } });
     expect(res.body.labs).toContainEqual({
-      centerId: LAB.centerId, shortCode: LAB.shortCode, name: LAB.name, campus: "MANILA", campusLabel: "Manila", assetCount: assets,
+      centerId: LAB.centerId, shortCode: LAB.shortCode, name: LAB.name, campus: "MANILA", campusLabel: "Manila", assetCount: assets, canDelete: false,
     });
   });
 
@@ -290,6 +291,145 @@ describe("labs", () => {
   it("answers 404 for an unknown lab and 400 for an id that is not a number", async () => {
     expect((await asStaff.put("/api/reference/labs/99999", { name: "Test Nobody" })).status).toBe(404);
     expect((await asStaff.put("/api/reference/labs/abc", { name: "Test Nobody" })).status).toBe(400);
+    expect((await asStaff.delete("/api/reference/labs/99999")).status).toBe(404);
+    expect((await asStaff.delete("/api/reference/labs/abc")).status).toBe(400);
+  });
+
+  it("deletes an unused lab, removes it from lists and lookups, logs it, and allows re-adding with the same code", async () => {
+    const created = await asStaff.post("/api/reference/labs", { name: "Test Delete Lab", shortCode: "TDEL", campus: "MANILA" });
+    expect(created.status).toBe(201);
+    const centerId = created.body.lab.centerId;
+
+    const listBefore = await asStaff.get("/api/reference/labs");
+    const labRow = listBefore.body.labs.find((l: any) => l.centerId === centerId);
+    expect(labRow).toBeDefined();
+    expect(labRow.canDelete).toBe(true);
+
+    const deleteRes = await asStaff.delete(`/api/reference/labs/${centerId}`);
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body).toEqual({ success: true });
+
+    const listAfter = await asStaff.get("/api/reference/labs");
+    expect(listAfter.body.labs.some((l: any) => l.centerId === centerId)).toBe(false);
+
+    const lookups = await api.get("/api/lookups");
+    expect(lookups.body.labs.some((l: any) => l.centerId === centerId)).toBe(false);
+
+    expect((await referenceLogRows()).at(-1)).toMatchObject({ details: "Lab deleted: TDEL (Test Delete Lab)" });
+
+    const reAdd = await asStaff.post("/api/reference/labs", { name: "Test Readded Lab", shortCode: "TDEL", campus: "LAGUNA" });
+    expect(reAdd.status).toBe(201);
+    expect(reAdd.body.lab.shortCode).toBe("TDEL");
+  });
+
+  it("lets the Secretary delete an unused lab too", async () => {
+    const created = await asSecretary.post("/api/reference/labs", { name: "Test Secretary Del Lab", shortCode: "TSECD", campus: "MANILA" });
+    expect(created.status).toBe(201);
+    const centerId = created.body.lab.centerId;
+
+    const deleteRes = await asSecretary.delete(`/api/reference/labs/${centerId}`);
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body).toEqual({ success: true });
+    expect(await db.research_centers.findUnique({ where: { center_id: centerId } })).toBeNull();
+  });
+
+  it("refuses to delete a lab that has an active asset", async () => {
+    const created = await asStaff.post("/api/reference/labs", { name: "Test Asset Lab", shortCode: "TINUSA", campus: "MANILA" });
+    const centerId = created.body.lab.centerId;
+    await asStaff.post("/api/assets", intake("CAMERA", centerId));
+
+    const res = await asStaff.delete(`/api/reference/labs/${centerId}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("This lab is in use and can't be deleted: 1 asset. Rename it instead.");
+    expect(await db.research_centers.findUnique({ where: { center_id: centerId } })).not.toBeNull();
+  });
+
+  it("refuses to delete a lab that has only a retired asset", async () => {
+    const created = await asStaff.post("/api/reference/labs", { name: "Test Retired Lab", shortCode: "TINUSR", campus: "MANILA" });
+    const centerId = created.body.lab.centerId;
+    await db.assets.create({
+      data: {
+        asset_tag: "TINUSR-0001",
+        name: "Test Retired Asset",
+        category: "CAMERA",
+        center_id: centerId,
+        status: "RETIRED",
+      },
+    });
+
+    const res = await asStaff.delete(`/api/reference/labs/${centerId}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("This lab is in use and can't be deleted: 1 asset. Rename it instead.");
+    expect(await db.research_centers.findUnique({ where: { center_id: centerId } })).not.toBeNull();
+  });
+
+  it("refuses to delete a lab that has a member", async () => {
+    const created = await asStaff.post("/api/reference/labs", { name: "Test Member Lab", shortCode: "TINUSM", campus: "MANILA" });
+    const centerId = created.body.lab.centerId;
+    await db.user_centers.create({
+      data: {
+        user_id: USERS.custodianA.userId,
+        center_id: centerId,
+      },
+    });
+
+    const res = await asStaff.delete(`/api/reference/labs/${centerId}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("This lab is in use and can't be deleted: 1 member. Rename it instead.");
+    expect(await db.research_centers.findUnique({ where: { center_id: centerId } })).not.toBeNull();
+  });
+
+  it("refuses to delete a lab that has a Lab Head", async () => {
+    const created = await asStaff.post("/api/reference/labs", { name: "Test Head Lab", shortCode: "TINUSH", campus: "MANILA" });
+    const centerId = created.body.lab.centerId;
+    await db.research_centers.update({
+      where: { center_id: centerId },
+      data: { head_user_id: USERS.custodianA.userId },
+    });
+
+    const res = await asStaff.delete(`/api/reference/labs/${centerId}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("This lab is in use and can't be deleted: a Lab Head. Rename it instead.");
+    expect(await db.research_centers.findUnique({ where: { center_id: centerId } })).not.toBeNull();
+  });
+
+  it("refuses to delete a lab that has a project", async () => {
+    const created = await asStaff.post("/api/reference/labs", { name: "Test Project Lab", shortCode: "TINUSP", campus: "MANILA" });
+    const centerId = created.body.lab.centerId;
+    await db.projects.create({
+      data: {
+        project_code: "P-DEL-TEST",
+        project_name: "Del Project Test",
+        project_leader: "Leader",
+        center_id: centerId,
+        start_date: new Date(),
+      },
+    });
+
+    const res = await asStaff.delete(`/api/reference/labs/${centerId}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("This lab is in use and can't be deleted: 1 project. Rename it instead.");
+    expect(await db.research_centers.findUnique({ where: { center_id: centerId } })).not.toBeNull();
+  });
+
+  it("refuses to delete a lab that has a loan sent to it", async () => {
+    const created = await asStaff.post("/api/reference/labs", { name: "Test Loan Lab", shortCode: "TINUSL", campus: "MANILA" });
+    const centerId = created.body.lab.centerId;
+    await db.asset_loans.create({
+      data: {
+        asset_id: ASSETS.available.assetId,
+        borrower_id: USERS.custodianA.userId,
+        status: "RETURNED",
+        purpose: "Research testing",
+        destination_center_id: centerId,
+        return_by: new Date(),
+      },
+    });
+
+    const res = await asStaff.delete(`/api/reference/labs/${centerId}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("This lab is in use and can't be deleted: 1 loan. Rename it instead.");
+    expect(await db.research_centers.findUnique({ where: { center_id: centerId } })).not.toBeNull();
   });
 });
 

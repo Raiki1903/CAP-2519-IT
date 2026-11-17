@@ -42,6 +42,8 @@ export interface ReferenceLab {
   campusLabel: string;
   /** How many assets have this lab as their home lab. */
   assetCount: number;
+  /** Whether the lab can be deleted: true only when no assets, users, projects, loans, or Lab Head use it. */
+  canDelete: boolean;
 }
 
 /** The body of POST /api/reference/labs. */

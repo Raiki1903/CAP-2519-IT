@@ -8,6 +8,7 @@
 import { Prisma, type research_centers_location } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { logActivity } from '../../shared/services/activityLog';
+import { lockCenter } from '../../shared/services/rowLocks';
 
 /**
  * Every asset category, inactive ones too.
@@ -78,14 +79,23 @@ export async function updateCategory(code: string, data: Prisma.asset_categories
     }
 }
 
-const LAB_WITH_COUNT = { _count: { select: { assets: true } } } satisfies Prisma.research_centersInclude;
+const LAB_WITH_COUNT = {
+    _count: {
+        select: {
+            assets: true,
+            user_centers: true,
+            projects: true,
+            loan_destinations: true,
+        },
+    },
+} satisfies Prisma.research_centersInclude;
 
-/** Every lab with its asset count, by short code. */
+/** Every lab with its counts, by short code. */
 export function listLabsWithCounts() {
     return prisma.research_centers.findMany({ include: LAB_WITH_COUNT, orderBy: { short_code: 'asc' } });
 }
 
-/** One lab with its asset count, or null. */
+/** One lab with its counts, or null. */
 export function findLabWithCount(centerId: number) {
     return prisma.research_centers.findUnique({ where: { center_id: centerId }, include: LAB_WITH_COUNT });
 }
@@ -118,6 +128,56 @@ export async function updateLab(centerId: number, data: { name?: string; locatio
     await prisma.$transaction(async (tx) => {
         await tx.research_centers.update({ where: { center_id: centerId }, data });
         await logActivity(tx, { eventType: 'REFERENCE_DATA_CHANGED', actorId, details });
+    });
+}
+
+/** Non-zero usage counts that block deleting a lab. */
+export interface LabUsageCounts {
+    assetCount: number;
+    memberCount: number;
+    hasHead: boolean;
+    projectCount: number;
+    loanCount: number;
+}
+
+export type DeleteLabResult = { deleted: true } | { deleted: false; usages: LabUsageCounts };
+
+/**
+ * Deletes an unused lab and writes its REFERENCE_DATA_CHANGED row, in one transaction.
+ * Locks the lab first. If any asset, user, project, loan, or Lab Head uses it, refuses and writes nothing.
+ *
+ * @param centerId the research center to delete
+ * @param actorId the session user
+ * @returns null if the lab does not exist, or DeleteLabResult
+ */
+export async function deleteLab(centerId: number, actorId: number): Promise<DeleteLabResult | null> {
+    return prisma.$transaction(async (tx): Promise<DeleteLabResult | null> => {
+        await lockCenter(tx, centerId);
+        const lab = await tx.research_centers.findUnique({ where: { center_id: centerId } });
+        if (!lab) return null;
+
+        const [assetCount, memberCount, projectCount, loanCount] = await Promise.all([
+            tx.assets.count({ where: { center_id: centerId } }),
+            tx.user_centers.count({ where: { center_id: centerId } }),
+            tx.projects.count({ where: { center_id: centerId } }),
+            tx.asset_loans.count({ where: { destination_center_id: centerId } }),
+        ]);
+        const hasHead = lab.head_user_id !== null;
+
+        if (assetCount > 0 || memberCount > 0 || hasHead || projectCount > 0 || loanCount > 0) {
+            return {
+                deleted: false,
+                usages: { assetCount, memberCount, hasHead, projectCount, loanCount },
+            };
+        }
+
+        await tx.research_centers.delete({ where: { center_id: centerId } });
+        await logActivity(tx, {
+            eventType: 'REFERENCE_DATA_CHANGED',
+            actorId,
+            details: `Lab deleted: ${lab.short_code} (${lab.name})`,
+        });
+        return { deleted: true };
     });
 }
 
