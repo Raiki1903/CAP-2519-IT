@@ -7,9 +7,9 @@
 import {
   Prisma,
   type asset_condition,
-  type assets_category,
   asset_inspections_type,
 } from '@prisma/client';
+import type { AssetCategory } from '@shared/enums/assetCategory';
 import { prisma } from '../../config/prisma';
 import { lockCenter } from '../../shared/services/rowLocks';
 import { logActivity } from '../../shared/services/activityLog';
@@ -172,7 +172,7 @@ export interface CreateAssetImportRecord {
   centerId: number;
   labShortCode: string;
   name: string;
-  category: assets_category;
+  category: AssetCategory;
   condition: asset_condition;
   healthScore: number | null;
   serialNumber: string | null;

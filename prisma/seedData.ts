@@ -1,12 +1,11 @@
 /**
  * The demo seed's data: the 10 research centers, 30 demo accounts, 7 projects, 58 demo assets, and the lookup rows.
  * All invented or about institutions; the personal names are from the pre-UAT dummy data, never real people.
- * Layer: database tooling. Read by prisma/seed.ts, seedHistory.ts, seedSteps.ts and seedStory.ts. Imports Prisma's enum types.
+ * Layer: database tooling. Read by prisma/seed.ts, seedHistory.ts, seedSteps.ts, seedStory.ts and seedImages.ts. Imports Prisma's enum types.
  * Used by: npm run seed.
  */
 import type {
   asset_condition,
-  assets_category,
   research_centers_location,
   roles_role_name,
   users_account_status,
@@ -174,7 +173,7 @@ export interface DemoAsset {
   tag: string;
   name: string;
   manufacturer: string;
-  category: assets_category;
+  category: DemoCategory;
   serial: string;
   /** The purchase date from TSG's Excel, or August of the academic year when the sheet has none. */
   procured: string;
@@ -306,8 +305,25 @@ export const DEMO_METRICS: [string, string, string, boolean][] = [
   ["MOTOR_SPEED", "Motor speed", "RPM", true],
 ];
 
+/**
+ * The asset categories, as the asset categories migration writes them (20261118090000), useful life 5 years each.
+ * The seed adds the ones missing, so a database whose rows were emptied gets them back.
+ */
+export const DEMO_CATEGORIES = [
+  { code: "DEV_KIT", label: "Dev Kit" }, { code: "MONITOR", label: "Monitor" }, { code: "TV", label: "TV" },
+  { code: "CPU", label: "CPU" }, { code: "KEYBOARD", label: "Keyboard" }, { code: "MOUSE", label: "Mouse" },
+  { code: "CAMERA", label: "Camera" }, { code: "MEMORY_CARD", label: "Memory Card" }, { code: "PROJECTOR", label: "Projector" },
+  { code: "RECORDER", label: "Recorder" }, { code: "ROUTER", label: "Router" }, { code: "SIMULATOR", label: "Simulator" },
+  { code: "TABLET", label: "Tablet" }, { code: "VR", label: "VR" }, { code: "PRINTER", label: "Printer" },
+  { code: "SWITCH", label: "Switch" }, { code: "HARD_DRIVE", label: "Hard Drive" }, { code: "AUDIO", label: "Audio" },
+  { code: "VIDEO_CAMERA", label: "Video Camera" }, { code: "SPEAKER", label: "Speaker" },
+] as const;
+
+/** One demo category code. The seed's per-category tables list every one of them. */
+export type DemoCategory = (typeof DEMO_CATEGORIES)[number]["code"];
+
 /** Which metrics each category records (manuscript 1.6.2.2.3), as the foundation migration writes them. */
-export const DEMO_CATEGORY_METRICS: [assets_category, string][] = [
+export const DEMO_CATEGORY_METRICS: [DemoCategory, string][] = [
   ["CPU", "CPU_LOAD_TEMP"], ["CPU", "BAD_SECTORS"], ["CPU", "BATTERY_CAPACITY"],
   ["TABLET", "BATTERY_CAPACITY"], ["VR", "BATTERY_CAPACITY"],
   ["HARD_DRIVE", "BAD_SECTORS"], ["HARD_DRIVE", "READ_SPEED"],

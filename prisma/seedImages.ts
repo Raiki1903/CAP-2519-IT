@@ -2,12 +2,12 @@
  * The demo assets' pictures, as data URLs for assets.image_url: a photo from the folder SEED_PHOTOS_DIR names, when it
  * is set and holds the asset's photo, and otherwise a small SVG for the asset's category (its name and a simple shape
  * on a plain colour). The photos stay outside the repository.
- * Layer: database tooling. Read by prisma/seed.ts. Imports Node's fs and path, and Prisma's category type.
+ * Layer: database tooling. Read by prisma/seed.ts. Imports Node's fs and path, and the demo category type of seedData.ts.
  * Used by: npm run seed.
  */
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import type { assets_category } from "@prisma/client";
+import type { DemoCategory } from "./seedData";
 
 /** The largest photo the seed takes. A bigger one was not shrunk (1280 px, JPEG quality 0.8) and is skipped. */
 export const MAX_PHOTO_BYTES = 400 * 1024;
@@ -52,7 +52,7 @@ const SHAPES = {
 } as const;
 
 /** Each category's label, shape and background colour. */
-const CATEGORY_LOOK: Record<assets_category, { label: string; shape: keyof typeof SHAPES; colour: string }> = {
+const CATEGORY_LOOK: Record<DemoCategory, { label: string; shape: keyof typeof SHAPES; colour: string }> = {
   DEV_KIT: { label: "Dev Kit", shape: "board", colour: "#2f7d5b" },
   MONITOR: { label: "Monitor", shape: "screen", colour: "#3b5b92" },
   TV: { label: "TV", shape: "screen", colour: "#4a4f9c" },
@@ -80,7 +80,7 @@ const CATEGORY_LOOK: Record<assets_category, { label: string; shape: keyof typeo
  *
  * @param category the asset's category
  */
-export function categoryPicture(category: assets_category): string {
+export function categoryPicture(category: DemoCategory): string {
   const look = CATEGORY_LOOK[category];
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">` +

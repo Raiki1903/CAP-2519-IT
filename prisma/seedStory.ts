@@ -6,8 +6,8 @@
  * Layer: database tooling. Read by prisma/seed.ts. Calls prisma/seedSteps.ts and prisma/seedHistory.ts.
  * Used by: npm run seed.
  */
-import type { Prisma, assets_category, assets_status, user_tickets_status, user_tickets_type } from "@prisma/client";
-import { DEMO_ACCOUNTS, DEMO_IT_ADMIN_ID, DEMO_TSG_IDS, type DemoAccount } from "./seedData";
+import type { Prisma, assets_status, user_tickets_status, user_tickets_type } from "@prisma/client";
+import { DEMO_ACCOUNTS, DEMO_IT_ADMIN_ID, DEMO_TSG_IDS, type DemoAccount, type DemoCategory } from "./seedData";
 import { accountSteps, registrationSteps, SEEDED_ASSETS, type AccountDecision, type ActivityRow, type InspectionRow, type SeedClock, type SeededAsset } from "./seedHistory";
 import { HistoryBuilder, type LoanRow, type RetirementRow, type TicketRow } from "./seedSteps";
 
@@ -243,10 +243,10 @@ function scriptedEvents(b: HistoryBuilder): void {
 const LOANS_PER_WEEK = [3, 3, 4, 4, 3, 2, 4, 6, 4, 3, 4, 5, 4, 3, 3, 6, 4, 3, 4, 3, 5, 6, 4, 3, 3, 2];
 
 /** How often each category is borrowed, compared with the others: mounted TVs and the network gear seldom. */
-const BORROW_WEIGHT: Partial<Record<assets_category, number>> = { TV: 0.3, SWITCH: 0.3, PRINTER: 0.3, ROUTER: 0.6, VR: 1.6, CAMERA: 1.4, DEV_KIT: 1.3, TABLET: 1.3 };
+const BORROW_WEIGHT: Partial<Record<DemoCategory, number>> = { TV: 0.3, SWITCH: 0.3, PRINTER: 0.3, ROUTER: 0.6, VR: 1.6, CAMERA: 1.4, DEV_KIT: 1.3, TABLET: 1.3 };
 
 /** What a loan of each category is for. */
-const PURPOSES: Record<assets_category, string[]> = {
+const PURPOSES: Record<DemoCategory, string[]> = {
   CAMERA: ["Photos for the field visit report.", "Documenting the prototype for a paper.", "Covering the lab's research forum."],
   VIDEO_CAMERA: ["Recording the workshop sessions.", "Video interviews for the study."],
   TV: ["Presentation at the CCS research colloquium.", "Showing the demo at the department open house."],

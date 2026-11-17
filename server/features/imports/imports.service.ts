@@ -4,8 +4,8 @@
  * Calls: server/features/imports/csv.ts, imports.repository.ts, server/shared/services/assetTags.ts.
  * Used by: bulk CSV import of projects and assets.
  */
-import type { Prisma, asset_condition, assets_category } from '@prisma/client';
-import { ASSET_CATEGORIES } from '@shared/enums/assetCategory';
+import type { Prisma, asset_condition } from '@prisma/client';
+import { ASSET_CATEGORIES, type AssetCategory } from '@shared/enums/assetCategory';
 import { ASSET_CONDITIONS, SUGGESTED_HEALTH_SCORE } from '@shared/enums/assetCondition';
 import {
   ASSET_IMPORT_COLUMNS,
@@ -30,15 +30,15 @@ import * as importsRepository from './imports.repository';
 import { nextTagOf } from '../../shared/services/assetTags';
 
 /**
- * Normalizes a category string to match the assets_category enum.
+ * Normalizes a category string to one of the category codes.
  *
  * @param raw typed category from CSV
- * @returns canonical assets_category enum value or null if invalid
+ * @returns the category code, or null if invalid
  */
-function resolveCategory(raw: string): assets_category | null {
+function resolveCategory(raw: string): AssetCategory | null {
   const normalized = raw.trim().toUpperCase().replace(/[\s-]+/g, '_');
-  if (ASSET_CATEGORIES.includes(normalized as assets_category)) {
-    return normalized as assets_category;
+  if (ASSET_CATEGORIES.includes(normalized)) {
+    return normalized as AssetCategory;
   }
   return null;
 }
@@ -352,7 +352,7 @@ async function validateAssetsCsv(
       hasRowError = true;
     }
 
-    let resolvedCategory: assets_category | null = null;
+    let resolvedCategory: AssetCategory | null = null;
     if (!categoryRaw) {
       errors.push({ row: rowNum, column: 'category', message: 'Category is required.' });
       hasRowError = true;
