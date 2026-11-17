@@ -9,6 +9,7 @@ import { useParams, useNavigate } from "react-router";
 import { Printer, ArrowLeft, ShieldAlert } from "lucide-react";
 import { getAccountabilityForm } from "@web/api/loans.api";
 import { Button } from "@web/components/ui/button";
+import { ADRIC_FULL_NAME } from "@shared/constants/adric";
 import type { AccountabilityForm } from "@shared/types/loans";
 
 /**
@@ -152,7 +153,7 @@ export function AccountabilityFormPage() {
               De La Salle University - College of Computer Studies
             </p>
             <h1 className="text-xl font-extrabold tracking-tight text-slate-950">
-              Advanced Research and Innovation Center (AdRIC)
+              {ADRIC_FULL_NAME}
             </h1>
             <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wide mt-0.5">
               Asset Accountability Form

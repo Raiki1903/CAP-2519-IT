@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { Printer, ArrowLeft, CheckCircle2, XCircle, AlertTriangle, ShieldCheck } from "lucide-react";
 import * as loansApi from "@web/api/loans.api";
+import { ADRIC_FULL_NAME } from "@shared/constants/adric";
 import type { ClearanceRecord, Loan } from "@shared/types/loans";
 import { Button } from "@web/components/ui/button";
 import { cn } from "@web/components/ui/utils";
@@ -154,7 +155,7 @@ export function ClearancePrintPage() {
             College of Computer Studies
           </p>
           <p className="text-xs font-semibold uppercase text-slate-600">
-            Advanced Research and Innovation Center (AdRIC)
+            {ADRIC_FULL_NAME}
           </p>
           <h1 className="text-lg font-extrabold uppercase tracking-wide text-slate-950 mt-2">
             Asset Return and Clearance Record
