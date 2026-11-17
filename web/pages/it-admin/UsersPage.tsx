@@ -1,10 +1,11 @@
 /**
- * IT Admin Users: finds any account after sign-up, and changes its role and labs, deactivates, reactivates, or
- * anonymizes it; and, on the Labs tab, sets each lab's Head.
+ * IT Admin Users: finds any account after sign-up, and changes its role and labs, deactivates, reactivates,
+ * anonymizes it, or resets its password; and, on the Labs tab, sets each lab's Head.
  * Layer: page. Called by app/routes.tsx at /it-admin/users.
  * Calls: api/users.api.ts (the list and the one-click steps; api/client.ts for the ApiResult type),
  * features/lookups/useLookups.ts (the labs), features/users/ChangeRoleDialog.tsx, ChangeLabsDialog.tsx,
- * AnonymizeUserDialog.tsx and LabsTab.tsx, state/session.tsx (whose account is the IT Admin's own).
+ * AnonymizeUserDialog.tsx, ResetPasswordDialog.tsx and LabsTab.tsx,
+ * state/session.tsx (whose account is the IT Admin's own).
  * Used by: the IT Admin.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -21,6 +22,7 @@ import { AnonymizeUserDialog } from "@web/features/users/AnonymizeUserDialog";
 import { ChangeLabsDialog } from "@web/features/users/ChangeLabsDialog";
 import { ChangeRoleDialog } from "@web/features/users/ChangeRoleDialog";
 import { LabsTab } from "@web/features/users/LabsTab";
+import { ResetPasswordDialog } from "@web/features/users/ResetPasswordDialog";
 import { Badge } from "@web/components/ui/badge";
 import { Button } from "@web/components/ui/button";
 import { Card } from "@web/components/ui/card";
@@ -106,6 +108,7 @@ export function UsersPage() {
   const [changingRole, setChangingRole] = useState<User | null>(null);
   const [changingLabs, setChangingLabs] = useState<User | null>(null);
   const [anonymizing, setAnonymizing] = useState<User | null>(null);
+  const [resettingPassword, setResettingPassword] = useState<User | null>(null);
   // Counts the loads, so a slow answer to an older tab or search never replaces a newer one.
   const loadCount = useRef(0);
 
@@ -145,6 +148,7 @@ export function UsersPage() {
     setChangingRole(null);
     setChangingLabs(null);
     setAnonymizing(null);
+    setResettingPassword(null);
     load();
   };
 
@@ -301,6 +305,9 @@ export function UsersPage() {
                                 <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy || !lookups} onClick={() => setChangingLabs(user)}>
                                   Change labs
                                 </Button>
+                                <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => setResettingPassword(user)}>
+                                  Reset password
+                                </Button>
                               </>
                             )}
 
@@ -363,6 +370,9 @@ export function UsersPage() {
       )}
       {anonymizing && (
         <AnonymizeUserDialog key={anonymizing.userId} user={anonymizing} onClose={() => setAnonymizing(null)} onAnonymized={changed} />
+      )}
+      {resettingPassword && (
+        <ResetPasswordDialog key={resettingPassword.userId} user={resettingPassword} onClose={() => setResettingPassword(null)} onReset={changed} />
       )}
     </div>
   );

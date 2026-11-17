@@ -1,13 +1,13 @@
 /**
  * Auth request checks: is each sign-up, login, profile, and account request shaped correctly, before any database work.
- * Layer: validation. Called by auth.controller.ts. Calls shared/errors/AppError.ts, shared/constants/passwords.ts, and
+ * Layer: validation. Called by auth.controller.ts. Calls shared/errors/AppError.ts, shared/validation/fields.ts, and
  * shared/constants/signUp.ts.
  * Used by: login, self-registration, the session reload, and the account page.
  */
-import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '@shared/constants/passwords';
 import { ID_NUMBER_MESSAGE, ID_NUMBER_PATTERN, NO_LAB_MESSAGE, SIGN_UP_EMAIL_DOMAIN, SIGN_UP_EMAIL_MESSAGE, USER_TYPES, type UserType } from '@shared/constants/signUp';
 import type { AccountUpdateInput, LoginInput, SignUpRequest } from '@shared/types/auth';
 import { AppError } from '../../shared/errors/AppError';
+import { readNewPassword } from '../../shared/validation/fields';
 
 /**
  * Reads a sign-up body: names, a DLSU email, an 8-digit ID number, a user type, a password of an allowed length, and
@@ -34,12 +34,7 @@ export function readSignUpRequest(body: any): SignUpRequest {
     if (!USER_TYPES.includes(userType)) {
         throw new AppError(400, "Choose Student, Faculty, or Staff as your user type.");
     }
-    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
-        throw new AppError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
-    }
-    if (password.length > MAX_PASSWORD_LENGTH) {
-        throw new AppError(400, `Password must be at most ${MAX_PASSWORD_LENGTH} characters long.`);
-    }
+    const validatedPassword = readNewPassword(password);
     if (!Array.isArray(centerIds) || centerIds.length === 0 || !centerIds.every(id => Number.isInteger(id) && id > 0)) {
         throw new AppError(400, NO_LAB_MESSAGE);
     }
@@ -50,7 +45,7 @@ export function readSignUpRequest(body: any): SignUpRequest {
         email: normalizedEmail,
         idNumber: Number(idText),
         userType: userType as UserType,
-        password,
+        password: validatedPassword,
         centerIds: [...new Set<number>(centerIds)],
         avatarUrl: typeof avatarUrl === 'string' && avatarUrl ? avatarUrl : undefined,
     };
@@ -88,4 +83,23 @@ export function checkAccountUpdate(data: any): asserts data is AccountUpdateInpu
     if (data.labAffiliation !== undefined && data.labAffiliation !== null && data.labAffiliation !== "") {
         throw new AppError(400, "Your lab can't be changed here.");
     }
+}
+
+/**
+ * Reads the body of a self-service password change: the current password and an allowed new password.
+ *
+ * @param body the request body
+ * @returns the current password and validated new password
+ * @throws AppError 400 if currentPassword is missing or newPassword is out of bounds
+ */
+export function readChangePassword(body: any): { currentPassword: string; newPassword: string } {
+    const { currentPassword, newPassword } = body ?? {};
+    if (!isFilled(currentPassword)) {
+        throw new AppError(400, "Enter your current password.");
+    }
+    const validatedNewPassword = readNewPassword(newPassword);
+    return {
+        currentPassword,
+        newPassword: validatedNewPassword,
+    };
 }

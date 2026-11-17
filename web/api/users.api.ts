@@ -3,7 +3,7 @@
  * or a lab's Head after sign-up. The only place these URLs appear in the frontend.
  * Layer: api. Called by state/pendingSignUps.tsx, features/users/ (the dialogs), and pages/it-admin/UsersPage.tsx.
  * Calls client.ts; types from @shared/types/users.
- * Used by: the IT Admin's Approvals and Users pages.
+ * Used by: the IT Admin's Approvals and Users pages (#186: also ResetPasswordDialog.tsx).
  */
 import type {
   ApproveSignUpInput, ChangeLabsInput, ChangeRoleInput, RejectSignUpInput, SetLabHeadInput, UserListFilters,
@@ -130,4 +130,16 @@ export async function reactivateUser(userId: number): Promise<ApiResult> {
  */
 export async function anonymizeUser(userId: number): Promise<ApiResult> {
   return readResult(await apiPutRaw(`/api/users/${userId}/anonymize`, {}), "Could not anonymize this account. Try again.");
+}
+
+/**
+ * Resets another user's password. The IT Admin is read from the session, not sent.
+ *
+ * @param userId the account whose password is being reset
+ * @param newPassword the new password chosen by the IT Admin
+ * @returns `success` and the updated `user`; or `error` with the server's sentence
+ * @throws if the server cannot be reached
+ */
+export async function resetUserPassword(userId: number, newPassword: string): Promise<ApiResult> {
+  return readResult(await apiPutRaw(`/api/users/${userId}/password`, { newPassword }), "Could not reset this password. Try again.");
 }
