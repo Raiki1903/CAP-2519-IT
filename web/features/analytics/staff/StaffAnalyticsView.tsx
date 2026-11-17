@@ -3,7 +3,7 @@
  * Board, Warranties Notice, and Inspection Progress widgets used to live here too; they now live in this same
  * file but render on the Staff Overview (pages/staff/OverviewPage.tsx) instead.
  * Layer: feature component. Called by pages/staff/HealthPage.tsx and pages/staff/OverviewPage.tsx.
- * Calls: features/analytics/insights/InsightsPanel.tsx, api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), features/repairs/RepairProgressDialog.tsx, state/serverData.tsx, state/session.tsx.
+ * Calls: features/analytics/insights/InsightsPanel.tsx, api/analytics.api.ts (tsg, location-status, inspection-progress), api/assets.api.ts listAssetsRaw(), features/repairs/RepairProgressDialog.tsx, features/lookups/useLookups.ts (the categories), state/serverData.tsx, state/session.tsx.
  * Used by: Staff.
  */
 import React from "react";
@@ -17,6 +17,7 @@ import * as assetsApi from "@web/api/assets.api";
 import * as analyticsApi from "@web/api/analytics.api";
 import { ASSET_STATUSES, ASSET_STATUS_LABELS } from "@shared/enums/assetStatus";
 import { InsightsPanel } from "@web/features/analytics/insights/InsightsPanel";
+import { useFormLookups } from "@web/features/lookups/useLookups";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@web/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@web/components/ui/table";
 import { Badge } from "@web/components/ui/badge";
@@ -680,9 +681,7 @@ export const InspectionProgressTracker: React.FC = () => {
 };
 
 // TODO(M-03): another hardcoded lab list in short codes. Phase 3.
-// Five of the categories below (WORKSTATION to ACCESSORY) are not in assets_category, so picking one always shows nothing.
 const LAB_OPTIONS = ["All Labs", "CITe4D", "CAR", "GAME", "CIVI", "CeHCI", "Bio", "TE3D", "CeLT", "HXIL", "CNIS"];
-const CATEGORY_OPTIONS = ["All Categories", "DEV_KIT", "MONITOR", "WORKSTATION", "ROBOTICS", "SENSOR", "NETWORKING", "ACCESSORY"];
 
 /** The Staff analytics screen: holds the date, lab, and category filters and lays out four widgets. Takes no props. */
 export const StaffAnalyticsView: React.FC = () => {
@@ -690,6 +689,7 @@ export const StaffAnalyticsView: React.FC = () => {
   const [endDate, setEndDate] = React.useState<string>("");
   const [selectedLab, setSelectedLab] = React.useState<string>("All Labs");
   const [selectedCategory, setSelectedCategory] = React.useState<string>("All Categories");
+  const { lookups } = useFormLookups();
 
   const hasActiveFilters = Boolean(startDate || endDate || selectedLab !== "All Labs" || selectedCategory !== "All Categories");
 
@@ -754,8 +754,9 @@ export const StaffAnalyticsView: React.FC = () => {
             onChange={e => setSelectedCategory(e.target.value)}
             className="bg-background border border-border rounded px-2.5 py-1 text-foreground font-semibold text-xs cursor-pointer focus:ring-1 focus:ring-primary"
           >
-            {CATEGORY_OPTIONS.map(cat => (
-              <option key={cat} value={cat}>{cat.replace(/_/g, " ")}</option>
+            <option value="All Categories">All Categories</option>
+            {(lookups?.categories ?? []).map(c => (
+              <option key={c.key} value={c.key}>{c.label}</option>
             ))}
           </select>
         </div>

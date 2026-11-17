@@ -24,7 +24,7 @@ export interface AssetMasterData {
   name?: string;
   serialNumber?: string | null;
   manufacturer?: string | null;
-  /** One of ASSET_CATEGORIES. */
+  /** A category code (asset_categories.code). */
   category?: string;
   /** The home lab, a research_centers id. */
   centerId?: number;
@@ -132,7 +132,7 @@ export interface AssetListItem {
   acquisitionValue: number | null;
   /** By straight-line depreciation (shared/constants/usefulLife.ts). Null when acquisitionValue or procurementDate is missing. */
   presentValue: number | null;
-  /** The asset's category's useful life, in years (shared/constants/usefulLife.ts USEFUL_LIFE_YEARS). */
+  /** The asset's category's useful life, in years (asset_categories.useful_life_years). */
   usefulLifeYears: number;
   /** yyyy-mm-dd, or null. */
   procurementDate: string | null;

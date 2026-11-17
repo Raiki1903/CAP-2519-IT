@@ -11,6 +11,7 @@ import { hashPassword, hidePasswordHashes } from "../server/shared/services/pass
 import {
   DEMO_ACCOUNTS,
   DEMO_ASSETS,
+  DEMO_CATEGORIES,
   DEMO_CATEGORY_METRICS,
   DEMO_FUNDING_SOURCES,
   DEMO_ISSUE_TYPES,
@@ -26,7 +27,7 @@ import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, typ
 
 /** Every table the migrations create. The seed needs all of them, and fills only empty ones. */
 const REQUIRED_TABLES = [
-  "activity_log", "asset_inspection_metrics", "asset_inspections", "asset_loans", "asset_maintenance",
+  "activity_log", "asset_categories", "asset_inspection_metrics", "asset_inspections", "asset_loans", "asset_maintenance",
   "asset_remarks", "asset_retirements", "assets", "category_metrics", "funding_sources",
   "issue_types", "metric_definitions", "projects", "research_centers", "roles", "user_centers", "user_roles", "user_tickets", "users",
 ];
@@ -110,6 +111,10 @@ async function writeDemoData(prisma: PrismaClient, password: string, photosDir: 
 
   await prisma.$transaction(
     async (tx) => {
+      await tx.asset_categories.createMany({
+        data: DEMO_CATEGORIES.map(({ code, label }) => ({ code, label, useful_life_years: 5, is_active: true })),
+        skipDuplicates: true,
+      });
       await tx.funding_sources.createMany({ data: DEMO_FUNDING_SOURCES.map((name) => ({ name })), skipDuplicates: true });
       await tx.issue_types.createMany({
         data: DEMO_ISSUE_TYPES.map(([key, name, suggested_action]) => ({ key, name, suggested_action })),

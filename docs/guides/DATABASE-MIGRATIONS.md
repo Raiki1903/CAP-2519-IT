@@ -93,7 +93,7 @@ It prints `[seed] Done: 5 roles, 10 labs, 30 demo accounts, 7 projects, 58 demo 
 
 **Every date is counted back from the day the seed runs,** so the history always ends today: loans, tickets, warranties that end soon, inspections, remarks and log rows look current on the day you seed, and the insights fire on that day and for a few weeks after. Purchase dates are fixed. Seed a fresh database on the day you need it.
 
-What it writes: the 5 roles; the 10 research centers, each on its campus (TE3D and GAME at Laguna, HXIL at McKinley, the rest at Manila), each with a Head; the funding sources, issue types, and metric definitions the forms offer (the ones the migrations wrote are kept); and 30 demo accounts, who log in with `SEED_PASSWORD`:
+What it writes: the 5 roles; the 10 research centers, each on its campus (TE3D and GAME at Laguna, HXIL at McKinley, the rest at Manila), each with a Head; the asset categories, funding sources, issue types, and metric definitions the forms offer (the ones the migrations wrote are kept); and 30 demo accounts, who log in with `SEED_PASSWORD`:
 
 | Email | Role | Labs |
 |---|---|---|
@@ -302,6 +302,7 @@ Applied in this order by `prisma migrate deploy`. Never edit one that is merged:
 | `20261108120000_personal_funding_source` | Issue #167. Adds the funding source "Personal (self-funded)" when it is missing, for equipment a researcher bought with their own money. Data only, no structure change; safe to run twice |
 | `20261108180000_asset_remarks` | Issue #169. Adds the table `asset_remarks`: remarks on an asset, with their author and time. A delete only sets `deleted_by_id` and `deleted_at`, so the row stays. A new table only; nothing else changes |
 | `20261117120000_project_created_event` | Issue #192. Adds `PROJECT_CREATED` to the `activity_log` `event_type` enum for project creation events |
+| `20261118090000_asset_categories` | Issue #194. Adds the table `asset_categories` (code, label, useful life, active) with the 20 categories the ENUM held, useful life 5 years each. `assets.category` and `category_metrics.category` change from the ENUM to `VARCHAR(30)` in place (`MODIFY`, every row keeps its code) and gain a foreign key to `asset_categories.code`. Adds `REFERENCE_DATA_CHANGED` and `PASSWORD_CHANGED` (for #186) to the `activity_log` `event_type` enum |
 
 ## Where things are
 

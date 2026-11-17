@@ -77,7 +77,7 @@ model assets {
   name              String              @db.VarChar(255)
   serial_number     String?             @db.VarChar(255)
   manufacturer      String?             @db.VarChar(255)
-  category          assets_category
+  category          String              @db.VarChar(30)
   procurement_date  DateTime?           @db.Date
   warranty_expiry   DateTime?           @db.Date
   image_url         String?             @db.LongText
@@ -90,6 +90,7 @@ model assets {
   accessories       String?             @db.VarChar(500)
   its_property_tag  String?             @db.VarChar(100)
   tsg_tag           String?             @db.VarChar(100)
+  asset_categories  asset_categories    @relation(fields: [category], references: [code], onDelete: NoAction, onUpdate: NoAction)
   research_centers  research_centers    @relation(fields: [center_id], references: [center_id], onDelete: NoAction, onUpdate: NoAction)
   projects          projects?           @relation(fields: [project_id], references: [project_id], onDelete: NoAction, onUpdate: NoAction)
   funding_sources   funding_sources?    @relation(fields: [funding_source_id], references: [funding_source_id], onDelete: NoAction, onUpdate: NoAction)
@@ -101,6 +102,7 @@ model assets {
   asset_remarks     asset_remarks[]
 
   @@index([status])
+  @@index([category])
   @@index([center_id])
   @@index([project_id])
   @@index([funding_source_id])
@@ -167,9 +169,20 @@ model metric_definitions {
   values           asset_inspection_metrics[]
 }
 
+/// The asset categories. The code is the key that assets.category and category_metrics.category hold, and never changes.
+model asset_categories {
+  code              String             @id @db.VarChar(30)
+  label             String             @unique @db.VarChar(100)
+  useful_life_years Int                @default(5)
+  is_active         Boolean            @default(true)
+  assets            assets[]
+  category_metrics  category_metrics[]
+}
+
 model category_metrics {
-  category           assets_category
+  category           String             @db.VarChar(30)
   metric_id          Int
+  asset_categories   asset_categories   @relation(fields: [category], references: [code], onDelete: NoAction, onUpdate: NoAction)
   metric_definitions metric_definitions @relation(fields: [metric_id], references: [metric_id], onDelete: NoAction, onUpdate: NoAction)
 
   @@id([category, metric_id])
@@ -479,6 +492,8 @@ enum activity_log_event_type {
   ASSET_FOUND
   CLEARANCE_RECORD_PRINTED
   PROJECT_CREATED
+  REFERENCE_DATA_CHANGED
+  PASSWORD_CHANGED
 }
 
 enum research_centers_location {
@@ -491,29 +506,6 @@ enum users_user_type {
   STUDENT
   FACULTY
   STAFF
-}
-
-enum assets_category {
-  DEV_KIT
-  MONITOR
-  TV
-  CPU
-  KEYBOARD
-  MOUSE
-  CAMERA
-  MEMORY_CARD
-  PROJECTOR
-  RECORDER
-  ROUTER
-  SIMULATOR
-  TABLET
-  VR
-  PRINTER
-  SWITCH
-  HARD_DRIVE
-  AUDIO
-  VIDEO_CAMERA
-  SPEAKER
 }
 
 enum roles_role_name {
@@ -532,4 +524,3 @@ enum asset_condition {
   DEGRADED
   CRITICAL_DEFECT @map("CRITICAL DEFECT")
 }
-

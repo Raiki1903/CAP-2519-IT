@@ -37,11 +37,11 @@ export function findAssetsWithLastReturn() {
  * Every Available asset, optionally of one category, with its home lab, its project's research center, and its newest
  * returned loan.
  *
- * @param targetCategory an assets_category value, or undefined for every category
+ * @param targetCategory a category code, or undefined for every category
  */
 export function findAvailableAssetsForRecommender(targetCategory: string | undefined) {
     return prisma.assets.findMany({
-        where: { status: 'AVAILABLE', ...(targetCategory ? { category: targetCategory as Prisma.assetsWhereInput['category'] } : {}) },
+        where: { status: 'AVAILABLE', ...(targetCategory ? { category: targetCategory } : {}) },
         include: {
             ...WITH_LAB,
             projects: { include: { research_centers: true } },

@@ -4,7 +4,8 @@
  * Layer: service. Called by retirements.controller.ts. Calls retirements.repository.ts, features/assets/assets.repository.ts,
  * features/auth/auth.repository.ts (the emails), shared/services/lifecycleGuard.ts, shared/services/permissions.ts
  * (notSameActor), shared/services/inspectionShape.ts, shared/services/mailer.ts, shared/utils/html.ts, and, inside the
- * step's transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts.
+ * step's transaction, shared/services/inspections.ts (the inspection writer) and shared/services/assetStatus.ts, and
+ * features/reference/reference.service.ts (the category).
  * Used by: TSG disposal requests and completion (DisposalFormDialog), the Director's and the Secretary's decisions,
  * and the screens that list disposals.
  */
@@ -13,8 +14,7 @@ import type { SessionIdentity } from '@shared/types/auth';
 import type { Retirement, RetirementRecord } from '@shared/types/retirements';
 import { RETIREMENT_PATHWAY_LABELS, RETIREMENT_STATUS_LABELS, type RetirementStatus } from '@shared/constants/retirementStatuses';
 import { ASSET_STATUS_LABELS } from '@shared/enums/assetStatus';
-import { ASSET_CATEGORY_LABELS, type AssetCategory } from '@shared/enums/assetCategory';
-import { USEFUL_LIFE_YEARS, presentValue } from '@shared/constants/usefulLife';
+import { presentValue } from '@shared/constants/usefulLife';
 import * as retirementsRepository from './retirements.repository';
 import type { RetirementRow, RetirementRows } from './retirements.repository';
 import type { CompleteBody, DecisionBody, RequestBody } from './retirements.validation';
@@ -28,6 +28,7 @@ import { inspectionOf, personFor } from '../../shared/services/inspectionShape';
 import { writeInspection } from '../../shared/services/inspections';
 import { setAssetStatus } from '../../shared/services/assetStatus';
 import { sendEmail, emailTemplate } from '../../shared/services/mailer';
+import { categoryMap, categoryOf } from '../reference/reference.service';
 import { escapeHtml } from '../../shared/utils/html';
 
 /** The 409 message when an asset in Maintenance is not ready for disposal. (Contract section 3, note 3) */
@@ -131,7 +132,8 @@ export async function getRetirementRecord(retirementId: number, viewer: SessionI
     const retirement = await retirementById(retirementId, viewer);
     const lab = (await assetsRepository.findLabById(asset.center_id))!;
     const acquisitionValue = asset.acquisition_value === null ? null : Number(asset.acquisition_value);
-    const usefulLifeYears = USEFUL_LIFE_YEARS[asset.category as AssetCategory];
+    const category = categoryOf(await categoryMap(), asset.category);
+    const usefulLifeYears = category.usefulLifeYears;
     const procurementDateOnly = dateOnly(asset.procurement_date);
     const presentValueAtCompletion = retirement.status === "COMPLETED" && retirement.completedAt
         ? presentValue(acquisitionValue, procurementDateOnly, usefulLifeYears, dateOnly(new Date(retirement.completedAt))!)
@@ -145,7 +147,7 @@ export async function getRetirementRecord(retirementId: number, viewer: SessionI
             serialNumber: asset.serial_number,
             manufacturer: asset.manufacturer,
             category: asset.category,
-            categoryLabel: ASSET_CATEGORY_LABELS[asset.category as AssetCategory],
+            categoryLabel: category.label,
             procurementDate: procurementDateOnly,
             acquisitionValue,
             homeLab: { code: lab.short_code, name: lab.name },

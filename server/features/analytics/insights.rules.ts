@@ -1,7 +1,8 @@
 /**
  * Insight rules: the five pure checks that decide whether an asset gets an advice note, and how urgent it is.
  * Layer: service helper (no database, no wording). Called by insights.service.ts. Calls shared/services/assetState.ts
- * (serverToday) and the shared condition, category, maintenance, loan, and inspection constants.
+ * (serverToday) and the shared condition, maintenance, loan, and inspection constants. The category label comes with
+ * the asset (RuleAsset.categoryLabel).
  * Used by: the Staff, Lab Head, and Director analytics insights.
  * Dates: a DATE column (warranty_expiry, procurement_date, return_by) is compared as its UTC yyyy-mm-dd, as assetState
  * does. A DateTime column (reported_at, inspected_at) is compared as the server's local day. `asOf` is a yyyy-mm-dd
@@ -9,7 +10,7 @@
  */
 import type { InsightChartKey, InsightPriority, InsightRuleId, InsightView } from '@shared/types/analytics';
 import { ASSET_CONDITIONS, ASSET_CONDITION_LABELS, type AssetCondition } from '@shared/enums/assetCondition';
-import { ASSET_CATEGORY_LABELS, type AssetCategory } from '@shared/enums/assetCategory';
+import type { AssetCategory } from '@shared/enums/assetCategory';
 import { MAINTENANCE_STATUS_LABELS, type MaintenanceStatus } from '@shared/constants/maintenanceStatuses';
 import { HELD_LOAN_STATUSES } from '@shared/constants/loanStatuses';
 import { TSG_INSPECTION_TYPES } from '@shared/constants/inspectionTypes';
@@ -30,9 +31,9 @@ export const REPAIR_MIN_TICKETS = 3;
 
 /**
  * LIFE-04: months after purchase at which a category gets a review note. Demo values only, for the Director UAT:
- * they are a review point, not policy. A category not listed never gets the note.
+ * they are a review point, not policy. A category not listed, a new one too, never gets the note.
  */
-export const LIFECYCLE_LIMIT_MONTHS: Partial<Record<AssetCategory, number>> = { MONITOR: 60, ROUTER: 60, DEV_KIT: 48 };
+export const LIFECYCLE_LIMIT_MONTHS: Readonly<Partial<Record<AssetCategory, number>>> = { MONITOR: 60, ROUTER: 60, DEV_KIT: 48 };
 
 /** The asset fields the rules read. */
 export interface RuleAsset {
@@ -40,6 +41,8 @@ export interface RuleAsset {
     tag: string;
     name: string;
     category: AssetCategory;
+    /** The category's label (asset_categories.label). */
+    categoryLabel: string;
     /** assets.status; a Retired asset never gets a note. */
     status: string;
     labCode: string;
@@ -209,7 +212,7 @@ export function lifecycleRule(asset: RuleAsset, asOf: string): InsightHit | null
         vars: { N: months, L: limit },
         evidence: [
             { label: 'Purchased', value: purchased },
-            { label: 'Category', value: ASSET_CATEGORY_LABELS[asset.category] },
+            { label: 'Category', value: asset.categoryLabel },
         ],
         urgency: -months,
     };

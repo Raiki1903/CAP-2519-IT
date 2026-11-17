@@ -1,7 +1,7 @@
 /**
  * Lookup hooks: load the option lists the forms pick from.
  * Layer: feature component (data hook). Called by features/assets/EditAssetDialog.tsx and IntakeWizard.tsx,
- * features/loans/LoanForm.tsx, and pages/auth/Register.tsx.
+ * features/loans/LoanForm.tsx, pages/auth/Register.tsx, and the Reference Data page (forgetFormLookups).
  * Calls: api/lookups.api.ts.
  * Used by: Staff asset editing and registration, the Custodian borrow request, reporting an issue, and the sign-up page.
  */
@@ -50,6 +50,14 @@ export function useFormLookups() {
   }, []);
 
   return { lookups, failed };
+}
+
+/**
+ * Forgets the loaded option lists, so the next form that opens loads them again. Called after a change on the
+ * Reference Data page, so Register Asset offers a new category, lab, or funding source without a page reload.
+ */
+export function forgetFormLookups(): void {
+  formLookupsLoad = null;
 }
 
 /** The issue type that stands for "something else", for the screens that file a ticket with only a text. */

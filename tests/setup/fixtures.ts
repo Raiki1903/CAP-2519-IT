@@ -125,6 +125,18 @@ export const FUNDING_SOURCE = "Test Grant";
  * tests bring theirs. The metric keys are the real ones, because the flag rules in shared/constants are keyed by them.
  */
 export const LOOKUPS = {
+  /** The 20 categories the asset categories migration writes, with their labels, useful life 5 years each, all active. */
+  categories: [
+    { code: "DEV_KIT", label: "Dev Kit" }, { code: "MONITOR", label: "Monitor" }, { code: "TV", label: "TV" },
+    { code: "CPU", label: "CPU" }, { code: "KEYBOARD", label: "Keyboard" }, { code: "MOUSE", label: "Mouse" },
+    { code: "CAMERA", label: "Camera" }, { code: "MEMORY_CARD", label: "Memory Card" }, { code: "PROJECTOR", label: "Projector" },
+    { code: "RECORDER", label: "Recorder" }, { code: "ROUTER", label: "Router" }, { code: "SIMULATOR", label: "Simulator" },
+    { code: "TABLET", label: "Tablet" }, { code: "VR", label: "VR" }, { code: "PRINTER", label: "Printer" },
+    { code: "SWITCH", label: "Switch" }, { code: "HARD_DRIVE", label: "Hard Drive" }, { code: "AUDIO", label: "Audio" },
+    { code: "VIDEO_CAMERA", label: "Video Camera" }, { code: "SPEAKER", label: "Speaker" },
+  ],
+  /** The useful life the seed gives every category, in years. */
+  categoryUsefulLifeYears: 5,
   fundingSources: [
     { fundingSourceId: 1, name: FUNDING_SOURCE },
     { fundingSourceId: 2, name: "Test Second Fund" },
