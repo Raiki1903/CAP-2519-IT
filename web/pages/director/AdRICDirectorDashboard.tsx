@@ -757,14 +757,25 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
                       Repairs, inspections, and retirement of this asset.
                     </DialogDescription>
                   </div>
-                  <Button
-                    size="sm"
-                    className="bg-[#005A36] hover:bg-[#004225] text-white text-xs font-bold gap-1.5 shrink-0"
-                    onClick={() => exportLifecycleCSV(selectedAssetForAudit)}
-                  >
-                    <Download size={14} />
-                    Export CSV
-                  </Button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs font-bold gap-1.5"
+                      onClick={() => window.open(`/adric-director/assets/${encodeURIComponent(selectedAssetForAudit.id)}/history/print`, "_blank")}
+                    >
+                      <Printer size={14} />
+                      Download PDF
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="bg-[#005A36] hover:bg-[#004225] text-white text-xs font-bold gap-1.5"
+                      onClick={() => exportLifecycleCSV(selectedAssetForAudit)}
+                    >
+                      <Download size={14} />
+                      Export CSV
+                    </Button>
+                  </div>
                 </div>
               </DialogHeader>
 
