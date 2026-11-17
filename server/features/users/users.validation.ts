@@ -9,6 +9,7 @@ import { REJECT_REMARKS_MAX_LENGTH } from '@shared/constants/signUp';
 import { DATABASE_ROLES, type DatabaseRole } from '@shared/enums/role';
 import type { ApproveSignUpInput, ChangeLabsInput, ChangeRoleInput, RejectSignUpInput, SetLabHeadInput, UserListFilters } from '@shared/types/users';
 import { AppError } from '../../shared/errors/AppError';
+import { readNewPassword } from '../../shared/validation/fields';
 
 /** The 400 message for a role that is not one of the five database roles. */
 const ROLE_MESSAGE = "Choose a role: Researcher, TSG Staff, AdRIC Director, AdRIC Secretary, or IT Admin.";
@@ -160,4 +161,15 @@ export function readSetLabHead(body: any): SetLabHeadInput {
         throw new AppError(400, "Send userId: the new Head's account id, or null for no Head.");
     }
     return { userId };
+}
+
+/**
+ * Reads the body of an IT Admin password reset: a new password of an allowed length.
+ *
+ * @param body the request body
+ * @returns the new password
+ * @throws AppError 400 if newPassword is missing, not a string, or out of length bounds
+ */
+export function readResetPassword(body: any): { newPassword: string } {
+    return { newPassword: readNewPassword(body?.newPassword) };
 }

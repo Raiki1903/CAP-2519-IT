@@ -12,6 +12,7 @@ import type {
 import * as usersRepository from './users.repository';
 import type { LockedAccount, SignUpDecision, UserRow } from './users.repository';
 import { AppError } from '../../shared/errors/AppError';
+import { hashPassword } from '../../shared/services/passwords';
 
 /** An account in the contract's User shape. A Pending sign-up has no role yet, so role and roleLabel are null. */
 function toUser(row: UserRow): User {
@@ -281,5 +282,27 @@ export async function anonymizeUser(userId: number, itAdminId: number): Promise<
             throw new AppError(409, "This account still has unreturned equipment, so it is not cleared.");
         }
         return null;
+    }));
+}
+
+/**
+ * Resets a user's password to a temporary password chosen by the IT Admin.
+ *
+ * @param userId the account to reset
+ * @param newPassword the new plain password
+ * @param itAdminId the session user who resets it (never from the body)
+ * @returns the account with its role and labs
+ * @throws AppError 400 if the account is the IT Admin's own
+ * @throws AppError 404 if there is no such account
+ * @throws AppError 409 if the account is not Active or Inactive, or is anonymized
+ */
+export async function resetPassword(userId: number, newPassword: string, itAdminId: number): Promise<User> {
+    refuseOwnAccount(userId, itAdminId);
+    const passwordHash = await hashPassword(newPassword);
+    return changedUser(await usersRepository.resetPassword(userId, passwordHash, itAdminId, (account) => {
+        if (account.anonymized || (account.status !== 'ACTIVE' && account.status !== 'INACTIVE')) {
+            throw new AppError(409, "Only an active or deactivated account can get a new password.");
+        }
+        return "Reset by the IT Admin";
     }));
 }

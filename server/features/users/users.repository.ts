@@ -361,3 +361,22 @@ export function anonymizeUser(userId: number, itAdminId: number, decide: DecideC
         await tx.user_centers.deleteMany({ where: { user_id: userId } });
     });
 }
+
+/**
+ * Resets a user's password in one transaction, the account locked first: updates the password hash,
+ * and writes a PASSWORD_CHANGED row with the IT Admin as actor and the account as target.
+ *
+ * @param userId the account
+ * @param passwordHash the hashed password to save
+ * @param itAdminId the session user who resets it
+ * @param decide the service's rules, run on the locked account
+ * @returns the account as it is now, or null if there is none with this id
+ */
+export function resetPassword(userId: number, passwordHash: string, itAdminId: number, decide: DecideChange): Promise<UserRow | null> {
+    return changeAccount(userId, itAdminId, 'PASSWORD_CHANGED', decide, async (tx) => {
+        await tx.users.update({
+            where: { user_id: userId },
+            data: { password: passwordHash },
+        });
+    });
+}

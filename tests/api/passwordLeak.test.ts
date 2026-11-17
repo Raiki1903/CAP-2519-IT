@@ -1,7 +1,7 @@
 /**
- * No answer holds a password or a hash: the sign-up path, the session answers, and every list screen. (C-03, issue #10)
+ * No answer holds a password or a hash: the sign-up path, the session answers, password changes, and every list screen. (C-03, issue #10)
  * Covers POST /api/auth/register-request and /login, GET /api/users?status=PENDING, PUT /api/users/:userId/approve,
- * GET /api/auth/me, PUT /api/auth/account, and the GET routes of every feature.
+ * GET /api/auth/me, PUT /api/auth/account, PUT /api/users/:userId/password, PUT /api/auth/password, and the GET routes of every feature.
  * Fixtures: the seeded accounts and assets, and one invented applicant, approved by the IT Admin and logged in during
  * the first test.
  */
@@ -50,6 +50,19 @@ describe("the sign-up path and the session answers", () => {
     const account = await as(newUser).put("/api/auth/account", { firstName: "Test", lastName: "Leak Check" });
     expect(account.status).toBe(200);
     expectNoSecret("account", account.body);
+
+    const changePw = await as(newUser).put("/api/auth/password", {
+      currentPassword: PLAIN,
+      newPassword: "test-new-leak-password",
+    });
+    expect(changePw.status).toBe(200);
+    expectNoSecret("change own password", changePw.body);
+
+    const adminReset = await as(USERS.admin).put(`/api/users/${newUser.userId}/password`, {
+      newPassword: "test-admin-leak-password",
+    });
+    expect(adminReset.status).toBe(200);
+    expectNoSecret("admin reset password", adminReset.body);
   });
 });
 

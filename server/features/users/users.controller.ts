@@ -8,7 +8,7 @@
 import type { Request, Response } from 'express';
 import * as usersService from './users.service';
 import {
-    readApproveSignUp, readCenterId, readChangeLabs, readChangeRole, readRejectSignUp, readSetLabHead, readUserId, readUserListQuery,
+    readApproveSignUp, readCenterId, readChangeLabs, readChangeRole, readRejectSignUp, readResetPassword, readSetLabHead, readUserId, readUserListQuery,
 } from './users.validation';
 import { sessionUserOf } from '../../shared/middleware/requireAuth';
 
@@ -144,5 +144,21 @@ export async function anonymizeUser(req: Request<{ userId: string }>, res: Respo
     const user = await usersService.anonymizeUser(userId, itAdminId);
 
     console.log(`User ${userId} anonymized by user ${itAdminId}`);
+    res.json({ success: true, user });
+}
+
+/**
+ * Handles PUT /api/users/:userId/password: resets a user's password to a temporary password chosen by the IT Admin.
+ * Answers `{ success, user }`, or the AppError's status and message (400 own account or bad password length;
+ * 404 no such account; 409 not Active or Inactive, or anonymized), or 500.
+ */
+export async function resetPassword(req: Request<{ userId: string }>, res: Response): Promise<void> {
+    const userId = readUserId(req.params.userId);
+    const { newPassword } = readResetPassword(req.body);
+    const itAdminId = sessionUserOf(req).userId;
+
+    const user = await usersService.resetPassword(userId, newPassword, itAdminId);
+
+    console.log(`Password for user ${userId} reset by user ${itAdminId}`);
     res.json({ success: true, user });
 }
