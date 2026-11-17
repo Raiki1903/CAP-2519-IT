@@ -519,6 +519,7 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
     };
 
     const triggerExportCSV = () => {
+      const quoteCsv = (val: unknown) => `"${String(val ?? "").replace(/"/g, '""')}"`;
       const headers = ["Asset ID", "ITS Property Tag", "Name", "Serial Number", "Manufacturer", "Category", "Funding", "Acquisition Date", "Valuation", "Present Value", "Availability", "Custodian", "Lab"];
       const rows = filteredAssets.map(a => [
         a.id,
@@ -536,8 +537,11 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
         a.lab || ""
       ]);
 
-      const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const csvContent = [
+        headers.map(quoteCsv).join(","),
+        ...rows.map(e => e.map(quoteCsv).join(","))
+      ].join("\n");
+      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
