@@ -10,6 +10,7 @@ import { Printer, ArrowLeft, ShieldAlert } from "lucide-react";
 import { getAccountabilityForm } from "@web/api/loans.api";
 import { Button } from "@web/components/ui/button";
 import { ADRIC_FULL_NAME } from "@shared/constants/adric";
+import adricLogo from "@web/assets/adric-logo.png";
 import type { AccountabilityForm } from "@shared/types/loans";
 
 /**
@@ -147,19 +148,22 @@ export function AccountabilityFormPage() {
       {/* Printable Sheet */}
       <div className="max-w-3xl mx-auto bg-white print:bg-white border border-slate-300 print:border-none rounded-xl print:rounded-none shadow-sm print:shadow-none p-8 md:p-12 space-y-6 text-[12px] leading-relaxed text-slate-900">
         {/* Header */}
-        <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
-          <div>
-            <p className="text-[11px] font-bold tracking-wider uppercase text-slate-600">
-              De La Salle University - College of Computer Studies
-            </p>
-            <h1 className="text-xl font-extrabold tracking-tight text-slate-950">
-              {ADRIC_FULL_NAME}
-            </h1>
-            <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wide mt-0.5">
-              Asset Accountability Form
-            </p>
+        <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start gap-4">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <img src={adricLogo} alt="AdRIC logo" className="h-14 w-auto shrink-0 object-contain" />
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold tracking-wider uppercase text-slate-600">
+                De La Salle University - College of Computer Studies
+              </p>
+              <h1 className="text-xl font-extrabold tracking-tight text-slate-950 leading-snug">
+                {ADRIC_FULL_NAME}
+              </h1>
+              <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wide mt-0.5">
+                Asset Accountability Form
+              </p>
+            </div>
           </div>
-          <div className="text-right">
+          <div className="text-right shrink-0">
             <p className="text-[10px] font-bold text-slate-500 uppercase">Accountability ID</p>
             <p className="text-base font-mono font-extrabold text-slate-950">{accountabilityId}</p>
             <p className="text-[10px] text-slate-500 mt-1">Issued: {formatDate(loan.releasedAt)}</p>
