@@ -97,14 +97,14 @@ export async function getExistingProjectCodes(tx?: Prisma.TransactionClient): Pr
   return codes;
 }
 
-/** Returns existing asset tags for a given research center. */
-export async function getExistingTagsForCenter(
-  centerId: number,
+/** Returns existing asset tags starting with the lab prefix. */
+export async function getExistingTagsForPrefix(
+  shortCode: string,
   tx?: Prisma.TransactionClient,
 ): Promise<string[]> {
   const client = tx ?? prisma;
   const rows = await client.assets.findMany({
-    where: { center_id: centerId },
+    where: { asset_tag: { startsWith: `${shortCode}-` } },
     select: { asset_tag: true },
   });
   return rows.map((r) => r.asset_tag);
@@ -205,16 +205,18 @@ export async function saveAssetsTransaction(
     await lockCenter(tx, cid);
   }
 
-  const existingTagsMap = new Map<number, string[]>();
-  for (const cid of centerIds) {
-    const tags = await getExistingTagsForCenter(cid, tx);
-    existingTagsMap.set(cid, tags);
+  const existingTagsMap = new Map<string, string[]>();
+  for (const item of assets) {
+    if (!existingTagsMap.has(item.labShortCode)) {
+      const tags = await getExistingTagsForPrefix(item.labShortCode, tx);
+      existingTagsMap.set(item.labShortCode, tags);
+    }
   }
 
   const created: { row: number; key: string }[] = [];
 
   for (const item of assets) {
-    const existingTags = existingTagsMap.get(item.centerId)!;
+    const existingTags = existingTagsMap.get(item.labShortCode)!;
     const tag = nextTagHelper(item.labShortCode, existingTags);
     existingTags.push(tag);
 

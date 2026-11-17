@@ -571,7 +571,7 @@ async function validateAssetsCsv(
       if (resolvedCenter) {
         const labKey = resolvedCenter.shortCode;
         if (!previewTagsPerLab.has(labKey)) {
-          const initialTags = await importsRepository.getExistingTagsForCenter(resolvedCenter.centerId, tx);
+          const initialTags = await importsRepository.getExistingTagsForPrefix(labKey, tx);
           previewTagsPerLab.set(labKey, [...initialTags]);
         }
         const labTags = previewTagsPerLab.get(labKey)!;

@@ -25,7 +25,7 @@ export async function checkProjects(req: Request, res: Response): Promise<void> 
  * Atomically saves a projects CSV batch. Returns HTTP 400 with validation errors if invalid.
  *
  * @param req request carrying JSON with csv text
- * @param res HTTP 200 with ImportSaveResult, or HTTP 400 with ImportCheckResult on error
+ * @param res HTTP 201 with ImportSaveResult, or HTTP 400 with ImportCheckResult on error
  */
 export async function saveProjects(req: Request, res: Response): Promise<void> {
   const csv = readImportBody(req.body);
@@ -35,7 +35,7 @@ export async function saveProjects(req: Request, res: Response): Promise<void> {
     res.status(400).json(result);
     return;
   }
-  res.json(result);
+  res.status(201).json(result);
 }
 
 /**
@@ -54,7 +54,7 @@ export async function checkAssets(req: Request, res: Response): Promise<void> {
  * Atomically saves an assets CSV batch. Returns HTTP 400 with validation errors if invalid.
  *
  * @param req request carrying JSON with csv text
- * @param res HTTP 200 with ImportSaveResult, or HTTP 400 with ImportCheckResult on error
+ * @param res HTTP 201 with ImportSaveResult, or HTTP 400 with ImportCheckResult on error
  */
 export async function saveAssets(req: Request, res: Response): Promise<void> {
   const csv = readImportBody(req.body);
@@ -64,6 +64,6 @@ export async function saveAssets(req: Request, res: Response): Promise<void> {
     res.status(400).json(result);
     return;
   }
-  res.json(result);
+  res.status(201).json(result);
 }
 

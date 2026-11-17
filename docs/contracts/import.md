@@ -58,7 +58,7 @@ export interface ImportSaveResult {
 - **Check (`/check`):**
   - **HTTP 200:** Returns `ImportCheckResult`. `success` is `true` when `errors` is empty; `false` otherwise.
 - **Save (root):**
-  - **HTTP 200:** When valid, returns `ImportSaveResult` with `success: true` and array of `{ row, key }` created (where `key` is the `project_code` for projects or `asset_tag` for assets).
+  - **HTTP 201:** When valid, returns `ImportSaveResult` with `success: true` and array of `{ row, key }` created (where `key` is the `project_code` for projects or `asset_tag` for assets).
   - **HTTP 400:** When invalid, returns `ImportCheckResult` with `success: false`, `rowCount`, `errors`, and `preview`. Nothing is saved.
 
 ### Error Capping Rule

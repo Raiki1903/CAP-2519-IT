@@ -999,7 +999,7 @@ describe("Projects save: successful creation", () => {
     await deleteProjects(SAVED_CODES);
   });
 
-  it("returns HTTP 200 with ImportSaveResult and creates one project per row", async () => {
+  it("returns HTTP 201 with ImportSaveResult and creates one project per row", async () => {
     const header = "project_code,project_name,project_leader,lab,start_date";
     const csv =
       `${header}\n` +
@@ -1007,7 +1007,7 @@ describe("Projects save: successful creation", () => {
       `${SAVED_CODES[1]},Project Two,Leader Two,${LAB.shortCode},2026-03-01`;
     const res = await asTsg.post("/api/imports/projects", { csv });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.created).toHaveLength(2);
     expect(res.body.created.map((c: { key: string }) => c.key)).toEqual(
@@ -1062,7 +1062,7 @@ describe("Assets save: successful creation across one lab", () => {
     createdTags = [];
   });
 
-  it("returns HTTP 200 with ImportSaveResult containing all created tags", async () => {
+  it("returns HTTP 201 with ImportSaveResult containing all created tags", async () => {
     const header = "lab,name,category,condition";
     const csv =
       `${header}\n` +
@@ -1070,7 +1070,7 @@ describe("Assets save: successful creation across one lab", () => {
       `${LAB.shortCode},Asset Beta,MONITOR,PERFECT`;
     const res = await asTsg.post("/api/imports/assets", { csv });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.created).toHaveLength(2);
     createdTags = res.body.created.map((c: { key: string }) => c.key);
@@ -1092,7 +1092,7 @@ describe("Assets save: successful creation across one lab", () => {
       `${LAB.shortCode},Seq Asset 2,DEV_KIT,OPERATIONAL`;
     const res = await asTsg.post("/api/imports/assets", { csv });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     createdTags = res.body.created.map((c: { key: string }) => c.key);
     expect(createdTags[0]).toBe(`TEST-${String(maxSeq + 1).padStart(4, "0")}`);
     expect(createdTags[1]).toBe(`TEST-${String(maxSeq + 2).padStart(4, "0")}`);
@@ -1104,7 +1104,7 @@ describe("Assets save: successful creation across one lab", () => {
       `${LAB.shortCode},Status Asset,DEV_KIT,OPERATIONAL`;
     const res = await asTsg.post("/api/imports/assets", { csv });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     createdTags = res.body.created.map((c: { key: string }) => c.key);
     const asset = await db.assets.findFirst({ where: { asset_tag: createdTags[0] } });
     expect(asset!.status).toBe("AVAILABLE");
@@ -1117,7 +1117,7 @@ describe("Assets save: successful creation across one lab", () => {
       `${LAB.shortCode},Inspection Asset,DEV_KIT,${condition}`;
     const res = await asTsg.post("/api/imports/assets", { csv });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     createdTags = res.body.created.map((c: { key: string }) => c.key);
     const asset = await db.assets.findFirst({ where: { asset_tag: createdTags[0] } });
     const inspection = await db.asset_inspections.findFirst({ where: { asset_id: asset!.asset_id } });
@@ -1134,7 +1134,7 @@ describe("Assets save: successful creation across one lab", () => {
       `${LAB.shortCode},Custom Score Asset,DEV_KIT,OPERATIONAL,75`;
     const res = await asTsg.post("/api/imports/assets", { csv });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     createdTags = res.body.created.map((c: { key: string }) => c.key);
     const asset = await db.assets.findFirst({ where: { asset_tag: createdTags[0] } });
     const inspection = await db.asset_inspections.findFirst({ where: { asset_id: asset!.asset_id } });
@@ -1148,7 +1148,7 @@ describe("Assets save: successful creation across one lab", () => {
       `${LAB.shortCode},Remarks Asset,DEV_KIT,OPERATIONAL,Looks fine,Power cable`;
     const res = await asTsg.post("/api/imports/assets", { csv });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     createdTags = res.body.created.map((c: { key: string }) => c.key);
     const asset = await db.assets.findFirst({ where: { asset_tag: createdTags[0] } });
     const inspection = await db.asset_inspections.findFirst({ where: { asset_id: asset!.asset_id } });
@@ -1163,7 +1163,7 @@ describe("Assets save: successful creation across one lab", () => {
       `${LAB.shortCode},Log Asset,DEV_KIT,OPERATIONAL`;
     const res = await asTsg.post("/api/imports/assets", { csv });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     createdTags = res.body.created.map((c: { key: string }) => c.key);
     const tag = createdTags[0];
 
@@ -1181,7 +1181,7 @@ describe("Assets save: successful creation across one lab", () => {
       `${LAB.shortCode},Full Asset,DEV_KIT,OPERATIONAL,SN-IMPORT-FULL,Acme Corp,PHP 5000.00,2026-01-15`;
     const res = await asTsg.post("/api/imports/assets", { csv });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     createdTags = res.body.created.map((c: { key: string }) => c.key);
     const asset = await db.assets.findFirst({ where: { asset_tag: createdTags[0] } });
 
@@ -1213,7 +1213,7 @@ describe("Chained import: projects then assets", () => {
       "project_code,project_name,project_leader,lab,start_date\n" +
       `${PROJECT_CODE},Chain Project,Dr. Chain,${LAB.shortCode},2026-05-01`;
     const projRes = await asTsg.post("/api/imports/projects", { csv: projCsv });
-    expect(projRes.status).toBe(200);
+    expect(projRes.status).toBe(201);
     expect(projRes.body.success).toBe(true);
 
     // Step 2: import assets referencing the new project.
@@ -1222,7 +1222,7 @@ describe("Chained import: projects then assets", () => {
       `${LAB.shortCode},Chained Asset,DEV_KIT,OPERATIONAL,${PROJECT_CODE}`;
     const assetsRes = await asTsg.post("/api/imports/assets", { csv: assetsCsv });
 
-    expect(assetsRes.status).toBe(200);
+    expect(assetsRes.status).toBe(201);
     expect(assetsRes.body.success).toBe(true);
     createdAssetTags = assetsRes.body.created.map((c: { key: string }) => c.key);
 
@@ -1334,9 +1334,74 @@ describe("Secretary: can check and save projects", () => {
       `${SEC_CODE},Secretary Project,Dr. Sec,${LAB.shortCode},2026-04-01`;
     const res = await asSecretary.post("/api/imports/projects", { csv });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     const proj = await db.projects.findFirst({ where: { project_code: SEC_CODE } });
     expect(proj).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14. Tag numbering regression: moved asset keeping original prefix
+// ---------------------------------------------------------------------------
+
+describe("Tag numbering: queries by prefix so transferred assets prevent collisions", () => {
+  let createdCenterId: number | null = null;
+  let movedAssetId: number | null = null;
+  let importedTags: string[] = [];
+
+  afterEach(async () => {
+    await deleteImportedAssets(importedTags);
+    importedTags = [];
+
+    if (movedAssetId) {
+      await deleteImportedAssets(["CNIS-0005"]);
+      movedAssetId = null;
+    }
+
+    if (createdCenterId) {
+      await db.research_centers.delete({ where: { center_id: createdCenterId } });
+      createdCenterId = null;
+    }
+  });
+
+  it("assigns next sequential tag for CNIS after an asset with CNIS tag moved to another lab", async () => {
+    // 1. Create a CNIS research center.
+    const cnisLab = await db.research_centers.create({
+      data: {
+        name: "Center for Networking and Information Security",
+        short_code: "CNIS",
+        location: "MANILA",
+      },
+    });
+    createdCenterId = cnisLab.center_id;
+
+    // 2. Create an asset originally tagged CNIS-0005, but whose center_id is LAB.centerId
+    // (simulating it was moved/transferred to another lab while keeping its original CNIS-0005 tag).
+    const moved = await db.assets.create({
+      data: {
+        asset_tag: "CNIS-0005",
+        name: "Moved Switch",
+        category: "ROUTER",
+        center_id: LAB.centerId,
+        status: "AVAILABLE",
+      },
+    });
+    movedAssetId = moved.asset_id;
+
+    // 3. Preview/check for a new asset in CNIS should see CNIS-0005 across the database
+    // and predict CNIS-0006 (instead of CNIS-0001).
+    const checkCsv = "lab,name,category,condition\nCNIS,New Server,DEV_KIT,OPERATIONAL";
+    const checkRes = await asTsg.post("/api/imports/assets/check", { csv: checkCsv });
+    expect(checkRes.status).toBe(200);
+    expect(checkRes.body.success).toBe(true);
+    expect(checkRes.body.preview[0].expectedTag).toBe("CNIS-0006");
+
+    // 4. Save import should assign CNIS-0006.
+    const saveRes = await asTsg.post("/api/imports/assets", { csv: checkCsv });
+    expect(saveRes.status).toBe(201);
+    expect(saveRes.body.success).toBe(true);
+    expect(saveRes.body.created[0].key).toBe("CNIS-0006");
+    importedTags = saveRes.body.created.map((c: { key: string }) => c.key);
   });
 });
