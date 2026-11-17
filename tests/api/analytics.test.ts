@@ -916,4 +916,13 @@ describe("the three advanced endpoints kept on 2026-10-07 (responds with 200 onl
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
+
+  it("GET /api/analytics/advanced/loan-recommender takes a category and refuses one that does not exist with 400", async () => {
+    const known = await asLabHead.get("/api/analytics/advanced/loan-recommender?category=DEV_KIT");
+    expect(known.status).toBe(200);
+
+    const unknown = await asLabHead.get("/api/analytics/advanced/loan-recommender?category=NOT_A_CATEGORY");
+    expect(unknown.status).toBe(400);
+    expect(unknown.body.error).toBe("Pick a category from the list.");
+  });
 });

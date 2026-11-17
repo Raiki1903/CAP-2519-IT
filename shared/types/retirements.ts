@@ -63,7 +63,7 @@ export interface RetirementRecordAsset {
   name: string;
   serialNumber: string | null;
   manufacturer: string | null;
-  /** One of AssetCategory. */
+  /** A category code (asset_categories.code). */
   category: string;
   categoryLabel: string;
   /** yyyy-mm-dd, or null if never recorded. */

@@ -19,6 +19,8 @@ export interface ImportLookupCache {
   centersByCode: Map<string, { centerId: number; shortCode: string }>;
   fundingByName: Map<string, { fundingSourceId: number; name: string }>;
   projectsByCode: Map<string, { projectId: number; projectCode: string }>;
+  /** The codes of the active asset categories. */
+  activeCategoryCodes: Set<string>;
 }
 
 /** Preloaded existing asset identifiers for duplicate detection. */
@@ -28,13 +30,14 @@ export interface AssetIdentifierCache {
   tsgTags: Map<string, string>;
 }
 
-/** Preloads lookup tables for research centers, funding sources, and projects. */
+/** Preloads lookup tables for research centers, funding sources, projects, and the active asset categories. */
 export async function getLookupCache(tx?: Prisma.TransactionClient): Promise<ImportLookupCache> {
   const client = tx ?? prisma;
-  const [centers, funding, projectRows] = await Promise.all([
+  const [centers, funding, projectRows, categories] = await Promise.all([
     client.research_centers.findMany({ select: { center_id: true, short_code: true } }),
     client.funding_sources.findMany({ select: { funding_source_id: true, name: true } }),
     client.projects.findMany({ select: { project_id: true, project_code: true } }),
+    client.asset_categories.findMany({ where: { is_active: true }, select: { code: true } }),
   ]);
 
   const centersByCode = new Map<string, { centerId: number; shortCode: string }>();
@@ -52,7 +55,9 @@ export async function getLookupCache(tx?: Prisma.TransactionClient): Promise<Imp
     projectsByCode.set(p.project_code.toLowerCase(), { projectId: p.project_id, projectCode: p.project_code });
   }
 
-  return { centersByCode, fundingByName, projectsByCode };
+  const activeCategoryCodes = new Set(categories.map((c) => c.code));
+
+  return { centersByCode, fundingByName, projectsByCode, activeCategoryCodes };
 }
 
 /** Preloads existing asset serial numbers, ITS property tags, and TSG tags across all assets. */

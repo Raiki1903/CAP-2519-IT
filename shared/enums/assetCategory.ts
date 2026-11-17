@@ -1,48 +1,23 @@
 /**
- * The asset category values and their labels.
- * Layer: shared. Imported by server/features/assets/assets.service.ts (category sanitizing), server/features/lookups/lookups.service.ts,
- * shared/constants/careGuidelines.ts, and web/ (features/assets/IntakeWizard.tsx). Imports nothing.
+ * The asset category type. The categories themselves, with their labels, useful lives and whether they are active,
+ * live in the asset_categories table: the server reads them (server/features/reference/reference.service.ts) and the
+ * screens get them from GET /api/lookups.
+ * Layer: shared. Imported by shared/constants/careGuidelines.ts, server/features (analytics insights, imports), and
+ * web/ (features/assets/IntakeWizard.tsx, pages/custodian/CustodianPortal.tsx). Imports nothing.
  * Used by: asset registration and edit, and every screen that shows an asset's category.
  */
 
+/** One asset category code, the key of asset_categories (for example "MONITOR"). */
+export type AssetCategory = string;
+
 /**
- * Valid asset categories. Must match the `assets_category` enum in schema.prisma,
- * because the server writes these values straight into that column.
+ * The 20 category codes the asset categories migration wrote.
+ * TODO(#194): Register Asset and the Researcher's category filter still read this list instead of GET /api/lookups,
+ * so a category added on the Reference Data page is missing there. Commit 5 of #194 moves them and removes this list.
  */
-export const ASSET_CATEGORIES = [
+export const ASSET_CATEGORIES: readonly AssetCategory[] = [
   "DEV_KIT", "MONITOR", "TV", "CPU", "KEYBOARD", "MOUSE", "CAMERA",
   "MEMORY_CARD", "PROJECTOR", "RECORDER", "ROUTER", "SIMULATOR",
   "TABLET", "VR", "PRINTER", "SWITCH", "HARD_DRIVE", "AUDIO",
-  "VIDEO_CAMERA", "SPEAKER"
+  "VIDEO_CAMERA", "SPEAKER",
 ];
-
-/** One asset category. */
-export type AssetCategory =
-  | "DEV_KIT" | "MONITOR" | "TV" | "CPU" | "KEYBOARD" | "MOUSE" | "CAMERA"
-  | "MEMORY_CARD" | "PROJECTOR" | "RECORDER" | "ROUTER" | "SIMULATOR"
-  | "TABLET" | "VR" | "PRINTER" | "SWITCH" | "HARD_DRIVE" | "AUDIO"
-  | "VIDEO_CAMERA" | "SPEAKER";
-
-/** The label every screen shows for each category. */
-export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
-  DEV_KIT: "Dev Kit",
-  MONITOR: "Monitor",
-  TV: "TV",
-  CPU: "CPU",
-  KEYBOARD: "Keyboard",
-  MOUSE: "Mouse",
-  CAMERA: "Camera",
-  MEMORY_CARD: "Memory Card",
-  PROJECTOR: "Projector",
-  RECORDER: "Recorder",
-  ROUTER: "Router",
-  SIMULATOR: "Simulator",
-  TABLET: "Tablet",
-  VR: "VR",
-  PRINTER: "Printer",
-  SWITCH: "Switch",
-  HARD_DRIVE: "Hard Drive",
-  AUDIO: "Audio",
-  VIDEO_CAMERA: "Video Camera",
-  SPEAKER: "Speaker",
-};

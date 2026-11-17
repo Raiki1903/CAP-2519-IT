@@ -1,10 +1,12 @@
 /**
  * Analytics query reading: the lab, prefix, category, and date filters of the analytics routes.
- * Layer: validation. Called by analytics.controller.ts. Calls nothing.
+ * Layer: validation. Called by analytics.controller.ts. Calls shared/errors/AppError.ts.
  * Used by: the Director, Lab Head, and Staff analytics views.
- * Nothing here refuses a request: every filter is optional and has a fallback, so none of the routes answers 400.
+ * Every filter is optional and has a fallback. Only a category that is not one value is refused here; whether it is a
+ * category is the service's check.
  */
 import type { Request } from 'express';
+import { AppError } from '../../shared/errors/AppError';
 
 type Query = Request['query'];
 
@@ -29,10 +31,16 @@ export function readLabQuery(query: Query): string | undefined {
     return query.lab as string | undefined;
 }
 
-/** The optional `category` query value of the loan recommender. */
-// TODO: an unknown category is not checked here; Prisma refuses it and the answer is errorHandler's generic 500, not a 400. A check against ASSET_CATEGORIES (step 12 batch 4, proposal 8).
+/**
+ * The optional `category` query value of the loan recommender: a category code, or undefined for every category.
+ *
+ * @throws AppError 400 if it is sent more than once
+ */
 export function readCategoryQuery(query: Query): string | undefined {
-    return query.category as string | undefined;
+    const value = query.category;
+    if (value === undefined || value === "") return undefined;
+    if (typeof value !== "string") throw new AppError(400, "Pick a category from the list.");
+    return value.trim();
 }
 
 /**

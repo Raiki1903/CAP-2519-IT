@@ -1,37 +1,11 @@
 /**
- * Each category's useful life, for straight-line depreciation, and the formula that uses it.
- * Layer: shared. Imported by server/features/assets/assets.service.ts. Imports shared/enums/assetCategory.ts.
+ * The straight-line depreciation formula for an asset's present value. Each category's useful life is
+ * asset_categories.useful_life_years (5 years for the 20 first categories, following government practice for ICT
+ * equipment, COA guidelines on depreciable life), changed on the Reference Data page.
+ * Layer: shared. Imported by server/features/assets/assets.service.ts and server/features/retirements/retirements.service.ts.
+ * Imports nothing.
  * Used by: every asset's present value, in the asset list, the asset modal, and the Director's Inventory Report.
  */
-import type { AssetCategory } from "../enums/assetCategory";
-
-/**
- * Years of useful life per category, for straight-line depreciation.
- * Every category is 5 years today, following government practice for ICT equipment (COA guidelines on
- * depreciable life). The next team can change a category's value here without touching the formula.
- */
-export const USEFUL_LIFE_YEARS: Record<AssetCategory, number> = {
-  DEV_KIT: 5,
-  MONITOR: 5,
-  TV: 5,
-  CPU: 5,
-  KEYBOARD: 5,
-  MOUSE: 5,
-  CAMERA: 5,
-  MEMORY_CARD: 5,
-  PROJECTOR: 5,
-  RECORDER: 5,
-  ROUTER: 5,
-  SIMULATOR: 5,
-  TABLET: 5,
-  VR: 5,
-  PRINTER: 5,
-  SWITCH: 5,
-  HARD_DRIVE: 5,
-  AUDIO: 5,
-  VIDEO_CAMERA: 5,
-  SPEAKER: 5,
-};
 
 /**
  * Full years from a procurement date to today. A date in the future counts as 0, never negative.
@@ -56,7 +30,7 @@ function wholeYearsSince(procurementDate: string, today: string): number {
  *
  * @param acquisitionValue what the asset cost, or null if never recorded
  * @param procurementDate yyyy-mm-dd, or null if never recorded
- * @param usefulLifeYears the asset category's useful life (USEFUL_LIFE_YEARS)
+ * @param usefulLifeYears the asset category's useful life (asset_categories.useful_life_years)
  * @param today yyyy-mm-dd, the one "today" (server/shared/services/assetState.ts serverToday())
  * @returns the present value, or null when the acquisition value or the procurement date is missing
  */

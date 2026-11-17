@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { addExtraAsset } from "../setup/extraAssets";
 import { ASSETS, LAB, LOOKUPS, SEEDED_ROWS, USERS } from "../setup/fixtures";
 import { useApiHarness } from "../setup/harness";
-import { USEFUL_LIFE_YEARS, presentValue } from "../../shared/constants/usefulLife";
+import { presentValue } from "../../shared/constants/usefulLife";
 
 const { db, as } = useApiHarness();
 const asDirector = as(USERS.director);
@@ -111,7 +111,7 @@ describe("GET /api/retirements/:retirementId", () => {
         itsPropertyTag: null,
         tsgTag: null,
       });
-      expect(res.body.presentValueAtCompletion).toBe(presentValue(ASSETS.disposed.acquisitionValue, "2025-06-01", USEFUL_LIFE_YEARS.ROUTER, "2026-03-10"));
+      expect(res.body.presentValueAtCompletion).toBe(presentValue(ASSETS.disposed.acquisitionValue, "2025-06-01", LOOKUPS.categoryUsefulLifeYears, "2026-03-10"));
     }
   });
 

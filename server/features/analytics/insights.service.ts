@@ -1,12 +1,12 @@
 /**
  * Insights service: runs the five rules over the rows in the viewer's scope and sorts the notes.
  * Layer: service. Called by analytics.controller.ts. Calls insights.repository.ts, analytics.scope.ts (which lab),
- * insights.rules.ts, insights.text.ts, and shared/services/assetState.ts (serverToday).
+ * insights.rules.ts, insights.text.ts, shared/services/assetState.ts (serverToday), and
+ * features/reference/reference.service.ts (the category labels).
  * Used by: the Staff, Lab Head, and Director analytics insights.
  * Evaluated on each request. Nothing is stored and nothing is written.
  */
 import type { Insight, InsightPriority, InsightsData } from '@shared/types/analytics';
-import type { AssetCategory } from '@shared/enums/assetCategory';
 import type { AssetCondition } from '@shared/enums/assetCondition';
 import type { SessionIdentity } from '@shared/types/auth';
 import { serverToday } from '../../shared/services/assetState';
@@ -18,6 +18,7 @@ import {
 } from './insights.rules';
 import { insightOf, type InsightAudience } from './insights.text';
 import type { InsightsQuery } from './insights.validation';
+import { categoryMap, categoryOf } from '../reference/reference.service';
 
 const PRIORITY_ORDER: Record<InsightPriority, number> = { HIGH: 0, MEDIUM: 1, PLANNING: 2 };
 
@@ -54,12 +55,13 @@ export async function insightsFor(viewer: SessionIdentity, query: InsightsQuery,
     const scope = await resolveScope(viewer, query.centerId);
     const audience: InsightAudience = viewer.role === 'LabHead' ? 'labHead' : viewer.role === 'Staff' ? 'staff' : 'director';
 
-    const [assetRows, loanRows, ticketRows, inspectionRows] = await Promise.all([
+    const [assetRows, loanRows, ticketRows, inspectionRows, categories] = await Promise.all([
         insightsRepository.findAssets(scope.centerId),
         insightsRepository.findHeldLoans(scope.centerId),
         // Two days wider than the rule's window, so a time zone shift never drops a ticket the rule would count.
         insightsRepository.findRecentTickets(scope.centerId, daysBefore(asOf, REPAIR_WINDOW_DAYS + 2)),
         insightsRepository.findTsgInspections(scope.centerId),
+        categoryMap(),
     ]);
 
     const loansByAsset = groupByAsset(loanRows, l => l.asset_id);
@@ -69,7 +71,8 @@ export async function insightsFor(viewer: SessionIdentity, query: InsightsQuery,
     const hits: InsightHit[] = [];
     for (const row of assetRows) {
         const asset: RuleAsset = {
-            assetId: row.asset_id, tag: row.asset_tag, name: row.name, category: row.category as AssetCategory,
+            assetId: row.asset_id, tag: row.asset_tag, name: row.name,
+            category: row.category, categoryLabel: categoryOf(categories, row.category).label,
             status: row.status, labCode: row.research_centers.short_code,
             procurementDate: row.procurement_date, warrantyExpiry: row.warranty_expiry,
         };

@@ -135,6 +135,8 @@ export const LOOKUPS = {
     { code: "SWITCH", label: "Switch" }, { code: "HARD_DRIVE", label: "Hard Drive" }, { code: "AUDIO", label: "Audio" },
     { code: "VIDEO_CAMERA", label: "Video Camera" }, { code: "SPEAKER", label: "Speaker" },
   ],
+  /** The useful life the seed gives every category, in years. */
+  categoryUsefulLifeYears: 5,
   fundingSources: [
     { fundingSourceId: 1, name: FUNDING_SOURCE },
     { fundingSourceId: 2, name: "Test Second Fund" },
