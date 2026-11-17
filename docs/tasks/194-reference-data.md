@@ -72,3 +72,9 @@
 ## Report (to Raiki, not the PR)
 
 At the end, report in the AGENTS.md format: what changed commit by commit, the three check results, the hand checks, questions, anything not done. **Don't write the PR description:** Raiki sends the report to the advisor, who writes it.
+
+## Recommendations notes
+
+For the Recommendations document, from #194:
+
+- **Store the present value on a retirement when it is completed.** Today the Asset Disposal Record works out `presentValueAtCompletion` with the category's useful life of today, so a later useful life change on the Reference Data page changes the printed value of a retirement completed earlier (`docs/contracts/lifecycle.md`, section 7.11). Storing the value needs a new column on `retirements` and a migration. Raiki, Nov 17: keep the 7.11 note for now, and list this here.
