@@ -13,6 +13,7 @@ import { useServerData, type Asset } from "@web/state/serverData";
 import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { countAssetsByCampus } from "@web/features/assets/campusCounts";
 import { ASSET_SEARCH_PLACEHOLDER } from "@web/features/assets/assetSearch";
+import { filterInventoryReport, PERSONAL_FUNDING } from "@web/features/reports/inventoryReport";
 import { useFormLookups } from "@web/features/lookups/useLookups";
 import { DisposalDecisionControls } from "@web/features/disposals/DisposalDecisionControls";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
@@ -39,10 +40,6 @@ const TAB_TITLES: Record<AdRICDirectorDashboardProps["activeTab"], string> = {
   "clearance-disposal": "Retirement Approvals",
   reports: "Inventory Report",
 };
-
-// The funding_sources name for equipment a researcher bought with their own money (#167).
-// The Inventory Report filter matches names exactly, so it must equal the seeded and migrated row.
-const PERSONAL_FUNDING = "Personal (self-funded)";
 
 const CONDITION_SCORE_MAP: Record<string, number> = {
   "Perfect (Brand New / 100%)": 100,
@@ -504,37 +501,11 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const renderReports = () => {
     const assetSourceList: any[] = assets;
 
-    const filteredAssets = assetSourceList.filter(a => {
-      const query = searchQuery.toLowerCase().trim();
-      const fundingVal = a.funding || "";
-      const matchQuery =
-        (a.id || "").toLowerCase().includes(query) ||
-        (a.name || "").toLowerCase().includes(query) ||
-        (a.serial || a.serial_number || "").toLowerCase().includes(query) ||
-        (a.lab || "").toLowerCase().includes(query) ||
-        (a.itsPropertyTag || "").toLowerCase().includes(query) ||
-        (a.tsgPropertyTag || "").toLowerCase().includes(query) ||
-        (a.manufacturer || "").toLowerCase().includes(query);
-
-      let matchFunding = true;
-      if (fundingFilter === "GOVERNMENT") {
-        matchFunding = ["DOST", "CHED", "USAST"].includes(fundingVal);
-      } else if (fundingFilter === "PRIVATE") {
-        matchFunding = ["USAID", "Internal Grants", PERSONAL_FUNDING].includes(fundingVal);
-      } else if (fundingFilter !== "ALL") {
-        matchFunding = fundingVal === fundingFilter;
-      }
-
-      let matchDate = true;
-      const pDate = a.procurement_date || a.procured;
-      if (dateFilterStart && pDate) {
-        matchDate = matchDate && new Date(pDate).getTime() >= new Date(dateFilterStart).getTime();
-      }
-      if (dateFilterEnd && pDate) {
-        matchDate = matchDate && new Date(pDate).getTime() <= new Date(dateFilterEnd).getTime();
-      }
-
-      return matchQuery && matchFunding && matchDate;
+    const filteredAssets = filterInventoryReport(assetSourceList, {
+      q: searchQuery,
+      funding: fundingFilter,
+      from: dateFilterStart,
+      to: dateFilterEnd,
     });
 
     const triggerPrint = () => {
