@@ -14,6 +14,7 @@ import { assetStatusLabel } from "@web/features/assets/assetBadges";
 import { countAssetsByCampus } from "@web/features/assets/campusCounts";
 import { ASSET_SEARCH_PLACEHOLDER } from "@web/features/assets/assetSearch";
 import { filterInventoryReport, PERSONAL_FUNDING } from "@web/features/reports/inventoryReport";
+import { buildAssetHistory } from "@web/features/reports/assetHistoryReport";
 import { useFormLookups } from "@web/features/lookups/useLookups";
 import { DisposalDecisionControls } from "@web/features/disposals/DisposalDecisionControls";
 import { Card, CardContent, CardHeader, CardTitle } from "@web/components/ui/card";
@@ -120,31 +121,29 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
   const exportLifecycleCSV = (asset: any) => {
     if (!asset) return;
 
-    const assetRepairs = tickets.filter(t => t.asset.tag === asset.id);
-
-    // Only the reports saved in asset_inspections, the same ones the Staff inspection log shows. (F-28)
-    const assetReports = asset.asset_reports || [];
+    const history = buildAssetHistory(asset, tickets);
+    const { details, repairLogs, inspectionReports, retirementDetails } = history;
 
     let csvContent = `Asset History Report\n`;
     csvContent += `Generated On,"${new Date().toLocaleString()}"\n\n`;
 
     csvContent += `CORE METADATA\n`;
-    csvContent += `Asset ID,"${asset.id}"\n`;
-    csvContent += `Asset Name,"${(asset.name || "").replace(/"/g, '""')}"\n`;
-    csvContent += `Serial Number,"${asset.serial || asset.serial_number || ""}"\n`;
-    csvContent += `Manufacturer,"${(asset.manufacturer || "").replace(/"/g, '""')}"\n`;
-    csvContent += `Funding Source,"${(asset.funding || "").replace(/"/g, '""')}"\n`;
-    csvContent += `Acquisition Date,"${asset.procurement_date || asset.procured || ""}"\n`;
-    csvContent += `Purchase Valuation,"PHP ${(asset.cost || 0).toLocaleString()}"\n`;
-    csvContent += `ITS Property Tag,"${asset.itsPropertyTag || "None"}"\n`;
-    csvContent += `TSG Property Tag,"${asset.tsgPropertyTag || "None"}"\n`;
-    csvContent += `Availability,"${assetStatusLabel(asset.status)}"\n`;
+    csvContent += `Asset ID,"${details.assetId}"\n`;
+    csvContent += `Asset Name,"${details.assetName.replace(/"/g, '""')}"\n`;
+    csvContent += `Serial Number,"${details.serialNumber}"\n`;
+    csvContent += `Manufacturer,"${details.manufacturer.replace(/"/g, '""')}"\n`;
+    csvContent += `Funding Source,"${details.fundingSource.replace(/"/g, '""')}"\n`;
+    csvContent += `Acquisition Date,"${details.acquisitionDate}"\n`;
+    csvContent += `Purchase Valuation,"${details.purchaseValuation}"\n`;
+    csvContent += `ITS Property Tag,"${details.itsPropertyTag}"\n`;
+    csvContent += `TSG Property Tag,"${details.tsgPropertyTag}"\n`;
+    csvContent += `Availability,"${details.availability}"\n`;
 
     csvContent += `\nREPAIR & MAINTENANCE LOGS\n`;
     csvContent += `Repair ID,Issue Type,Status,Description,Reported By,Reported At\n`;
-    if (assetRepairs.length > 0) {
-      assetRepairs.forEach(r => {
-        csvContent += `"MNT-${r.maintenanceId}","${r.issueType?.name ?? r.typeLabel}","${r.statusLabel}","${r.issueDescription.replace(/"/g, '""')}","${"hidden" in r.reportedBy ? "Not shown" : r.reportedBy.name}","${r.reportedAt}"\n`;
+    if (repairLogs.length > 0) {
+      repairLogs.forEach(r => {
+        csvContent += `"${r.repairId}","${r.issueType}","${r.status}","${r.description.replace(/"/g, '""')}","${r.reportedBy}","${r.reportedAt}"\n`;
       });
     } else {
       csvContent += `No technical repair logs registered.\n`;
@@ -152,21 +151,21 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
 
     csvContent += `\nROUTINE INSPECTION REPORTS\n`;
     csvContent += `Report ID,Inspector,Date Logged,Condition / Status,Remarks\n`;
-    if (assetReports.length > 0) {
-      assetReports.forEach((rpt: any) => {
-        csvContent += `"${rpt.reportId || rpt.id || ""}","${(rpt.reportedBy || rpt.inspector || "Staff").replace(/"/g, '""')}","${rpt.reportDate || rpt.date_logged || rpt.date || "N/A"}","${rpt.condition || rpt.status || "VERIFIED"}","${(rpt.remarks || rpt.description || rpt.notes || "").replace(/"/g, '""')}"\n`;
+    if (inspectionReports.length > 0) {
+      inspectionReports.forEach(rpt => {
+        csvContent += `"${rpt.reportId}","${rpt.inspector.replace(/"/g, '""')}","${rpt.dateLogged}","${rpt.conditionStatus}","${rpt.remarks.replace(/"/g, '""')}"\n`;
       });
     } else {
       csvContent += `No physical routine inspections logged.\n`;
     }
 
-    if (asset.status === "RETIRED" && asset.disposalDetails) {
+    if (retirementDetails) {
       csvContent += `\nRETIREMENT DETAILS\n`;
-      csvContent += `Retirement ID,${asset.disposalId}\n`;
-      csvContent += `Retirement Date,${asset.disposalDetails.decommissionDate}\n`;
-      csvContent += `Retired By,"${asset.disposalDetails.decommissionedBy}"\n`;
-      csvContent += `Pathway,"${asset.disposalDetails.disposalPathway}"\n`;
-      csvContent += `Breakdown Reasons,"${asset.disposalDetails.breakdownReasons}"\n`;
+      csvContent += `Retirement ID,${retirementDetails.retirementId}\n`;
+      csvContent += `Retirement Date,${retirementDetails.retirementDate}\n`;
+      csvContent += `Retired By,"${retirementDetails.retiredBy}"\n`;
+      csvContent += `Pathway,"${retirementDetails.pathway}"\n`;
+      csvContent += `Breakdown Reasons,"${retirementDetails.breakdownReasons}"\n`;
     }
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
