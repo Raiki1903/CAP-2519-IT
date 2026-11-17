@@ -30,15 +30,16 @@ import * as importsRepository from './imports.repository';
 import { nextTagOf } from '../../shared/services/assetTags';
 
 /**
- * Normalizes a category string to one of the active category codes.
+ * Finds the active category a CSV cell names, by its code or its label, in any letter case. "Dev Kit", "dev kit",
+ * "DEV_KIT" and "dev-kit" all give DEV_KIT.
  *
  * @param raw typed category from CSV
- * @param activeCodes the codes of the active categories (ImportLookupCache)
- * @returns the category code, or null if invalid
+ * @param activeByKey the active categories by lower-case code and label (ImportLookupCache)
+ * @returns the category code, or null when no active category has this code or label
  */
-function resolveCategory(raw: string, activeCodes: Set<string>): AssetCategory | null {
-  const normalized = raw.trim().toUpperCase().replace(/[\s-]+/g, '_');
-  return activeCodes.has(normalized) ? normalized : null;
+function resolveCategory(raw: string, activeByKey: Map<string, string>): AssetCategory | null {
+  const typed = raw.trim().toLowerCase();
+  return activeByKey.get(typed) ?? activeByKey.get(typed.replace(/[\s-]+/g, '_')) ?? null;
 }
 
 /**
@@ -355,7 +356,7 @@ async function validateAssetsCsv(
       errors.push({ row: rowNum, column: 'category', message: 'Category is required.' });
       hasRowError = true;
     } else {
-      resolvedCategory = resolveCategory(categoryRaw, lookupCache.activeCategoryCodes);
+      resolvedCategory = resolveCategory(categoryRaw, lookupCache.activeCategoriesByKey);
       if (!resolvedCategory) {
         errors.push({ row: rowNum, column: 'category', message: `Unknown category: ${categoryRaw}.` });
         hasRowError = true;

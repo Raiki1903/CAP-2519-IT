@@ -19,8 +19,8 @@ export interface ImportLookupCache {
   centersByCode: Map<string, { centerId: number; shortCode: string }>;
   fundingByName: Map<string, { fundingSourceId: number; name: string }>;
   projectsByCode: Map<string, { projectId: number; projectCode: string }>;
-  /** The codes of the active asset categories. */
-  activeCategoryCodes: Set<string>;
+  /** The active asset categories: each one's code and label, in lower case, to its code. */
+  activeCategoriesByKey: Map<string, string>;
 }
 
 /** Preloaded existing asset identifiers for duplicate detection. */
@@ -37,7 +37,7 @@ export async function getLookupCache(tx?: Prisma.TransactionClient): Promise<Imp
     client.research_centers.findMany({ select: { center_id: true, short_code: true } }),
     client.funding_sources.findMany({ select: { funding_source_id: true, name: true } }),
     client.projects.findMany({ select: { project_id: true, project_code: true } }),
-    client.asset_categories.findMany({ where: { is_active: true }, select: { code: true } }),
+    client.asset_categories.findMany({ where: { is_active: true }, select: { code: true, label: true } }),
   ]);
 
   const centersByCode = new Map<string, { centerId: number; shortCode: string }>();
@@ -55,9 +55,13 @@ export async function getLookupCache(tx?: Prisma.TransactionClient): Promise<Imp
     projectsByCode.set(p.project_code.toLowerCase(), { projectId: p.project_id, projectCode: p.project_code });
   }
 
-  const activeCategoryCodes = new Set(categories.map((c) => c.code));
+  const activeCategoriesByKey = new Map<string, string>();
+  for (const c of categories) {
+    activeCategoriesByKey.set(c.code.toLowerCase(), c.code);
+    activeCategoriesByKey.set(c.label.toLowerCase(), c.code);
+  }
 
-  return { centersByCode, fundingByName, projectsByCode, activeCategoryCodes };
+  return { centersByCode, fundingByName, projectsByCode, activeCategoriesByKey };
 }
 
 /** Preloads existing asset serial numbers, ITS property tags, and TSG tags across all assets. */
