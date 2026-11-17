@@ -15,4 +15,5 @@ export const PAGE_TITLES = {
   administration: "System Administration",
   activityLog: "Activity Log",
   tickets: "Tickets",
+  referenceData: "Reference Data",
 } as const;

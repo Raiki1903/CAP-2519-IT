@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Shield, LogOut, Monitor, Users, Wrench, QrCode,
   BarChart3, ClipboardList, Bell, Package, AlertTriangle,
-  ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck, ArrowLeftRight, ScrollText, LifeBuoy
+  ChevronsLeft, ChevronsRight, ClipboardCheck, Settings, ShieldCheck, ArrowLeftRight, ScrollText, LifeBuoy, Database
 } from "lucide-react";
 import { useSession, roleToSlug, sessionRoleLabel } from "@web/state/session";
 import { useServerData } from "@web/state/serverData";
@@ -47,6 +47,7 @@ const roleConfig: Record<Role, {
       { id: "loans",       label: PAGE_TITLES.loans,          icon: ArrowLeftRight },
       { id: "qrtags",      label: "QR Tags",               icon: QrCode        },
       { id: "analytics",   label: "Analytics",             icon: BarChart3     },
+      { id: "reference-data", label: PAGE_TITLES.referenceData, icon: Database },
       { id: "tickets",     label: "Support Tickets",      icon: LifeBuoy      },
     ],
   },
