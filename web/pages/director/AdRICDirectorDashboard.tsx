@@ -508,8 +508,14 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
       to: dateFilterEnd,
     });
 
-    const triggerPrint = () => {
-      window.print();
+    const triggerDownloadPDF = () => {
+      const params = new URLSearchParams();
+      if (searchQuery.trim()) params.set("q", searchQuery.trim());
+      if (fundingFilter && fundingFilter !== "ALL") params.set("funding", fundingFilter);
+      if (dateFilterStart) params.set("from", dateFilterStart);
+      if (dateFilterEnd) params.set("to", dateFilterEnd);
+      const qs = params.toString();
+      window.open(`/adric-director/reports/print${qs ? `?${qs}` : ""}`, "_blank");
     };
 
     const triggerExportCSV = () => {
@@ -604,6 +610,14 @@ export function AdRICDirectorDashboard({ activeTab }: AdRICDirectorDashboardProp
             </div>
 
             <div className="flex gap-2 justify-end border-t border-border pt-4">
+              <Button
+                variant="outline"
+                className="text-xs font-bold h-9"
+                onClick={triggerDownloadPDF}
+              >
+                <Printer className="size-3.5 mr-2" />
+                Download PDF
+              </Button>
               <Button
                 className="bg-[#005A36] hover:bg-[#004225] text-white text-xs font-bold border-none h-9"
                 onClick={triggerExportCSV}
