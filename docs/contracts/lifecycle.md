@@ -559,17 +559,18 @@ The Reference Data page (`/staff/reference-data`, TSG and the Secretary) keeps t
 | Categories | `GET /api/reference/categories` | TSG, Secretary | | `{ categories: [{ code, label, usefulLifeYears, isActive, assetCount }] }`, inactive ones too, by label | 403 | live (#194) |
 | Add a category | `POST /api/reference/categories` | TSG, Secretary | `{ label, usefulLifeYears }`: a label of 1 to 100 characters, a whole number of years from 1 to 50. The code is made from the label: upper case, spaces to `_`, letters and digits only, at most 30 | 201 `{ category }`, active | 400; 409 the label or the code exists, in any letter case | live (#194) |
 | Change a category | `PUT /api/reference/categories/:code` | TSG, Secretary | `{ label?, usefulLifeYears?, isActive? }`, at least one. The code never changes | `{ category }` | 400 a wrong value, nothing sent, or a `code` in the body; 404; 409 another category has the label | live (#194) |
-| Labs | `GET /api/reference/labs` | TSG, Secretary | | `{ labs: [{ centerId, shortCode, name, campus, campusLabel, assetCount }] }`, by short code | 403 | live (#194) |
+| Labs | `GET /api/reference/labs` | TSG, Secretary | | `{ labs: [{ centerId, shortCode, name, campus, campusLabel, assetCount, canDelete }] }`, by short code | 403 | live (#194, #196) |
 | Add a lab | `POST /api/reference/labs` | TSG, Secretary | `{ name, shortCode, campus }`: a name of 1 to 255 characters, a short code of 2 to 10 letters and digits, a campus of section 2 | 201 `{ lab }`, with no Head. Its first asset tag is `<shortCode>-0001` | 400; 409 the short code exists, in any letter case | live (#194) |
 | Change a lab | `PUT /api/reference/labs/:centerId` | TSG, Secretary | `{ name?, campus? }`, at least one | `{ lab }` | 400 a wrong value, nothing sent, or a `shortCode` in the body (asset tags start with it); 404 | live (#194) |
+| Delete a lab | `DELETE /api/reference/labs/:centerId` | TSG, Secretary | | `{ success: true }` | 400; 404; 409 the lab is in use | live (#196) |
 | Funding sources | `GET /api/reference/funding-sources` | TSG, Secretary | | `{ fundingSources: [{ fundingSourceId, name, assetCount, projectCount }] }`, by name | 403 | live (#194) |
 | Add a funding source | `POST /api/reference/funding-sources` | TSG, Secretary | `{ name }`, 1 to 100 characters | 201 `{ fundingSource }` | 400; 409 the name exists, in any letter case | live (#194) |
 | Rename a funding source | `PUT /api/reference/funding-sources/:fundingSourceId` | TSG, Secretary | `{ name }` | `{ fundingSource }` | 400; 404; 409 another funding source has the name | live (#194) |
 
-- **One log row per change.** Each add or change writes one `REFERENCE_DATA_CHANGED` row in the same transaction, with plain `details`: "Category added: Oscilloscope", "Category changed: Oscilloscope (useful life 8)", "Lab added: NEWLAB", "Lab changed: NEWLAB (name ..., campus Laguna)", "Funding source added: X", "Funding source renamed: X to Y". A change that sends only the values already saved writes nothing and logs nothing.
+- **One log row per change.** Each add, change, or deletion writes one `REFERENCE_DATA_CHANGED` row in the same transaction, with plain `details`: "Category added: Oscilloscope", "Category changed: Oscilloscope (useful life 8)", "Lab added: NEWLAB", "Lab changed: NEWLAB (name ..., campus Laguna)", "Lab deleted: NEWLAB (New Lab Name)", "Funding source added: X", "Funding source renamed: X to Y". A change that sends only the values already saved writes nothing and logs nothing.
 - **An inactive category** is left out of `GET /api/lookups`, so a new asset cannot use it. Assets that have it keep it, and an edit may keep it; a change to it answers 400.
 - **A useful life change** changes the present value of every asset in the category from the next request on. A completed retirement's `presentValueAtCompletion` is worked out with the useful life of today, not of the completion day.
-- Nothing is deleted on this page. A lab's Head is set on the IT Admin's Users page, Labs tab.
+- **A lab that nothing uses may be deleted** (issue #196). If any asset (any status, Retired too), member (Pending sign-ups too), Lab Head, project, or loan destination uses it, deletion is refused with 409. Categories and funding sources cannot be deleted. A lab's Head is set on the IT Admin's Users page, Labs tab.
 
 ---
 

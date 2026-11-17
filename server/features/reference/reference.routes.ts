@@ -20,6 +20,7 @@ referenceRouter.put('/api/reference/categories/:code', ...editor, referenceContr
 referenceRouter.get('/api/reference/labs', ...editor, referenceController.listLabs);
 referenceRouter.post('/api/reference/labs', ...editor, referenceController.addLab);
 referenceRouter.put('/api/reference/labs/:centerId', ...editor, referenceController.changeLab);
+referenceRouter.delete('/api/reference/labs/:centerId', ...editor, referenceController.removeLab);
 referenceRouter.get('/api/reference/funding-sources', ...editor, referenceController.listFundingSources);
 referenceRouter.post('/api/reference/funding-sources', ...editor, referenceController.addFundingSource);
 referenceRouter.put('/api/reference/funding-sources/:fundingSourceId', ...editor, referenceController.renameFundingSource);

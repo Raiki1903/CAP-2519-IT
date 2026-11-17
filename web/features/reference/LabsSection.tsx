@@ -1,9 +1,10 @@
 /**
- * Labs section of the Reference Data page: each lab's short code, name, campus, and asset count, and the Add and Edit
- * dialogs. The short code is read-only once saved, because the lab's asset tags start with it.
+ * Labs section of the Reference Data page: each lab's short code, name, campus, asset count, and canDelete status,
+ * and the Add, Edit, and Delete dialogs. The short code is read-only once saved, because the lab's asset tags start
+ * with it. An unused lab can be deleted.
  * Layer: feature component. Called by pages/staff/ReferenceDataPage.tsx.
- * Calls: api/reference.api.ts (listLabs, addLab, changeLab), useReferenceList.ts, and features/lookups/useLookups.ts
- * forgetFormLookups().
+ * Calls: api/reference.api.ts (listLabs, addLab, changeLab, deleteLab), useReferenceList.ts, and
+ * features/lookups/useLookups.ts forgetFormLookups().
  * Used by: TSG and the Secretary.
  */
 import { useState } from "react";
@@ -124,17 +125,80 @@ function LabDialog({ lab, onClose, onSaved }: {
 }
 
 /**
- * The labs table with its Add and Edit buttons. After a save the list is read again and the form option lists are
- * forgotten, so Register Asset offers the change without a reload.
+ * Confirms deleting an unused lab. Only available when canDelete is true.
  *
- * @param onNotice shows a plain sentence on the page after a save
+ * @param lab the lab to delete
+ * @param onClose closes without deleting
+ * @param onDeleted called with a plain sentence after the server deleted the lab
+ */
+function DeleteLabDialog({ lab, onClose, onDeleted }: {
+  lab: ReferenceLab;
+  onClose: () => void;
+  onDeleted: (message: string) => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      const data = await referenceApi.deleteLab(lab.centerId);
+      if (!data.success) {
+        setError(data.error ?? "Could not delete the lab. Try again.");
+        return;
+      }
+      onDeleted(`Lab ${lab.shortCode} deleted.`);
+    } catch {
+      setError("Can't reach the server right now. Try again in a moment.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={open => { if (!open && !deleting) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete lab</DialogTitle>
+          <DialogDescription>
+            Delete lab {lab.shortCode} ({lab.name})? This can't be undone.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && <p role="alert" className="text-xs text-destructive py-2">{error}</p>}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={deleting}>Cancel</Button>
+          <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * The labs table with its Add, Edit, and Delete buttons. After a change the list is read again and the form option
+ * lists are forgotten, so Register Asset offers the change without a reload.
+ *
+ * @param onNotice shows a plain sentence on the page after a change
  */
 export function LabsSection({ onNotice }: { onNotice: (message: string) => void }) {
   const { rows, loading, error, reload } = useReferenceList<ReferenceLab>(referenceApi.listLabs, "labs");
   const [editing, setEditing] = useState<ReferenceLab | "new" | null>(null);
+  const [deleting, setDeleting] = useState<ReferenceLab | null>(null);
 
   const saved = (message: string) => {
     setEditing(null);
+    forgetFormLookups();
+    onNotice(message);
+    reload();
+  };
+
+  const deleted = (message: string) => {
+    setDeleting(null);
     forgetFormLookups();
     onNotice(message);
     reload();
@@ -169,7 +233,19 @@ export function LabsSection({ onNotice }: { onNotice: (message: string) => void 
                 <TableCell className="text-xs">{lab.campusLabel}</TableCell>
                 <TableCell className="text-xs">{lab.assetCount}</TableCell>
                 <TableCell>
-                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditing(lab)}>Edit</Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditing(lab)}>Edit</Button>
+                    {lab.canDelete && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setDeleting(lab)}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -183,6 +259,15 @@ export function LabsSection({ onNotice }: { onNotice: (message: string) => void 
           lab={editing === "new" ? undefined : editing}
           onClose={() => setEditing(null)}
           onSaved={saved}
+        />
+      )}
+
+      {deleting && (
+        <DeleteLabDialog
+          key={deleting.centerId}
+          lab={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={deleted}
         />
       )}
     </div>
