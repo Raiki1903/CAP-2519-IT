@@ -30,6 +30,8 @@ import { SupportTicketsPage } from "@web/pages/shared/SupportTicketsPage";
 import { AccountabilityFormPage } from "@web/pages/shared/AccountabilityFormPage";
 import { ClearancePrintPage } from "@web/pages/staff/ClearancePrintPage";
 import { DisposalRecordPrintPage } from "@web/pages/shared/DisposalRecordPrintPage";
+import { InventoryReportPrintPage } from "@web/pages/director/InventoryReportPrintPage";
+import { AssetHistoryPrintPage } from "@web/pages/director/AssetHistoryPrintPage";
 import { NotFound } from "@web/pages/NotFound";
 
 /**
@@ -73,6 +75,14 @@ export const router = createBrowserRouter([
   {
     path: "/retirements/:retirementId/record",
     Component: DisposalRecordPrintPage,
+  },
+  {
+    path: "/adric-director/reports/print",
+    Component: InventoryReportPrintPage,
+  },
+  {
+    path: "/adric-director/assets/:assetTag/history/print",
+    Component: AssetHistoryPrintPage,
   },
   { path: "/its/*", Component: OldStaffUrlRedirect },
   { path: "/tsg/*", Component: OldStaffUrlRedirect },

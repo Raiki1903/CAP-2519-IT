@@ -8,6 +8,8 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { Printer, ArrowLeft, AlertTriangle } from "lucide-react";
 import * as retirementsApi from "@web/api/retirements.api";
+import { ADRIC_FULL_NAME } from "@shared/constants/adric";
+import adricLogo from "@web/assets/adric-logo.png";
 import type { Retirement, RetirementRecordAsset } from "@shared/types/retirements";
 import { Button } from "@web/components/ui/button";
 
@@ -154,12 +156,15 @@ export function DisposalRecordPrintPage() {
       {/* Printable Sheet */}
       <div className="max-w-4xl mx-auto bg-white border border-slate-300 shadow-sm p-8 print:border-none print:shadow-none print:p-0">
         {/* Header */}
-        <div className="text-center border-b-2 border-slate-900 pb-4 mb-6">
-          <p className="text-xs font-semibold tracking-wider uppercase text-slate-600">De La Salle University - Manila</p>
-          <p className="text-sm font-bold uppercase text-slate-800">College of Computer Studies</p>
-          <p className="text-xs font-semibold uppercase text-slate-600">Advanced Research and Innovation Center (AdRIC)</p>
-          <h1 className="text-lg font-extrabold uppercase tracking-wide text-slate-950 mt-2">Asset Retirement Record</h1>
-          <p className="text-[11px] text-slate-500 mt-0.5">RET-{retirement.retirementId}</p>
+        <div className="border-b-2 border-slate-900 pb-4 mb-6 flex items-center justify-center gap-4">
+          <img src={adricLogo} alt="AdRIC logo" className="h-14 w-auto shrink-0 object-contain" />
+          <div className="text-center">
+            <p className="text-xs font-semibold tracking-wider uppercase text-slate-600">De La Salle University - Manila</p>
+            <p className="text-sm font-bold uppercase text-slate-800">College of Computer Studies</p>
+            <p className="text-xs font-semibold uppercase text-slate-600">{ADRIC_FULL_NAME}</p>
+            <h1 className="text-lg font-extrabold uppercase tracking-wide text-slate-950 mt-2">Asset Retirement Record</h1>
+            <p className="text-[11px] text-slate-500 mt-0.5">RET-{retirement.retirementId}</p>
+          </div>
         </div>
 
         {retirement.status !== "COMPLETED" ? (
