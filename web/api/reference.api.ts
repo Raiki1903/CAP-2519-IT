@@ -6,7 +6,7 @@
  * Used by: the Reference Data page.
  */
 import type { CategoryCreateInput, CategoryUpdateInput, FundingSourceInput, LabCreateInput, LabUpdateInput } from "@shared/types/reference";
-import { apiGetRaw, apiPostRaw, apiPutRaw, readResult, type ApiResult } from "./client";
+import { apiDeleteRaw, apiGetRaw, apiPostRaw, apiPutRaw, readResult, type ApiResult } from "./client";
 
 /**
  * Lists every category, inactive ones too, with how many assets have each.
@@ -67,6 +67,17 @@ export async function addLab(body: LabCreateInput): Promise<ApiResult> {
  */
 export async function changeLab(centerId: number, body: LabUpdateInput): Promise<ApiResult> {
   return readResult(await apiPutRaw(`/api/reference/labs/${centerId}`, body), "Could not save the lab. Try again.");
+}
+
+/**
+ * Deletes a lab that nothing uses.
+ *
+ * @param centerId the lab
+ * @returns `success`, or `error` with the server's sentence
+ * @throws if the server cannot be reached
+ */
+export async function deleteLab(centerId: number): Promise<ApiResult> {
+  return readResult(await apiDeleteRaw(`/api/reference/labs/${centerId}`), "Could not delete the lab. Try again.");
 }
 
 /**

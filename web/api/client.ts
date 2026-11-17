@@ -166,6 +166,17 @@ export function apiPutRaw(path: string, body: unknown): Promise<Response> {
 }
 
 /**
+ * Like `apiDelete`, but returns the untouched Response.
+ *
+ * @param path path starting with "/api/"
+ * @returns the raw Response
+ * @throws if the server cannot be reached
+ */
+export function apiDeleteRaw(path: string): Promise<Response> {
+  return send(path, { method: "DELETE" });
+}
+
+/**
  * Reads the answer to a Raw call into the usual body, so a screen shows only the server's own message.
  * A JSON answer keeps its `error` text. Anything else (an HTML error page, an empty or broken body)
  * becomes a failure with `fallback` as its `error`, so the raw response never reaches the screen.
