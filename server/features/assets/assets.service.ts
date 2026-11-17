@@ -39,6 +39,7 @@ import { assertActionAllowed } from '../../shared/services/lifecycleGuard';
 import { isHeld, serverToday } from '../../shared/services/assetState';
 import { writeInspection } from '../../shared/services/inspections';
 import { setAssetStatus } from '../../shared/services/assetStatus';
+import { nextTagOf } from '../../shared/services/assetTags';
 import { hasAccessRole } from '../../shared/middleware/permissions';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -255,26 +256,6 @@ export async function assetHistory(assetTag: string, viewer: SessionIdentity): P
     // Oldest first. The sort keeps the order above for steps saved in the same second.
     events.sort((x, y) => x.at.localeCompare(y.at));
     return { assetTag: asset.asset_tag, assetName: asset.name, events };
-}
-
-/**
- * The next tag of a lab: its prefix and one more than the highest number its tags have, four digits.
- *
- * @param labPrefix the lab's short code
- * @param existingTags the tags the lab's assets have
- * @returns for example "CeLT-0005" after "CeLT-0004"
- */
-function nextTagOf(labPrefix: string, existingTags: string[]): string {
-    let maxSeq = 0;
-    const prefixPattern = new RegExp(`^${labPrefix}-(\\d+)$`, "i");
-    for (const tag of existingTags) {
-        const match = tag.match(prefixPattern);
-        if (match) {
-            const seq = parseInt(match[1], 10);
-            if (seq > maxSeq) maxSeq = seq;
-        }
-    }
-    return `${labPrefix}-${String(maxSeq + 1).padStart(4, "0")}`;
 }
 
 /** The assets columns for the master data fields a body sent. */

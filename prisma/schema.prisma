@@ -478,6 +478,7 @@ enum activity_log_event_type {
   ASSET_MARKED_MISSING
   ASSET_FOUND
   CLEARANCE_RECORD_PRINTED
+  PROJECT_CREATED
 }
 
 enum research_centers_location {
