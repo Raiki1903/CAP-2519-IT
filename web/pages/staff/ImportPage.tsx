@@ -87,7 +87,7 @@ const ASSET_COLUMN_RULES: Record<
     "Optional. A project code already in the system (see Allowed values).",
   funding_source: "Optional. One of the funding sources in Allowed values.",
   acquisition_value:
-    "Optional. An amount from 0 to 99,999,999.99. PHP, ₱, $, commas and spaces are fine.",
+    "Optional. An amount from 0 to 99,999,999.99. PHP, ₱ and commas are fine.",
   procurement_date: "Optional. A date: yyyy-mm-dd or m/d/yyyy.",
   warranty_expiry: "Optional. A date: yyyy-mm-dd or m/d/yyyy.",
   accessories: "Optional, up to 500 characters.",
