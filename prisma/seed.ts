@@ -1,9 +1,11 @@
 /**
- * The demo seed (npm run seed): fills an empty local database, built by prisma/migrations, with roles, labs, demo accounts,
- * projects, demo assets with their history, and any missing lookup rows.
+ * The seed (npm run seed): fills an empty local database, built by prisma/migrations. SEED_MODE picks the data: the demo
+ * mode (not set, or `demo`) writes roles, labs, demo accounts, projects, demo assets with their history, and any missing
+ * lookup rows; the base mode (`base`) writes the lookup rows, the roles, the labs and one IT Admin account, for a clean start.
  * Layer: database tooling, not part of the server. Run by npm run seed. Calls seedTarget.ts, seedData.ts, seedHistory.ts,
  * seedStory.ts, seedImages.ts, Prisma with the MariaDB adapter, and the server's password helper.
- * Used by: a teammate setting up a local copy of the app (docs/guides/DATABASE-MIGRATIONS.md). Never CCS Cloud, never the tests.
+ * Used by: a teammate setting up a local copy of the app, and the team's clean start (docs/guides/DATABASE-MIGRATIONS.md).
+ * Never CCS Cloud, never the tests.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { Prisma, PrismaClient, roles_role_name } from "@prisma/client";
@@ -24,7 +26,9 @@ import {
 import { clockFor, nameOf, SEEDED_ASSETS } from "./seedHistory";
 import { buildHistory } from "./seedStory";
 import { categoryPicture, photoFor, photoKeyOf, readSeedPhotosDir } from "./seedImages";
-import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, type SeedTarget } from "./seedTarget";
+import {
+  describeSeedTarget, parseSeedTarget, readAdminPassword, readSeedAdminEmail, readSeedMode, readSeedPassword, SeedRefused, type SeedTarget,
+} from "./seedTarget";
 
 /** Every table the migrations create. The seed needs all of them, and fills only empty ones. */
 const REQUIRED_TABLES = [
@@ -284,12 +288,75 @@ async function writeDemoData(prisma: PrismaClient, password: string, photosDir: 
 }
 
 /**
- * Checks both variables before connecting, then the database, then writes. Prints the target as host:port/name only.
+ * Writes the base setup for a clean start, all in one transaction, so a failure leaves the database empty: the lookup
+ * rows, the 5 roles, the 10 labs with no Head, and one active IT Admin account with no labs. Nothing else: no demo
+ * accounts, projects, assets, history or log rows.
+ *
+ * @param email the IT Admin's login, already checked and in lower case
+ * @param password the IT Admin's first password; only its hash is stored
+ */
+async function writeBaseData(prisma: PrismaClient, email: string, password: string): Promise<void> {
+  const passwordHash = await hashPassword(password);
+  await prisma.$transaction(
+    async (tx) => {
+      const { roleId } = await writeLookupsRolesAndLabs(tx);
+      const admin = await tx.users.create({
+        data: {
+          first_name: "AdRIC",
+          last_name: "IT Admin",
+          email,
+          password: passwordHash,
+          user_type: "STAFF",
+          account_status: "ACTIVE",
+        },
+      });
+      await tx.user_roles.create({ data: { user_id: admin.user_id, role_id: roleId.get("IT_ADMIN")! } });
+    },
+    { timeout: 30_000 },
+  );
+}
+
+/**
+ * Runs the base setup: checks the email and password before connecting, then the database, then writes.
+ * Never prints the email, the password or a hash.
+ */
+async function runBase(target: SeedTarget): Promise<void> {
+  const email = readSeedAdminEmail(process.env.SEED_ADMIN_EMAIL);
+  const password = readAdminPassword(process.env.SEED_PASSWORD);
+  console.log(`[seed] Target: ${describeSeedTarget(target)} (base setup)`);
+
+  const prisma = connect(target);
+  try {
+    await checkDatabase(prisma, target);
+    await writeBaseData(prisma, email, password);
+  } finally {
+    await prisma.$disconnect();
+  }
+
+  console.log(
+    `[seed] Done (base): ${Object.values(roles_role_name).length} roles, ${DEMO_LABS.length} labs, ${DEMO_CATEGORIES.length} categories, ` +
+      "1 IT Admin account. No demo data.",
+  );
+  console.log("[seed] Log in with SEED_ADMIN_EMAIL and SEED_PASSWORD, then change the password in Account Details.");
+}
+
+/**
+ * Checks the variables before connecting, then the database, then writes the data for the mode (SEED_MODE: demo when
+ * not set, or base). Prints the target as host:port/name only.
  *
  * @throws SeedRefused when a variable or the database fails a check (nothing is written)
  */
 async function main(): Promise<void> {
   const target = parseSeedTarget(process.env.SEED_DATABASE_URL);
+  if (readSeedMode(process.env.SEED_MODE) === "base") {
+    await runBase(target);
+  } else {
+    await runDemo(target);
+  }
+}
+
+/** Runs the demo seed: checks SEED_PASSWORD before connecting, then the database, then writes the demo data. */
+async function runDemo(target: SeedTarget): Promise<void> {
   const password = readSeedPassword(process.env.SEED_PASSWORD);
   const photosDir = readSeedPhotosDir(process.env.SEED_PHOTOS_DIR);
   console.log(`[seed] Target: ${describeSeedTarget(target)}`);
@@ -318,8 +385,12 @@ main().catch((error) => {
   if (error instanceof SeedRefused) {
     console.error(`[seed] ${error.message}`);
   } else {
-    // A Prisma error can quote the values it was given, the demo password and its hashes among them.
-    const secrets = [process.env.SEED_PASSWORD, process.env.SEED_DATABASE_URL].filter((s): s is string => !!s);
+    // A Prisma error can quote the values it was given: the password, its hashes, and the IT Admin's email (as typed
+    // and as stored, trimmed and in lower case) among them.
+    const adminEmail = process.env.SEED_ADMIN_EMAIL;
+    const secrets = [
+      process.env.SEED_PASSWORD, process.env.SEED_DATABASE_URL, adminEmail, adminEmail?.trim(), adminEmail?.trim().toLowerCase(),
+    ].filter((s): s is string => !!s);
     let text = String((error as Error)?.stack ?? error);
     for (const secret of secrets) text = text.split(secret).join("<hidden>");
     try {
