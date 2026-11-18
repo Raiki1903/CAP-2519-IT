@@ -60,48 +60,45 @@ const PROJECT_COLUMN_RULES: Record<
   string
 > = {
   project_code:
-    "Non-empty text, max 255 chars. Unique in CSV and unique against projects.project_code in the database.",
-  project_name: "Non-empty text, max 255 chars.",
-  project_leader: "Non-empty text, max 255 chars.",
-  lab: "Must match research_centers.short_code (case-insensitive).",
-  start_date: "Valid date (yyyy-mm-dd or m/d/yyyy).",
-  funding_source:
-    "If present, must match funding_sources.name (case-insensitive).",
-  end_date:
-    "If present, valid date (yyyy-mm-dd or m/d/yyyy). Must be on or after start_date.",
+    "The project's code, up to 255 characters. It must not already be used, in this file or in the system.",
+  project_name: "The project's name, up to 255 characters.",
+  project_leader: "The project leader's name, up to 255 characters.",
+  lab: "The lab's short code, for example CITe4D (see Allowed values). Capital letters don't matter.",
+  start_date: "A date: yyyy-mm-dd or m/d/yyyy.",
+  funding_source: "Optional. One of the funding sources in Allowed values.",
+  end_date: "Optional. A date, on or after the start date.",
 };
 
 const ASSET_COLUMN_RULES: Record<
   (typeof ASSET_IMPORT_COLUMNS)[number],
   string
 > = {
-  lab: "Must match research_centers.short_code (case-insensitive).",
-  name: "Non-empty text, max 255 chars.",
-  category:
-    "Must match assets_category enum key or label (case-insensitive).",
-  condition:
-    "Must match asset_condition enum key or label (case-insensitive).",
+  lab: "The lab's short code, for example CITe4D (see Allowed values). Capital letters don't matter.",
+  name: "The asset's name, up to 255 characters.",
+  category: "One of the categories in Allowed values.",
+  condition: "One of the conditions in Allowed values.",
   health_score:
-    "Integer 0 to 100. If omitted, defaults to SUGGESTED_HEALTH_SCORE for the condition.",
+    "Optional. A whole number from 0 to 100. Left empty, it gets the usual score for the condition.",
   serial_number:
-    "Max 255 chars. If non-empty, must be unique across all existing assets in the database (including RETIRED) and earlier rows in the CSV.",
-  manufacturer: "Max 255 chars.",
-  home_room: "Max 100 chars.",
+    "Optional, up to 255 characters. It must not already be used, in this file or in the system (Retired assets too).",
+  manufacturer: "Optional, up to 255 characters.",
+  home_room: "Optional, up to 100 characters.",
   project_code:
-    "If present, must match existing projects.project_code (case-insensitive).",
-  funding_source:
-    "If present, must match funding_sources.name (case-insensitive).",
+    "Optional. A project code already in the system (see Allowed values).",
+  funding_source: "Optional. One of the funding sources in Allowed values.",
   acquisition_value:
-    "Money value from 0 to 99,999,999.99. Strips leading PHP, ₱, $, commas, and spaces.",
-  procurement_date: "Valid date (yyyy-mm-dd or m/d/yyyy).",
-  warranty_expiry: "Valid date (yyyy-mm-dd or m/d/yyyy).",
-  accessories: "Max 500 chars.",
+    "Optional. An amount from 0 to 99,999,999.99. PHP, ₱, $, commas and spaces are fine.",
+  procurement_date: "Optional. A date: yyyy-mm-dd or m/d/yyyy.",
+  warranty_expiry: "Optional. A date: yyyy-mm-dd or m/d/yyyy.",
+  accessories: "Optional, up to 500 characters.",
   its_property_tag:
-    "Max 100 chars. If non-empty, must be unique across all existing assets in the database (including RETIRED) and earlier rows in the CSV.",
+    "Optional, up to 100 characters. It must not already be used, in this file or in the system (Retired assets too).",
   tsg_tag:
-    "Max 100 chars. If non-empty, must be unique across all existing assets in the database (including RETIRED) and earlier rows in the CSV.",
-  missing_accessories: "Max 255 chars. Saved to the Initial inspection.",
-  inspection_remarks: "Max 255 chars. Saved to the Initial inspection.",
+    "Optional, up to 100 characters. It must not already be used, in this file or in the system (Retired assets too).",
+  missing_accessories:
+    "Optional, up to 255 characters. Saved on the asset's first inspection.",
+  inspection_remarks:
+    "Optional, up to 255 characters. Saved on the asset's first inspection.",
 };
 
 const PROJECT_COLUMN_SPECS: ColumnSpec[] = PROJECT_IMPORT_COLUMNS.map(name => ({
