@@ -6,7 +6,7 @@
  * Used by: a teammate setting up a local copy of the app (docs/guides/DATABASE-MIGRATIONS.md). Never CCS Cloud, never the tests.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
-import { PrismaClient, roles_role_name } from "@prisma/client";
+import { Prisma, PrismaClient, roles_role_name } from "@prisma/client";
 import { hashPassword, hidePasswordHashes } from "../server/shared/services/passwords";
 import {
   DEMO_ACCOUNTS,
@@ -19,6 +19,7 @@ import {
   DEMO_LABS,
   DEMO_METRICS,
   DEMO_PROJECTS,
+  type DemoLab,
 } from "./seedData";
 import { clockFor, nameOf, SEEDED_ASSETS } from "./seedHistory";
 import { buildHistory } from "./seedStory";
@@ -90,16 +91,63 @@ function byTime<T>(rows: T[], timeOf: (row: T) => Date): T[] {
   return rows.map((row, i) => ({ row, i })).sort((a, b) => timeOf(a.row).getTime() - timeOf(b.row).getTime() || a.i - b.i).map((x) => x.row);
 }
 
+/** What writeLookupsRolesAndLabs gives back: the ids the rows after it point at. */
+interface BaseRowIds {
+  /** Role id by role name: the order of the roles_role_name enum, from 1. */
+  roleId: Map<roles_role_name, number>;
+  /** Each lab with its center id (its place in DEMO_LABS, from 1), by short code. */
+  labByCode: Map<string, DemoLab & { centerId: number }>;
+  metricId: Map<string, number>;
+  fundingId: Map<string, number>;
+}
+
+/**
+ * Writes the rows every start needs, inside the caller's transaction: the lookup rows (categories, funding sources,
+ * issue types, metric definitions, category metrics), the 5 roles, and the 10 labs with no Head. The lookup rows the
+ * migrations wrote are kept; only missing ones are added. Both seed modes call this, so their ids always match.
+ *
+ * @param tx the open transaction
+ * @returns the ids later rows refer to
+ */
+async function writeLookupsRolesAndLabs(tx: Prisma.TransactionClient): Promise<BaseRowIds> {
+  const roleNames = Object.values(roles_role_name);
+  const roleId = new Map(roleNames.map((name, i) => [name, i + 1]));
+  const labs = DEMO_LABS.map((lab, i) => ({ ...lab, centerId: i + 1 }));
+  const labByCode = new Map(labs.map((lab) => [lab.shortCode, lab]));
+
+  await tx.asset_categories.createMany({
+    data: DEMO_CATEGORIES.map(({ code, label }) => ({ code, label, useful_life_years: 5, is_active: true })),
+    skipDuplicates: true,
+  });
+  await tx.funding_sources.createMany({ data: DEMO_FUNDING_SOURCES.map((name) => ({ name })), skipDuplicates: true });
+  await tx.issue_types.createMany({
+    data: DEMO_ISSUE_TYPES.map(([key, name, suggested_action]) => ({ key, name, suggested_action })),
+    skipDuplicates: true,
+  });
+  await tx.metric_definitions.createMany({
+    data: DEMO_METRICS.map(([metric_key, name, unit, higher_is_better]) => ({ metric_key, name, unit, higher_is_better })),
+    skipDuplicates: true,
+  });
+  const metricId = new Map((await tx.metric_definitions.findMany()).map((m) => [m.metric_key, m.metric_id]));
+  await tx.category_metrics.createMany({
+    data: DEMO_CATEGORY_METRICS.map(([category, key]) => ({ category, metric_id: metricId.get(key)! })),
+    skipDuplicates: true,
+  });
+  const fundingId = new Map((await tx.funding_sources.findMany()).map((f) => [f.name, f.funding_source_id]));
+
+  await tx.roles.createMany({ data: roleNames.map((name) => ({ role_id: roleId.get(name)!, role_name: name })) });
+  await tx.research_centers.createMany({
+    data: labs.map((lab) => ({ center_id: lab.centerId, name: lab.name, short_code: lab.shortCode, location: lab.location })),
+  });
+  return { roleId, labByCode, metricId, fundingId };
+}
+
 /**
  * Writes the lookup rows, roles, labs, demo accounts, projects, demo assets and their history (seedHistory.ts), all in
  * one transaction, so a failure leaves the database empty. Each history table gets its ids in time order, as the app
  * would have given them. The lookup rows the migrations wrote are kept; only missing ones are added.
  */
 async function writeDemoData(prisma: PrismaClient, password: string, photosDir: string | null): Promise<number> {
-  const roleNames = Object.values(roles_role_name);
-  const roleId = new Map(roleNames.map((name, i) => [name, i + 1]));
-  const labs = DEMO_LABS.map((lab, i) => ({ ...lab, centerId: i + 1 }));
-  const labByCode = new Map(labs.map((lab) => [lab.shortCode, lab]));
   const projectId = new Map(DEMO_PROJECTS.map((p, i) => [p.code, i + 1]));
   const clock = clockFor(new Date());
   const history = buildHistory(clock);
@@ -111,30 +159,7 @@ async function writeDemoData(prisma: PrismaClient, password: string, photosDir: 
 
   await prisma.$transaction(
     async (tx) => {
-      await tx.asset_categories.createMany({
-        data: DEMO_CATEGORIES.map(({ code, label }) => ({ code, label, useful_life_years: 5, is_active: true })),
-        skipDuplicates: true,
-      });
-      await tx.funding_sources.createMany({ data: DEMO_FUNDING_SOURCES.map((name) => ({ name })), skipDuplicates: true });
-      await tx.issue_types.createMany({
-        data: DEMO_ISSUE_TYPES.map(([key, name, suggested_action]) => ({ key, name, suggested_action })),
-        skipDuplicates: true,
-      });
-      await tx.metric_definitions.createMany({
-        data: DEMO_METRICS.map(([metric_key, name, unit, higher_is_better]) => ({ metric_key, name, unit, higher_is_better })),
-        skipDuplicates: true,
-      });
-      const metricId = new Map((await tx.metric_definitions.findMany()).map((m) => [m.metric_key, m.metric_id]));
-      await tx.category_metrics.createMany({
-        data: DEMO_CATEGORY_METRICS.map(([category, key]) => ({ category, metric_id: metricId.get(key)! })),
-        skipDuplicates: true,
-      });
-      const fundingId = new Map((await tx.funding_sources.findMany()).map((f) => [f.name, f.funding_source_id]));
-
-      await tx.roles.createMany({ data: roleNames.map((name) => ({ role_id: roleId.get(name)!, role_name: name })) });
-      await tx.research_centers.createMany({
-        data: labs.map((lab) => ({ center_id: lab.centerId, name: lab.name, short_code: lab.shortCode, location: lab.location })),
-      });
+      const { roleId, labByCode, metricId, fundingId } = await writeLookupsRolesAndLabs(tx);
 
       await tx.users.createMany({
         data: DEMO_ACCOUNTS.map((a, i) => {
