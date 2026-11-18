@@ -1,9 +1,14 @@
 /**
- * The demo seed's safety checks: which database URL (SEED_DATABASE_URL) and which password (SEED_PASSWORD) it accepts, before it connects.
+ * The seed's safety checks, before it connects: which database URL (SEED_DATABASE_URL), which mode (SEED_MODE), and which
+ * password (SEED_PASSWORD) and, in base mode, which email (SEED_ADMIN_EMAIL) it accepts.
  * The rule on the URL is shared with the password upgrade script, through hashTarget.ts.
- * Layer: database tooling. Called by prisma/seed.ts, prisma/hashTarget.ts, and tests/db/seedTarget.test.ts. Calls nothing.
+ * Layer: database tooling. Called by prisma/seed.ts, prisma/hashTarget.ts, and tests/db/seedTarget.test.ts. Reads the
+ * sign-up and password constants in shared/.
  * Used by: npm run seed and prisma/hashExistingPasswords.ts.
  */
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "../shared/constants/passwords";
+import { SIGN_UP_EMAIL_DOMAIN } from "../shared/constants/signUp";
+
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
 /** Thrown when the seed or the upgrade script must not run. The message never holds the URL, the user, or a password. */
@@ -100,6 +105,70 @@ export function readSeedPassword(value: string | undefined): string {
   }
   if (value.length < MIN_SEED_PASSWORD_LENGTH) {
     throw new SeedRefused(`SEED_PASSWORD must be at least ${MIN_SEED_PASSWORD_LENGTH} characters.`);
+  }
+  return value;
+}
+
+/** Which data the seed writes: the demo data, or the base setup for a clean start. */
+export type SeedMode = "demo" | "base";
+
+/**
+ * Checks SEED_MODE. Unset means the demo seed, as before. Any other value but `demo` or `base`, an empty one
+ * included, is refused, so a typo never falls back to the demo data.
+ *
+ * @param value the value of SEED_MODE
+ * @returns the mode to run
+ * @throws SeedRefused for any other value (the message does not repeat it)
+ */
+export function readSeedMode(value: string | undefined): SeedMode {
+  if (value === undefined || value === "demo") return "demo";
+  if (value === "base") return "base";
+  throw new SeedRefused("SEED_MODE must be demo or base, or not set.");
+}
+
+/** Longest email users.email holds (VARCHAR(255)). */
+const MAX_EMAIL_LENGTH = 255;
+
+/**
+ * Checks SEED_ADMIN_EMAIL, the base setup's one account. It is trimmed and put in lower case, as sign-up and login do,
+ * and must end with the sign-up domain with something before it.
+ *
+ * @param value the value of SEED_ADMIN_EMAIL
+ * @returns the email as it will be stored
+ * @throws SeedRefused when it is missing, outside the domain, or too long (the message never holds it)
+ */
+export function readSeedAdminEmail(value: string | undefined): string {
+  const email = value?.trim().toLowerCase();
+  if (!email) {
+    throw new SeedRefused("SEED_ADMIN_EMAIL is not set. Set it in the shell for this one command: it is the IT Admin's login.");
+  }
+  if (!email.endsWith(SIGN_UP_EMAIL_DOMAIN) || email.length === SIGN_UP_EMAIL_DOMAIN.length) {
+    throw new SeedRefused(`SEED_ADMIN_EMAIL must be a ${SIGN_UP_EMAIL_DOMAIN} address.`);
+  }
+  if (email.length > MAX_EMAIL_LENGTH) {
+    throw new SeedRefused(`SEED_ADMIN_EMAIL must be at most ${MAX_EMAIL_LENGTH} characters.`);
+  }
+  return email;
+}
+
+/**
+ * Checks SEED_PASSWORD for the base setup: the IT Admin's first password. It must pass the seed's own rule and the
+ * app's new-password rule, so the IT Admin can change it later in Account Details, and login accepts it.
+ *
+ * @param value the value of SEED_PASSWORD
+ * @returns the password, unchanged
+ * @throws SeedRefused when it is missing, too short or too long (the message never holds it)
+ */
+export function readAdminPassword(value: string | undefined): string {
+  if (!value) {
+    throw new SeedRefused("SEED_PASSWORD is not set. Set it in the shell for this one command: it is the IT Admin's first password.");
+  }
+  const shortest = Math.max(MIN_SEED_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH);
+  if (value.length < shortest) {
+    throw new SeedRefused(`SEED_PASSWORD must be at least ${shortest} characters.`);
+  }
+  if (value.length > MAX_PASSWORD_LENGTH) {
+    throw new SeedRefused(`SEED_PASSWORD must be at most ${MAX_PASSWORD_LENGTH} characters, the longest the app accepts.`);
   }
   return value;
 }

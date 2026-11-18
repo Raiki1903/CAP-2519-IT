@@ -1,12 +1,14 @@
 /**
- * The demo seed (npm run seed): fills an empty local database, built by prisma/migrations, with roles, labs, demo accounts,
- * projects, demo assets with their history, and any missing lookup rows.
+ * The seed (npm run seed): fills an empty local database, built by prisma/migrations. SEED_MODE picks the data: the demo
+ * mode (not set, or `demo`) writes roles, labs, demo accounts, projects, demo assets with their history, and any missing
+ * lookup rows; the base mode (`base`) writes the lookup rows, the roles, the labs and one IT Admin account, for a clean start.
  * Layer: database tooling, not part of the server. Run by npm run seed. Calls seedTarget.ts, seedData.ts, seedHistory.ts,
  * seedStory.ts, seedImages.ts, Prisma with the MariaDB adapter, and the server's password helper.
- * Used by: a teammate setting up a local copy of the app (docs/guides/DATABASE-MIGRATIONS.md). Never CCS Cloud, never the tests.
+ * Used by: a teammate setting up a local copy of the app, and the team's clean start (docs/guides/DATABASE-MIGRATIONS.md).
+ * Never CCS Cloud, never the tests.
  */
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
-import { PrismaClient, roles_role_name } from "@prisma/client";
+import { Prisma, PrismaClient, roles_role_name } from "@prisma/client";
 import { hashPassword, hidePasswordHashes } from "../server/shared/services/passwords";
 import {
   DEMO_ACCOUNTS,
@@ -19,11 +21,14 @@ import {
   DEMO_LABS,
   DEMO_METRICS,
   DEMO_PROJECTS,
+  type DemoLab,
 } from "./seedData";
 import { clockFor, nameOf, SEEDED_ASSETS } from "./seedHistory";
 import { buildHistory } from "./seedStory";
 import { categoryPicture, photoFor, photoKeyOf, readSeedPhotosDir } from "./seedImages";
-import { describeSeedTarget, parseSeedTarget, readSeedPassword, SeedRefused, type SeedTarget } from "./seedTarget";
+import {
+  describeSeedTarget, parseSeedTarget, readAdminPassword, readSeedAdminEmail, readSeedMode, readSeedPassword, SeedRefused, type SeedTarget,
+} from "./seedTarget";
 
 /** Every table the migrations create. The seed needs all of them, and fills only empty ones. */
 const REQUIRED_TABLES = [
@@ -90,16 +95,63 @@ function byTime<T>(rows: T[], timeOf: (row: T) => Date): T[] {
   return rows.map((row, i) => ({ row, i })).sort((a, b) => timeOf(a.row).getTime() - timeOf(b.row).getTime() || a.i - b.i).map((x) => x.row);
 }
 
+/** What writeLookupsRolesAndLabs gives back: the ids the rows after it point at. */
+interface BaseRowIds {
+  /** Role id by role name: the order of the roles_role_name enum, from 1. */
+  roleId: Map<roles_role_name, number>;
+  /** Each lab with its center id (its place in DEMO_LABS, from 1), by short code. */
+  labByCode: Map<string, DemoLab & { centerId: number }>;
+  metricId: Map<string, number>;
+  fundingId: Map<string, number>;
+}
+
+/**
+ * Writes the rows every start needs, inside the caller's transaction: the lookup rows (categories, funding sources,
+ * issue types, metric definitions, category metrics), the 5 roles, and the 10 labs with no Head. The lookup rows the
+ * migrations wrote are kept; only missing ones are added. Both seed modes call this, so their ids always match.
+ *
+ * @param tx the open transaction
+ * @returns the ids later rows refer to
+ */
+async function writeLookupsRolesAndLabs(tx: Prisma.TransactionClient): Promise<BaseRowIds> {
+  const roleNames = Object.values(roles_role_name);
+  const roleId = new Map(roleNames.map((name, i) => [name, i + 1]));
+  const labs = DEMO_LABS.map((lab, i) => ({ ...lab, centerId: i + 1 }));
+  const labByCode = new Map(labs.map((lab) => [lab.shortCode, lab]));
+
+  await tx.asset_categories.createMany({
+    data: DEMO_CATEGORIES.map(({ code, label }) => ({ code, label, useful_life_years: 5, is_active: true })),
+    skipDuplicates: true,
+  });
+  await tx.funding_sources.createMany({ data: DEMO_FUNDING_SOURCES.map((name) => ({ name })), skipDuplicates: true });
+  await tx.issue_types.createMany({
+    data: DEMO_ISSUE_TYPES.map(([key, name, suggested_action]) => ({ key, name, suggested_action })),
+    skipDuplicates: true,
+  });
+  await tx.metric_definitions.createMany({
+    data: DEMO_METRICS.map(([metric_key, name, unit, higher_is_better]) => ({ metric_key, name, unit, higher_is_better })),
+    skipDuplicates: true,
+  });
+  const metricId = new Map((await tx.metric_definitions.findMany()).map((m) => [m.metric_key, m.metric_id]));
+  await tx.category_metrics.createMany({
+    data: DEMO_CATEGORY_METRICS.map(([category, key]) => ({ category, metric_id: metricId.get(key)! })),
+    skipDuplicates: true,
+  });
+  const fundingId = new Map((await tx.funding_sources.findMany()).map((f) => [f.name, f.funding_source_id]));
+
+  await tx.roles.createMany({ data: roleNames.map((name) => ({ role_id: roleId.get(name)!, role_name: name })) });
+  await tx.research_centers.createMany({
+    data: labs.map((lab) => ({ center_id: lab.centerId, name: lab.name, short_code: lab.shortCode, location: lab.location })),
+  });
+  return { roleId, labByCode, metricId, fundingId };
+}
+
 /**
  * Writes the lookup rows, roles, labs, demo accounts, projects, demo assets and their history (seedHistory.ts), all in
  * one transaction, so a failure leaves the database empty. Each history table gets its ids in time order, as the app
  * would have given them. The lookup rows the migrations wrote are kept; only missing ones are added.
  */
 async function writeDemoData(prisma: PrismaClient, password: string, photosDir: string | null): Promise<number> {
-  const roleNames = Object.values(roles_role_name);
-  const roleId = new Map(roleNames.map((name, i) => [name, i + 1]));
-  const labs = DEMO_LABS.map((lab, i) => ({ ...lab, centerId: i + 1 }));
-  const labByCode = new Map(labs.map((lab) => [lab.shortCode, lab]));
   const projectId = new Map(DEMO_PROJECTS.map((p, i) => [p.code, i + 1]));
   const clock = clockFor(new Date());
   const history = buildHistory(clock);
@@ -111,30 +163,7 @@ async function writeDemoData(prisma: PrismaClient, password: string, photosDir: 
 
   await prisma.$transaction(
     async (tx) => {
-      await tx.asset_categories.createMany({
-        data: DEMO_CATEGORIES.map(({ code, label }) => ({ code, label, useful_life_years: 5, is_active: true })),
-        skipDuplicates: true,
-      });
-      await tx.funding_sources.createMany({ data: DEMO_FUNDING_SOURCES.map((name) => ({ name })), skipDuplicates: true });
-      await tx.issue_types.createMany({
-        data: DEMO_ISSUE_TYPES.map(([key, name, suggested_action]) => ({ key, name, suggested_action })),
-        skipDuplicates: true,
-      });
-      await tx.metric_definitions.createMany({
-        data: DEMO_METRICS.map(([metric_key, name, unit, higher_is_better]) => ({ metric_key, name, unit, higher_is_better })),
-        skipDuplicates: true,
-      });
-      const metricId = new Map((await tx.metric_definitions.findMany()).map((m) => [m.metric_key, m.metric_id]));
-      await tx.category_metrics.createMany({
-        data: DEMO_CATEGORY_METRICS.map(([category, key]) => ({ category, metric_id: metricId.get(key)! })),
-        skipDuplicates: true,
-      });
-      const fundingId = new Map((await tx.funding_sources.findMany()).map((f) => [f.name, f.funding_source_id]));
-
-      await tx.roles.createMany({ data: roleNames.map((name) => ({ role_id: roleId.get(name)!, role_name: name })) });
-      await tx.research_centers.createMany({
-        data: labs.map((lab) => ({ center_id: lab.centerId, name: lab.name, short_code: lab.shortCode, location: lab.location })),
-      });
+      const { roleId, labByCode, metricId, fundingId } = await writeLookupsRolesAndLabs(tx);
 
       await tx.users.createMany({
         data: DEMO_ACCOUNTS.map((a, i) => {
@@ -259,12 +288,75 @@ async function writeDemoData(prisma: PrismaClient, password: string, photosDir: 
 }
 
 /**
- * Checks both variables before connecting, then the database, then writes. Prints the target as host:port/name only.
+ * Writes the base setup for a clean start, all in one transaction, so a failure leaves the database empty: the lookup
+ * rows, the 5 roles, the 10 labs with no Head, and one active IT Admin account with no labs. Nothing else: no demo
+ * accounts, projects, assets, history or log rows.
+ *
+ * @param email the IT Admin's login, already checked and in lower case
+ * @param password the IT Admin's first password; only its hash is stored
+ */
+async function writeBaseData(prisma: PrismaClient, email: string, password: string): Promise<void> {
+  const passwordHash = await hashPassword(password);
+  await prisma.$transaction(
+    async (tx) => {
+      const { roleId } = await writeLookupsRolesAndLabs(tx);
+      const admin = await tx.users.create({
+        data: {
+          first_name: "AdRIC",
+          last_name: "IT Admin",
+          email,
+          password: passwordHash,
+          user_type: "STAFF",
+          account_status: "ACTIVE",
+        },
+      });
+      await tx.user_roles.create({ data: { user_id: admin.user_id, role_id: roleId.get("IT_ADMIN")! } });
+    },
+    { timeout: 30_000 },
+  );
+}
+
+/**
+ * Runs the base setup: checks the email and password before connecting, then the database, then writes.
+ * Never prints the email, the password or a hash.
+ */
+async function runBase(target: SeedTarget): Promise<void> {
+  const email = readSeedAdminEmail(process.env.SEED_ADMIN_EMAIL);
+  const password = readAdminPassword(process.env.SEED_PASSWORD);
+  console.log(`[seed] Target: ${describeSeedTarget(target)} (base setup)`);
+
+  const prisma = connect(target);
+  try {
+    await checkDatabase(prisma, target);
+    await writeBaseData(prisma, email, password);
+  } finally {
+    await prisma.$disconnect();
+  }
+
+  console.log(
+    `[seed] Done (base): ${Object.values(roles_role_name).length} roles, ${DEMO_LABS.length} labs, ${DEMO_CATEGORIES.length} categories, ` +
+      "1 IT Admin account. No demo data.",
+  );
+  console.log("[seed] Log in with SEED_ADMIN_EMAIL and SEED_PASSWORD, then change the password in Account Details.");
+}
+
+/**
+ * Checks the variables before connecting, then the database, then writes the data for the mode (SEED_MODE: demo when
+ * not set, or base). Prints the target as host:port/name only.
  *
  * @throws SeedRefused when a variable or the database fails a check (nothing is written)
  */
 async function main(): Promise<void> {
   const target = parseSeedTarget(process.env.SEED_DATABASE_URL);
+  if (readSeedMode(process.env.SEED_MODE) === "base") {
+    await runBase(target);
+  } else {
+    await runDemo(target);
+  }
+}
+
+/** Runs the demo seed: checks SEED_PASSWORD before connecting, then the database, then writes the demo data. */
+async function runDemo(target: SeedTarget): Promise<void> {
   const password = readSeedPassword(process.env.SEED_PASSWORD);
   const photosDir = readSeedPhotosDir(process.env.SEED_PHOTOS_DIR);
   console.log(`[seed] Target: ${describeSeedTarget(target)}`);
@@ -293,8 +385,12 @@ main().catch((error) => {
   if (error instanceof SeedRefused) {
     console.error(`[seed] ${error.message}`);
   } else {
-    // A Prisma error can quote the values it was given, the demo password and its hashes among them.
-    const secrets = [process.env.SEED_PASSWORD, process.env.SEED_DATABASE_URL].filter((s): s is string => !!s);
+    // A Prisma error can quote the values it was given: the password, its hashes, and the IT Admin's email (as typed
+    // and as stored, trimmed and in lower case) among them.
+    const adminEmail = process.env.SEED_ADMIN_EMAIL;
+    const secrets = [
+      process.env.SEED_PASSWORD, process.env.SEED_DATABASE_URL, adminEmail, adminEmail?.trim(), adminEmail?.trim().toLowerCase(),
+    ].filter((s): s is string => !!s);
     let text = String((error as Error)?.stack ?? error);
     for (const secret of secrets) text = text.split(secret).join("<hidden>");
     try {
