@@ -30,8 +30,8 @@ import { forgetIdentity, recallIdentity, rememberIdentity } from '../../shared/s
 export const SIGN_UP_SENT_MESSAGE = "Your sign-up was sent. The IT Admin will review it. You can log in once it is approved.";
 
 /**
- * Stores a sign-up as a Pending account with no role, linked to the labs it asks for. The IT Admin approves it with a
- * role (features/users). A Pending account cannot log in.
+ * Stores a sign-up as a Pending account with no role, linked to the labs it asks for (none, for a Staff sign-up that
+ * asked for none). The IT Admin approves it with a role (features/users). A Pending account cannot log in.
  *
  * Only the database decides whether the email or the ID number is taken (their unique keys), so two identical
  * sign-ups at the same moment give one account and one 409. (issues #14, #81)

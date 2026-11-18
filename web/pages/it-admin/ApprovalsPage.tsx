@@ -74,7 +74,9 @@ export function ApprovalsPage() {
                   <TableCell className="text-xs">{USER_TYPE_LABELS[user.userType]}</TableCell>
                   <TableCell className="text-xs">
                     <div className="flex flex-wrap gap-1">
-                      {user.labs.map(lab => <Badge key={lab.centerId} variant="outline" className="text-[10px]">{lab.code}</Badge>)}
+                      {user.labs.length === 0
+                        ? <span className="text-muted-foreground">None</span>
+                        : user.labs.map(lab => <Badge key={lab.centerId} variant="outline" className="text-[10px]">{lab.code}</Badge>)}
                     </div>
                   </TableCell>
                   <TableCell>

@@ -4,17 +4,19 @@
  * shared/constants/signUp.ts.
  * Used by: login, self-registration, the session reload, and the account page.
  */
-import { ID_NUMBER_MESSAGE, ID_NUMBER_PATTERN, NO_LAB_MESSAGE, SIGN_UP_EMAIL_DOMAIN, SIGN_UP_EMAIL_MESSAGE, USER_TYPES, type UserType } from '@shared/constants/signUp';
+import { BAD_LAB_LIST_MESSAGE, ID_NUMBER_MESSAGE, ID_NUMBER_PATTERN, NO_LAB_MESSAGE, SIGN_UP_EMAIL_DOMAIN, SIGN_UP_EMAIL_MESSAGE, USER_TYPES, type UserType } from '@shared/constants/signUp';
 import type { AccountUpdateInput, LoginInput, SignUpRequest } from '@shared/types/auth';
 import { AppError } from '../../shared/errors/AppError';
 import { readNewPassword } from '../../shared/validation/fields';
 
 /**
  * Reads a sign-up body: names, a DLSU email, an 8-digit ID number, a user type, a password of an allowed length, and
- * at least one lab. Whether each lab exists is checked by the service, which needs the database.
+ * the labs. A Student or Faculty needs at least one lab; a Staff may send none (a missing list or []). A list that is
+ * present must be whole positive numbers for every user type. Whether each lab exists is checked by the service, which
+ * needs the database.
  *
  * @param body the request body
- * @returns the sign-up with the names trimmed, the email trimmed and in lower case, the ID number as a number, and each lab once
+ * @returns the sign-up with the names trimmed, the email trimmed and in lower case, the ID number as a number, and each lab once ([] for no labs)
  * @throws AppError 400 with a plain message for the first field that is missing or wrong
  */
 export function readSignUpRequest(body: any): SignUpRequest {
@@ -35,7 +37,12 @@ export function readSignUpRequest(body: any): SignUpRequest {
         throw new AppError(400, "Choose Student, Faculty, or Staff as your user type.");
     }
     const validatedPassword = readNewPassword(password);
-    if (!Array.isArray(centerIds) || centerIds.length === 0 || !centerIds.every(id => Number.isInteger(id) && id > 0)) {
+    // A missing list means no labs. A list that is present but not whole positive numbers is wrong for every user type.
+    const labIds: unknown = centerIds === undefined ? [] : centerIds;
+    if (!Array.isArray(labIds) || !labIds.every(id => Number.isInteger(id) && id > 0)) {
+        throw new AppError(400, BAD_LAB_LIST_MESSAGE);
+    }
+    if (labIds.length === 0 && userType !== 'STAFF') {
         throw new AppError(400, NO_LAB_MESSAGE);
     }
 
@@ -46,7 +53,7 @@ export function readSignUpRequest(body: any): SignUpRequest {
         idNumber: Number(idText),
         userType: userType as UserType,
         password: validatedPassword,
-        centerIds: [...new Set<number>(centerIds)],
+        centerIds: [...new Set<number>(labIds)],
         avatarUrl: typeof avatarUrl === 'string' && avatarUrl ? avatarUrl : undefined,
     };
 }

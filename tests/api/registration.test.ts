@@ -17,6 +17,8 @@ const asLabHead = as(USERS.labHead);
 const SENT = { success: true, message: "Your sign-up was sent. The IT Admin will review it. You can log in once it is approved." };
 const TAKEN = "An account with this email or ID number already exists. Ask the IT Admin.";
 const SECOND_LAB = { centerId: 2, name: "Test Second Lab", shortCode: "TEST2" };
+const NO_LAB = "Choose at least one lab. Only Staff may leave it empty.";
+const BAD_LABS = "The labs must be a list of lab ids.";
 
 beforeAll(async () => {
   await db.research_centers.create({
@@ -100,10 +102,19 @@ describe("POST /api/auth/register-request", () => {
     ["an ID number with letters", { idNumber: "1234567A" }, ID_NUMBER_MESSAGE],
     ["an unknown user type", { userType: "ADMIN" }, "Choose Student, Faculty, or Staff as your user type."],
     ["no user type", { userType: undefined }, "Choose Student, Faculty, or Staff as your user type."],
-    ["no labs", { centerIds: [] }, "Choose at least one lab."],
-    ["no lab list", { centerIds: undefined }, "Choose at least one lab."],
-    ["a lab id as text", { centerIds: ["1"] }, "Choose at least one lab."],
+    ["no labs from a Student", { centerIds: [] }, NO_LAB],
+    ["no lab list from a Student", { centerIds: undefined }, NO_LAB],
+    ["no labs from a Faculty", { userType: "FACULTY", centerIds: [] }, NO_LAB],
+    ["no lab list from a Faculty", { userType: "FACULTY", centerIds: undefined }, NO_LAB],
+    ["a lab id as text", { centerIds: ["1"] }, BAD_LABS],
+    ["a lab id as text from a Staff", { userType: "STAFF", centerIds: ["1"] }, BAD_LABS],
+    ["a lab id of 0 from a Staff", { userType: "STAFF", centerIds: [0] }, BAD_LABS],
+    ["a negative lab id from a Staff", { userType: "STAFF", centerIds: [-1] }, BAD_LABS],
+    ["a lab list that is not a list, from a Staff", { userType: "STAFF", centerIds: LAB.centerId }, BAD_LABS],
+    ["a null lab list from a Staff", { userType: "STAFF", centerIds: null }, BAD_LABS],
+    ["a null lab list from a Student", { centerIds: null }, BAD_LABS],
     ["an unknown lab", { centerIds: [LAB.centerId, 999999] }, "One of the labs you chose is not a known lab."],
+    ["an unknown lab from a Staff", { userType: "STAFF", centerIds: [999999] }, "One of the labs you chose is not a known lab."],
     ["no password", { password: undefined }, "Password must be at least 8 characters long."],
     ["a password of 7 characters", { password: "x".repeat(7) }, "Password must be at least 8 characters long."],
     ["a password of 129 characters", { password: "x".repeat(129) }, "Password must be at most 128 characters long."],
@@ -120,6 +131,32 @@ describe("POST /api/auth/register-request", () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ success: false, error: message });
     expect(await db.users.count({ where: { last_name: body.lastName } })).toBe(0);
+  });
+
+  it.each([
+    ["an empty lab list", { centerIds: [] }],
+    ["no lab list at all", { centerIds: undefined }],
+  ])("answers 201 for a Staff with %s: Pending, no role, no lab links", async (_label, change) => {
+    const body = applicant({ userType: "STAFF", ...change });
+
+    const res = await api.post("/api/auth/register-request", body);
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual(SENT);
+    const row = await db.users.findUniqueOrThrow({ where: { email: body.email }, include: { user_roles: true, user_centers: true } });
+    expect(row).toMatchObject({ user_type: "STAFF", account_status: "PENDING" });
+    expect(row.user_roles).toEqual([]);
+    expect(row.user_centers).toEqual([]);
+  });
+
+  it("answers 201 for a Staff with a lab, and links that lab", async () => {
+    const body = applicant({ userType: "STAFF", centerIds: [LAB.centerId] });
+
+    const res = await api.post("/api/auth/register-request", body);
+
+    expect(res.status).toBe(201);
+    const row = await db.users.findUniqueOrThrow({ where: { email: body.email }, include: { user_centers: true } });
+    expect(row.user_centers.map((uc) => uc.center_id)).toEqual([LAB.centerId]);
   });
 
   it("answers 201 for a password of 8 and of 128 characters", async () => {
