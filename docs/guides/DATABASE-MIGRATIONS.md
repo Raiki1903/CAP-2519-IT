@@ -13,6 +13,7 @@ Every command is given twice: for **PowerShell** in VS Code (use `npx.cmd` and `
 - The **baseline** is the first migration, `prisma/migrations/0_init`: the whole structure as it was on 2026-10-16 (15 tables). Every later migration builds on it ("The migrations so far" lists them).
 - `prisma/schema.prisma` describes the structure the migrations build. The two must always agree: `npm test` stops if they do not (see "Writing a Phase 3 change").
 - The **seed** (`npm run seed`, `prisma/seed.ts`) fills an empty local database with demo data.
+- `SEED_MODE` picks what the seed writes: not set or `demo` is the demo data; `base` is the clean start (the lookup rows, the 5 roles, the 10 labs and one IT Admin account, no demo data). Any other value is refused.
 
 ## Which database a Prisma command acts on
 
@@ -139,6 +140,61 @@ If login fails, read that line first: any other name or host means the server is
 **Use a private browser window for the demo database, or log out before switching.** The login cookie holds only your user id (and when it expires), not which database it came from. A browser logged in while the server ran on one database stays logged in as the same user id after the server is switched to another: for example, demo user 3 (Demo TSG Staff) becomes CCS Cloud's user 3, whoever that is, until the cookie expires (8 hours) or you log out. A private window keeps the demo login apart and forgets it when closed.
 
 To start over: drop and create the database again (step 1), then steps 2 and 3.
+
+---
+
+## A clean start with no demo data
+
+For a database that begins empty and holds only what the app needs to start, with no made-up assets, accounts or history (issue #200). It is the same seed with `SEED_MODE=base`. The demo seed above is `SEED_MODE` not set, or `demo`.
+
+**What it writes, in one transaction** (a failure leaves the database empty):
+
+- the asset categories, funding sources, issue types, metric definitions and category metrics the forms offer (the ones the migrations wrote are kept);
+- the 5 roles, with the same ids as the demo seed;
+- the 10 AdRIC labs, with the same ids as the demo seed, **none with a Head** (the IT Admin sets Heads later);
+- one account: first name `AdRIC`, last name `IT Admin`, your `SEED_ADMIN_EMAIL`, your `SEED_PASSWORD` (the database holds only its hash), user type Staff, Active, role IT Admin, no labs.
+
+It writes nothing else: no projects, assets, loans, maintenance, retirements, inspections, remarks, support tickets, lab memberships or activity log rows.
+
+**The three variables, for the one command:**
+
+| Variable | What |
+|---|---|
+| `SEED_MODE` | `base`. Any value but `base`, `demo`, or not set is refused. |
+| `SEED_ADMIN_EMAIL` | The IT Admin's login. It must end with `@dlsu.edu.ph` with a name before it. It is trimmed and put in lower case, as sign-up does. |
+| `SEED_PASSWORD` | The IT Admin's first password, 8 to 128 characters: the same length rule as the password change in Account Details, so it can be changed later and login accepts it. |
+
+Plus `SEED_DATABASE_URL`, as in the demo seed. `SEED_PHOTOS_DIR` is not used.
+
+**1. Start from an empty database with the tables built.** Do steps 1 and 2 of "A fresh local database with demo data" above, with a new database (for example `adric_base_check`, in lower case on Windows). A database that already holds data must be emptied first: **back up before emptying one that matters**, and never empty CCS Cloud by hand from a PC; the seed itself runs only where the database host is `localhost` or `127.0.0.1`, so it must run on the machine where that database is.
+
+**2. Seed it.** Replace `<password>` with your local MySQL password.
+
+PowerShell:
+```
+$env:SEED_DATABASE_URL = "mysql://root:<password>@localhost:3306/adric_base_check"
+$env:SEED_MODE = "base"
+$env:SEED_ADMIN_EMAIL = "<the IT Admin's @dlsu.edu.ph email>"
+$env:SEED_PASSWORD = "<the first password>"
+npm.cmd run seed
+Remove-Item Env:SEED_DATABASE_URL, Env:SEED_MODE, Env:SEED_ADMIN_EMAIL, Env:SEED_PASSWORD
+```
+
+Git Bash:
+```
+SEED_DATABASE_URL="mysql://root:<password>@localhost:3306/adric_base_check" SEED_MODE=base SEED_ADMIN_EMAIL="<the IT Admin's @dlsu.edu.ph email>" SEED_PASSWORD="<the first password>" npm run seed
+```
+
+It prints two lines, and never the email, the password, or a hash:
+
+```
+[seed] Done (base): 5 roles, 10 labs, 20 categories, 1 IT Admin account. No demo data.
+[seed] Log in with SEED_ADMIN_EMAIL and SEED_PASSWORD, then change the password in Account Details.
+```
+
+**The seed refuses, and writes nothing,** for everything the demo seed refuses (a missing or non-local `SEED_DATABASE_URL`, missing tables, or rows already in `users`, `roles`, `research_centers` or `assets`), and also when `SEED_ADMIN_EMAIL` is missing or outside `@dlsu.edu.ph`, when `SEED_PASSWORD` is missing, shorter than 8 or longer than 128 characters, or when `SEED_MODE` is any other value. Running it twice is refused the second time.
+
+**3. Run the app against it, and log in** as the IT Admin with the first password: step 4 of "A fresh local database with demo data" (use your database's name for `DATABASE_NAME`). Then change the password in Account Details. The IT Admin approves new sign-ups from Approvals, and sets each lab's Head on the Labs tab of the Users page; until then no lab has a Head.
 
 ---
 
@@ -311,7 +367,7 @@ Applied in this order by `prisma migrate deploy`. Never edit one that is merged:
 | `prisma/schema.prisma` | The structure, as Prisma describes it; the Prisma client is generated from it |
 | `prisma/migrations/0_init/migration.sql` | The baseline, generated by Prisma, never edited |
 | `prisma/migrations/migration_lock.toml` | Says the migrations are for MySQL |
-| `prisma/seed.ts`, `seedTarget.ts`, `seedData.ts` | The demo seed, its safety checks, and its data |
+| `prisma/seed.ts`, `seedTarget.ts`, `seedData.ts` | The seed (demo data, or `SEED_MODE=base` for a clean start), its safety checks, and its data |
 | `prisma/hashExistingPasswords.ts`, `hashTarget.ts` | Hashes the plain passwords of older data, local copies only unless told otherwise |
 | `prisma.config.ts` | Where Prisma finds the schema and the migrations, and `PRISMA_TARGET_URL` |
 | `tests/setup/globalSetup.ts` | Builds the test database from the migrations before every `npm test` |
