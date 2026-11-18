@@ -35,8 +35,8 @@ const AVATAR_PRESETS = [
 
 /**
  * Collects name, email, ID number, user type, labs, password, and picture; checks them in the browser (a
- * @dlsu.edu.ph email, an 8-digit ID number not starting with 0, at least one lab, matching passwords of an allowed
- * length) with the same sentences the server uses; and sends the request through authApi.requestRegistrationRaw().
+ * @dlsu.edu.ph email, an 8-digit ID number not starting with 0, at least one lab unless the user type is Staff,
+ * matching passwords of an allowed length) with the same sentences the server uses; and sends the request through authApi.requestRegistrationRaw().
  * The server stores a Pending account, and the IT Admin gives it a role. Whatever the server answers is shown as it
  * is, through readResult. Takes no props.
  */
@@ -93,7 +93,7 @@ export function Register() {
       setError(ID_NUMBER_MESSAGE);
       return;
     }
-    if (centerIds.length === 0) {
+    if (centerIds.length === 0 && userType !== "STAFF") {
       setError(NO_LAB_MESSAGE);
       return;
     }
@@ -176,7 +176,7 @@ export function Register() {
               </div>
               <div className="flex justify-between">
                 <span className="font-semibold text-slate-500">Requested Labs:</span>
-                <span className="font-bold">{chosenLabCodes}</span>
+                <span className="font-bold">{chosenLabCodes || "None. The IT Admin assigns them."}</span>
               </div>
             </div>
 
@@ -341,10 +341,10 @@ export function Register() {
               </Select>
             </div>
 
-            {/* Labs: one or more. The IT Admin confirms or changes them when approving. */}
+            {/* Labs: one or more, or none for Staff. The IT Admin confirms or changes them when approving. */}
             <div className="space-y-1.5">
               <Label className="text-[10px] font-bold tracking-widest text-slate-500 uppercase flex items-center gap-1">
-                <Building2 size={12} className="text-[#005A36]" /> Institutional Labs (choose at least one)
+                <Building2 size={12} className="text-[#005A36]" /> Institutional Labs {userType === "STAFF" ? "(optional for Staff)" : "(choose at least one)"}
               </Label>
               <LabMultiSelect labs={labs} value={centerIds} onChange={setCenterIds} idPrefix="register" disabled={loading} />
               {lookupsFailed && <p className="text-[10px] text-red-600">Could not load the labs. Reload the page.</p>}
