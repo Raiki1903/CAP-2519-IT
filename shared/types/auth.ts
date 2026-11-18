@@ -21,7 +21,7 @@ export interface SignUpRequest {
   userType: UserType;
   /** The password as typed. The server stores only its hash. (C-03) */
   password: string;
-  /** The labs the applicant asks to join, at least one. The IT Admin confirms or changes them on approval. */
+  /** The labs the applicant asks to join: at least one for a Student or Faculty, [] allowed for Staff. The IT Admin confirms or changes them on approval. */
   centerIds: number[];
   /** The picture as a data URL; becomes users.user_img. */
   avatarUrl?: string;
@@ -39,7 +39,7 @@ export interface RegistrationRequestInput {
   userType: UserType;
   /** The password as typed. The server stores only its hash. (C-03) */
   password: string;
-  /** The labs the applicant asks to join, at least one. */
+  /** The labs the applicant asks to join: at least one for a Student or Faculty, [] allowed for Staff. */
   centerIds: number[];
   /** The picture as a data URL; becomes users.user_img. */
   avatarUrl?: string;

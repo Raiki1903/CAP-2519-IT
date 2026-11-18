@@ -178,6 +178,30 @@ describe("PUT /api/users/:userId/approve", () => {
     expect(res.body.user).toMatchObject({ role: "TSG_STAFF", labs: [] });
   });
 
+  it("approves a Staff sign-up that has no labs as TSG Staff with no labs: Active, no labs, and it logs in to the Staff view", async () => {
+    const { body, userId } = await signUp({ userType: "STAFF", centerIds: [] });
+    expect(await db.user_centers.count({ where: { user_id: userId } })).toBe(0);
+
+    const res = await asItAdmin.put(`/api/users/${userId}/approve`, { role: "TSG_STAFF", centerIds: [] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toMatchObject({ userType: "STAFF", role: "TSG_STAFF", accountStatus: "ACTIVE", labs: [] });
+    expect(await db.user_centers.count({ where: { user_id: userId } })).toBe(0);
+    const login = await api.post("/api/auth/login", { email: body.email, password: PASSWORD });
+    expect(login.status).toBe(200);
+    expect(login.body).toMatchObject({ role: "Staff", user: { labs: [] } });
+  });
+
+  it("answers 400 to approve a Staff sign-up that has no labs as a Researcher, and it stays Pending", async () => {
+    const { userId } = await signUp({ userType: "STAFF", centerIds: [] });
+
+    const res = await asItAdmin.put(`/api/users/${userId}/approve`, { role: "RESEARCHER", centerIds: [] });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ success: false, error: "Choose at least one lab for a Researcher." });
+    expect(await statusOf(userId)).toBe("PENDING");
+  });
+
   it.each([
     ["an unknown role", { role: "LAB_HEAD", centerIds: [LAB.centerId] }, "Choose a role: Researcher, TSG Staff, AdRIC Director, AdRIC Secretary, or IT Admin."],
     ["no role", { centerIds: [LAB.centerId] }, "Choose a role: Researcher, TSG Staff, AdRIC Director, AdRIC Secretary, or IT Admin."],
