@@ -18,6 +18,7 @@ import { ReturnsPage } from "@web/pages/staff/ReturnsPage";
 import { QrTagsPage } from "@web/pages/staff/QrTagsPage";
 import { HealthPage } from "@web/pages/staff/HealthPage";
 import { ReferenceDataPage } from "@web/pages/staff/ReferenceDataPage";
+import { ImportPage } from "@web/pages/staff/ImportPage";
 import { LabHeadDashboard } from "@web/pages/lab-head/LabHeadDashboard";
 import { CustodianPortal } from "@web/pages/custodian/CustodianPortal";
 import { AdRICDirectorDashboard } from "@web/pages/director/AdRICDirectorDashboard";
@@ -108,6 +109,7 @@ export const router = createBrowserRouter([
           { path: "analytics",   element: <HealthPage /> },
           { path: "health",      element: <Navigate to="/staff/analytics" replace /> },
           { path: "reference-data", element: <ReferenceDataPage /> },
+          { path: "import",      element: <ImportPage /> },
           { path: "tickets",     element: <SupportTicketsPage /> },
           { path: "account",     element: <AccountDetailsPage /> },
         ],
