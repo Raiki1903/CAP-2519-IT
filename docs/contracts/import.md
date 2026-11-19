@@ -124,7 +124,7 @@ where `N` is the number of remaining errors beyond 200.
 | `home_room` | No | Max 100 chars. |
 | `project_code` | No | If present, must match existing `projects.project_code` (case-insensitive). |
 | `funding_source` | No | If present, must match `funding_sources.name` (case-insensitive). |
-| `acquisition_value` | No | Money value from 0 to 99,999,999.99. Strips leading `PHP`, `₱`, `$`, commas, and spaces. |
+| `acquisition_value` | No | Money value from 0 to 99,999,999.99. Strips a leading `PHP` or `₱` (and any space after it) and commas. |
 | `procurement_date` | No | Valid date (`yyyy-mm-dd` or `m/d/yyyy`). |
 | `warranty_expiry` | No | Valid date (`yyyy-mm-dd` or `m/d/yyyy`). |
 | `accessories` | No | Max 500 chars. |
@@ -158,7 +158,7 @@ For `serial_number`, `its_property_tag`, and `tsg_tag`, checks are trimmed and c
 ## 8. Date and Money Parsing
 
 - **Dates:** Supported formats are `yyyy-mm-dd` (ISO) and `m/d/yyyy` (or `mm/dd/yyyy`). Year must be 4 digits. Month must be 1 to 12. Day must be 1 to 31 and valid for the month and year.
-- **Money:** Strips leading currency tokens (`PHP`, `₱`, `$`), commas, and whitespace. Must parse to a non-negative decimal with at most 2 fractional digits, between 0 and 99,999,999.99.
+- **Money:** Strips a leading `PHP` or `₱` (and any space after it) and commas. Must parse to a non-negative decimal with at most 2 fractional digits, between 0 and 99,999,999.99.
 
 ## 9. Verification Scenarios
 

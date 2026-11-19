@@ -260,7 +260,7 @@ export function parseDate(value: string): string | null {
 }
 
 /**
- * Parses a monetary value, stripping currency indicators (PHP, ₱, $), commas, and spaces.
+ * Parses a monetary value, stripping a leading PHP or ₱ (and any space after it) and commas.
  * Ensures the value is non-negative and does not exceed IMPORT_ACQUISITION_VALUE_MAX.
  *
  * @param value raw currency string from CSV
